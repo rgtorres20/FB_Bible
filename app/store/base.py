@@ -28,7 +28,9 @@ class TokenSet:
         """Build from Yahoo's /get_token JSON response."""
         return cls(
             access_token=payload["access_token"],
-            refresh_token=payload["refresh_token"],
+            # Yahoo omits refresh_token on some refresh responses, meaning
+            # "keep the one you have". Callers restore it -- see oauth.refresh.
+            refresh_token=payload.get("refresh_token", ""),
             # Shave 60s off so a token can't expire mid-flight.
             expires_at=time.time() + float(payload.get("expires_in", 3600)) - 60,
             xoauth_yahoo_guid=payload.get("xoauth_yahoo_guid", ""),
