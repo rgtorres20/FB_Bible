@@ -46,8 +46,12 @@ Explicitly out of scope for Phase 2:
 - Writes to Yahoo (no lineup setting). Scope stays `fspt-r`.
 - Cron jobs, database, web push — those are Phase 3.
 - Projections and salary feeds — Phase 4.
-- Multi-user auth. One account links the leagues; the store is already keyed by
-  user so this becomes routing, not a migration.
+- Multi-user auth. **Decided Aug 14 2026: stay single-user and prove the flow
+  against a real Yahoo account first.** Opening it up is wanted later — the
+  ask was "others could be anyone" — but that needs a browser session,
+  per-user token rows, and Yahoo's third-party-access clause handled (see
+  [LICENSING.md](LICENSING.md)). The store is already keyed by user, so it
+  stays routing, not a migration.
 
 ## Leagues
 

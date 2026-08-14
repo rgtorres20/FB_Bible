@@ -23,6 +23,21 @@ These come from the app's own CLAUDE.md and still bind here:
 - Trusted news sources: NBC Sports, @AdamSchefter, Rotowire, ESPN, CBS,
   Yahoo's wire.
 
+## Commercial posture
+
+This may be sold. That reverses the app's original "doesn't care about
+licensing constraints" note — see [docs/LICENSING.md](docs/LICENSING.md) for
+the verified terms. Two consequences bind code, not just paperwork:
+
+- **Yahoo user data must be deleted within 24h of being obtained.** When Phase
+  3 adds a database, Yahoo-sourced rows need a TTL and a purge job. Non-Yahoo
+  feeds are unaffected.
+- **Sleeper requires attribution for trending data,** which the Alerts panel
+  already displays. That applies now, not just commercially.
+
+Selling requires prior written permission from Yahoo and a commercial licence
+from Sleeper. Neither blocks personal single-user use.
+
 ## Rules for this repo
 
 - **Read-only against Yahoo.** Scope stays `fspt-r`. If a change needs
