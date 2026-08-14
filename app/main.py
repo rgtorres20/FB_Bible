@@ -1,0 +1,55 @@
+"""FB Bible Phase 2 -- the Yahoo league link server.
+
+Runs two ways from the same module, deliberately:
+  * local / container:  uvicorn app.main:app --reload
+  * Vercel serverless:  api/index.py imports `app`
+"""
+
+from __future__ import annotations
+
+import logging
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .config import get_settings
+from .routes import auth, league
+
+settings = get_settings()
+logging.basicConfig(
+    level=settings.log_level.upper(),
+    format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+)
+
+app = FastAPI(
+    title="FB Bible -- Yahoo league link",
+    description=(
+        "Phase 2 of the Fantasy Bible productization plan: OAuth to the Yahoo "
+        "Fantasy API for live rosters, draft results and opponent picks."
+    ),
+    version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(league.router)
+
+
+@app.get("/health", tags=["meta"], summary="Liveness plus configuration state")
+async def health() -> dict:
+    """Deliberately reports config problems rather than just 'ok', so a bad
+    deploy is visible without reading logs."""
+    return {
+        "status": "ok",
+        "yahoo_configured": settings.configured,
+        "token_store": settings.token_store,
+        "encryption_configured": bool(settings.token_encryption_key),
+        "league_keys": settings.league_keys,
+    }

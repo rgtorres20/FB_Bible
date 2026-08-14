@@ -1,0 +1,21 @@
+# Secrets and stored credentials -- never commit these
+.env
+.env.*
+!.env.example
+.tokens.json
+.tokens.json.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Tooling
+.vercel
+.DS_Store
+.idea/
+.vscode/

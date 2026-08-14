@@ -1,0 +1,20 @@
+[project]
+name = "fb-bible-server"
+version = "0.1.0"
+description = "Phase 2 of the Fantasy Bible: Yahoo Fantasy API OAuth server"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends()/Query() in argument defaults is the FastAPI idiom, not the B008 bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
