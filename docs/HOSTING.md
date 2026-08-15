@@ -48,8 +48,8 @@ It is deliberately not being done now.
 ## Vercel deployment notes
 
 **There is no `vercel.json`, and that is deliberate.** Vercel's Python runtime
-detects FastAPI from `requirements.txt` and routes every request to the app.
-`pyproject.toml` names the entrypoint:
+detects FastAPI and routes every request to the app. `pyproject.toml` names
+the entrypoint:
 
 ```toml
 [tool.vercel]
@@ -57,6 +57,25 @@ entrypoint = "app.main:app"
 ```
 
 Same app object as uvicorn and Docker — nothing Vercel-specific in the code.
+
+### Dependencies live in `pyproject.toml`, not `requirements.txt`
+
+**Vercel installs with `uv` from `pyproject.toml` and does not fall back to
+`requirements.txt`.** An empty `[project] dependencies` list therefore deployed
+a function with *no dependencies installed at all* — every import failed and
+the only symptom was `FUNCTION_INVOCATION_FAILED`.
+
+Both requirements files were deleted so this cannot drift again. Extras split
+the difference between environments:
+
+- base — what the function needs
+- `[server]` — adds uvicorn, for Docker and local dev only; Vercel brings its
+  own ASGI server, so it stays out of the bundle
+- `[dev]` — pytest, respx, ruff
+
+The bundle listing that revealed this (`uv.lock`, `.python-version`,
+`_vendor/`, none of them committed) is worth remembering: it tells you which
+installer ran and where packages landed.
 
 ### Do not reintroduce a `builds` key
 

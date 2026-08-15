@@ -1,8 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Without this, setuptools auto-discovery sees app/, tests/, docs/ and
+# frontend/ at the root and refuses to guess ("Multiple top-level packages
+# discovered in a flat-layout").
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [project]
 name = "fb-bible-server"
 version = "0.1.0"
 description = "Phase 2 of the Fantasy Bible: Yahoo Fantasy API OAuth server"
 requires-python = ">=3.11"
+
+# This list is the single source of dependency truth. Vercel installs from
+# pyproject.toml with uv and does NOT fall back to requirements.txt -- leaving
+# this empty deployed a function with no dependencies at all, which surfaced
+# only as FUNCTION_INVOCATION_FAILED. See docs/HOSTING.md.
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "httpx>=0.27,<1.0",
+    "pydantic>=2.9,<3.0",
+    "pydantic-settings>=2.5,<3.0",
+    "cryptography>=43.0",
+    "redis>=5.1,<6.0",
+]
+
+[project.optional-dependencies]
+# Only needed where the app runs as a long-lived process (Docker, local dev).
+# Vercel supplies its own ASGI server, so this stays out of the function bundle.
+server = ["uvicorn[standard]>=0.32,<1.0"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.7",
+]
 
 [tool.vercel]
 # Vercel's Python runtime auto-detects FastAPI from requirements.txt and routes
@@ -11,7 +45,7 @@ requires-python = ">=3.11"
 # There is deliberately no vercel.json: the legacy `builds` key disables
 # `rewrites`, bundles only the entrypoint, and cost three failed deploys.
 # See docs/HOSTING.md.
-entrypoint = "probe:app"  # TEMPORARY diagnostic; revert to app.main:app
+entrypoint = "app.main:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -17,7 +17,7 @@ browser app  ──►  this server  ──►  Yahoo Fantasy API
 
 ```bash
 python -m venv .venv && .venv/Scripts/activate
-pip install -r requirements-dev.txt
+pip install -e ".[dev,server]"
 cp .env.example .env
 ```
 

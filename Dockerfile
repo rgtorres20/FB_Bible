@@ -6,10 +6,12 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+# pyproject.toml is the single source of dependency truth. The [server] extra
+# adds uvicorn, which only a long-running process needs -- Vercel supplies its
+# own ASGI server and does not install it.
+COPY pyproject.toml README.md ./
 COPY app ./app
+RUN pip install --no-cache-dir ".[server]"
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
