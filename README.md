@@ -63,7 +63,7 @@ updating each year.
 
 ```
 app/
-├── main.py            FastAPI app — also the Vercel entrypoint via api/index.py
+├── main.py            FastAPI app — the entrypoint for uvicorn, Docker and Vercel alike
 ├── config.py          Settings from env/.env
 ├── deps.py            Dependency wiring
 ├── yahoo/
@@ -101,7 +101,8 @@ never has to know.
 vercel deploy
 ```
 
-`vercel.json` routes everything to `api/index.py`. Set `TOKEN_STORE=redis` and
+No `vercel.json` needed — the runtime detects FastAPI and `pyproject.toml`'s
+`[tool.vercel] entrypoint` names the app. Set `TOKEN_STORE=redis` and
 `REDIS_URL` in the project's environment variables, along with the Yahoo
 credentials and `TOKEN_ENCRYPTION_KEY` — a file store won't survive between
 invocations.

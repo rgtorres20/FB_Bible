@@ -4,6 +4,15 @@ version = "0.1.0"
 description = "Phase 2 of the Fantasy Bible: Yahoo Fantasy API OAuth server"
 requires-python = ">=3.11"
 
+[tool.vercel]
+# Vercel's Python runtime auto-detects FastAPI from requirements.txt and routes
+# every request to this app. Naming the entrypoint explicitly avoids ambiguity
+# with the other filenames it probes (app.py, index.py, server.py, ...).
+# There is deliberately no vercel.json: the legacy `builds` key disables
+# `rewrites`, bundles only the entrypoint, and cost three failed deploys.
+# See docs/HOSTING.md.
+entrypoint = "app.main:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

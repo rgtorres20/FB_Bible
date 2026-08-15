@@ -47,7 +47,8 @@ from Sleeper. Neither blocks personal single-user use.
 - **Tokens go through `app/store`.** Don't read or write `.tokens.json` or
   Redis directly, and don't add a store that skips `TokenCipher`.
 - **Keep both run targets working.** Any change has to survive both
-  `uvicorn app.main:app` and Vercel's `api/index.py`. That means: no reliance
+  `uvicorn app.main:app` and Vercel (same entrypoint, named in
+  `[tool.vercel]`). That means: no reliance
   on local disk, no in-process caches that assume a long-lived process, no
   background tasks — those wait for Phase 3.
 - **Yahoo JSON gets flattened in `app/yahoo/parse.py`,** not in routes and not

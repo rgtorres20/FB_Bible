@@ -47,28 +47,50 @@ It is deliberately not being done now.
 
 ## Vercel deployment notes
 
-- `vercel.json` routes everything to `api/index.py`, which re-exports
-  `app.main:app`. Same app object as uvicorn and Docker.
+**There is no `vercel.json`, and that is deliberate.** Vercel's Python runtime
+detects FastAPI from `requirements.txt` and routes every request to the app.
+`pyproject.toml` names the entrypoint:
 
-### Three ways this config broke, so nobody rediscovers them
+```toml
+[tool.vercel]
+entrypoint = "app.main:app"
+```
 
-`vercel.json` cannot carry comments, so they live here. All three were hit on
-the first real deploy, and none of them announce themselves clearly.
+Same app object as uvicorn and Docker — nothing Vercel-specific in the code.
 
-1. **`routes`, not `rewrites`.** When a `builds` key is present, Vercel uses
-   legacy routing and *silently ignores* `rewrites`. Symptom: every path
-   returns `404 NOT_FOUND`, including `/health`, while the function itself is
-   deployed and reachable at its literal source path.
-2. **`includeFiles: app/**` is required.** With an explicit `builds` entry only
-   the entrypoint is bundled, so the sibling `app/` package is absent at
-   runtime and `import app` fails. Symptom: `500 FUNCTION_INVOCATION_FAILED`
-   with no detail in the response body. `api/index.py` also inserts the repo
-   root on `sys.path` so the import cannot depend on the runtime's working
-   directory.
-3. **No pseudo-comment keys.** Adding `"// note": "..."` entries — a common
-   trick in other tools' JSON configs — fails Vercel's schema validation and
-   the whole deployment is rejected before it builds. The commit status links
-   to the project-configuration docs rather than naming the offending key.
+### Do not reintroduce a `builds` key
+
+The first attempt used the legacy `builds` config and burned three deploys.
+None of these failures name themselves in the response, so they are recorded
+here.
+
+1. **`builds` silently disables `rewrites`.** With a `builds` key present
+   Vercel uses legacy routing and ignores `rewrites` entirely. Symptom: every
+   path returns `404 NOT_FOUND` including `/health`, while the function is
+   deployed and reachable at its literal source path (`/api/index.py`).
+2. **`builds` bundles only the entrypoint.** The sibling `app/` package was
+   absent at runtime, so `import app` failed. Symptom: `500
+   FUNCTION_INVOCATION_FAILED`, no detail in the body. `includeFiles` is the
+   documented patch — but it is only needed *because* of `builds`. Zero-config
+   "includes all files from your project that are reachable at build time."
+3. **`vercel.json` rejects pseudo-comment keys.** Adding `"// note": "..."`
+   entries fails schema validation and the deployment is rejected before it
+   builds. The commit status links to generic configuration docs without
+   naming the offending key.
+
+The lesson worth keeping: with `builds`, each fix exposed the next failure.
+Zero-config removes all three at once.
+
+### Reading deploy failures without dashboard access
+
+Vercel's response bodies carry no diagnostic detail and the real errors are in
+the dashboard's build and runtime logs. Two things that helped:
+
+- The GitHub commit status API reports per-commit deploy state:
+  `/repos/<owner>/<repo>/commits/<sha>/status`. Poll that alongside the
+  endpoint, otherwise you can spend a long time waiting on a deploy that
+  already failed.
+- A deploy that fails in ~2 seconds failed *validation*, not the build.
 
 Deployment Protection also has to be off (Settings → Deployment Protection →
 Vercel Authentication → Require Log In). While it is on, Vercel's standard
