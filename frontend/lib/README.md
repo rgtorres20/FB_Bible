@@ -4,7 +4,7 @@ Wires `Fantasy Bible.dc.html` to the server. Dependency-free, no build step,
 one file: [fbApi.js](fbApi.js).
 
 ```bash
-cd web && node --test    # 16 tests
+cd frontend/lib && node --test    # 16 tests
 ```
 
 ## Dropping it into the app

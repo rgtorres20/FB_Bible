@@ -63,4 +63,4 @@ It is deliberately not being done now.
 Independent of host: Yahoo user data must be removed within 24h of being
 obtained (see [LICENSING.md](LICENSING.md)). On Redis that is a TTL. Anything
 cached browser-side is covered by the client module's hard expiry — see
-[../web/README.md](../web/README.md).
+[../frontend/lib/README.md](../frontend/lib/README.md).

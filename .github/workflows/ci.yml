@@ -48,7 +48,7 @@ jobs:
       # No dependencies to install — node:test is built in.
       - name: Tests
         run: node --test
-        working-directory: web
+        working-directory: frontend/lib
 
   secrets:
     name: No committed secrets
