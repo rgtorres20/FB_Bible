@@ -235,9 +235,11 @@ async def sync(
     # Vegas lines ride along under the same rule: stale lines with an honest
     # stamp beat no lines, so a failed fetch keeps the previous slate.
     vegas_state = existing.get("vegas") or {}
+    vegas_error = None
     try:
         vegas_state = await vegas.fetch()
     except Exception as exc:  # noqa: BLE001
+        vegas_error = f"{type(exc).__name__}: {exc}"[:200]
         log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
 
     await store.save(
@@ -265,5 +267,7 @@ async def sync(
         "sources_ok": len(polled["sources"]) - len(failed),
         "sources_failed": failed,
         "adp_players": len(adp_state.get("players", [])),
+        "vegas_games": len(vegas_state.get("games", [])),
+        "vegas_error": vegas_error,
         "polled_at": polled["polled_at"],
     }
