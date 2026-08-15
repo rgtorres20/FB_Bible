@@ -103,4 +103,21 @@ def merge_into_feeds(bundled: dict, items: list[dict], now: datetime) -> dict:
         "Other feeds are chat-synced. Data provided by the named sources; "
         "injury and trending data provided by Sleeper."
     )
+
+    # Data health reads `meta` for its as-of stamps. Without this, that tab
+    # keeps reporting News & posts as a chat-synced feed from the day the file
+    # was committed -- understating the freshness the overlay just delivered,
+    # which is the same class of dishonesty (in the safe direction) that the
+    # hardcoded "live" labels were in the unsafe one.
+    local_now = now.astimezone(CENTRAL)
+    merged["meta"] = [
+        {
+            **entry,
+            "asOf": f"{local_now:%Y-%m-%dT%H:%M}",
+            "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
+        }
+        if entry.get("feed") == "News & posts"
+        else entry
+        for entry in bundled.get("meta", [])
+    ]
     return merged

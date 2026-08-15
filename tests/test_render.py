@@ -125,3 +125,40 @@ def test_merge_stamps_updated_and_credits_sources():
 
     assert merged["updated"] == NOW.isoformat()
     assert "Sleeper" in merged["note"]
+
+
+def test_merge_updates_the_data_health_stamp_for_news_only():
+    """Data health reads meta.asOf. The live overlay must update the News &
+    posts entry -- and only that one -- or the tab keeps calling live news a
+    day-old chat sync."""
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "News & posts",
+                "asOf": "2026-08-14T18:00",
+                "maxAgeH": 24,
+                "source": "Schefter, Yahoo tracker",
+                "tab": "News & posts",
+            },
+            {
+                "feed": "Sleeper list",
+                "asOf": "2026-08-14T15:45",
+                "maxAgeH": 96,
+                "source": "PFF",
+                "tab": "Sleepers",
+            },
+        ],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW)
+
+    news_meta, sleeper_meta = merged["meta"]
+    assert news_meta["asOf"] == "2026-08-15T01:00"  # 6:00 UTC -> 1:00 AM CDT
+    assert "live wire" in news_meta["source"]
+    assert news_meta["maxAgeH"] == 24  # budget untouched
+    assert sleeper_meta == bundled["meta"][1]  # other feeds untouched
+
+
+def test_merge_with_no_meta_key_still_works():
+    merged = render.merge_into_feeds({"news": []}, [ITEM], NOW)
+    assert merged["meta"] == []
