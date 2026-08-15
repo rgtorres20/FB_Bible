@@ -26,6 +26,7 @@ def offline_adp(monkeypatch):
         raise httpx.ConnectError("offline under test")
 
     monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(feeds_route.vegas, "fetch", _offline)
 
 
 STORED = {

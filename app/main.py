@@ -122,6 +122,11 @@ if _FRONTEND_READY:
         # string edits -- the builder's code stays intact on disk and in git,
         # just unreferenced in the served copy, so restoring it is deleting
         # these two lines.
+        # Vegas lines: rebind the committed VEGAS table to the fetched data
+        # file, which the overlay route fills with live ESPN/DraftKings rows.
+        # F is the parsed feeds.json in the enclosing scope; the `||` keeps
+        # the committed table as the fallback when the overlay has no lines.
+        html = html.replace("vegas: VEGAS,", "vegas: (F.vegas || VEGAS),", 1)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',

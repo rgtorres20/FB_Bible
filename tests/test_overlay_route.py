@@ -29,6 +29,7 @@ def offline_adp(monkeypatch):
         raise httpx.ConnectError("offline under test")
 
     monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(feeds_route.vegas, "fetch", _offline)
 
 
 @pytest.fixture
@@ -110,3 +111,26 @@ async def test_overlay_with_empty_store_serves_bundled_untouched(client):
 
     assert body["news"] == BUNDLED["news"]
     assert body["meta"] == BUNDLED["meta"]
+
+
+async def test_overlay_replaces_vegas_table_when_lines_are_live(client):
+    c, store = client
+    await store.save(
+        {
+            "items": [_wire_item()],
+            "sources": {},
+            "vegas": {
+                "week_label": "Preseason Week 2",
+                "games": [
+                    {"game": "CAR @ BUF", "fav": "BUF -3", "total": "38.5", "imp": "x", "read": "y"}
+                ],
+            },
+        }
+    )
+
+    body = c.get("/app/data/feeds.json").json()
+
+    assert body["vegas"][0]["game"] == "CAR @ BUF"
+    meta = {m["feed"]: m for m in body["meta"]}
+    assert "live" in meta["Vegas lines"]["source"]
+    assert "Preseason Week 2" in meta["Vegas lines"]["source"]

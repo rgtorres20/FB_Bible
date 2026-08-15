@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, cheatsheet, players, poller, render
+from ..feeds import adp, build_feed_store, cheatsheet, players, poller, render, vegas
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         adp_data=stored.get("adp"),
         index=index,
         verdicts=stored.get("verdicts"),
+        vegas_state=stored.get("vegas"),
     )
 
 
@@ -231,12 +232,21 @@ async def sync(
     except Exception as exc:  # noqa: BLE001 - ADP must never sink the news sync
         log.warning("ADP fetch failed, keeping previous board: %s", exc)
 
+    # Vegas lines ride along under the same rule: stale lines with an honest
+    # stamp beat no lines, so a failed fetch keeps the previous slate.
+    vegas_state = existing.get("vegas") or {}
+    try:
+        vegas_state = await vegas.fetch()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
+
     await store.save(
         {
             "items": merged["items"],
             "sources": polled["sources"],
             "polled_at": polled["polled_at"],
             "adp": {"state": adp_state, "history": adp_history},
+            "vegas": vegas_state,
         }
     )
 

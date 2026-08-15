@@ -122,6 +122,7 @@ def merge_into_feeds(
     adp_data: dict | None = None,
     index: dict | None = None,
     verdicts: dict[str, str] | None = None,
+    vegas_state: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -187,6 +188,13 @@ def merge_into_feeds(
     if live_scout:
         merged["scout"] = live_scout
 
+    # Vegas lines: the page's VEGAS constant is rebound to F.vegas at serve
+    # time (see app_page), so putting live rows here replaces the committed
+    # table. Absent on failure -- the page then falls back to its own seed.
+    live_vegas = (vegas_state or {}).get("games") or []
+    if live_vegas:
+        merged["vegas"] = live_vegas
+
     merged["updated"] = now.isoformat()
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "
@@ -215,6 +223,13 @@ def merge_into_feeds(
                 **entry,
                 "asOf": stamp,
                 "source": "FFC live drafts (10+12tm PPR avg) + Sleeper rank",
+            }
+        elif live_vegas and feed == "Vegas lines":
+            label = (vegas_state or {}).get("week_label") or "current slate"
+            entry = {
+                **entry,
+                "asOf": stamp,
+                "source": f"DraftKings via ESPN — live, {label}",
             }
         meta_rows.append(entry)
     merged["meta"] = meta_rows
