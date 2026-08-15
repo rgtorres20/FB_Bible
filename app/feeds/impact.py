@@ -142,6 +142,38 @@ def annotate(item: dict) -> str:
     return ""
 
 
+# --- reading order ---------------------------------------------------------
+
+# How fast a story's claim on the top of the page decays. 3 points a day means
+# a severe story on a ranked player (~75-90 points) outranks fresh routine news
+# for about two weeks -- draft prep still needs it -- while yesterday's
+# "questionable" sinks beneath anything that happened this morning.
+DECAY_PER_DAY = 3.0
+# Undated items cannot be scored for age; treat them as a week old so they
+# neither float as breaking news nor vanish outright.
+UNDATED_AGE_DAYS = 7.0
+
+
+def _age_days(item: dict, now: datetime) -> float:
+    published = _parse(item.get("published"))
+    if published is None or published.tzinfo is None:
+        return UNDATED_AGE_DAYS
+    return max((now - published).total_seconds(), 0.0) / 86400.0
+
+
+def order(items: list[dict], now: datetime) -> list[dict]:
+    """Impact-ranked reading order: score decayed by age, newest first on ties.
+
+    The wire arrives chronological; this is the "rank by impact on your board,
+    not just time" pass. Scores must already be attached (see score())."""
+    timed = sorted(items, key=lambda i: i.get("published") or "", reverse=True)
+    return sorted(
+        timed,
+        key=lambda i: i.get("impact_score", 0) - DECAY_PER_DAY * _age_days(i, now),
+        reverse=True,
+    )
+
+
 # --- cross-source dedupe ---------------------------------------------------
 
 _WORD = re.compile(r"[a-z0-9']+")

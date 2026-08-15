@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # beta is the staging branch -- it deploys to a stable Vercel preview
+    # URL and must pass the same gate as main. See docs/ENVIRONMENTS.md.
+    branches: [main, beta]
   pull_request:
 
 # A second push to the same branch cancels the first — no point paying for

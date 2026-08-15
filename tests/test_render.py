@@ -255,3 +255,103 @@ def test_nbc_meta_stamp_updates_alongside_news(  # noqa: D103
     merged = render.merge_into_feeds(bundled, [ITEM], NOW)
     assert merged["meta"][0]["asOf"] == "2026-08-15T01:00"
     assert "live wire" in merged["meta"][0]["source"]
+
+
+def test_news_entry_carries_first_seen_for_the_new_badge():
+    entry = render.to_news_entry({**ITEM, "first_seen": "2026-08-15T05:00:00+00:00"})
+    assert entry["first_seen"] == "2026-08-15T05:00:00+00:00"
+    assert render.to_news_entry(ITEM)["first_seen"] == ""
+
+
+def test_merge_orders_news_by_decayed_impact_not_raw_time():
+    """A two-day-old ACL still matters more to a draft board than this
+    morning's routine note. Chronological order buried it."""
+    severe_old = {
+        **ITEM,
+        "title": "Torn ACL ends the year for the starting back",
+        "summary": "",
+        "published": "2026-08-13T06:00:00+00:00",
+        "players": [{"id": "p1", "name": "Player One", "position": "RB", "team": "DAL"}],
+    }
+    routine_fresh = {
+        **ITEM,
+        "title": "Backup lineman moved around during drills",
+        "summary": "",
+        "published": "2026-08-15T05:00:00+00:00",
+        "players": [{"id": "p2", "name": "Player Two", "position": "G", "team": "NYJ"}],
+    }
+    merged = render.merge_into_feeds(BUNDLED, [routine_fresh, severe_old], NOW)
+
+    wire = [n["text"] for n in merged["news"] if n.get("kind") == "Wire" and n.get("link")]
+    assert wire[0].startswith("Torn ACL")
+
+
+def test_merge_attaches_wire_stamps_for_watched_injury_names():
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("Puka Nacua",))
+
+    stamp = merged["injury_wire"]["Puka Nacua"]
+    assert stamp["time"] == "Fri Aug 14 · 11:00 AM"
+    assert stamp["head"].startswith("Nacua expected back")
+    assert stamp["link"] == ITEM["link"]
+    assert stamp["source"] == "ESPN NFL"
+
+
+def test_merge_omits_injury_wire_when_nothing_matches():
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("George Kittle",))
+    assert "injury_wire" not in merged
+    assert "injury_wire" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)
+
+
+def test_vegas_meta_row_stamps_when_lines_are_live():
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "Vegas lines",
+                "asOf": "2026-08-13T12:00",
+                "maxAgeH": 72,
+                "source": "DraftKings openers via ESPN",
+                "tab": "FFBets",
+            },
+        ],
+    }
+    live = {
+        "fetched_at": "2026-08-15T10:00:00+00:00",
+        "week_label": "Week 1",
+        "games": [{"game": "NE @ SEA"}],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=live)
+
+    assert merged["meta"][0]["asOf"].startswith("2026-08-15")
+    assert "live" in merged["meta"][0]["source"]
+    assert "Week 1" in merged["meta"][0]["source"]
+
+    untouched = render.merge_into_feeds(bundled, [ITEM], NOW)  # no vegas data
+    assert untouched["meta"][0] == bundled["meta"][0]
+
+
+def test_schedule_meta_row_stamps_when_kickoffs_are_live():
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "Week 1 schedule",
+                "asOf": "2026-08-13T20:00",
+                "maxAgeH": 168,
+                "source": "NFL.com May 14 release",
+                "tab": "Schedule",
+            },
+        ],
+    }
+    live = {
+        "fetched_at": "2026-08-15T10:00:00+00:00",
+        "games": [{"game": "NE @ SEA", "kickoff": "2026-09-10T00:20Z"}],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=live)
+    assert merged["meta"][0]["asOf"] == "2026-08-15T05:00"
+    assert "live kickoff" in merged["meta"][0]["source"]
+
+    # Odds-only data (no kickoff field) must not claim the schedule is live.
+    odds_only = {"fetched_at": live["fetched_at"], "games": [{"game": "NE @ SEA"}]}
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=odds_only)
+    assert merged["meta"][0] == bundled["meta"][0]

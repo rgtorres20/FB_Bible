@@ -91,10 +91,20 @@ def main() -> int:
     check("mobile stylesheet injected", 'href="mobile.css"' in served)
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
+    # Strict on purpose: once the live board has shipped, a revert to the
+    # curated openers means the odds pipeline is stale -- a true failure.
+    check("vegas table rebound to live data", "vegas: (F.vegas || VEGAS)," in served)
+    check("Vegas lines are live", "Live via ESPN" in served)
+    check("TD leans track live lines", "confidence adjusted" in served)
+    check("Week 1 schedule is live", "live kickoff times" in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
-    check("mobile.css serves", b"min-height: 100vh" in get("/app/mobile.css"))
-    check("mobile.js serves", b"fb-menu-btn" in get("/app/mobile.js"))
+    mobile_css = get("/app/mobile.css")
+    check("mobile.css serves", b"min-height: 100vh" in mobile_css)
+    check("wire-stamp styles serve", b"fb-wire-stamp" in mobile_css)
+    mobile_js = get("/app/mobile.js")
+    check("mobile.js serves", b"fb-menu-btn" in mobile_js)
+    check("overlay decorator serves", b"fb-new-badge" in mobile_js and b"injury_wire" in mobile_js)
 
     # --- verdict -----------------------------------------------------------
     print(f"\n{len(passes)} passed, {len(failures)} failed")

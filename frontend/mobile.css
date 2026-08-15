@@ -172,3 +172,46 @@ aside > div:nth-child(2) {
     margin-left: -254px !important;
   }
 }
+
+/* Live-overlay decorations (mobile.js), both form factors -- so they sit
+ * outside the media queries above. Design tokens come from the page; the
+ * fallbacks only matter if a decoration outruns the .dc stylesheet. */
+.fb-new-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+  background: var(--color-accent, #b00);
+  color: var(--color-bg, #fff);
+}
+
+.fb-wire-stamp {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-neutral-600, #777);
+}
+.fb-wire-stamp a {
+  color: inherit;
+}
+
+/* Beta deploys announce themselves (injected by the server on preview
+ * stages only -- see app_page). Fixed bottom-right, clear of the menu
+ * button and the sync footer. */
+#fb-stage-badge {
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  z-index: 1001;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  border: 2px solid var(--color-accent, #b00);
+  background: var(--color-bg, #fff);
+  color: var(--color-accent-700, #b00);
+  pointer-events: none;
+}

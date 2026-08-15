@@ -4,7 +4,11 @@ Each scenario is a real item from the Aug 15 live feed, not an invention --
 the module exists because these exact items were handled badly.
 """
 
+from datetime import UTC, datetime
+
 from app.feeds import impact
+
+NOW = datetime(2026, 8, 15, 6, 0, tzinfo=UTC)
 
 RANKS = {"nacua": 4, "bijan": 1, "tua": 200, "brady": None, "allar": 389}
 
@@ -195,3 +199,42 @@ def test_cluster_does_not_mutate_its_input():
     )
     impact.cluster([a, b])
     assert "also_from" not in a
+
+
+# --- reading order ---------------------------------------------------------
+
+
+def _scored(score, published, title="t"):
+    return {"title": title, "impact_score": score, "published": published}
+
+
+def test_order_puts_high_impact_above_newer_routine_news():
+    routine = _scored(0, "2026-08-15T05:00:00+00:00", "fresh nothing")
+    severe = _scored(50, "2026-08-13T05:00:00+00:00", "two-day-old ACL")
+    assert [i["title"] for i in impact.order([routine, severe], NOW)] == [
+        "two-day-old ACL",
+        "fresh nothing",
+    ]
+
+
+def test_order_decays_old_stories_beneath_fresh_ones():
+    """Three weeks of decay outweighs a severe score: draft-day reading
+    should not open on the same suspension for a month."""
+    stale = _scored(50, "2026-07-26T05:00:00+00:00", "20-day-old suspension")
+    fresh = _scored(0, "2026-08-15T05:00:00+00:00", "this morning")
+    assert impact.order([stale, fresh], NOW)[0]["title"] == "this morning"
+
+
+def test_order_breaks_ties_newest_first():
+    older = _scored(25, "2026-08-15T01:00:00+00:00", "older")
+    newer = _scored(25, "2026-08-15T05:00:00+00:00", "newer")
+    assert [i["title"] for i in impact.order([older, newer], NOW)] == ["newer", "older"]
+
+
+def test_order_treats_undated_items_as_a_week_old():
+    undated = _scored(25, None, "undated")
+    dated_week = _scored(25, "2026-08-08T05:00:00+00:00", "a week old")
+    fresh = _scored(25, "2026-08-15T05:00:00+00:00", "fresh")
+    ordered = [i["title"] for i in impact.order([undated, fresh, dated_week], NOW)]
+    assert ordered[0] == "fresh"
+    assert set(ordered[1:]) == {"undated", "a week old"}

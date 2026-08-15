@@ -1,6 +1,6 @@
 # Resume here
 
-Last worked: **Sat Aug 15 2026, ~1am CDT.**
+Last worked: **Sat Aug 15 2026, afternoon session.**
 
 ## Scope check, so this file is not misread
 
@@ -19,7 +19,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 119 Python + 16 JS, CI green on every push |
+| Tests | 267 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -114,19 +114,60 @@ six sources not FAILED, overlays served, mobile injected, FFBets predict
 mode). A failure emails the repo owner. Run it on demand from the Actions
 tab.
 
+## The old "next work" list is DONE (Aug 15 afternoon)
+
+All five items shipped:
+
+1. **Page reads live data** — the `/app/data/feeds.json` overlay serves the
+   page's own startup fetch with the live wire merged in. No page fork.
+2. **Cross-source dedupe** — `impact.cluster()` folds the same story from
+   multiple outlets into one telling with `also_from` credits.
+3. **"New since last visit"** — `poller.merge()` stamps `first_seen` on
+   arrival (edits don't re-stamp), the overlay passes it through, and
+   `mobile.js` badges NEW on stories that arrived since the previous visit
+   (visits are 30-minute sessions in `localStorage fb_visit`).
+4. **Impact-ranked news** — `impact.order()`: score decayed 3 pts/day, ties
+   newest-first. The news tab reads in board-impact order; the raw
+   chronological wire stays on `/api/feeds`.
+5. **Timestamps on Out & returning** — `app/feeds/injury.py` parses the
+   OUTLIST/RETURNING names out of the served index.html (no duplicated
+   list), the overlay attaches `injury_wire` (freshest wire mention per
+   player), and `mobile.js` renders "Wire · <time> · <source> — headline"
+   on each row, or an honest "no wire mention in 21 days".
+
+The watchdog asserts the decorator and its styles keep serving.
+
+## Also done Aug 15 afternoon
+
+- **Vegas lines are live** — two parallel builds reconciled (Aug 15
+  evening). Delivery is the runner-push design (ESPN 403s Vercel's IPs, so
+  `scripts/push_vegas.py` fetches from the sync-feeds runner and POSTs to
+  `/internal/vegas`; the page reads it via the `F.vegas` rebind), now
+  pinned to the regular-season Week 1 slate instead of the current
+  (preseason) week. On top of that ride: the odds caption stops claiming
+  openers, TD-lean confidence tracks implied-total movement, and the
+  Week 1 schedule swaps in real kickoffs — all serve-time, all falling
+  back to the committed page. The read column stays facts-only (kickoffs,
+  slate superlatives): curated prop angles would silently go false as
+  lines move. First deploy note: run the sync-feeds workflow once
+  manually after merging so the runner pushes a Week-1 slate with the new
+  schedule fields; until then the watchdog's Vegas/TD/schedule checks
+  rightly complain.
+- **Beta/prod**: `beta` branch = stable Vercel preview with a BETA badge
+  and `/health` stage reporting. Full model: docs/ENVIRONMENTS.md.
+- **Stale-data audit + rule**: docs/STALE_DATA.md inventories every
+  surface; CLAUDE.md now carries the no-stale-data and no-false-positives
+  rules.
+
 ## Next work, no dependencies — highest value first
 
-1. **Point the page at `/api/feeds`.** The server holds 143 live tagged items
-   the page does not read yet. This is the last mile of the stale-data fix.
-   Drop-in snippet: `frontend/lib/README.md`.
-2. **Cross-source dedupe.** The same story arrives from two outlets and shows
-   twice.
-3. **"New since last visit."** The poller already knows which ids are new; it
-   needs a `first_seen` stamp so the UI can mark them.
-4. **Rank by impact on your board**, not just time — you have 205 ranked
-   players and player tags; joining them is the whole point.
-5. **Timestamps on Out & returning** — the only tab without them, and the one
-   where age matters most.
+1. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
+   user action; starts their review clock.
+2. Remaining curated surfaces are Phase 3 or by-design — see
+   docs/STALE_DATA.md. Nothing on the no-dependency list is left.
+
+(TD leans and the Week 1 schedule went live Aug 15 with the Vegas board —
+see STALE_DATA.md #1–2.)
 
 ## Housekeeping worth doing when fresh
 

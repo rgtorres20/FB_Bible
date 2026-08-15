@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.config import get_settings
+from app.feeds import vegas as vegas_mod
 from app.feeds.store import FileFeedStore
 from app.routes import feeds as feeds_route
 
@@ -92,6 +93,9 @@ async def test_overlay_serves_live_wire_on_top_of_bundled(client):
     assert stamped["News & posts"].startswith("2026-")
     # Everything the wire cannot know survives from the committed file.
     assert body["alerts"] == BUNDLED["alerts"]
+    # Nacua is on the page's Out & returning tab, so his wire mention becomes
+    # that row's timestamp (rendered by mobile.js).
+    assert body["injury_wire"]["Puka Nacua"]["head"].startswith("Puka Nacua carted off")
 
 
 async def test_overlay_falls_back_to_bundled_when_store_is_down(client):
@@ -134,3 +138,81 @@ async def test_overlay_replaces_vegas_table_when_lines_are_live(client):
     meta = {m["feed"]: m for m in body["meta"]}
     assert "live" in meta["Vegas lines"]["source"]
     assert "Preseason Week 2" in meta["Vegas lines"]["source"]
+
+
+# --- the served page: caption honesty, TD leans, schedule, stage badge -----
+
+
+@pytest.fixture
+def page_client(tmp_path, monkeypatch):
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = lambda: store
+    yield TestClient(main.app), store
+    main.app.dependency_overrides.clear()
+
+
+def _live_slate() -> dict:
+    return {
+        "fetched_at": "2026-08-15T16:00:00+00:00",
+        "week_label": "Week 1",
+        "games": [
+            {
+                "game": "NE @ SEA",
+                "fav": "SEA -7.5",
+                "total": "47.5",
+                "imp": "SEA 27.5 · NE 20",
+                "read": "Wed 7:20 PM CT",
+                "kickoff": "2026-09-10T00:20Z",
+                "away_name": "New England Patriots",
+                "home_name": "Seattle Seahawks",
+                "tv": "NBC",
+            }
+        ],
+    }
+
+
+async def test_served_page_rebinds_vegas_and_goes_live_when_slate_exists(page_client):
+    c, store = page_client
+    await store.save({"items": [], "vegas": _live_slate()})
+
+    served = c.get("/app/").text
+
+    # The odds table reads live rows via the feeds.json overlay.
+    assert "vegas: (F.vegas || VEGAS)," in served
+    # The caption stops claiming the Aug-14 openers.
+    assert "Live via ESPN" in served
+    assert vegas_mod.CURATED_CAPTION not in served
+    # TD leans go live-adjusted, and the schedule swaps in real kickoffs.
+    assert "confidence adjusted" in served
+    assert "const WEEK1 = [{" in served
+    assert "NFL.com May 14 release" not in served
+
+
+async def test_served_page_keeps_curated_content_when_store_is_empty(page_client):
+    c, _ = page_client
+
+    served = c.get("/app/").text
+
+    assert vegas_mod.CURATED_CAPTION in served  # the committed caption
+    assert "NFL.com May 14 release" in served  # the committed schedule seed
+    assert "vegas: (F.vegas || VEGAS)," in served  # rebind still falls back in-page
+
+
+async def test_served_page_survives_a_down_store(page_client):
+    c, _ = page_client
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = ExplodingStore
+
+    served = c.get("/app/")
+
+    assert served.status_code == 200
+    assert vegas_mod.CURATED_CAPTION in served.text
+
+
+async def test_beta_deploys_announce_themselves(page_client, monkeypatch):
+    c, _ = page_client
+    monkeypatch.setattr(get_settings(), "vercel_env", "preview", raising=False)
+
+    assert 'id="fb-stage-badge"' in c.get("/app/").text
+
+    monkeypatch.setattr(get_settings(), "vercel_env", "production", raising=False)
+    assert "fb-stage-badge" not in c.get("/app/").text

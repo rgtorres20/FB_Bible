@@ -10,12 +10,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
+from .feeds import vegas
+from .feeds.store import FeedStore
 from .routes import auth, feeds, league
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -77,6 +79,7 @@ async def health() -> dict:
     deploy is visible without reading logs."""
     return {
         "status": "ok",
+        "stage": settings.stage,
         "yahoo_configured": settings.configured,
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
@@ -102,7 +105,9 @@ if _FRONTEND_READY:
 
     @app.get("/app/", include_in_schema=False)
     @app.get("/app/index.html", include_in_schema=False)
-    async def app_page() -> HTMLResponse:
+    async def app_page(
+        store: FeedStore | None = Depends(feeds.get_optional_feed_store),
+    ) -> HTMLResponse:
         """Serve the page with the mobile stylesheet injected.
 
         index.html stays byte-identical on disk (see the no-fork note above);
@@ -133,6 +138,34 @@ if _FRONTEND_READY:
             '[{ id: "predict", label: "Predictions" }]',
             1,
         )
+        # Live-line extras, every failure path serving the committed page:
+        # the odds caption stops claiming openers, TD-lean confidence tracks
+        # implied-total movement (the leans stay the owner's), and the Week 1
+        # schedule swaps in real kickoffs once the pushed slate carries them.
+        if store is not None:
+            try:
+                stored = await store.load()
+                state = stored.get("vegas") or {}
+                games = state.get("games") or []
+                if games:
+                    html = vegas.refresh_caption(html)
+                    adjusted = vegas.adjust_predictions(
+                        vegas.curated_predictions(),
+                        vegas.curated_implied(),
+                        vegas.implied_by_team(games),
+                    )
+                    html = vegas.inject_predictions(html, adjusted)
+                    html = vegas.inject_schedule(
+                        html,
+                        vegas.schedule_rows(state),
+                        vegas.central_stamp(state.get("fetched_at")),
+                    )
+            except Exception as exc:  # noqa: BLE001 - odds must never blank the page
+                logging.getLogger(__name__).warning("vegas page extras unavailable: %s", exc)
+        # A beta deploy announces itself (styles in mobile.css). Prod and
+        # local runs serve no badge at all.
+        if settings.stage == "preview":
+            html = html.replace("</body>", '<div id="fb-stage-badge">BETA</div></body>', 1)
         return HTMLResponse(html)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

@@ -49,6 +49,15 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"
 
+    # Vercel sets VERCEL_ENV to "production" on main, "preview" on branch
+    # deploys. Empty means a local/container run. This is what makes a beta
+    # deploy announce itself instead of impersonating prod.
+    vercel_env: str = ""
+
+    @property
+    def stage(self) -> str:
+        return self.vercel_env or "local"
+
     @property
     def configured(self) -> bool:
         return bool(self.yahoo_client_id and self.yahoo_client_secret)

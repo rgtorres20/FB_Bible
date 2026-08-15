@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, cheatsheet, players, poller, render, vegas
+from ..feeds import adp, build_feed_store, cheatsheet, injury, players, poller, render, vegas
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,15 @@ def get_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore:
         return build_feed_store(settings)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=f"Feed store not configured: {exc}") from exc
+
+
+def get_optional_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore | None:
+    """For routes that overlay live data onto a page: a missing store means
+    'serve the committed content', never a 503 -- the page must render."""
+    try:
+        return build_feed_store(settings)
+    except ValueError:
+        return None
 
 
 @router.get("/app/data/feeds.json", include_in_schema=False)
@@ -78,6 +87,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         index=index,
         verdicts=stored.get("verdicts"),
         vegas_state=stored.get("vegas"),
+        injury_names=injury.watched_names(),
     )
 
 
@@ -162,7 +172,19 @@ class VegasIn(BaseModel):
     state: dict
 
 
-_VEGAS_ROW_FIELDS = ("game", "fav", "total", "imp", "read")
+# The odds table renders the first five; the last four feed the Week 1
+# schedule tab (kickoff ISO, full team names, network).
+_VEGAS_ROW_FIELDS = (
+    "game",
+    "fav",
+    "total",
+    "imp",
+    "read",
+    "kickoff",
+    "away_name",
+    "home_name",
+    "tv",
+)
 MAX_VEGAS_ROWS = 32
 
 
@@ -179,7 +201,7 @@ async def save_vegas(
     network vantage point, the deployment stores and serves.
 
     Rows are rebuilt field-by-field rather than stored verbatim: this data
-    is rendered into the page, so only the five known string columns pass.
+    is rendered into the page, so only the known string columns pass.
     """
     _require_sync_token(settings, x_sync_token)
 

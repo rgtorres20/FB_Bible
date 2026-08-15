@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import adp, impact
+from . import adp, impact, injury, vegas
 
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
@@ -77,6 +77,9 @@ def to_news_entry(item: dict) -> dict:
         # reader can always reach the source, which is also the decent thing
         # to do with someone else's reporting.
         "link": item.get("link", ""),
+        # Also ignored by the page's template -- mobile.js reads it to badge
+        # what arrived since the owner's last visit.
+        "first_seen": item.get("first_seen", ""),
     }
 
 
@@ -123,6 +126,7 @@ def merge_into_feeds(
     index: dict | None = None,
     verdicts: dict[str, str] | None = None,
     vegas_state: dict | None = None,
+    injury_names: tuple[str, ...] | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -142,6 +146,9 @@ def merge_into_feeds(
     scored = impact.cluster([impact.score(item, ranks) for item in items])
     kept = [item for item in scored if item["impact_score"] >= 0]
     hidden = len(scored) - len(kept)
+    # Reading order is impact on the board, decayed by age -- not raw
+    # chronology. The unranked full wire stays on /api/feeds.
+    kept = impact.order(kept, now)
 
     live = []
     for item in kept[:MAX_LIVE_ITEMS]:
@@ -195,6 +202,19 @@ def merge_into_feeds(
     if live_vegas:
         merged["vegas"] = live_vegas
 
+    # Out & returning is curated in the page and has no timestamps of its
+    # own; the freshest wire mention of each listed player is one the server
+    # can honestly supply. mobile.js renders these onto the rows. Matched
+    # against the full wire, not the impact-filtered cut -- a mention is a
+    # mention. The page's template ignores the key.
+    if injury_names:
+        stamps = injury.wire_stamps(items, injury_names)
+        if stamps:
+            merged["injury_wire"] = {
+                name: {**stamp, "time": format_time(stamp["published"])}
+                for name, stamp in stamps.items()
+            }
+
     merged["updated"] = now.isoformat()
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "
@@ -230,6 +250,12 @@ def merge_into_feeds(
                 **entry,
                 "asOf": stamp,
                 "source": f"DraftKings via ESPN — live, {label}",
+            }
+        elif feed == "Week 1 schedule" and any(g.get("kickoff") for g in live_vegas):
+            entry = {
+                **entry,
+                "asOf": vegas.central_stamp((vegas_state or {}).get("fetched_at")) or stamp,
+                "source": vegas.SCHED_LIVE_SOURCE,
             }
         meta_rows.append(entry)
     merged["meta"] = meta_rows

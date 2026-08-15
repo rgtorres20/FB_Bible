@@ -56,6 +56,20 @@ from Sleeper. Neither blocks personal single-user use.
   the real shape.
 - `/api/raw/{path}` is the escape hatch for exploring unmodelled resources.
   Prefer adding an extractor over letting the browser app consume raw shapes.
+- **No stale data.** Every user-facing surface is live-polled, the owner's
+  own judgement, or curated facts wearing an honest as-of stamp — nothing
+  claims freshness it does not have. The audit and the plan for what is
+  still curated: [docs/STALE_DATA.md](docs/STALE_DATA.md). A surface that
+  goes live gets a `verify-live.yml` check in the same commit.
+- **No false positives.** Never fabricate a judgement, a number, or a
+  freshness label to make a surface look complete — an empty truthful
+  section beats an invented one. When a call is genuinely uncertain, ask
+  the owner instead of guessing.
+- **Two stages, one codebase.** `main` deploys prod; the `beta` branch
+  deploys a stable Vercel preview that wears a BETA badge and reads (never
+  writes) the shared feed store. See
+  [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md) before touching deploy or
+  store wiring.
 
 ## Working rules
 
@@ -71,13 +85,18 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-43 tests green — 27 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
-lint and format clean. CI runs all of it plus a secret guard on every push.
+283 tests green — 267 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+lint and format clean. CI runs all of it plus a secret guard on every push
+to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
 
-Not yet done: verified against a live Yahoo account (needs the developer app
-registered — see docs/YAHOO_SETUP.md), and the browser app still points at its
-in-file data rather than this server.
+The served page reads live data: the `/app/data/feeds.json` overlay merges the
+polled wire (impact-ranked, deduped, `first_seen`-stamped) into the page's own
+startup fetch, and `mobile.js` decorates NEW badges and Out & returning wire
+stamps onto the rendered rows. See docs/RESUME.md for the live-state detail.
+
+Not yet done: verified against a live Yahoo account — blocked on Yahoo's
+fantasy-access approval (see docs/RESUME.md), not on code.
 
 Phase 3 (cron jobs polling feeds on their budget intervals, a database, and web
 push for the Settings rules) builds on this service — hence the Dockerfile and
