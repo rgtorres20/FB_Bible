@@ -141,11 +141,15 @@ aside > div:nth-child(2) {
 /* Desktop: the same button becomes a collapse handle. The sidebar keeps its
  * place on the left -- it tucks away and comes back, never moves elsewhere. */
 @media (min-width: 769px) and (min-height: 501px) {
+  /* Bottom-left, deliberately: at the sidebar's top edge it overlapped the
+   * content header ("looks off ? in web" -- it did). Bottom-left sits under
+   * the sync footer, collides with nothing, and stays put when the sidebar
+   * collapses. */
   #fb-menu-btn {
     display: flex;
     position: fixed;
-    top: 10px;
-    left: 262px;
+    bottom: 14px;
+    left: 14px;
     z-index: 1001;
     width: 40px;
     height: 40px;
@@ -157,11 +161,7 @@ aside > div:nth-child(2) {
     background: var(--color-bg);
     color: var(--color-text);
     box-shadow: 2px 2px 0 var(--color-text);
-    transition: left 0.22s ease;
     cursor: pointer;
-  }
-  body.fb-side-collapsed #fb-menu-btn {
-    left: 10px;
   }
 
   aside {
