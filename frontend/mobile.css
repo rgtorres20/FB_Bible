@@ -15,10 +15,23 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Root shell: side-by-side becomes stacked. */
-  x-dc > div,
-  body > div:first-of-type {
+  /* Root shell: side-by-side becomes stacked. Selected by its own inline
+   * style (the only min-height:100vh flex row in the page) — structural
+   * guesses like `x-dc > div` missed it, which left the row layout intact,
+   * aside at full viewport width and main crushed to 0px. */
+  /* Both spacings: the raw document writes "min-height:100vh", but the .dc
+   * runtime re-serializes inline styles with a space after the colon, and
+   * attribute selectors match the serialized form. One missing space cost a
+   * whole debugging round. */
+  div[style*="min-height:100vh"],
+  div[style*="min-height: 100vh"] {
     flex-direction: column !important;
+  }
+
+  main {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
   }
 
   /* Sidebar becomes a compact header. */
