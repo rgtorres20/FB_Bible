@@ -1,10 +1,22 @@
 """Draft one-line verdicts for the newest wire items, for free.
 
-Runs inside GitHub Actions on a schedule. The model is GitHub Models --
-inference that any GitHub account gets at no cost, authenticated with the
+STATUS: NOT WORKING, and not fixable here. GitHub Models was retired on
+2026-07-30 -- two weeks before this script was written -- so every request
+to models.github.ai returns HTTP 410 Gone. Verified live 2026-08-15: the
+job has never once produced a verdict, and because a failed model call
+exits 0 the workflow reported green the whole time. The schedule is off;
+reviving this needs a provider decision plus one new secret (Groq or
+Google AI Studio free tiers, or paid Claude). See docs/STALE_DATA.md.
+
+Everything below still works as written against any OpenAI-compatible
+chat-completions endpoint -- point MODELS_URL and MODEL at one, supply its
+key as the bearer token, and the pipeline runs unchanged.
+
+Runs inside GitHub Actions on a schedule. The model was GitHub Models --
+inference that any GitHub account got at no cost, authenticated with the
 workflow's own GITHUB_TOKEN (`permissions: models: read`). No API key to
-buy, no card on file; the rate limits are tight but one batched request an
-hour is far inside them.
+buy, no card on file; the rate limits were tight but one batched request an
+hour was far inside them.
 
 The output is deliberately modest: a factual one-liner per item, posted to
 the app's /internal/verdicts endpoint where it renders prefixed "AI draft:"
@@ -111,10 +123,20 @@ def main() -> int:
 
     try:
         verdicts = draft(items, github_token)
-    except (urllib.error.HTTPError, KeyError, json.JSONDecodeError, IndexError) as exc:
-        # Rate limit or a malformed reply: skip this hour, the next run
-        # tries again. The page falls back to "Auto:" annotations meanwhile.
-        print(f"model call failed, skipping this run: {type(exc).__name__}: {exc}")
+    except urllib.error.HTTPError as exc:
+        # 410/404 means the endpoint is gone for good, not busy. That is
+        # what hid this for a day: a permanent failure looked exactly like
+        # a rate limit, and both exited 0 under a green check.
+        if exc.code in (404, 410):
+            print(f"::error::Model endpoint is permanently gone (HTTP {exc.code}) at {MODELS_URL}.")
+            print("GitHub Models retired 2026-07-30. Pick a provider -- see docs/STALE_DATA.md.")
+            return 1
+        print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
+        return 0
+    except (KeyError, json.JSONDecodeError, IndexError) as exc:
+        # A malformed reply: skip this hour, the next run tries again. The
+        # page falls back to "Auto:" annotations meanwhile.
+        print(f"::warning::model reply unusable, skipping this run: {type(exc).__name__}: {exc}")
         return 0
 
     if not verdicts:

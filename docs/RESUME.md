@@ -95,13 +95,21 @@ should work first time.
    - *Week 1 schedule*: DONE (Aug 15 evening) — same payload, kickoff
      day/time in Central, teams and network; owner's per-game notes ride
      along by matchup.
-   - *AI verdicts note*: RESOLVED. verdicts.yml now fires hourly and
-     succeeds (6 runs). But the verdicts it stored were being **deleted
-     within the hour** — `/internal/sync` rebuilt the store payload without
-     the `verdicts` key, so every sync wiped them. Fixed Aug 15 evening;
-     verdicts now carry forward pruned to surviving items. Caveat worth
-     keeping: `draft_verdicts.py` exits 0 on model failure, so a green run
-     does not by itself prove verdicts were written.
+   - *AI verdicts*: **NOT WORKING, needs a decision from you.** Chased to
+     the bottom Aug 15 evening. verdicts.yml fires and reports success, but
+     reading its log shows every run ends `HTTP Error 410: Gone` —
+     **GitHub Models was retired 2026-07-30**, two weeks before this layer
+     was built. Not one verdict has ever been produced. Two bugs kept that
+     invisible and are both fixed: `/internal/sync` was deleting stored
+     verdicts on every run, and a permanent 410 was caught by the same
+     handler as a rate limit, both exiting 0 under a green check. The cron
+     is now off (an hourly job that can only 410 is waste); manual
+     dispatch stays for testing the fix.
+     **To revive it:** pick a provider and add one secret — Groq or Google
+     AI Studio (free tiers) or paid Claude. The pipeline is
+     provider-agnostic: point `MODELS_URL`/`MODEL` in
+     `scripts/draft_verdicts.py` at any OpenAI-compatible endpoint and
+     supply its key as the bearer token; everything downstream is unchanged.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing

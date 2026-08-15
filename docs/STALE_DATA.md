@@ -19,9 +19,28 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | TD-lean confidence (FFBets) | implied-total movement vs openers | every request (Aug 15) |
 | Week 1 schedule (kickoff/teams/TV) | ESPN scoreboard | ~hourly sync (Aug 15) |
 | Trending adds/drops, injury flags | Sleeper API, fetched by the page | on page load |
-| AI draft verdicts | GitHub Models job | hourly |
 | Data health stamps | overlay-stamped per feed | every request |
 | Out & returning wire stamps | latest wire mention per player | every request |
+
+## Broken, not live — corrected Aug 15
+
+**AI draft verdicts.** This table listed them as live and hourly. They have
+never worked: the job targets **GitHub Models, retired 2026-07-30**, so
+every run got HTTP 410 Gone. Because a failed model call exited 0, the
+workflow reported success and nobody saw it. The page itself never lied —
+with no verdicts stored it renders the rule-based `Auto:` line — but this
+document did, which is the exact failure the no-false-positives rule
+exists to prevent.
+
+Two separate bugs kept it invisible and are both fixed: the sync was also
+deleting stored verdicts on every run, and a permanent endpoint failure
+was indistinguishable from a rate limit. The schedule is now off.
+
+**Decision needed from the owner** before this can be live: pick a
+provider and add one secret. Groq and Google AI Studio both have free
+tiers; paid Claude is the quality option. The pipeline itself is
+provider-agnostic — any OpenAI-compatible chat-completions endpoint works
+by pointing `MODELS_URL`/`MODEL` at it.
 
 ## Still curated — with the honest state and the plan
 

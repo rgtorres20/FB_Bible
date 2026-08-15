@@ -1,13 +1,19 @@
 name: AI verdicts
 
-# Drafts one-line "AI draft:" verdicts for the newest wire items using
-# GitHub Models -- free inference authenticated with this workflow's own
-# GITHUB_TOKEN. Offset from sync-feeds so verdicts land on freshly-polled
-# items. A failed run costs nothing: the page falls back to "Auto:" labels.
+# Drafts one-line "AI draft:" verdicts for the newest wire items.
+#
+# SCHEDULE DISABLED 2026-08-15. This ran against GitHub Models, which was
+# retired on 2026-07-30 -- every request returns HTTP 410 Gone, so the job
+# never produced a single verdict while reporting green for a day. An
+# hourly job that can only 410 is waste, so the cron is off until a
+# provider is chosen (Groq or Google AI Studio free tiers, or paid Claude
+# -- each needs one new secret). Restore by uncommenting the cron once
+# MODELS_URL/MODEL and the bearer token in scripts/draft_verdicts.py point
+# somewhere live. Manual dispatch stays on so the fix can be tested.
 
 on:
-  schedule:
-    - cron: "41 * * * *" # hourly, after the :26-ish sync delivery window
+  # schedule:
+  #   - cron: "41 * * * *" # hourly, after the :26-ish sync delivery window
   workflow_dispatch:
 
 permissions:
