@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
@@ -57,6 +58,17 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(league.router)
 app.include_router(feeds.router)
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    """Send the bare domain to the app.
+
+    Without this the root returns a JSON 404, which reads as "nothing on
+    screen" to anyone who types the domain without remembering /app/ --
+    including the person who owns it.
+    """
+    return RedirectResponse("/app/" if _FRONTEND_READY else "/docs")
 
 
 @app.get("/health", tags=["meta"], summary="Liveness plus configuration state")

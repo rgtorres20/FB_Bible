@@ -81,3 +81,11 @@ def test_feeds_endpoint_is_readable_when_empty():
     body = response.json()
     assert body["items"] == []
     assert body["total"] == 0
+
+
+def test_bare_domain_redirects_to_the_app():
+    """A JSON 404 at the root reads as "nothing on screen" to anyone who types
+    the domain without /app/."""
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] in {"/app/", "/docs"}
