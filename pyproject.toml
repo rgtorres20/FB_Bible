@@ -7,6 +7,10 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Without this, `pytest` cannot import `app`. `python -m pytest` happens to
+# work because -m puts the cwd on sys.path, which hides the problem locally
+# and breaks CI, where pytest is invoked directly.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
