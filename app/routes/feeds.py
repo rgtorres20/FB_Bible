@@ -20,7 +20,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from ..config import Settings, get_settings
-from ..feeds import build_feed_store, players, poller, render
+from ..feeds import adp, build_feed_store, players, poller, render
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -67,7 +67,14 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         for pid, p in (index or {}).get("players", {}).items()
         if p.get("rank") is not None
     }
-    return render.merge_into_feeds(bundled, stored.get("items", []), datetime.now(UTC), ranks)
+    return render.merge_into_feeds(
+        bundled,
+        stored.get("items", []),
+        datetime.now(UTC),
+        ranks,
+        adp_data=stored.get("adp"),
+        index=index,
+    )
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")
@@ -153,11 +160,24 @@ async def sync(
     existing = await store.load()
     merged = poller.merge(existing, polled["items"], datetime.now(UTC))
 
+    # ADP rides the same hourly sync. A failed fetch keeps the previous board
+    # and its history intact -- yesterday's ADP is still a usable draft board,
+    # while a truncated history would silently kill the movers section.
+    adp_prev = existing.get("adp") or {}
+    adp_state = adp_prev.get("state") or {}
+    adp_history = adp_prev.get("history") or []
+    try:
+        adp_state = await adp.fetch()
+        adp_history = adp.update_history(adp_history, adp_state)
+    except Exception as exc:  # noqa: BLE001 - ADP must never sink the news sync
+        log.warning("ADP fetch failed, keeping previous board: %s", exc)
+
     await store.save(
         {
             "items": merged["items"],
             "sources": polled["sources"],
             "polled_at": polled["polled_at"],
+            "adp": {"state": adp_state, "history": adp_history},
         }
     )
 
@@ -175,5 +195,6 @@ async def sync(
         "tagged": tagged,
         "sources_ok": len(polled["sources"]) - len(failed),
         "sources_failed": failed,
+        "adp_players": len(adp_state.get("players", [])),
         "polled_at": polled["polled_at"],
     }

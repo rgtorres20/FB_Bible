@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import impact
+from . import adp, impact
 
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
@@ -119,6 +119,8 @@ def merge_into_feeds(
     items: list[dict],
     now: datetime,
     ranks: dict[str, int] | None = None,
+    adp_data: dict | None = None,
+    index: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -169,6 +171,19 @@ def merge_into_feeds(
         e for e in bundled.get("rotowire", []) if (e.get("player"), e.get("head")) not in nbc_seen
     ]
     merged["rotowire"] = nbc_live + nbc_curated
+
+    # Scout finds: live ADP movers, rank-gap sleepers, and sleeper articles
+    # off the wire. Replaces the curated cards only when there is a live board
+    # to replace them with -- the fallback rule is the same as everywhere
+    # else: stale-but-honest beats blank.
+    live_scout = []
+    if adp_data:
+        live_scout = adp.build_scout(
+            adp_data.get("state") or {}, adp_data.get("history"), index, kept
+        )
+    if live_scout:
+        merged["scout"] = live_scout
+
     merged["updated"] = now.isoformat()
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "
@@ -182,14 +197,22 @@ def merge_into_feeds(
     # which is the same class of dishonesty (in the safe direction) that the
     # hardcoded "live" labels were in the unsafe one.
     local_now = now.astimezone(CENTRAL)
-    merged["meta"] = [
-        {
-            **entry,
-            "asOf": f"{local_now:%Y-%m-%dT%H:%M}",
-            "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
-        }
-        if entry.get("feed") in ("News & posts", "NBC player news")
-        else entry
-        for entry in bundled.get("meta", [])
-    ]
+    stamp = f"{local_now:%Y-%m-%dT%H:%M}"
+    meta_rows = []
+    for entry in bundled.get("meta", []):
+        feed = entry.get("feed")
+        if feed in ("News & posts", "NBC player news"):
+            entry = {
+                **entry,
+                "asOf": stamp,
+                "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
+            }
+        elif live_scout and feed in ("Draft board / ADP blend", "Sleeper list"):
+            entry = {
+                **entry,
+                "asOf": stamp,
+                "source": "FFC live drafts (10+12tm PPR avg) + Sleeper rank",
+            }
+        meta_rows.append(entry)
+    merged["meta"] = meta_rows
     return merged
