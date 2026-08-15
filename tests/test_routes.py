@@ -128,3 +128,19 @@ def test_ffbets_lands_on_predictions_with_builder_shelved():
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
     assert 'gdMode: "build",' in on_disk
     assert '{ id: "build", label: "Build a team" }' in on_disk
+
+
+def test_app_index_alias_gets_the_same_injection():
+    """Both spellings of the page must carry the mobile layer -- the PWA
+    manifest points at index.html directly."""
+    served = client.get("/app/index.html").text
+    assert '<link rel="stylesheet" href="mobile.css">' in served
+    assert 'gdMode: "predict",' in served
+
+
+def test_injection_happens_exactly_once():
+    """The replace is anchored to </head>; if the document ever grew a second
+    match the page would double-load the mobile layer."""
+    served = client.get("/app/").text
+    assert served.count('href="mobile.css"') == 1
+    assert served.count('src="mobile.js"') == 1

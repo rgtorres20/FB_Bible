@@ -229,3 +229,47 @@ def test_tagger_enriches_but_never_clobbers_seeded_players():
     assert seeded["players"][0]["team"] == "LAR"  # filled from the index
     assert unknown["players"][0]["id"] == "rw:omar-cooper"  # unknown stays seeded
     assert unknown["players"][0]["team"] == "NYJ"
+
+
+async def test_rotoworld_fetch_raises_on_empty_page():
+    """A page with zero posts is a broken scrape, not a quiet day -- fetch
+    must raise so the poller marks the source FAILED instead of serving an
+    empty NBC tab as if it were news."""
+    import httpx
+    import pytest
+
+    from app.feeds import rotoworld
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, text="<html>empty</html>"))
+    ) as client_:
+        with pytest.raises(ValueError, match="0 posts"):
+            await rotoworld.fetch(client_)
+
+
+async def test_rotoworld_fetch_surfaces_http_errors():
+    import httpx
+    import pytest
+
+    from app.feeds import rotoworld
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda req: httpx.Response(503))
+    ) as client_:
+        with pytest.raises(httpx.HTTPStatusError):
+            await rotoworld.fetch(client_)
+
+
+async def test_rotoworld_fetch_parses_the_real_page_shape():
+    from pathlib import Path
+
+    import httpx
+
+    from app.feeds import rotoworld
+
+    html = Path("tests/fixtures/rotoworld_sample.html").read_text(encoding="utf-8")
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, text=html))
+    ) as client_:
+        items = await rotoworld.fetch(client_)
+    assert items and items[0]["source_key"] == "rotoworld_pn"
