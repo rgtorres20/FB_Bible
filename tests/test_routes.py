@@ -89,3 +89,22 @@ def test_bare_domain_redirects_to_the_app():
     response = client.get("/", follow_redirects=False)
     assert response.status_code == 307
     assert response.headers["location"] in {"/app/", "/docs"}
+
+
+def test_app_page_injects_the_mobile_stylesheet():
+    """index.html on disk stays pristine; the <link> exists only in the
+    served response, like the feeds overlay does for data."""
+    from pathlib import Path
+
+    response = client.get("/app/")
+    assert response.status_code == 200
+    assert '<link rel="stylesheet" href="mobile.css">' in response.text
+
+    on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert "mobile.css" not in on_disk
+
+
+def test_mobile_css_is_served():
+    response = client.get("/app/mobile.css")
+    assert response.status_code == 200
+    assert "@media (max-width: 768px)" in response.text

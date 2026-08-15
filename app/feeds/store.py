@@ -13,6 +13,14 @@ from pathlib import Path
 from typing import Protocol
 
 _KEY = "fbbible:feeds"
+
+
+def _current_version(index: dict) -> bool:
+    from .players import INDEX_VERSION
+
+    return index.get("v") == INDEX_VERSION
+
+
 _PLAYER_KEY = "fbbible:players"
 # Sleeper asks callers not to pull the 14MB dump more than once a day.
 PLAYER_TTL_SECONDS = 20 * 60 * 60
@@ -60,9 +68,10 @@ class FileFeedStore:
         if age > PLAYER_TTL_SECONDS:
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            index = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return None
+        return index if _current_version(index) else None
 
     async def save_players(self, index: dict) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -92,9 +101,10 @@ class RedisFeedStore:
         if not raw:
             return None
         try:
-            return json.loads(raw)
+            index = json.loads(raw)
         except json.JSONDecodeError:
             return None
+        return index if _current_version(index) else None
 
     async def save_players(self, index: dict) -> None:
         # TTL does the expiry, so a stale index can never be served.

@@ -108,10 +108,65 @@ def test_merge_with_nothing_polled_serves_the_committed_file_unchanged():
 
 
 def test_merge_caps_how_many_live_items_reach_the_page():
-    many = [{**ITEM, "title": f"story {i}"} for i in range(200)]
+    # Distinct players and no shared keywords, so nothing clusters or filters --
+    # 200 genuinely different stories.
+    many = [
+        {
+            **ITEM,
+            # Template titles share tokens and Jaccard-fold (correctly); these do not.
+            "title": f"headline{i} topic{i} event{i}",
+            "summary": "",
+            "players": [{"id": f"p{i}", "name": f"Player {i}", "position": "RB", "team": "DAL"}],
+        }
+        for i in range(200)
+    ]
     merged = render.merge_into_feeds(BUNDLED, many, NOW)
 
     assert len(merged["news"]) == render.MAX_LIVE_ITEMS + 1  # + the curated one
+
+
+def test_merge_folds_same_story_and_annotates_what_it_means():
+    """The Pearce case end to end: three outlets, one entry, WHAT IT MEANS
+    filled, other outlets credited."""
+    pearce = {"id": "pearce", "name": "James Pearce Jr.", "position": "LB", "team": "ATL"}
+    tellings = [
+        {
+            **ITEM,
+            "title": "Pearce suspended 8 games after arrest",
+            "summary": "",
+            "players": [pearce],
+            "source_name": "ESPN NFL",
+            "tier": 1,
+        },
+        {
+            **ITEM,
+            "title": "Falcons LB Pearce suspended 8 games",
+            "summary": "",
+            "players": [pearce],
+            "source_name": "CBS Sports NFL",
+            "tier": 2,
+        },
+    ]
+    merged = render.merge_into_feeds(BUNDLED, tellings, NOW)
+
+    wire = [n for n in merged["news"] if n.get("kind") == "Wire" and "Pearce" in n["text"]]
+    assert len(wire) == 1
+    assert "(also: CBS Sports NFL)" in wire[0]["text"]
+    assert wire[0]["impact"].startswith("Auto: availability risk")
+
+
+def test_merge_hides_negative_impact_items_and_counts_them():
+    brady = {"id": "brady", "name": "Tom Brady", "position": "QB", "team": None}
+    noise = {
+        **ITEM,
+        "title": "Aikman gets Brady-like limits for MNF broadcasts",
+        "summary": "",
+        "players": [brady],
+    }
+    merged = render.merge_into_feeds(BUNDLED, [noise], NOW)
+
+    assert all("Brady-like" not in n["text"] for n in merged["news"])
+    assert merged["news_hidden_low_impact"] == 1
 
 
 def test_merge_does_not_mutate_the_bundled_input():

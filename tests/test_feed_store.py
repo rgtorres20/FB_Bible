@@ -18,7 +18,12 @@ from app.feeds.store import (
     build_feed_store,
 )
 
-INDEX = {"players": {"1": {"name": "Puka Nacua"}}, "by_name": {"puka nacua": "1"}, "surnames": {}}
+INDEX = {
+    "v": 2,
+    "players": {"1": {"name": "Puka Nacua"}},
+    "by_name": {"puka nacua": "1"},
+    "surnames": {},
+}
 
 
 def store_at(tmp_path) -> FileFeedStore:
@@ -143,3 +148,12 @@ def test_both_stores_expose_the_same_interface():
     for name in ("load", "save", "load_players", "save_players"):
         assert callable(getattr(FileFeedStore("x.json"), name))
         assert hasattr(RedisFeedStore, name)
+
+
+async def test_an_index_from_before_rank_support_is_treated_as_absent(tmp_path):
+    """Caches built before the rank field would otherwise serve rankless
+    players until their TTL ran out -- up to 20 hours of unweighted scoring."""
+    store = store_at(tmp_path)
+    await store.save_players({"players": {}, "by_name": {}, "surnames": {}})  # no version
+
+    assert await store.load_players() is None

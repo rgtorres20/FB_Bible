@@ -61,7 +61,13 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         log.warning("feed store unavailable, serving bundled feeds: %s", exc)
         return bundled
 
-    return render.merge_into_feeds(bundled, stored.get("items", []), datetime.now(UTC))
+    index = await store.load_players()
+    ranks = {
+        pid: p["rank"]
+        for pid, p in (index or {}).get("players", {}).items()
+        if p.get("rank") is not None
+    }
+    return render.merge_into_feeds(bundled, stored.get("items", []), datetime.now(UTC), ranks)
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")

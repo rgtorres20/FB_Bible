@@ -229,6 +229,7 @@ async def test_sync_stores_items_and_reports_counts(sync_client, monkeypatch):
     # Pretend the player index is already cached, so no 14MB download.
     await store.save_players(
         {
+            "v": 2,
             "players": {
                 "9493": {
                     "id": "9493",
@@ -256,7 +257,7 @@ async def test_a_second_sync_adds_nothing_new(sync_client, monkeypatch):
     c, store = sync_client
     items = [{"id": "a", "title": "x", "summary": "", "published": "2026-08-15T02:00:00+00:00"}]
     monkeypatch.setattr(feeds_route.poller, "poll", fake_poll(items))
-    await store.save_players({"players": {}, "by_name": {}, "surnames": {}})
+    await store.save_players({"v": 2, "players": {}, "by_name": {}, "surnames": {}})
 
     c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
     body = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()

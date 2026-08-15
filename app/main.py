@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
@@ -99,4 +99,19 @@ async def health() -> dict:
 # stays off and /app 404s rather than serving a page that renders blank.
 # /health lists exactly what is missing. See docs/MIGRATION.md.
 if _FRONTEND_READY:
+
+    @app.get("/app/", include_in_schema=False)
+    @app.get("/app/index.html", include_in_schema=False)
+    async def app_page() -> HTMLResponse:
+        """Serve the page with the mobile stylesheet injected.
+
+        index.html stays byte-identical on disk (see the no-fork note above);
+        the <link> exists only in the served response, the same way the live
+        feeds overlay works for data. Registered before the mount, so it wins
+        for these two paths while every other asset stays static.
+        """
+        html = _FRONTEND_INDEX.read_text(encoding="utf-8")
+        html = html.replace("</head>", '<link rel="stylesheet" href="mobile.css"></head>', 1)
+        return HTMLResponse(html)
+
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

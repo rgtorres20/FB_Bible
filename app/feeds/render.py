@@ -20,6 +20,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from . import impact
+
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
 DOT = "·"
@@ -78,25 +80,49 @@ def to_news_entry(item: dict) -> dict:
     }
 
 
-def merge_into_feeds(bundled: dict, items: list[dict], now: datetime) -> dict:
+def merge_into_feeds(
+    bundled: dict,
+    items: list[dict],
+    now: datetime,
+    ranks: dict[str, int] | None = None,
+) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
     Only `news` is replaced -- that tab is defined as the raw wire. `alerts`,
     `scout` and the rest carry editorial judgements (status, impact, what it
     means) that a headline cannot supply, so fabricating them would be worse
     than leaving the curated versions in place.
+
+    Before rendering, the wire is scored, deduped and filtered: the same story
+    from three outlets folds into one telling, and negative-impact items (the
+    Tom Brady broadcasting case) stay on /api/feeds but off the page.
     """
     merged = dict(bundled)
     if not items:
         return merged  # nothing polled yet: serve the committed file untouched
 
-    live = [to_news_entry(i) for i in items[:MAX_LIVE_ITEMS]]
+    scored = impact.cluster([impact.score(item, ranks) for item in items])
+    kept = [item for item in scored if item["impact_score"] >= 0]
+    hidden = len(scored) - len(kept)
+
+    live = []
+    for item in kept[:MAX_LIVE_ITEMS]:
+        entry = to_news_entry(item)
+        # {{ a.impact }} renders as the pool feed's WHAT IT MEANS column;
+        # annotate() is factual and prefixed "Auto:" so it never reads as the
+        # owner's judgement.
+        entry["impact"] = impact.annotate(item)
+        also = item.get("also_from")
+        if also:
+            entry["text"] += f" (also: {', '.join(also)})"
+        live.append(entry)
 
     # Keep curated entries that the wire has not already said.
     seen = {entry["text"] for entry in live}
     curated = [n for n in bundled.get("news", []) if n.get("text") not in seen]
 
     merged["news"] = live + curated
+    merged["news_hidden_low_impact"] = hidden
     merged["updated"] = now.isoformat()
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "

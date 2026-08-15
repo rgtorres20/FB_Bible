@@ -9,12 +9,13 @@
 //
 // Behaviour matches the original: always fresh when online, still usable off.
 
-const VERSION = 'fb-v1';
+const VERSION = 'fb-v2';
 
 // Enough to open the app offline. Everything else is cached as you browse.
 const SHELL = [
   './',
   './support.js',
+  './mobile.css',
   './manifest.webmanifest',
   './data/feeds.json',
   './lib/fbApi.js',

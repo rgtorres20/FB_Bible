@@ -31,6 +31,9 @@ PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl"
 FANTASY_POSITIONS = {"QB", "RB", "WR", "TE", "K"}
 SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 
+# Bump when the index shape changes; stale cached indexes are refetched.
+INDEX_VERSION = 2
+
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 
 # Surnames that are also ordinary English words. Matching these bare produced
@@ -56,6 +59,9 @@ class Player:
     position: str
     team: str | None
     injury_status: str | None
+    # Sleeper's fantasy search rank: 1 = most relevant. Popularity leaks in
+    # (retired stars rank well), so it is a weight, never a filter by itself.
+    rank: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -64,6 +70,7 @@ class Player:
             "position": self.position,
             "team": self.team,
             "injury_status": self.injury_status,
+            "rank": self.rank,
         }
 
 
@@ -117,12 +124,15 @@ def build_index(raw: dict) -> dict:
                 surname_hits.setdefault(surname[-1], set()).add(pid)
             continue
 
+        raw_rank = rec.get("search_rank")
         player = Player(
             id=pid,
             name=name,
             position=position,
             team=rec.get("team"),
             injury_status=rec.get("injury_status"),
+            # Sleeper uses 9999999 for "effectively unranked".
+            rank=raw_rank if isinstance(raw_rank, int) and raw_rank < 9999999 else None,
         ).to_dict()
         players[pid] = player
 
@@ -151,7 +161,7 @@ def build_index(raw: dict) -> dict:
         if pid in players and surname not in by_name:
             surnames[surname] = pid
 
-    return {"by_name": by_name, "surnames": surnames, "players": players}
+    return {"v": INDEX_VERSION, "by_name": by_name, "surnames": surnames, "players": players}
 
 
 def find_players(text: str, index: dict, limit: int = 6) -> list[dict]:

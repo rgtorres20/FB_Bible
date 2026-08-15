@@ -1,0 +1,112 @@
+/* Mobile layout for the Fantasy Bible.
+ *
+ * index.html is a generated design document styled entirely with inline
+ * styles, and we deliberately do not fork it (see docs/HOSTING.md). This
+ * sheet is injected at serve time by the server and wins with !important
+ * inside a phone-width media query, leaving desktop untouched.
+ *
+ * Selectors lean on two things that are stable here: inline-style substrings
+ * (the page is pinned in this repo, regenerated only by deliberate import)
+ * and the aside's child order (logo / league cards / theme / nav / footer).
+ */
+
+@media (max-width: 768px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Root shell: side-by-side becomes stacked. */
+  x-dc > div,
+  body > div:first-of-type {
+    flex-direction: column !important;
+  }
+
+  /* Sidebar becomes a compact header. */
+  aside {
+    position: static !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 2px solid var(--color-text);
+  }
+
+  /* Logo block: tighter. */
+  aside > div:nth-child(1) {
+    padding: 10px 16px !important;
+    border-bottom: 1px solid var(--color-neutral-300) !important;
+  }
+
+  /* League summary cards: duplicated in the tabs; on a phone they push the
+   * content below the fold, so they go. */
+  aside > div:nth-child(2) {
+    display: none !important;
+  }
+
+  /* Theme picker row: slim. */
+  aside > div:nth-child(3) {
+    padding: 6px 16px !important;
+  }
+
+  /* Nav: vertical list becomes a horizontally scrolling chip row. */
+  aside nav {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    padding: 6px 8px !important;
+    gap: 2px;
+    scrollbar-width: none;
+  }
+  aside nav::-webkit-scrollbar {
+    display: none;
+  }
+  aside nav > * {
+    flex: 0 0 auto;
+  }
+  /* Section labels (NEWS & STATUS, DRAFT PREP, ...) are meaningless in a
+   * chip row. Buttons are the items; divs are the labels and rules. */
+  aside nav > div {
+    display: none !important;
+  }
+  aside nav button {
+    padding: 8px 12px !important;
+    border: 1px solid var(--color-neutral-300) !important;
+    border-radius: 999px;
+    margin: 0 2px;
+  }
+
+  /* Sync footer: keep (it holds SYNC NOW), just slimmer. */
+  aside > div:last-child {
+    padding: 8px 16px !important;
+  }
+
+  /* Content grids linearize. Later rules re-widen the ones that read better
+   * two-up. Same specificity, so order matters. */
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  div[style*="grid-template-columns:repeat(4"],
+  div[style*="grid-template-columns: repeat(4"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Wide horizontal padding costs too much at 375px. */
+  div[style*="var(--space-8)"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Header stat tiles and similar flex strips wrap instead of overflowing. */
+  aside ~ div div[style*="display:flex"] {
+    flex-wrap: wrap;
+  }
+
+  img,
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
