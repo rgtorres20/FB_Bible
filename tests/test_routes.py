@@ -115,3 +115,16 @@ def test_mobile_js_is_served():
     response = client.get("/app/mobile.js")
     assert response.status_code == 200
     assert "fb-menu-btn" in response.text
+
+
+def test_ffbets_lands_on_predictions_with_builder_shelved():
+    """Serve-time edits only: the file on disk keeps the builder intact."""
+    from pathlib import Path
+
+    served = client.get("/app/").text
+    assert 'gdMode: "predict",' in served
+    assert '{ id: "build", label: "Build a team" }' not in served
+
+    on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert 'gdMode: "build",' in on_disk
+    assert '{ id: "build", label: "Build a team" }' in on_disk

@@ -117,6 +117,17 @@ if _FRONTEND_READY:
             '<script src="mobile.js" defer></script></head>',
             1,
         )
+        # FFBets, per the owner (Aug 15): Predictions is the landing mode and
+        # the Build-a-team toggle is shelved for now. Both are serve-time
+        # string edits -- the builder's code stays intact on disk and in git,
+        # just unreferenced in the served copy, so restoring it is deleting
+        # these two lines.
+        html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
+        html = html.replace(
+            '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
+            '[{ id: "predict", label: "Predictions" }]',
+            1,
+        )
         return HTMLResponse(html)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
