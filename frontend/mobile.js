@@ -114,6 +114,9 @@
   try {
     var visit = JSON.parse(localStorage.getItem('fb_visit') || '{}');
     var now = Date.now();
+    // A corrupted stamp must rotate like a missing one, or NaN comparisons
+    // freeze the session forever and badges compare against ancient state.
+    if (visit.cur && isNaN(Date.parse(visit.cur))) visit.cur = '';
     if (!visit.cur || now - Date.parse(visit.cur) > 30 * 60 * 1000) {
       visit.prev = visit.cur || '';
       visit.cur = new Date(now).toISOString();

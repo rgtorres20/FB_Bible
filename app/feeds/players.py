@@ -222,7 +222,10 @@ def tag_items(items: list[dict], index: dict) -> list[dict]:
         seeded = item.get("players")
         if seeded:
             for entry in seeded:
-                pid = by_name.get(normalize(entry.get("name", "")).strip())
+                # Join-split, not strip: "C.J. Stroud" normalizes with a
+                # double space, and by_name keys are single-spaced -- the
+                # bare strip() missed every dotted or initialed name.
+                pid = by_name.get(" ".join(normalize(entry.get("name", "")).split()))
                 if pid and pid in players:
                     known = players[pid]
                     entry["id"] = pid

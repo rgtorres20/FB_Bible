@@ -395,3 +395,24 @@ def test_inject_schedule_swaps_const_and_stamps_data_health():
     assert '{ feed: "Week 1 schedule", asOf: "2026-08-15T11:00"' in served
     assert vegas.SCHED_LIVE_SOURCE in served
     assert "NFL.com May 14 release" not in served
+
+
+def test_under_leans_shift_confidence_in_the_opposite_direction():
+    """A rising implied total supports an OVER and undermines an UNDER."""
+    under = {
+        "name": "Patrick Mahomes",
+        "meta": "QB · KC",
+        "prop": "Passing TDs",
+        "line": "1.5",
+        "lean": "UNDER",
+        "conf": 58,
+        "why": "Run-heavy script expected.",
+    }
+    out = vegas.adjust_predictions([under], {"KC": 24.0}, {"KC": 27.0})[0]
+    assert out["conf"] == 52  # +3 implied points * 2, subtracted for the UNDER
+    assert "Line move: KC implied 24 → 27." in out["why"]
+
+
+def test_implied_by_team_skips_a_spread_naming_neither_competitor():
+    games = [{"game": "WAS @ PHI", "fav": "WSH -5.5", "total": "46.5"}]
+    assert vegas.implied_by_team(games) == {}

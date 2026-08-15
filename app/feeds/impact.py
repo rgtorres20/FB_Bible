@@ -129,7 +129,7 @@ def annotate(item: dict) -> str:
 
     who = players[0]["name"] if players else None
     ranked = rank is not None and rank <= 400
-    rank_note = f" · top-{((rank // 100) + 1) * 100} player" if ranked else ""
+    rank_note = f" · top-{(((rank - 1) // 100) + 1) * 100} player" if ranked else ""
 
     if category == "severe" and who:
         return f"Auto: availability risk — {who}{rank_note}"
@@ -197,7 +197,11 @@ def _parse(iso: str | None) -> datetime | None:
 
 def _same_story(a: dict, b: dict, ta: frozenset, tb: frozenset) -> bool:
     pa, pb = _parse(a.get("published")), _parse(b.get("published"))
-    if pa and pb and abs(pa - pb) > CLUSTER_WINDOW:
+    # Only compare when both stamps carry a timezone: naive-vs-aware
+    # subtraction raises, and one publisher drifting to naive ISO must not
+    # 500 the whole overlay. Unknown window -> fall through to the
+    # content checks rather than assuming same or different.
+    if pa and pb and pa.tzinfo and pb.tzinfo and abs(pa - pb) > CLUSTER_WINDOW:
         return False
     if ta and tb:
         union = len(ta | tb)
@@ -226,11 +230,16 @@ def cluster(items: list[dict]) -> list[dict]:
                 name = item.get("source_name", "?")
                 if name != existing.get("source_name") and name not in also:
                     also.append(name)
-                # Prefer the better tier as the kept telling.
+                # Prefer the better tier as the kept telling. The credit
+                # list must never contain the kept item's own outlet --
+                # "ESPN (also: ESPN, CBS)" credits nobody.
                 if item.get("tier", 9) < existing.get("tier", 9):
-                    item["also_from"] = also + (
-                        [existing["source_name"]] if existing.get("source_name") not in also else []
-                    )
+                    credits = also + [existing.get("source_name", "?")]
+                    item["also_from"] = [
+                        s
+                        for i2, s in enumerate(credits)
+                        if s != item.get("source_name") and s not in credits[:i2]
+                    ]
                     kept[i] = item
                     token_cache[i] = tokens
                 break

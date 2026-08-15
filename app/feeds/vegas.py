@@ -302,6 +302,10 @@ def implied_by_team(games: list[dict]) -> dict[str, float]:
             continue
         away, home = game.group(1), game.group(2)
         fav = spread.group(1)
+        if fav not in (away, home):
+            # Divergent abbreviations (WSH vs WAS) would otherwise assign
+            # the dog total to the wrong side and invent a phantom team.
+            continue
         fav_points = round((total - float(spread.group(2))) / 2, 1)
         dog = home if fav == away else away
         teams[fav] = fav_points
@@ -324,6 +328,11 @@ def adjust_predictions(
         base_pts, live_pts = baseline.get(team), live.get(team)
         if base_pts is not None and live_pts is not None:
             delta = live_pts - base_pts
+            # Direction follows the lean: a rising implied total supports an
+            # OVER and undermines an UNDER. Without this flip, Mahomes-under
+            # gained confidence when KC's scoring environment improved.
+            if pred.get("lean", "").upper().startswith("UNDER"):
+                delta = -delta
             if abs(delta) >= MIN_MOVE:
                 shifted = pred["conf"] + delta * CONF_PER_POINT
                 row["conf"] = int(max(CONF_FLOOR, min(CONF_CEIL, round(shifted))))
