@@ -18,9 +18,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, players, poller, render
+from ..feeds import adp, build_feed_store, cheatsheet, players, poller, render
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -74,7 +76,22 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         ranks,
         adp_data=stored.get("adp"),
         index=index,
+        verdicts=stored.get("verdicts"),
     )
+
+
+@router.get("/app/cheatsheet", include_in_schema=False, response_class=HTMLResponse)
+async def draft_cheatsheet(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """Printable draft board from the live blended ADP. Declared before the
+    /app static mount so it wins; zero scripts so it prints cleanly."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the empty sheet
+        log.warning("cheatsheet: store unavailable: %s", exc)
+        stored, index = {}, None
+    state = (stored.get("adp") or {}).get("state") or {}
+    return HTMLResponse(cheatsheet.build_html(state, index, datetime.now(UTC)))
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")
@@ -124,12 +141,7 @@ async def read_feeds(
     }
 
 
-@router.post("/internal/sync", summary="Poll every source and merge new items")
-async def sync(
-    x_sync_token: str | None = Header(default=None),
-    settings: Settings = Depends(get_settings),
-    store: FeedStore = Depends(get_feed_store),
-) -> dict:
+def _require_sync_token(settings: Settings, x_sync_token: str | None) -> None:
     if not settings.sync_token:
         raise HTTPException(
             status_code=503,
@@ -139,6 +151,53 @@ async def sync(
     # length or prefix through timing.
     if not x_sync_token or not hmac.compare_digest(x_sync_token, settings.sync_token):
         raise HTTPException(status_code=401, detail="Bad or missing X-Sync-Token.")
+
+
+class VerdictsIn(BaseModel):
+    verdicts: dict[str, str]
+
+
+MAX_VERDICT_CHARS = 200
+
+
+@router.post("/internal/verdicts", summary="Store AI-drafted verdicts for wire items")
+async def save_verdicts(
+    payload: VerdictsIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """Called by the scheduled GitHub Models job, never by the browser.
+
+    Verdicts are keyed by wire-item id and only accepted for items we
+    actually hold -- the model cannot invent a story by inventing an id.
+    They render prefixed "AI draft:" so they never read as the owner's
+    judgement, and they are pruned with the items they belong to.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    data = await store.load()
+    valid_ids = {item.get("id") for item in data.get("items", [])}
+    accepted = {
+        item_id: text.strip()[:MAX_VERDICT_CHARS]
+        for item_id, text in payload.verdicts.items()
+        if item_id in valid_ids and text.strip()
+    }
+
+    merged = {**(data.get("verdicts") or {}), **accepted}
+    data["verdicts"] = {k: v for k, v in merged.items() if k in valid_ids}
+    await store.save(data)
+
+    return {"accepted": len(accepted), "stored": len(data["verdicts"])}
+
+
+@router.post("/internal/sync", summary="Poll every source and merge new items")
+async def sync(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    _require_sync_token(settings, x_sync_token)
 
     polled = await poller.poll()
 

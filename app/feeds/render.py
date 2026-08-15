@@ -121,6 +121,7 @@ def merge_into_feeds(
     ranks: dict[str, int] | None = None,
     adp_data: dict | None = None,
     index: dict | None = None,
+    verdicts: dict[str, str] | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -144,10 +145,12 @@ def merge_into_feeds(
     live = []
     for item in kept[:MAX_LIVE_ITEMS]:
         entry = to_news_entry(item)
-        # {{ a.impact }} renders as the pool feed's WHAT IT MEANS column;
-        # annotate() is factual and prefixed "Auto:" so it never reads as the
-        # owner's judgement.
-        entry["impact"] = impact.annotate(item)
+        # {{ a.impact }} renders as the pool feed's WHAT IT MEANS column.
+        # Preference order: an AI-drafted verdict (prefixed "AI draft:" --
+        # it must never read as the owner's judgement), else the rule-based
+        # "Auto:" annotation. Both are honest about their authorship.
+        verdict = (verdicts or {}).get(item.get("id", ""))
+        entry["impact"] = f"AI draft: {verdict}" if verdict else impact.annotate(item)
         also = item.get("also_from")
         if also:
             entry["text"] += f" (also: {', '.join(also)})"

@@ -1,0 +1,33 @@
+name: AI verdicts
+
+# Drafts one-line "AI draft:" verdicts for the newest wire items using
+# GitHub Models -- free inference authenticated with this workflow's own
+# GITHUB_TOKEN. Offset from sync-feeds so verdicts land on freshly-polled
+# items. A failed run costs nothing: the page falls back to "Auto:" labels.
+
+on:
+  schedule:
+    - cron: "41 * * * *" # hourly, after the :26-ish sync delivery window
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  models: read
+
+concurrency:
+  group: verdicts
+  cancel-in-progress: true
+
+jobs:
+  verdicts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # stdlib only, on purpose: the job must not fail because of its own
+      # dependencies.
+      - name: Draft and post verdicts
+        run: python3 scripts/draft_verdicts.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
