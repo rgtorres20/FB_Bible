@@ -222,3 +222,52 @@ def test_inject_predictions_swaps_const_and_caption():
     assert vegas.PRED_LIVE_CAPTION in served
     assert vegas.PRED_CAPTION not in served
     assert vegas.inject_predictions(html, []) == html
+
+
+# --- the Week 1 schedule tab -----------------------------------------------
+
+
+def test_kickoffs_render_in_central_time():
+    rows = vegas.parse_scoreboard(PAYLOAD)
+    sched = vegas.schedule_rows({"games": rows}, curated={})
+
+    sea = next(s for s in sched if s["home"] == "Seattle Seahawks")
+    assert sea["day"] == "Wed Sep 9"  # Sep 10 00:20 UTC is Wednesday evening CT
+    assert sea["time"] == "7:20 PM CT"
+    assert sea["away"] == "New England Patriots"
+    assert sea["tv"] == "NBC"
+
+    kc = next(s for s in sched if s["home"] == "Kansas City Chiefs")
+    assert kc["day"] == "Sun Sep 13"
+    assert kc["time"] == "12:00 PM CT"
+
+
+def test_curated_week1_notes_parse_the_real_page_and_ride_along():
+    curated = vegas.curated_week1()
+    assert len(curated) >= 10
+    key = "New England Patriots @ Seattle Seahawks"
+    assert "banner" in curated[key]["note"].lower()
+
+    sched = vegas.schedule_rows({"games": vegas.parse_scoreboard(PAYLOAD)})
+    sea = next(s for s in sched if s["home"] == "Seattle Seahawks")
+    assert "banner" in sea["note"].lower()
+
+
+def test_schedule_skips_games_with_no_kickoff_and_empties_do_not_inject():
+    incomplete = {"games": [{"game": "X @ Y", "kickoff": "", "away_name": "X", "home_name": "Y"}]}
+    assert vegas.schedule_rows(incomplete, curated={}) == []
+
+    html = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert vegas.inject_schedule(html, []) == html
+
+
+def test_inject_schedule_swaps_const_and_stamps_data_health():
+    html = Path("frontend/index.html").read_text(encoding="utf-8")
+    sched = vegas.schedule_rows({"games": vegas.parse_scoreboard(PAYLOAD)})
+
+    served = vegas.inject_schedule(html, sched, stamp="2026-08-15T11:00")
+
+    assert "const WEEK1 = [{" in served
+    assert '{ feed: "Week 1 schedule", asOf: "2026-08-15T11:00"' in served
+    assert vegas.SCHED_LIVE_SOURCE in served
+    assert "NFL.com May 14 release" not in served

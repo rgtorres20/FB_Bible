@@ -69,13 +69,13 @@ def parse_scoreboard(payload: dict) -> list[dict]:
     for event in payload.get("events") or []:
         competitions = event.get("competitions") or [{}]
         comp = competitions[0]
-        home = away = ""
+        home = away = home_name = away_name = ""
         for side in comp.get("competitors") or []:
-            abbrev = (side.get("team") or {}).get("abbreviation", "")
+            team = side.get("team") or {}
             if side.get("homeAway") == "home":
-                home = abbrev
+                home, home_name = team.get("abbreviation", ""), team.get("displayName", "")
             elif side.get("homeAway") == "away":
-                away = abbrev
+                away, away_name = team.get("abbreviation", ""), team.get("displayName", "")
         game = event.get("shortName") or (f"{away} @ {home}" if home and away else "")
         if not game:
             continue
@@ -91,6 +91,9 @@ def parse_scoreboard(payload: dict) -> list[dict]:
             dog = away if fav == home else home
             imp = f"{fav} {_fmt(fav_pts)} {DOT} {dog} {_fmt(dog_pts)}"
 
+        broadcasts = comp.get("broadcasts") or []
+        tv = ", ".join((broadcasts[0].get("names") or [])[:1]) if broadcasts else ""
+
         rows.append(
             {
                 "game": game,
@@ -98,6 +101,11 @@ def parse_scoreboard(payload: dict) -> list[dict]:
                 "total": _fmt(over_under) if over_under is not None else "—",
                 "imp": imp,
                 "provider": (odds.get("provider") or {}).get("name", ""),
+                # The schedule tab reads these; the odds table ignores them.
+                "kickoff": event.get("date", ""),
+                "away_name": away_name,
+                "home_name": home_name,
+                "tv": tv,
             }
         )
     return rows
@@ -319,6 +327,94 @@ def inject(html: str, live_rows: list[dict], stamp: str = "") -> str:
     if stamp:
         swapped = _META_ROW.sub(
             lambda m: f"{m.group(1)}{stamp}{m.group(2)}{LIVE_SOURCE}{m.group(3)}",
+            swapped,
+            count=1,
+        )
+    return swapped
+
+
+# --- the Week 1 schedule tab -----------------------------------------------
+# Same payload, second surface: the WEEK1 const was hand-typed from the May
+# schedule release. Kickoff, teams and network all arrive with the odds; the
+# per-game fantasy notes are the owner's and ride along by matchup.
+
+CENTRAL = ZoneInfo("America/Chicago")
+
+_WEEK1_BLOCK = re.compile(r"const WEEK1 = \[.*?\n\];", re.S)
+_WEEK1_ROW = re.compile(
+    r'\{ day: "[^"]*", time: "[^"]*", away: "([^"]+)", home: "([^"]+)", '
+    r'tv: "([^"]*)", note: "([^"]*)" \}'
+)
+_SCHED_META_ROW = re.compile(
+    r'(\{ feed: "Week 1 schedule", asOf: ")[^"]*(", maxAgeH: \d+, source: ")[^"]*(")'
+)
+SCHED_LIVE_SOURCE = "ESPN scoreboard — live kickoff times"
+
+
+def _kickoff_central(iso: str) -> tuple[str, str]:
+    """'2026-09-13T17:00Z' -> ('Sun Sep 13', '12:00 PM CT')."""
+    try:
+        local = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(CENTRAL)
+    except ValueError:
+        return "", ""
+    hour = local.hour % 12 or 12
+    meridiem = "AM" if local.hour < 12 else "PM"
+    return f"{local:%a} {local:%b} {local.day}", f"{hour}:{local:%M} {meridiem} CT"
+
+
+def curated_week1() -> dict[str, dict]:
+    """The owner's notes (and TV as fallback) per matchup, from the page."""
+    try:
+        text = _FRONTEND_INDEX.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    block = _WEEK1_BLOCK.search(text)
+    if not block:
+        return {}
+    return {
+        f"{away} @ {home}": {"tv": tv, "note": note}
+        for away, home, tv, note in _WEEK1_ROW.findall(block.group(0))
+    }
+
+
+def schedule_rows(state: dict, curated: dict[str, dict] | None = None) -> list[dict]:
+    """Live games in the page's WEEK1 shape. Games without a kickoff or team
+    names are skipped -- a half-known row would render as a broken line, and
+    the curated const remains the fallback whenever this returns empty."""
+    curated = curated if curated is not None else curated_week1()
+    rows_out: list[dict] = []
+    for game in state.get("games") or []:
+        day, time = _kickoff_central(game.get("kickoff", ""))
+        away, home = game.get("away_name", ""), game.get("home_name", "")
+        if not (day and away and home):
+            continue
+        known = curated.get(f"{away} @ {home}", {})
+        rows_out.append(
+            {
+                "day": day,
+                "time": time,
+                "away": away,
+                "home": home,
+                # ESPN's broadcast field when present, the curated network
+                # otherwise -- never invented.
+                "tv": game.get("tv") or known.get("tv", ""),
+                "note": known.get("note", ""),
+            }
+        )
+    return rows_out
+
+
+def inject_schedule(html: str, sched: list[dict], stamp: str = "") -> str:
+    """Swap the curated WEEK1 const for live kickoff data in the served page."""
+    if not sched:
+        return html
+    replacement = f"const WEEK1 = {json.dumps(sched)};"
+    swapped, count = _WEEK1_BLOCK.subn(lambda _: replacement, html, count=1)
+    if not count:
+        return html
+    if stamp:
+        swapped = _SCHED_META_ROW.sub(
+            lambda m: f"{m.group(1)}{stamp}{m.group(2)}{SCHED_LIVE_SOURCE}{m.group(3)}",
             swapped,
             count=1,
         )

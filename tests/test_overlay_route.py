@@ -183,3 +183,32 @@ async def test_beta_deploys_announce_themselves(page_client, monkeypatch):
 
     monkeypatch.setattr(get_settings(), "vercel_env", "production", raising=False)
     assert "fb-stage-badge" not in c.get("/app/").text
+
+
+async def test_served_page_swaps_in_the_live_schedule(page_client):
+    c, store = page_client
+    await store.save(
+        {
+            "items": [],
+            "vegas": {
+                "fetched_at": "2026-08-15T16:00:00+00:00",
+                "games": [
+                    {
+                        "game": "NE @ SEA",
+                        "fav": "SEA -7.5",
+                        "total": "47.5",
+                        "imp": "SEA 27.5 · NE 20",
+                        "kickoff": "2026-09-10T00:20Z",
+                        "away_name": "New England Patriots",
+                        "home_name": "Seattle Seahawks",
+                        "tv": "NBC",
+                    }
+                ],
+            },
+        }
+    )
+
+    served = c.get("/app/").text
+
+    assert "const WEEK1 = [{" in served
+    assert "NFL.com May 14 release" not in served

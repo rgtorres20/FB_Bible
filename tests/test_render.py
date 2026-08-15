@@ -323,3 +323,30 @@ def test_vegas_meta_row_stamps_when_lines_are_live():
 
     untouched = render.merge_into_feeds(bundled, [ITEM], NOW)  # no vegas data
     assert untouched["meta"][0] == bundled["meta"][0]
+
+
+def test_schedule_meta_row_stamps_when_kickoffs_are_live():
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "Week 1 schedule",
+                "asOf": "2026-08-13T20:00",
+                "maxAgeH": 168,
+                "source": "NFL.com May 14 release",
+                "tab": "Schedule",
+            },
+        ],
+    }
+    live = {
+        "fetched_at": "2026-08-15T10:00:00+00:00",
+        "games": [{"game": "NE @ SEA", "kickoff": "2026-09-10T00:20Z"}],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=live)
+    assert merged["meta"][0]["asOf"] == "2026-08-15T05:00"
+    assert "live kickoff" in merged["meta"][0]["source"]
+
+    # Odds-only data (no kickoff field) must not claim the schedule is live.
+    odds_only = {"fetched_at": live["fetched_at"], "games": [{"game": "NE @ SEA"}]}
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=odds_only)
+    assert merged["meta"][0] == bundled["meta"][0]

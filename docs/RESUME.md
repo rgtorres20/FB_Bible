@@ -19,7 +19,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 238 Python + 16 JS, CI green on every push |
+| Tests | 267 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -140,14 +140,13 @@ The watchdog asserts the decorator and its styles keep serving.
 
 ## Next work, no dependencies — highest value first
 
-1. **Week 1 schedule tab from the stored scoreboard payload** — kickoff
-   dates are already in `vegas.games`' source feed; add them to the parse
-   and overlay the schedule tab. Small.
-2. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
+1. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
    user action; starts their review clock.
+2. Remaining curated surfaces are Phase 3 or by-design — see
+   docs/STALE_DATA.md. Nothing on the no-dependency list is left.
 
-(TD leans went live Aug 15 with the Vegas board — confidence tracks
-implied-total movement; see STALE_DATA.md #2.)
+(TD leans and the Week 1 schedule went live Aug 15 with the Vegas board —
+see STALE_DATA.md #1–2.)
 
 ## Housekeeping worth doing when fresh
 

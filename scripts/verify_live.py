@@ -95,6 +95,7 @@ def main() -> int:
     # curated openers means the odds pipeline is stale -- a true failure.
     check("Vegas lines are live", "Live via ESPN" in served)
     check("TD leans track live lines", "confidence adjusted" in served)
+    check("Week 1 schedule is live", "live kickoff times" in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
     mobile_css = get("/app/mobile.css")

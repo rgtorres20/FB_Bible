@@ -16,6 +16,8 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | NBC player news | Rotoworld page scrape | ~hourly sync |
 | Draft board ADP / movers / sleeper finds | FFC live drafts + Sleeper ranks | ~hourly + daily snapshots |
 | Vegas lines (FFBets · Predictions) | ESPN scoreboard odds | ~hourly sync (Aug 15) |
+| TD-lean confidence (FFBets) | implied-total movement vs openers | every request (Aug 15) |
+| Week 1 schedule (kickoff/teams/TV) | ESPN scoreboard | ~hourly sync (Aug 15) |
 | Trending adds/drops, injury flags | Sleeper API, fetched by the page | on page load |
 | AI draft verdicts | GitHub Models job | hourly |
 | Data health stamps | overlay-stamped per feed | every request |
@@ -25,10 +27,12 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 
 Ordered by how much staleness actually costs.
 
-1. **Week 1 schedule** — static from the May release; game dates/times are
-   in the ESPN scoreboard payload we now already poll for odds. Plan: derive
-   the schedule tab from the stored `vegas.games` payload (add kickoff
-   date to the parsed rows, overlay like everything else). Small, next.
+1. ~~**Week 1 schedule**~~ — RESOLVED Aug 15. Kickoff day/time (Central),
+   team names and network now come from the stored scoreboard payload and
+   swap into the served WEEK1 const; the owner's per-game notes ride along
+   by matchup, and ESPN's broadcast field falls back to the curated network
+   rather than inventing one. Weeks 2–18 remain a Phase 3 item (the tab
+   only renders Week 1 today).
 2. ~~**PREDICTIONS (TD model leans)**~~ — RESOLVED Aug 15 (owner's call:
    compute live). The leans stay the owner's Aug-14 judgement — never
    auto-flipped — while confidence now shifts with each team's live

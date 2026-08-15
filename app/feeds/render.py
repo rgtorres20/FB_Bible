@@ -244,6 +244,14 @@ def merge_into_feeds(
                 "asOf": vegas.central_stamp((vegas_data or {}).get("fetched_at")) or stamp,
                 "source": vegas.LIVE_SOURCE,
             }
+        elif feed == "Week 1 schedule" and any(
+            g.get("kickoff") for g in (vegas_data or {}).get("games") or []
+        ):
+            entry = {
+                **entry,
+                "asOf": vegas.central_stamp((vegas_data or {}).get("fetched_at")) or stamp,
+                "source": vegas.SCHED_LIVE_SOURCE,
+            }
         meta_rows.append(entry)
     merged["meta"] = meta_rows
     return merged

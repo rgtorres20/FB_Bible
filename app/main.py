@@ -151,6 +151,13 @@ if _FRONTEND_READY:
                         vegas.live_implied(live),
                     )
                     html = vegas.inject_predictions(html, adjusted)
+                # Week 1 schedule rides the same payload: kickoff, teams and
+                # network are ESPN's; the per-game notes stay the owner's.
+                html = vegas.inject_schedule(
+                    html,
+                    vegas.schedule_rows(state),
+                    vegas.central_stamp(state.get("fetched_at")),
+                )
             except Exception as exc:  # noqa: BLE001 - odds must never blank the page
                 logging.getLogger(__name__).warning("vegas overlay unavailable: %s", exc)
         # A beta deploy announces itself (styles in mobile.css). Prod and
