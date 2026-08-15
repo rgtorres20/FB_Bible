@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch cancels the first — no point paying for
+# CI on a commit that's already superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server (ruff + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
+
+      - name: Tests
+        run: pytest -q
+
+  web:
+    name: Browser client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No dependencies to install — node:test is built in.
+      - name: Tests
+        run: node --test
+        working-directory: web
+
+  secrets:
+    name: No committed secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cheap backstop for the one mistake that would actually hurt: a real
+      # .env or a token file reaching the repo. .gitignore covers this, but
+      # .gitignore can be edited and -f can be forced.
+      - name: Check for credential files
+        run: |
+          if git ls-files --error-unmatch .env .tokens.json 2>/dev/null; then
+            echo "::error::A credential file is tracked in git."
+            exit 1
+          fi
+          echo "No credential files tracked."
+
+      # tests/ is excluded on purpose: it assigns a dummy client secret as a
+      # fixture. Scanning it would fail every green build, and a job that cries
+      # wolf gets ignored, which defeats the point.
+      # (Careful when editing the comment below — it is scanned too.)
+      - name: Check for a Yahoo secret pasted into source
+        run: |
+          if grep -rInE 'yahoo_client_secret\s*[:=]\s*["'\''][^"'\'']+' \
+               --include='*.py' --include='*.js' --include='*.json' \
+               --include='*.yml' --include='*.yaml' \
+               --exclude-dir=tests --exclude-dir=.venv --exclude-dir=.git . ; then
+            echo "::error::A Yahoo client secret looks hardcoded."
+            exit 1
+          fi
+          echo "No hardcoded Yahoo secret found."

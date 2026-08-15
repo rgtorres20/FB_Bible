@@ -1,0 +1,9 @@
+{
+  "name": "fb-bible-web-client",
+  "private": true,
+  "type": "module",
+  "description": "Browser client for the FB Bible server. No dependencies, no build step -- this file exists only so node --test treats fbApi.js as ESM.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
