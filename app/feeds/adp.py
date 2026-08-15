@@ -229,17 +229,32 @@ def build_scout(
 
     ranks = _rank_lookup(index)
     if ranks:
-        finds = []
+        # Raw (adp - rank) is skewed by position: Sleeper's search rank loves
+        # QBs, but 1-QB rooms draft them late, so every mid QB looks like an
+        # 80-pick steal. Subtracting each position's median gap makes a find
+        # mean "cheap relative to his peers", which is the only reading that
+        # survives contact with a real draft.
+        with_gaps = []
         for entry in board:
             key = " ".join(players_mod.normalize(entry["name"]).split())
             rank = ranks.get(key)
-            if rank is None or rank > SLEEPER_MAX_RANK:
+            if rank is None:
                 continue
-            gap = entry["adp"] - rank
-            if gap >= SLEEPER_MIN_GAP:
-                finds.append((gap, rank, entry))
+            with_gaps.append((entry["adp"] - rank, rank, entry))
+        by_pos: dict[str, list[float]] = {}
+        for gap, _, entry in with_gaps:
+            by_pos.setdefault(entry.get("position") or "?", []).append(gap)
+        medians = {pos: sorted(gaps)[len(gaps) // 2] for pos, gaps in by_pos.items()}
+
+        finds = []
+        for gap, rank, entry in with_gaps:
+            if rank > SLEEPER_MAX_RANK:
+                continue
+            edge = gap - medians.get(entry.get("position") or "?", 0.0)
+            if edge >= SLEEPER_MIN_GAP:
+                finds.append((edge, rank, entry))
         finds.sort(key=lambda f: f[0], reverse=True)
-        for gap, rank, entry in finds[:MAX_SLEEPER_FINDS]:
+        for edge, rank, entry in finds[:MAX_SLEEPER_FINDS]:
             entries.append(
                 {
                     "kind": "Sleeper find",
@@ -247,8 +262,9 @@ def build_scout(
                     "meta": _meta(entry),
                     "pos": entry.get("position") or "",
                     "text": f"Sleeper consensus has him #{rank}; draft rooms take him at "
-                    f"{entry['adp']:.0f} — the market is ~{gap:.0f} picks behind.",
-                    "src": "Sleeper rank vs FFC ADP",
+                    f"{entry['adp']:.0f} — ~{edge:.0f} picks cheaper than his "
+                    f"{entry.get('position') or '?'} peers at that rank.",
+                    "src": "Sleeper rank vs FFC ADP (position-adjusted)",
                 }
             )
 
@@ -268,21 +284,20 @@ def _article_finds(items: list[dict]) -> list[dict]:
         if not _SLEEPER_WORD.search(text):
             continue
         tagged = item.get("players") or []
-        name = tagged[0].get("name") if tagged else (item.get("title") or "").strip()[:60]
+        if not tagged:
+            # An untagged "sleeper" headline is usually a betting or listicle
+            # promo; without a player it cannot be a card about a player.
+            continue
+        name = tagged[0].get("name")
         if not name or name in seen:
             continue
         seen.add(name)
-        meta = (
-            f"{tagged[0].get('position') or '?'} · {tagged[0].get('team') or 'FA'}"
-            if tagged
-            else "article"
-        )
         found.append(
             {
                 "kind": "Sleeper find",
                 "name": name,
-                "meta": meta,
-                "pos": tagged[0].get("position") or "" if tagged else "",
+                "meta": f"{tagged[0].get('position') or '?'} · {tagged[0].get('team') or 'FA'}",
+                "pos": tagged[0].get("position") or "",
                 "text": (item.get("title") or "").strip(),
                 "src": f"{item.get('source_name', 'wire')} · sleeper coverage",
             }

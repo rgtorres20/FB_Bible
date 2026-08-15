@@ -133,13 +133,39 @@ def _index(*players: tuple[str, int]) -> dict:
 
 
 def test_sleeper_find_from_rank_vs_adp_gap():
-    state = _state("2026-08-14", [_row("Ricky Pearsall", "WR", "SF", 95.0)])
-    entries = adp.build_scout(state, index=_index(("Ricky Pearsall", 60)))
-    assert len(entries) == 1
+    # Two WRs priced at their rank set the positional baseline; the third is
+    # drafted 35 picks later than his rank -- that outlier is the find.
+    state = _state(
+        "2026-08-14",
+        [
+            _row("Fairly Priced", "WR", "DAL", 20.0),
+            _row("Also Fair", "WR", "MIA", 41.0),
+            _row("Ricky Pearsall", "WR", "SF", 95.0),
+        ],
+    )
+    index = _index(("Fairly Priced", 20), ("Also Fair", 40), ("Ricky Pearsall", 60))
+    entries = adp.build_scout(state, index=index)
+    assert [e["name"] for e in entries] == ["Ricky Pearsall"]
     entry = entries[0]
     assert entry["kind"] == "Sleeper find"
     assert "#60" in entry["text"]
     assert "95" in entry["text"]
+
+
+def test_uniform_positional_gap_is_not_a_find():
+    # Sleeper's search rank loves QBs, so in a 1-QB room every QB shows a big
+    # raw gap. If the whole position is gapped the same way, nobody is a
+    # sleeper -- that is the market's QB discount, not value.
+    state = _state(
+        "2026-08-14",
+        [
+            _row("QB One", "QB", "CHI", 101.0),
+            _row("QB Two", "QB", "DEN", 120.0),
+            _row("QB Three", "QB", "LAC", 104.0),
+        ],
+    )
+    index = _index(("QB One", 17), ("QB Two", 40), ("QB Three", 31))
+    assert adp.build_scout(state, index=index) == []
 
 
 def test_no_sleeper_find_when_market_agrees_or_rank_too_deep():
@@ -168,6 +194,15 @@ def test_article_finds_flag_sleeper_coverage():
             "summary": "no draft angle",
             "published": "2026-08-14T11:00:00+00:00",
             "source_name": "ESPN",
+            "players": [],
+        },
+        {
+            # Untagged "sleeper" headline = betting/listicle promo, not a
+            # player card. Must be dropped, not rendered with a junk name.
+            "title": "NFL futures betting: best sleeper picks for MVP",
+            "summary": "",
+            "published": "2026-08-14T12:00:00+00:00",
+            "source_name": "CBS Sports",
             "players": [],
         },
     ]
