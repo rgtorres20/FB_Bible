@@ -216,3 +216,38 @@ async def test_beta_deploys_announce_themselves(page_client, monkeypatch):
 
     monkeypatch.setattr(get_settings(), "vercel_env", "production", raising=False)
     assert "fb-stage-badge" not in c.get("/app/").text
+
+
+async def test_served_page_board_carries_live_adp(page_client):
+    """The Draft analyzer's ADP column stops being the row's own rank."""
+    c, store = page_client
+    await store.save(
+        {
+            "items": [],
+            "adp": {
+                "state": {
+                    "date": "2026-08-15",
+                    "players": [
+                        {
+                            "name": "Jahmyr Gibbs",
+                            "adp": 2.4,
+                            "sizes": {"12": 2.1, "10": 2.7},
+                        }
+                    ],
+                }
+            },
+        }
+    )
+
+    served = c.get("/app/").text
+
+    assert '"Jahmyr Gibbs":{"a":2.4,"a12":2.1,"a10":2.7}' in served
+    assert "const FBAdp = b =>" in served
+    assert "parseFloat(b.adp)" not in served
+
+
+async def test_served_page_keeps_the_committed_board_without_live_adp(page_client):
+    c, _ = page_client
+    served = c.get("/app/").text
+    assert 'adp: round + "." + String(pick).padStart(2, "0")' in served
+    assert "FB_LIVE_ADP" not in served

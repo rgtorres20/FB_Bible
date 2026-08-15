@@ -22,7 +22,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 279 Python + 16 JS, CI green on every push |
+| Tests | 294 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -125,9 +125,9 @@ should work first time.
 
 ## Watchdog
 
-`verify-live.yml` asserts 23 production checks every 2 hours (data fresh,
+`verify-live.yml` asserts 25 production checks every 2 hours (data fresh,
 six sources not FAILED, overlays served, mobile injected, FFBets predict
-mode, Vegas/TD-lean/schedule surfaces still live, decorator assets still
+mode, Vegas/TD-lean/schedule/draft-board surfaces still live, decorator assets still
 serving). A failure emails the repo owner. Run it on demand from the
 Actions tab. Last full green: Aug 15 20:17 CDT against `caeff70`.
 

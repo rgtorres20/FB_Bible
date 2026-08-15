@@ -229,6 +229,7 @@ def merge_into_feeds(
     # hardcoded "live" labels were in the unsafe one.
     local_now = now.astimezone(CENTRAL)
     stamp = f"{local_now:%Y-%m-%dT%H:%M}"
+    live_adp_players = bool(((adp_data or {}).get("state") or {}).get("players"))
     meta_rows = []
     for entry in bundled.get("meta", []):
         feed = entry.get("feed")
@@ -238,11 +239,16 @@ def merge_into_feeds(
                 "asOf": stamp,
                 "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
             }
-        elif live_scout and feed in ("Draft board / ADP blend", "Sleeper list"):
+        # Only the draft board actually reads the live blend. The Sleepers
+        # tab still renders its committed TARGETS const, so stamping it live
+        # alongside the board was this file telling the same lie the board's
+        # derived ADP column told -- it keeps its own as-of date until that
+        # surface is overlaid too.
+        elif live_adp_players and feed == "Draft board / ADP blend":
             entry = {
                 **entry,
                 "asOf": stamp,
-                "source": "FFC live drafts (10+12tm PPR avg) + Sleeper rank",
+                "source": "FFC live drafts, per league size (12tm / 10tm PPR)",
             }
         elif live_vegas and feed == "Vegas lines":
             label = (vegas_state or {}).get("week_label") or "current slate"
