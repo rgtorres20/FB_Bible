@@ -80,6 +80,40 @@ def to_news_entry(item: dict) -> dict:
     }
 
 
+def _lean(item: dict) -> str:
+    """Terse right-column call for the NBC tab. Factual, "Auto:" prefixed --
+    the curated entries carry real judgements ("Pause at ADP"); ours must
+    never dress up as one."""
+    category = item.get("impact_category")
+    rank = item.get("top_rank")
+    label = {
+        "severe": "Auto: availability risk",
+        "status": "Auto: injury watch",
+        "positive": "Auto: positive sign",
+    }.get(category, "")
+    if not label and rank is not None and rank <= 200:
+        label = "Auto: notable"
+    if label and rank is not None and rank <= 400:
+        label += f" · top-{((rank // 100) + 1) * 100}"
+    return label
+
+
+def to_nbc_entry(item: dict) -> dict:
+    """One tagged wire item in the NBC player news tab's shape."""
+    first = (item.get("players") or [{}])[0]
+    title = (item.get("title") or "").strip()
+    summary = (item.get("summary") or "").strip()
+    return {
+        "time": format_time(item.get("published")),
+        "player": first.get("name", ""),
+        "meta": f"{first.get('position', '')} {DOT} {first.get('team') or 'FA'}",
+        "head": title,
+        "text": summary if summary and summary != title else title,
+        "lean": _lean(item),
+        "link": item.get("link", ""),
+    }
+
+
 def merge_into_feeds(
     bundled: dict,
     items: list[dict],
@@ -123,6 +157,18 @@ def merge_into_feeds(
 
     merged["news"] = live + curated
     merged["news_hidden_low_impact"] = hidden
+
+    # NBC player news is the other chat-synced news surface, and player-tagged
+    # wire items are exactly its genre. Newest first, curated blurbs kept
+    # below -- they carry editorial leans a headline cannot replace.
+    player_items = [i for i in kept if i.get("players")]
+    player_items.sort(key=lambda i: i.get("published") or "", reverse=True)
+    nbc_live = [to_nbc_entry(i) for i in player_items[:MAX_LIVE_ITEMS]]
+    nbc_seen = {(e["player"], e["head"]) for e in nbc_live}
+    nbc_curated = [
+        e for e in bundled.get("rotowire", []) if (e.get("player"), e.get("head")) not in nbc_seen
+    ]
+    merged["rotowire"] = nbc_live + nbc_curated
     merged["updated"] = now.isoformat()
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "
@@ -142,7 +188,7 @@ def merge_into_feeds(
             "asOf": f"{local_now:%Y-%m-%dT%H:%M}",
             "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
         }
-        if entry.get("feed") == "News & posts"
+        if entry.get("feed") in ("News & posts", "NBC player news")
         else entry
         for entry in bundled.get("meta", [])
     ]

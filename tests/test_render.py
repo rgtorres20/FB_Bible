@@ -217,3 +217,41 @@ def test_merge_updates_the_data_health_stamp_for_news_only():
 def test_merge_with_no_meta_key_still_works():
     merged = render.merge_into_feeds({"news": []}, [ITEM], NOW)
     assert merged["meta"] == []
+
+
+def test_nbc_tab_gets_live_player_items_in_its_shape():
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW)
+
+    entry = merged["rotowire"][0]
+    assert entry["player"] == "Puka Nacua"
+    assert entry["meta"] == "WR · LAR"
+    assert entry["head"].startswith("Nacua expected back")
+    assert entry["time"] == "Fri Aug 14 · 11:00 AM"
+    assert entry["lean"].startswith("Auto:")
+
+
+def test_nbc_tab_excludes_untagged_items():
+    untagged = {**ITEM, "players": [], "title": "League approves rule change", "summary": ""}
+    merged = render.merge_into_feeds(BUNDLED, [untagged], NOW)
+    assert all(e.get("player") for e in merged.get("rotowire", []) if "head" in e) or merged.get(
+        "rotowire"
+    ) == BUNDLED.get("rotowire", [])
+
+
+def test_nbc_meta_stamp_updates_alongside_news(  # noqa: D103
+):
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "NBC player news",
+                "asOf": "2026-08-14T08:00",
+                "maxAgeH": 24,
+                "source": "nbcsports.com Rotoworld",
+                "tab": "NBC player news",
+            },
+        ],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW)
+    assert merged["meta"][0]["asOf"] == "2026-08-15T01:00"
+    assert "live wire" in merged["meta"][0]["source"]
