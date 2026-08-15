@@ -64,6 +64,37 @@ Gravy and The Trenches by name. That endpoint had a parser bug that returned
 an empty list for real Yahoo data; it is fixed and covered by a test, so it
 should work first time.
 
+## Action items from the Aug 15 session (user-requested)
+
+1. **Pickup queue working for both leagues** (Sunday Gravy + The Trenches).
+   The tab exists with 0 items; queue is per-league with triggers per
+   CLAUDE.md. Needs design-project sync for the UI wiring plus, ideally,
+   Yahoo access for live adds — but trigger-on-wire-news can work today
+   against the live feed.
+2. **More stale tabs → live**, in value order:
+   - *Draft board / ADP blend*: FantasyFootballCalculator has a free no-key
+     JSON ADP API — highest value, ADP drifts daily during draft season.
+   - *Vegas lines (FFBets · Predictions)*: ESPN's public scoreboard JSON
+     carries odds, no auth.
+   - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
+3. **AI layer ("make it more AI-driven")**: a scheduled job calling the
+   Claude API (Haiku) over the polled wire to draft the judgement-tab
+   content the RSS pipeline deliberately refuses to fabricate — verdict
+   drafts for Alerts/lean columns, marked as drafts for the owner to keep
+   or kill. This is the honest version of "AI-driven scraping": summarise
+   and classify licensed feeds we already poll, not search-scrape the open
+   web. Cost at this volume: cents per day.
+   NOT built yet — needs an ANTHROPIC_API_KEY decision (billing) first.
+4. **Yahoo access application**: ready to paste from
+   `docs/YAHOO_APPLICATION.md`. Submitting starts their review clock.
+
+## Watchdog
+
+`verify-live.yml` asserts 22 production checks every 2 hours (data fresh,
+six sources not FAILED, overlays served, mobile injected, FFBets predict
+mode). A failure emails the repo owner. Run it on demand from the Actions
+tab.
+
 ## Next work, no dependencies — highest value first
 
 1. **Point the page at `/api/feeds`.** The server holds 143 live tagged items
