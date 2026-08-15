@@ -1,6 +1,6 @@
 # Resume here
 
-Last worked: **Fri Aug 14 2026, ~8pm CDT.** Next session: Sat Aug 15, 11am.
+Last worked: **Sat Aug 15 2026, ~1am CDT.**
 
 ## Scope check, so this file is not misread
 
@@ -9,84 +9,92 @@ Bible, and its core loop is **Alerts**: news arrives, you judge it, and it
 drives roster, draft-board and target changes. Yahoo removes manual roster and
 pick entry from that loop; it does not define it.
 
-This repo currently holds only the Yahoo backend. Weighting the roadmap by
-what moves the app forward, the Alerts pipeline matters more than finishing
-Phase 2 — see "Alerts" below.
+## What is live right now
 
-## One-line status
+| | |
+|---|---|
+| App | <https://fb-bible-torro2.vercel.app/app> — installable to a phone home screen |
+| API | <https://fb-bible-torro2.vercel.app/docs> — 15 endpoints |
+| Store | Upstash Redis, encrypted token store |
+| News | 5 publishers polled automatically, player-tagged, in Redis |
+| Scheduler | GitHub Actions, running green |
+| Cost | $0 |
+| Tests | 119 Python + 16 JS, CI green on every push |
 
-The server is **live and healthy** at <https://fb-bible-torro2.vercel.app>.
-It is not yet connected to Yahoo, and that is blocked on one paste.
+**The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
+ProFootballTalk and CBS are polled without anyone asking, items are tagged
+with the fantasy players they mention, and `/api/feeds` serves them with an
+honest LIVE / STALE / FAILED state per source.
 
-## The single next action
+Note the real cadence: the cron says every 15 minutes, but GitHub drops
+scheduled runs under load on free public repos. Observed: roughly hourly.
 
-Open `.env` (gitignored, in the repo root) and paste the Upstash connection
-string after `REDIS_URL=`. It starts `rediss://` — **not** the REST URL/token,
-which is for a different client.
+## The one thing left that needs you
 
-Then:
+**Register the Yahoo developer app** — <https://developer.yahoo.com/apps/create/>
+
+- Application Type: **Web Application**
+- Redirect URI: `https://fb-bible-torro2.vercel.app/auth/yahoo/callback`
+  (copy it from `.env`; Yahoo matches character for character)
+- API Permissions: **Fantasy Sports → Read**
+
+Then paste the Client ID and Secret into `.env` (lines 4 and 5) and run:
 
 ```bash
-npx vercel login          # once
-npx vercel link           # once, pick the fb-bible project
 python scripts/push_env_to_vercel.py
 ```
 
-That pushes every production variable and redeploys. `--dry-run` previews it.
-Everything else in `.env` is already filled in.
+Then visit `/auth/yahoo/login`. Success = `/api/leagues` returning Sunday
+Gravy and The Trenches by name. That endpoint had a parser bug that returned
+an empty list for real Yahoo data; it is fixed and covered by a test, so it
+should work first time.
 
-## Then verify, in this order
+## Next work, no dependencies — highest value first
 
-```bash
-curl https://fb-bible-torro2.vercel.app/health
-```
+1. **Point the page at `/api/feeds`.** The server holds 143 live tagged items
+   the page does not read yet. This is the last mile of the stale-data fix.
+   Drop-in snippet: `frontend/lib/README.md`.
+2. **Cross-source dedupe.** The same story arrives from two outlets and shows
+   twice.
+3. **"New since last visit."** The poller already knows which ids are new; it
+   needs a `first_seen` stamp so the UI can mark them.
+4. **Rank by impact on your board**, not just time — you have 205 ranked
+   players and player tags; joining them is the whole point.
+5. **Timestamps on Out & returning** — the only tab without them, and the one
+   where age matters most.
 
-Expect `token_store: redis` and `encryption_configured: true`. That proves
-Redis is reachable and the key is valid — check it **before** the Yahoo form,
-because a bad `REDIS_URL` otherwise surfaces much later as a broken login.
+## Housekeeping worth doing when fresh
 
-Then register the Yahoo app (docs/YAHOO_SETUP.md) with this exact callback:
-
-```
-https://fb-bible-torro2.vercel.app/auth/yahoo/callback
-```
-
-Yahoo matches it character for character. Add `YAHOO_CLIENT_ID` and
-`YAHOO_CLIENT_SECRET` to `.env`, re-run the push script, then visit
-`/auth/yahoo/login`.
-
-Success looks like `/api/leagues` returning Sunday Gravy and The Trenches.
-
-## Also open, not blocking
-
-- **The app itself is still only in the Claude design project.** Paste into
-  that chat: *"Commit these to the connected repo: `Fantasy Bible.dc.html` as
-  `frontend/index.html`, and `data/feeds.json` as
-  `frontend/data/feeds.json`."* Until then the repo is only half the project.
-  Full checklist: `docs/MIGRATION.md`.
-- **Sleeper attribution** is required wherever trending data shows, and the
-  Alerts panel shows it today. See `docs/LICENSING.md`.
-- **Confirm the production domain** in Vercel Settings → Domains. Everything
-  assumes `fb-bible-torro2.vercel.app`.
+- **Rotate the Upstash password.** It was pasted into chat. Reset it in the
+  Upstash console, then re-run `scripts/setup_redis.py`.
+- **Remove `mcp__claude-in-chrome__javascript_tool`** from
+  `~/.claude/settings.local.json`. It was added to extract the frontend files;
+  that job is done, and it grants standing arbitrary-JS-in-browser access.
+- **Delete the Vercel Protection Bypass secret** — unused, and its value was
+  pasted into chat.
 
 ## Hard-won context worth not relearning
 
 - Vercel installs from `pyproject.toml` via `uv` and **never reads
   `requirements.txt`**. An empty `dependencies` list deploys a function with no
-  packages at all, visible only as `FUNCTION_INVOCATION_FAILED`. Both
-  requirements files were deleted so this cannot recur.
+  packages at all, visible only as `FUNCTION_INVOCATION_FAILED`.
 - **Do not add a `vercel.json`.** A `builds` key silently disables `rewrites`
   (404 everywhere) and bundles only the entrypoint. Zero-config plus
-  `[tool.vercel] entrypoint` is the working setup. Details in `docs/HOSTING.md`.
+  `[tool.vercel] entrypoint` is the working setup.
 - Deployment Protection must stay **off**, or Yahoo's redirect hits a Vercel
   login wall.
-- Read deploy state from the GitHub commit status API
-  (`/repos/rgtorres20/FB_Bible/commits/<sha>/status`), not by polling the
-  endpoint — otherwise you wait on deploys that already failed. A ~2 second
-  failure is config validation, not a build error.
+- Upstash's console shows the redis-cli form, where TLS comes from a `--tls`
+  flag. The server needs `rediss://`. `scripts/setup_redis.py` normalises this.
+- On Windows, `npx` is `npx.CMD`; subprocess needs `cmd /c` to start it.
+- Read deploy state from the GitHub commit status API, not by polling the
+  endpoint. A ~2 second failure is config validation, not a build error.
+- The frontend is a Claude Design `.dc` document: it loads `support.js` and a
+  `_ds/` bundle. `manifest.webmanifest` and `sw.js` both shipped with paths
+  from the design project's layout and had to be corrected for this one.
 
-## Health
+## Still true, deliberately not done
 
-28 Python tests, 16 JS tests, CI green on every push. `docs/` carries the spec,
-licensing constraints, hosting decision and migration checklist — deliberately,
-so none of it depends on chat history surviving.
+Multi-user auth (single-user first, decided Aug 14), commercial licensing
+agreements with Yahoo and Sleeper (only if selling — see `docs/LICENSING.md`),
+migration to a personal Claude account (`docs/MIGRATION.md`), and Phase 3 web
+push.
