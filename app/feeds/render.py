@@ -97,7 +97,7 @@ def _lean(item: dict) -> str:
     if not label and rank is not None and rank <= 200:
         label = "Auto: notable"
     if label and rank is not None and rank <= 400:
-        label += f" · top-{((rank // 100) + 1) * 100}"
+        label += f" · top-{(((rank - 1) // 100) + 1) * 100}"
     return label
 
 

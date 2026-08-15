@@ -64,7 +64,8 @@ from Sleeper. Neither blocks personal single-user use.
 - **No false positives.** Never fabricate a judgement, a number, or a
   freshness label to make a surface look complete — an empty truthful
   section beats an invented one. When a call is genuinely uncertain, ask
-  the owner instead of guessing.
+  the owner instead of guessing. The standing list of known gaps and the
+  fixes already made: [docs/GAP_REVIEW.md](docs/GAP_REVIEW.md).
 - **Two stages, one codebase.** `main` deploys prod; the `beta` branch
   deploys a stable Vercel preview that wears a BETA badge and reads (never
   writes) the shared feed store. See
@@ -85,7 +86,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-283 tests green — 267 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+295 tests green — 279 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

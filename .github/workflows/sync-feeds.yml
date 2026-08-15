@@ -62,10 +62,14 @@ jobs:
       # ESPN 403s Vercel's IP range, so the Vegas slate is fetched from this
       # runner and pushed to the deployment -- same division of labour as the
       # sync trigger itself. A failed fetch skips quietly; the stored slate
-      # persists and Data health keeps its honest stamp.
+      # persists and Data health keeps its honest stamp. The push is
+      # independent of the sync call, so a transient sync failure must not
+      # block it -- hence the always-run condition on both steps.
       - uses: actions/checkout@v4
+        if: ${{ !cancelled() }}
 
       - name: Push Vegas slate
+        if: ${{ !cancelled() }}
         env:
           FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}

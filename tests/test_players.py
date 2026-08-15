@@ -218,3 +218,32 @@ def test_chase_stays_refused_bare_even_though_the_surname_is_unique():
 def test_lowercase_surname_does_not_match():
     found = players.find_players("the bowers of the stadium", INDEX)
     assert found == []
+
+
+def test_dotted_and_initialed_names_still_enrich():
+    """'C.J. Stroud' normalizes with a double space; the by_name keys are
+    single-spaced. The tagger must join-split or every initialed player
+    loses his rank enrichment."""
+    from app.feeds import players as players_mod
+
+    index = players_mod.build_index(
+        {
+            "77": {
+                "active": True,
+                "position": "QB",
+                "full_name": "C.J. Stroud",
+                "team": "HOU",
+                "injury_status": None,
+                "search_rank": 30,
+            }
+        }
+    )
+    seeded = {
+        "title": "Texans QB C.J. Stroud sharp in practice",
+        "summary": "",
+        "players": [{"id": "rw:cj-stroud", "name": "C.J. Stroud", "position": "QB", "team": None}],
+    }
+    players_mod.tag_items([seeded], index)
+
+    assert seeded["players"][0]["id"] == "77"
+    assert seeded["players"][0]["rank"] == 30

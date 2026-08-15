@@ -298,14 +298,26 @@ async def sync(
         log.warning("ADP fetch failed, keeping previous board: %s", exc)
 
     # Vegas lines ride along under the same rule: stale lines with an honest
-    # stamp beat no lines, so a failed fetch keeps the previous slate.
+    # stamp beat no lines, so a failed fetch keeps the previous slate. On
+    # Vercel the fetch is skipped outright -- ESPN 403s its IP range (see
+    # /internal/vegas), so attempting it burns timeout budget and widens the
+    # window in which a concurrent slate push can be clobbered.
     vegas_state = existing.get("vegas") or {}
     vegas_error = None
-    try:
-        vegas_state = await vegas.fetch()
-    except Exception as exc:  # noqa: BLE001
-        vegas_error = f"{type(exc).__name__}: {exc}"[:200]
-        log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
+    if settings.vercel_env:
+        vegas_error = "skipped: ESPN blocks Vercel IPs; slate arrives via /internal/vegas"
+    else:
+        try:
+            vegas_state = await vegas.fetch()
+        except Exception as exc:  # noqa: BLE001
+            vegas_error = f"{type(exc).__name__}: {exc}"[:200]
+            log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
+
+    # Verdicts travel with the items they annotate: carry them forward pruned
+    # to items that survived the merge. Omitting this key wiped the verdict
+    # store on every sync -- the hourly AI job's output lived for minutes.
+    surviving = {item.get("id") for item in merged["items"]}
+    verdicts = {k: v for k, v in (existing.get("verdicts") or {}).items() if k in surviving}
 
     await store.save(
         {
@@ -314,6 +326,7 @@ async def sync(
             "polled_at": polled["polled_at"],
             "adp": {"state": adp_state, "history": adp_history},
             "vegas": vegas_state,
+            "verdicts": verdicts,
         }
     )
 

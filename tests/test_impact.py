@@ -238,3 +238,33 @@ def test_order_treats_undated_items_as_a_week_old():
     ordered = [i["title"] for i in impact.order([undated, fresh, dated_week], NOW)]
     assert ordered[0] == "fresh"
     assert set(ordered[1:]) == {"undated", "a week old"}
+
+
+def test_rank_boundaries_label_the_right_band():
+    """Rank 100 is a top-100 player; the old arithmetic called him top-200."""
+    scored = {"players": [NACUA], "impact_category": "severe", "top_rank": 100}
+    assert "top-100" in impact.annotate(scored)
+    scored["top_rank"] = 400
+    assert "top-400" in impact.annotate(scored)
+
+
+def test_better_tier_takeover_never_credits_its_own_outlet():
+    """CBS then ESPN on the same story: ESPN keeps the telling and credits
+    CBS -- not itself."""
+    cbs = item("Pearce suspended 8 games", players=[PEARCE], source="CBS Sports NFL", tier=2)
+    espn = item("Pearce suspended 8 games", players=[PEARCE], source="ESPN NFL", tier=1)
+    kept = impact.cluster([impact.score(cbs), impact.score(espn)])
+
+    assert len(kept) == 1
+    assert kept[0]["source_name"] == "ESPN NFL"
+    assert kept[0]["also_from"] == ["CBS Sports NFL"]
+
+
+def test_naive_published_stamp_does_not_crash_clustering():
+    """One publisher drifting to naive ISO must not 500 the overlay."""
+    aware = item("Pearce suspended 8 games", players=[PEARCE])
+    naive = item(
+        "Falcons LB Pearce suspended 8 games", players=[PEARCE], published="2026-08-15T05:00:00"
+    )
+    kept = impact.cluster([impact.score(aware), impact.score(naive)])
+    assert len(kept) == 1  # same player, same category: still folds

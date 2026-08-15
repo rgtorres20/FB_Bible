@@ -1,6 +1,9 @@
 # Resume here
 
-Last worked: **Sat Aug 15 2026, afternoon session.**
+Last worked: **Sat Aug 15 2026, evening.** The whole project is 24 hours
+old (first commit 8:23 PM Aug 14); 63 commits across two parallel sessions
+landed in that window, so treat anything dated earlier than today as
+already superseded.
 
 ## Scope check, so this file is not misread
 
@@ -19,7 +22,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 267 Python + 16 JS, CI green on every push |
+| Tests | 279 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -85,15 +88,20 @@ should work first time.
      ALSO 403s faked browser headers from anywhere (TLS fingerprint check)
      while the honest tool UA passes from residential/runner IPs. So the
      slate is fetched by the sync-feeds workflow runner
-     (scripts/push_vegas.py) and POSTed to /internal/vegas. VERIFY next
-     session: the hourly workflow's "Push Vegas slate" step succeeds from
-     GitHub's IPs (a manual local run seeded the first slate).
-   - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
-   - *AI verdicts note*: verdicts.yml deployed but GitHub's scheduler had
-     not fired it as of two cycles later (0 runs). New-workflow cron lag is
-     normal; if it stays at 0 runs for a day, trigger once by hand (Actions
-     → AI verdicts → Run workflow) which also confirms the models: read
-     permission works.
+     (scripts/push_vegas.py) and POSTed to /internal/vegas.
+     VERIFIED Aug 15 20:15 CDT: the workflow's "Push Vegas slate" step
+     succeeds from GitHub's IPs, and the watchdog's live-lines checks pass
+     against prod — so the slate reaches the store and the page renders it.
+   - *Week 1 schedule*: DONE (Aug 15 evening) — same payload, kickoff
+     day/time in Central, teams and network; owner's per-game notes ride
+     along by matchup.
+   - *AI verdicts note*: RESOLVED. verdicts.yml now fires hourly and
+     succeeds (6 runs). But the verdicts it stored were being **deleted
+     within the hour** — `/internal/sync` rebuilt the store payload without
+     the `verdicts` key, so every sync wiped them. Fixed Aug 15 evening;
+     verdicts now carry forward pruned to surviving items. Caveat worth
+     keeping: `draft_verdicts.py` exits 0 on model failure, so a green run
+     does not by itself prove verdicts were written.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
@@ -109,10 +117,16 @@ should work first time.
 
 ## Watchdog
 
-`verify-live.yml` asserts 22 production checks every 2 hours (data fresh,
+`verify-live.yml` asserts 23 production checks every 2 hours (data fresh,
 six sources not FAILED, overlays served, mobile injected, FFBets predict
-mode). A failure emails the repo owner. Run it on demand from the Actions
-tab.
+mode, Vegas/TD-lean/schedule surfaces still live, decorator assets still
+serving). A failure emails the repo owner. Run it on demand from the
+Actions tab. Last full green: Aug 15 20:17 CDT against `caeff70`.
+
+Known watchdog weakness (see GAP_REVIEW): a single transient publisher
+error flips a source to FAILED and fails the whole run, while the sync
+workflow treats the same condition as a warning — expect occasional false
+alarms until FAILED is gated on staleness too.
 
 ## The old "next work" list is DONE (Aug 15 afternoon)
 
@@ -149,22 +163,58 @@ The watchdog asserts the decorator and its styles keep serving.
   Week 1 schedule swaps in real kickoffs — all serve-time, all falling
   back to the committed page. The read column stays facts-only (kickoffs,
   slate superlatives): curated prop angles would silently go false as
-  lines move. First deploy note: run the sync-feeds workflow once
-  manually after merging so the runner pushes a Week-1 slate with the new
-  schedule fields; until then the watchdog's Vegas/TD/schedule checks
-  rightly complain.
+  lines move. Deployed and verified in prod Aug 15 20:15-20:17 CDT.
 - **Beta/prod**: `beta` branch = stable Vercel preview with a BETA badge
   and `/health` stage reporting. Full model: docs/ENVIRONMENTS.md.
 - **Stale-data audit + rule**: docs/STALE_DATA.md inventories every
   surface; CLAUDE.md now carries the no-stale-data and no-false-positives
   rules.
 
+## Aug 15 evening — three-angle gap review
+
+Product-vs-blueprint, code correctness, and ops robustness reviewed in
+parallel over the whole app. **Twelve verified defects fixed the same
+day**; the ranked remainder is [GAP_REVIEW.md](GAP_REVIEW.md). The three
+that were silently costing the most:
+
+- **Every sync deleted the AI verdicts** the hourly job had just written,
+  so the page nearly always showed the rule-based `Auto:` fallback.
+- **The page's Yahoo client never loaded** — both dynamic imports used the
+  design project's `./frontend/lib/` path, which 404s under the `/app`
+  mount. That killed the Yahoo link check *and* the 24-hour Yahoo-cache
+  purge, which is a licensing obligation, not a feature.
+- **Initialed names never enriched** — "C.J. Stroud", "A.J. Brown",
+  "Amon-Ra St. Brown" and friends normalized to a double space, missed the
+  index key, and so lost the rank points that drive impact ordering. The
+  most fantasy-relevant players were the ones being under-ranked.
+
+Also fixed: UNDER leans moved confidence the wrong way on a line move;
+cross-source credit could list the kept outlet as its own corroborator;
+rank-band labels were a tier off at boundaries (rank 100 read "top-200");
+a naive timestamp from any publisher would have 500'd the whole overlay;
+Rotoworld abbreviated Linebacker as "LI"; a spread naming neither
+competitor invented a phantom team; a corrupt `fb_visit` froze NEW badges
+forever; sync burned 30s on an ESPN fetch that always 403s from Vercel;
+and the Vegas push was skipped whenever the unrelated sync call failed.
+
 ## Next work, no dependencies — highest value first
 
-1. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
-   user action; starts their review clock.
-2. Remaining curated surfaces are Phase 3 or by-design — see
-   docs/STALE_DATA.md. Nothing on the no-dependency list is left.
+A three-angle review of the whole app ran Aug 15 evening; twelve verified
+defects were fixed the same day and the rest is a ranked backlog in
+[docs/GAP_REVIEW.md](GAP_REVIEW.md). Start there. The top three:
+
+1. **Draft analyzer is not live** — the live ADP blend only feeds Scout
+   finds; the board you actually draft from is the in-page const, and its
+   "ADP" column is the row's own rank restated. Data health currently
+   stamps it live anyway. Highest-value fix before the drafts.
+2. **Draft-day pick math** — no draft slot, no snake, no "gone before my
+   next pick". Live ADP + pick count is all it needs.
+3. **QBs-per-league and IDP** — the Trenches QB adjustment classifies 12
+   of 24 QBs (and its board sort floats kickers above RBs); the player
+   index excludes DB/LB, so 8 of 18 starting slots can never be tagged.
+
+Also still user actions: **submit the Yahoo access application**
+(`docs/YAHOO_APPLICATION.md`) and **rotate the Upstash password**.
 
 (TD leans and the Week 1 schedule went live Aug 15 with the Vegas board —
 see STALE_DATA.md #1–2.)

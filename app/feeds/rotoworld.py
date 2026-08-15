@@ -53,6 +53,15 @@ _POSITION_ABBR = {
     "Wide Receiver": "WR",
     "Tight End": "TE",
     "Kicker": "K",
+    # The leagues start 4 DB + 4 LB, and the first-two-letters fallback
+    # produced "LI"/"CO"/"SA" for these.
+    "Linebacker": "LB",
+    "Cornerback": "CB",
+    "Safety": "S",
+    "Defensive End": "DE",
+    "Defensive Tackle": "DT",
+    "Defensive Back": "DB",
+    "Edge Rusher": "EDGE",
 }
 
 

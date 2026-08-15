@@ -156,3 +156,12 @@ def test_vegas_table_is_rebound_to_live_data_at_serve_time():
 
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
     assert "F.vegas" not in on_disk
+
+
+def test_served_page_fixes_the_client_import_path():
+    """The design doc imports ./frontend/lib/fbApi.js, which 404s under the
+    /app mount -- both the Yahoo link check and the 24h cache purge died on
+    it. The served copy must point at ./lib/."""
+    served = client.get("/app/").text
+    assert 'import("./lib/fbApi.js")' in served
+    assert 'import("./frontend/lib/fbApi.js")' not in served

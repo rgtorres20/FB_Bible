@@ -131,6 +131,12 @@ if _FRONTEND_READY:
         # file, which the overlay route fills with live ESPN/DraftKings rows.
         # F is the parsed feeds.json in the enclosing scope; the `||` keeps
         # the committed table as the fallback when the overlay has no lines.
+        # The dynamic imports carry the design project's layout
+        # ("./frontend/lib/..."); served from /app/ the client lives at
+        # ./lib/. Same class of fix sw.js already carries for its precache
+        # list -- without this both the Yahoo link check and the 24h
+        # yahoo-cache purge fail with "API client failed to load".
+        html = html.replace('import("./frontend/lib/fbApi.js")', 'import("./lib/fbApi.js")')
         html = html.replace("vegas: VEGAS,", "vegas: (F.vegas || VEGAS),", 1)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
         html = html.replace(
