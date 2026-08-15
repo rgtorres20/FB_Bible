@@ -49,6 +49,33 @@ It is deliberately not being done now.
 
 - `vercel.json` routes everything to `api/index.py`, which re-exports
   `app.main:app`. Same app object as uvicorn and Docker.
+
+### Three ways this config broke, so nobody rediscovers them
+
+`vercel.json` cannot carry comments, so they live here. All three were hit on
+the first real deploy, and none of them announce themselves clearly.
+
+1. **`routes`, not `rewrites`.** When a `builds` key is present, Vercel uses
+   legacy routing and *silently ignores* `rewrites`. Symptom: every path
+   returns `404 NOT_FOUND`, including `/health`, while the function itself is
+   deployed and reachable at its literal source path.
+2. **`includeFiles: app/**` is required.** With an explicit `builds` entry only
+   the entrypoint is bundled, so the sibling `app/` package is absent at
+   runtime and `import app` fails. Symptom: `500 FUNCTION_INVOCATION_FAILED`
+   with no detail in the response body. `api/index.py` also inserts the repo
+   root on `sys.path` so the import cannot depend on the runtime's working
+   directory.
+3. **No pseudo-comment keys.** Adding `"// note": "..."` entries — a common
+   trick in other tools' JSON configs — fails Vercel's schema validation and
+   the whole deployment is rejected before it builds. The commit status links
+   to the project-configuration docs rather than naming the offending key.
+
+Deployment Protection also has to be off (Settings → Deployment Protection →
+Vercel Authentication → Require Log In). While it is on, Vercel's standard
+protection covers generated `.vercel.app` production URLs, every request 302s
+to `vercel.com/sso-api`, and OAuth cannot complete: Yahoo's redirect and the
+browser app's `fetch` calls both hit the login wall. The API's real protection
+is the OAuth token — every endpoint returns 401 without a linked account.
 - **`TOKEN_STORE=redis` and `REDIS_URL` are required.** Serverless has no
   writable disk; the file store will silently lose the token between
   invocations. Upstash has a usable free tier.
