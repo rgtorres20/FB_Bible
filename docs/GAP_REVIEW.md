@@ -36,6 +36,20 @@ checked at review time and may drift.
 - **Vegas push skipped when sync step failed** — the workflow steps are
   independent; now gated `!cancelled()` instead of implicit success-only.
 
+## Found by chasing the review's leads, same evening
+
+**The AI verdict layer has never worked.** The review flagged that
+`draft_verdicts.py` exits 0 on model failure, so a permanent break would
+look green forever. Running the job and reading its log confirmed exactly
+that: `HTTP Error 410: Gone` on every run, because **GitHub Models was
+retired 2026-07-30** — two weeks before the layer was written. Fixed what
+was fixable (the sync no longer deletes verdicts; a 410/404 now annotates
+loudly and exits non-zero instead of hiding among rate limits; the cron is
+off; STALE_DATA no longer claims the feature is live). Reviving it is an
+owner decision: one provider, one secret. Worth noting the compounding —
+two independent silent-failure bugs stacked on a dead upstream, and each
+one alone would have hidden the others.
+
 ## Backlog — high value, needs design or decisions
 
 Ordered by draft-day value.
