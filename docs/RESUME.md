@@ -29,7 +29,22 @@ honest LIVE / STALE / FAILED state per source.
 Note the real cadence: the cron says every 15 minutes, but GitHub drops
 scheduled runs under load on free public repos. Observed: roughly hourly.
 
-## The one thing left that needs you
+## Yahoo is BLOCKED on Yahoo, not on us
+
+The app is registered (`developer.yahoo.com/apps/XSJqPLxv`), credentials are
+in `.env` and live on Vercel, `/health` reports `yahoo_configured: true`, and
+`/auth/yahoo/login` produces a correct authorize URL. Yahoo still refuses:
+
+    invalid_scope invalid scope
+
+Fantasy API access now requires an approved application at
+<https://sports.yahoo.com/developer>. See `docs/LICENSING.md`. Until that is
+granted there is no point touching the Yahoo code -- it is verified correct
+against mocks and cannot be verified further without access.
+
+**Do not spend time debugging this.** It is not a bug.
+
+## Superseded: registering the app
 
 **Register the Yahoo developer app** — <https://developer.yahoo.com/apps/create/>
 

@@ -15,6 +15,32 @@ links the leagues. Nothing is sold, nothing is served to third parties. Under
 that posture the terms below are satisfied — the issues are all triggered by
 commercialization or by other people using it.
 
+## Yahoo requires approval before any access at all
+
+**Discovered 2026-08-15, the hard way.** Creating a Yahoo app is no longer
+enough. The developer console has removed the Fantasy Sports API permission
+from both the create and edit forms, and requesting `scope=fspt-r` against an
+unapproved app returns:
+
+    {"detail":"Yahoo denied the request: invalid_scope invalid scope"}
+
+Access is now gated behind an application at <https://sports.yahoo.com/developer>:
+submit your organisation, product and intended use cases; Yahoo reviews and may
+ask follow-ups; approved applicants get next steps.
+
+Nothing in this repo is misconfigured -- the OAuth flow, redirect URI,
+credentials and token store were all verified working. Yahoo is refusing the
+scope, and no code change can route around that.
+
+Two further terms from that page, both new obligations:
+
+- **Attribution is mandatory**: "Fantasy data provided by Yahoo Fantasy" must
+  be displayed wherever their data appears. Same class of requirement as the
+  Sleeper attribution already in the Alerts panel.
+- **One account per developer**; automated multi-account creation is
+  prohibited. Reinforces the single-user decision, and is another obstacle in
+  front of ever opening this up to "anyone".
+
 ## Yahoo Fantasy Sports API
 
 Source: <https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html>
