@@ -109,10 +109,28 @@ def main() -> int:
             print(f"  - {key}{'  <- ' + hint if hint else ''}")
         return 1
 
-    if not env["REDIS_URL"].startswith(("rediss://", "redis://")):
+    redis_url = env["REDIS_URL"]
+
+    if redis_url.startswith("redis-cli"):
+        print("That is the redis-cli command, not a connection URL.")
+        print("Copy just the URL part -- and see the rediss:// note below.")
+        return 1
+
+    if not redis_url.startswith(("rediss://", "redis://")):
         print("REDIS_URL does not look like a connection string.")
         print("Upstash also shows a REST URL and token -- those are for a different")
         print("client. You want the one starting rediss://")
+        return 1
+
+    # The redis-cli form is "--tls -u redis://...": TLS comes from the flag, so
+    # the URL says redis://. Our server reads the URL alone, where redis://
+    # means NO TLS -- and Upstash refuses non-TLS connections. The failure
+    # arrives later as a connection error that says nothing about this.
+    if redis_url.startswith("redis://") and "upstash.io" in redis_url:
+        print("REDIS_URL uses redis:// but Upstash requires TLS.")
+        print("You have probably copied the redis-cli form, where TLS comes")
+        print("from a separate --tls flag. Change the scheme to rediss://")
+        print("(two s's) -- Upstash shows that form too.")
         return 1
 
     base = vercel_cmd()
