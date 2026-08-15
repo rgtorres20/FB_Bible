@@ -78,10 +78,16 @@ should work first time.
      risers/fallers (movers appear once ~1+ day of history exists);
      Sleeper-rank-vs-ADP gaps + wire sleeper articles fill "Sleeper find".
    - *Vegas lines (FFBets · Predictions)*: DONE (Aug 15, `app/feeds/vegas.py`).
-     ESPN scoreboard JSON (DraftKings spread+total) fetched each sync; the
-     page's VEGAS table rebound to F.vegas at serve time with the committed
-     table as fallback. Prop-angle column carries facts only (kickoffs,
-     slate superlatives) — no invented betting takes.
+     ESPN scoreboard JSON (DraftKings spread+total); page's VEGAS table
+     rebound to F.vegas at serve time, committed table as fallback.
+     Prop-angle column carries facts only (kickoffs, slate superlatives).
+     DELIVERY QUIRK, hard-won: ESPN 403s Vercel's IP range outright, and
+     ALSO 403s faked browser headers from anywhere (TLS fingerprint check)
+     while the honest tool UA passes from residential/runner IPs. So the
+     slate is fetched by the sync-feeds workflow runner
+     (scripts/push_vegas.py) and POSTed to /internal/vegas. VERIFY next
+     session: the hourly workflow's "Push Vegas slate" step succeeds from
+     GitHub's IPs (a manual local run seeded the first slate).
    - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
    - *AI verdicts note*: verdicts.yml deployed but GitHub's scheduler had
      not fired it as of two cycles later (0 runs). New-workflow cron lag is
