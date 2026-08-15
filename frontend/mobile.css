@@ -23,7 +23,10 @@
   display: none;
 }
 
-@media (max-width: 768px) {
+/* "Phone" cannot be width alone: an 812x375 phone held sideways is wider
+ * than any tablet breakpoint. Coarse pointer + short viewport catches
+ * landscape phones; the desktop block below excludes the same shape. */
+@media (max-width: 768px), ((pointer: coarse) and (max-height: 500px)) {
   html {
     -webkit-text-size-adjust: 100%;
   }
@@ -60,7 +63,11 @@
     transition: transform 0.22s ease;
   }
   body.fb-menu-open aside {
-    transform: translateX(0);
+    /* !important on purpose: a runtime stylesheet we cannot introspect
+     * (cross-origin, SecurityError on cssRules) was out-cascading the plain
+     * declaration even at higher specificity. Nothing inline carries
+     * transform, so this wins everywhere. */
+    transform: translateX(0) !important;
   }
 
   #fb-menu-btn {
@@ -120,5 +127,40 @@
   svg {
     max-width: 100%;
     height: auto;
+  }
+}
+
+/* Desktop: the same button becomes a collapse handle. The sidebar keeps its
+ * place on the left -- it tucks away and comes back, never moves elsewhere. */
+@media (min-width: 769px) and (min-height: 501px) {
+  #fb-menu-btn {
+    display: flex;
+    position: fixed;
+    top: 10px;
+    left: 262px;
+    z-index: 1001;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border: 2px solid var(--color-text);
+    border-radius: 10px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow: 2px 2px 0 var(--color-text);
+    transition: left 0.22s ease;
+    cursor: pointer;
+  }
+  body.fb-side-collapsed #fb-menu-btn {
+    left: 10px;
+  }
+
+  aside {
+    transition: margin-left 0.22s ease;
+  }
+  /* Width + border, so the edge disappears completely. */
+  body.fb-side-collapsed aside {
+    margin-left: -254px !important;
   }
 }
