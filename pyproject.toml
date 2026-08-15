@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 # There is deliberately no vercel.json: the legacy `builds` key disables
 # `rewrites`, bundles only the entrypoint, and cost three failed deploys.
 # See docs/HOSTING.md.
-entrypoint = "app.main:app"
+entrypoint = "probe:app"  # TEMPORARY diagnostic; revert to app.main:app
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
