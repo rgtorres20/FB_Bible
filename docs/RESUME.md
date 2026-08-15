@@ -77,9 +77,17 @@ should work first time.
      the 2 based on avg"); daily snapshots in the feed store drive
      risers/fallers (movers appear once ~1+ day of history exists);
      Sleeper-rank-vs-ADP gaps + wire sleeper articles fill "Sleeper find".
-   - *Vegas lines (FFBets · Predictions)*: ESPN's public scoreboard JSON
-     carries odds, no auth. NEXT.
+   - *Vegas lines (FFBets · Predictions)*: DONE (Aug 15, `app/feeds/vegas.py`).
+     ESPN scoreboard JSON (DraftKings spread+total) fetched each sync; the
+     page's VEGAS table rebound to F.vegas at serve time with the committed
+     table as fallback. Prop-angle column carries facts only (kickoffs,
+     slate superlatives) — no invented betting takes.
    - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
+   - *AI verdicts note*: verdicts.yml deployed but GitHub's scheduler had
+     not fired it as of two cycles later (0 runs). New-workflow cron lag is
+     normal; if it stays at 0 runs for a day, trigger once by hand (Actions
+     → AI verdicts → Run workflow) which also confirms the models: read
+     permission works.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
