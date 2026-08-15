@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/modernist-72a114b0-9435-4a8a-a2b5-713f996af4a4/styles.css">
+  <script src="_ds/modernist-72a114b0-9435-4a8a-a2b5-713f996af4a4/_ds_bundle.js"></script>
+  <script src="doc-page.js"></script>
+  <style>
+    doc-page:not(:defined){visibility:hidden}
+    a{color:var(--color-accent-700); text-decoration:none} a:hover{color:var(--color-accent)}
+    .cell{break-inside:avoid}
+  </style>
+</helmet>
+<doc-page orientation="landscape" margin="0.6in">
+  <div style="display:flex; align-items:baseline; justify-content:space-between; gap:24px; border-bottom:3px solid var(--color-text); padding-bottom:12px;">
+    <h1 style="font-family:var(--font-heading); font-weight:900; font-size:34px; letter-spacing:-0.03em; margin:0;">Fantasy Bible — system blueprint</h1>
+    <div style="font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-neutral-600);">Every tab · its purpose · how it syncs — Fri Aug 14, 2026</div>
+  </div>
+
+  <div style="margin-top:20px; font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-accent-700);">The sync spine — how data actually moves</div>
+  <div style="display:grid; grid-template-columns:1fr 28px 1fr 28px 1fr; gap:0; align-items:stretch; margin-top:8px;" class="cell">
+    <div style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-neutral-600);">1 · Trigger</div>
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:16px; margin-top:4px;">You ask in chat: "sync"</div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">The in-app Sync button does not fetch — the browser has no live wire access. It points you to chat. Chat is the sync engine.</div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:center; font-family:var(--font-heading); font-weight:900; font-size:20px; color:var(--color-accent);">→</div>
+    <div style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-neutral-600);">2 · Pull</div>
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:16px; margin-top:4px;">Claude searches the wire</div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">Trusted sources only: NBC/Rotoworld, Rotowire, Schefter, Yahoo camp tracker, ESPN, beat feeds, aggregate ADP.</div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:center; font-family:var(--font-heading); font-weight:900; font-size:20px; color:var(--color-accent);">→</div>
+    <div style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-neutral-600);">3 · Write</div>
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:16px; margin-top:4px;">Feeds update in the app</div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">New alert threads, news items and scout finds land newest-first; every feed's as-of stamp bumps; Data health turns green.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px; font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-accent-700);">News &amp; status — fast feeds · 24-hour freshness budget</div>
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:8px;">
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Alerts</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Injury, suspension and role-change threads across the whole player pool (pre-draft mode), with a fantasy impact call on each.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: chat pull · budget 24 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.rotowire.com/football/injury-report.php">rotowire.com/injury-report</a><a href="https://www.nbcsports.com/fantasy/football/player-news">nbcsports.com/player-news</a><a href="https://www.fantasypros.com/nfl/news/">fantasypros.com/news</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Out &amp; returning</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Season-enders, PUP list and players trending back, each with a draft action.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: rides the Alerts pull · 24 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.sharpfootballanalysis.com/analysis/nfl-injury-report-ir-tracker/">sharpfootballanalysis.com/ir-tracker</a><a href="https://www.espn.com/nfl/injuries">espn.com/nfl/injuries</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">News &amp; posts</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">The raw wire — items and X posts, tiered by source trust, with a lean where one exists.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: chat pull · budget 24 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://sports.yahoo.com/nfl/">sports.yahoo.com/nfl</a><a href="https://x.com/AdamSchefter">x.com/AdamSchefter</a><a href="https://www.cbssports.com/nfl/">cbssports.com/nfl</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">NBC player news</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Rotoworld-style player blurbs from the past 24 hours, one feed, no analysis layer.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: chat pull · budget 24 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.nbcsports.com/fantasy/football/player-news">nbcsports.com/fantasy/football/player-news</a></div>
+    </div>
+  </div>
+
+  <div style="margin-top:22px; font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-accent-700);">Draft prep — slow feeds · 4–7-day budgets</div>
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Draft analyzer</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">205 ranked players with byes and '25 lines, ranked per league (Trenches re-ranks QBs for rushing-only scoring). My-team panels, opponent-pick tracking.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: ESPN + Yahoo sheets + ADP · 96 h — full top-300 awaits your sheet import</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.espn.com/fantasy/football/story/_/id/38176458/fantasy-football-2026-draft-kit-rankings-cheat-sheets">espn.com draft kit</a><a href="https://football.fantasysports.yahoo.com/">football.fantasysports.yahoo.com</a><a href="https://www.fantasypros.com/nfl/adp/ppr-overall.php">fantasypros.com/adp</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Sleepers</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">19 late-round targets, offense-only (IDP only if he returns kicks). Online list vs your custom list, side by side.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: PFF / Yahoo / B/R articles · 96 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.pff.com/fantasy">pff.com/fantasy</a><a href="https://sports.yahoo.com/fantasy/">sports.yahoo.com/fantasy</a><a href="https://bleacherreport.com/nfl">bleacherreport.com/nfl</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Scout finds</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">What the wire found outside your lists — ADP risers/fallers and sleeper articles. ☆ promotes to your sleepers, × dismisses.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: refreshed on every chat pull</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://nfc.shgn.com/adp/football">nfc.shgn.com/adp (NFFC)</a><a href="https://www.nfl.com/news/">nfl.com/news</a><a href="https://www.si.com/fantasy">si.com/fantasy</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Backup RBs</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Handcuff order for all 32 backfields with usage splits — who inherits the job if the starter goes down.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: '25 snap analytics · 168 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.fantasypros.com/nfl/reports/snap-counts/">fantasypros.com/snap-counts</a><a href="https://www.pff.com/nfl">pff.com/nfl</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Team intel</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Every team's pass rate, goal-line share, '25 stats and 2026 projections — offense and IDP context per franchise.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: '25 stats + win totals · 168 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.pro-football-reference.com/">pro-football-reference.com</a><a href="https://www.teamrankings.com/nfl/">teamrankings.com/nfl</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Position analysis</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Roster-shape math per league (1 QB · 3 RB · 4 WR · 1 TE · 1 K · 4 DB · 4 LB · 8 bench) — where scarcity actually bites.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: none — derived from the draft board</div>
+      <div style="margin-top:5px; font-size:10.5px; color:var(--color-neutral-600);">No external source — computed in-app</div>
+    </div>
+  </div>
+
+  <div style="margin-top:22px; font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-accent-700);">Season &amp; system</div>
+  <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-top:8px;">
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">FFBets</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">DFS-style lineup builder, $50K cap, offense-only. Salaries are model estimates until a live DraftKings sheet exists.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: Vegas lines 72 h · salaries 96 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.espn.com/nfl/lines">espn.com/nfl/lines</a><a href="https://www.draftkings.com/">draftkings.com</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Schedule</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">18-week season map with the confirmed Week 1 slate; weeks 2–18 import from NFL.com.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: NFL.com release · 168 h</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.nfl.com/schedules/">nfl.com/schedules</a><a href="https://www.espn.com/nfl/schedule">espn.com/nfl/schedule</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Week review</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">This week's games with scores and a ranked high-performers list, each with a fantasy read. Testing on preseason Week 1.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: chat pull after each slate</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://www.espn.com/nfl/scoreboard">espn.com/nfl/scoreboard</a><a href="https://www.cbssports.com/nfl/scoreboard/">cbssports.com/scoreboard</a><a href="https://sports.yahoo.com/nfl/scoreboard/">yahoo.com/nfl/scoreboard</a></div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Data health</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">The sync receipt: every feed's as-of stamp vs its freshness budget. STALE rows count in the nav badge.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: recomputed live, every load</div>
+      <div style="margin-top:5px; font-size:10.5px; color:var(--color-neutral-600);">No external source — audits the feeds above</div>
+    </div>
+    <div class="cell" style="border-top:2px solid var(--color-text); padding-top:8px;">
+      <div style="font-family:var(--font-heading); font-weight:800; font-size:15px;">Settings</div>
+      <div style="font-size:12px; color:var(--color-neutral-800); margin-top:4px; line-height:1.5;">Leagues, notification rules and themes (Light / Cowboys / Dark). No waiver or bid settings — your leagues have none.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:6px;">Sync: static — user-owned</div>
+      <div style="margin-top:5px; font-size:10.5px; display:flex; flex-wrap:wrap; gap:2px 10px;"><a href="https://football.fantasysports.yahoo.com/f1/192426">yahoo f1/192426 (Gravy)</a><a href="https://football.fantasysports.yahoo.com/f1/811739">yahoo f1/811739 (Trenches)</a></div>
+    </div>
+  </div>
+
+  <div style="break-before:page; border-bottom:3px solid var(--color-text); padding-bottom:10px; display:flex; align-items:baseline; justify-content:space-between; gap:24px;">
+    <h2 style="font-family:var(--font-heading); font-weight:900; font-size:26px; letter-spacing:-0.03em; margin:0;">Productization plan — step by step</h2>
+    <div style="font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--color-neutral-600);">What survives: the IA — tabs, feed budgets, trust tiers, per-league ranking. This page is the PRD.</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-top:16px;">
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">0</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Player IDs — the foundation</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">One canonical record per player — <span style="font-weight:700;">{id, name, team, pos}</span> — and every list (Alerts, Board, Sleepers, Intel, FFBets) references the ID instead of repeating name strings. Use Sleeper's player IDs so Phase 1 joins for free.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: silent name-mismatch breaks · Effort: in-app, no backend · Do now</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">1</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Live sync — Sleeper API</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">Wire the Sync button to <a href="https://docs.sleeper.com/">api.sleeper.app</a> — free, no key, browser-reachable: injury status per player, trending adds/drops, player metadata. Sync button becomes real for the fast feeds; Data health stamps become true timestamps.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: fake sync, stale metrics · Effort: in-app, no backend · Do next</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">2</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Yahoo league link</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">OAuth to the <a href="https://developer.yahoo.com/fantasysports/guide/">Yahoo Fantasy API</a>: live rosters, draft results, opponent picks for f1/192426 and f1/811739. Needs a small server (token exchange) — first piece that leaves the browser.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: manual roster/pick entry · Status: built — repo FB_Bible, awaiting deploy + Yahoo credentials</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">3</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Scheduled jobs + notifications</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">Move the sync spine server-side: cron jobs poll the feeds on their budget intervals, write to a database, and the Settings push rules ("out for season → push immediately") finally deliver via web push. The Pickup Queue runs here overnight: push the instant a trigger fires — or execute the add/drop itself with a Yahoo write-scope upgrade (fspt-w). That retires the 2 AM wake-up.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: manual chat pulls, dead push rules · Effort: real backend · After Yahoo</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">4</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Real projections &amp; salaries</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">Replace model estimates in FFBets and Team intel with a sourced feed (SportsDataIO / MySportsFeeds / DK sheet import). Until then every estimate stays labeled as one.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: hand-set numbers · Effort: data feed + import · Last</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">5</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Structure — split the monolith</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">Data moves out of the page into JSON files (players, alerts, board, meta) the app loads at startup — syncs then touch data, not code. Leagues and roster shape become config, not constants.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: 2,400-line single file · Effort: refactor, in-app · Alongside 0–1</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">6</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Platforms — web, iPhone, Android</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">PWA-first: one web app, installable to the home screen on iOS and Android (manifest + service worker — offline board, cached feeds). Web push covers the Phase 3 alerts on all three (iOS 16.4+ requires the app be installed). Native wrappers (Capacitor) only if store presence or richer notifications ever matter — same codebase either way.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: desktop-only access · Status: built — manifest + sw.js + icons in project; activates on any https deploy</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">7</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">Obsidian — the design notebook</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">A vault as the project's thinking space: this blueprint, CLAUDE.md and the phase specs exported as markdown notes; scouting notes and draft-day tier sheets written in Obsidian and linked player-by-player. The vault syncs to the repo (it's just .md files in a folder), so notes travel with the code and feed back into syncs.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700); margin-top:8px;">Fixes: design decisions scattered across chats · Effort: export + folder convention · Anytime</div>
+    </div>
+    <div class="cell" style="border:2px solid var(--color-text); padding:14px 16px;">
+      <div style="display:flex; align-items:baseline; gap:10px;"><span style="font-family:var(--font-heading); font-weight:900; font-size:22px; color:var(--color-accent);">8</span><span style="font-family:var(--font-heading); font-weight:800; font-size:16px;">AI assistant — "Ask the Bible"</span></div>
+      <div style="font-size:12.5px; color:var(--color-neutral-800); margin-top:6px; line-height:1.55;">A question panel grounded in the app's own data — board, sleepers, live wire, league scoring — not generic advice. In the design preview it calls Claude built-in and free; deployed, the Phase 2/3 server proxies the AI call (browser pages can't hold a key). Candidates: Claude / OpenAI APIs (per-call), Gemini (free tier). Copilot has no consumer API.</div>
+      <div style="font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--color-accent-700);  margin-top:8px;">Status: parked — design settled, not built · Effort: one panel + server proxy at deploy · When ready</div>
+    </div>
+  </div>
+
+  <div class="cell" style="margin-top:22px; border-top:3px solid var(--color-accent); padding-top:10px; display:flex; gap:32px; flex-wrap:wrap; font-size:11px; color:var(--color-neutral-700);">
+    <div><span style="font-weight:700; color:var(--color-text);">Budget</span> — hours a feed may age before Data health flags it STALE.</div>
+    <div><span style="font-weight:700; color:var(--color-text);">Chat pull</span> — you ask, Claude searches and writes the update into the app.</div>
+    <div><span style="font-weight:700; color:var(--color-text);">Derived</span> — computed from other feeds; never syncs on its own.</div>
+  </div>
+</doc-page>
+</x-dc>
+</body>
+</html>

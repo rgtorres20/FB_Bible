@@ -1,0 +1,897 @@
+{
+ "updated": "2026-08-14T23:24:32.581Z",
+ "note": "Sync-updated feeds. Edit this file (or ask Claude to sync) — the app loads it at startup and it overrides the seeds baked into the page.",
+ "alerts": [
+  {
+   "pos": "QB",
+   "team": "MIA",
+   "name": "Malik Willis",
+   "status": "STARTS TONIGHT",
+   "slot": "Sleeper list · Trenches",
+   "note": "First Miami start tonight vs Washington — signed 3yr/$67.5M after the Dolphins parted ways with Tua. Your Trenches cheat-code pick gets his first live reps as the guy.",
+   "source": "Yahoo lineup wire · Fri Aug 14 · 11:00 AM",
+   "impact": "Watch tonight closely — rushing volume in this offense decides whether he is a Trenches QB1 bargain.",
+   "time": "Today",
+   "league": "The Trenches"
+  },
+  {
+   "pos": "QB",
+   "team": "DEN",
+   "name": "Bo Nix",
+   "status": "HELD OUT · ANKLE",
+   "slot": "Draft board",
+   "note": "Held out of tonight’s opener at Atlanta entirely — still managing the ankle from the playoffs. Payton gives other starters early snaps.",
+   "source": "Yahoo lineup wire · Fri Aug 14 · 11:00 AM",
+   "impact": "Precautionary, no board move — but the biggest ADP riser on your scout list now carries an ankle asterisk.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "QB",
+   "team": "ATL",
+   "name": "Tua Tagovailoa",
+   "status": "ATL DEBUT TONIGHT",
+   "slot": "Watch list",
+   "note": "Starts his first game as a Falcon tonight with the full starting offense — Bijan Robinson and Drake London on the field. Penix (ACL) held out.",
+   "source": "Yahoo lineup wire · Fri Aug 14 · 11:00 AM",
+   "impact": "Bijan/London preseason usage with Tua is real signal for their draft-day ceilings.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "RB",
+   "team": "TB",
+   "name": "Bucky Irving",
+   "status": "LIKELY HELD OUT",
+   "slot": "Draft board",
+   "note": "Irving and Gainwell could both sit tonight vs the Jets; backup QB Jake Browning is nursing a back injury, leaving TB thin at QB and RB.",
+   "source": "Yahoo lineup wire · Fri Aug 14 · 11:00 AM",
+   "impact": "No concern for Irving — rest, not injury. Sean Tucker gets the work tonight.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "LB",
+   "team": "ATL",
+   "name": "James Pearce Jr.",
+   "status": "SUSPENDED · 8 GAMES",
+   "slot": "Draft board · LB",
+   "note": "Suspended eight games by the NFL, per ESPN's Jeremy Fowler — the headline ban in Friday's batch. Titans CB Nazeeh Johnson also got six games (PED policy).",
+   "source": "Yahoo Sports wire · Fri Aug 14 · 2:30 PM",
+   "impact": "Pull him from LB consideration in both leagues — half the season gone before he plays a snap.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "SF",
+   "name": "De'Zhaun Stribling",
+   "status": "PRESEASON · 7-63",
+   "slot": "Sleeper list · #4",
+   "note": "Caught 7 of 7 for 63 yards in one half vs Tennessee — best offensive player on the field with most SF starters benched, per CBS.",
+   "source": "CBS preseason winners · Fri Aug 14 · 11:00 AM",
+   "impact": "Sleeper thesis confirmed on film. Still undrafted in most leagues — bump him up your late-round queue before his ADP moves.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "QB",
+   "team": "LV",
+   "name": "Kirk Cousins",
+   "status": "JOB SAFE — FOR NOW",
+   "slot": "Watch list",
+   "note": "Rookie Fernando Mendoza led a TD drive in the preseason opener, but Kubiak says the starting job is still Cousins' to lose.",
+   "source": "CBS + Yahoo live wire · Fri Aug 14 · 10:15 AM",
+   "impact": "No action — but a Mendoza takeover would zero out Cousins' late-QB value in Gravy.",
+   "time": "Today",
+   "league": "Sunday Gravy"
+  },
+  {
+   "pos": "WR",
+   "team": "GB",
+   "name": "Jayden Reed",
+   "status": "BOOT · FOOT",
+   "slot": "Sleeper list",
+   "note": "Seen in a walking boot after the preseason opener; LaFleur says it's unrelated to the camp toe issue. No timetable given yet.",
+   "source": "SI preseason injury report · Thu Aug 13 · 8:15 AM",
+   "impact": "He's on your sleeper list — hold, but if the boot lingers into next week, move him down.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "RB",
+   "team": "TB",
+   "name": "Rachaad White",
+   "status": "GROIN · DAY-TO-DAY",
+   "slot": "Sleeper list",
+   "note": "Groin injury in the preseason opener vs Tennessee; Bowles calls him day-to-day.",
+   "source": "SI preseason injury report · Thu Aug 13 · 8:15 AM",
+   "impact": "Second flag this week (ADP also fading). Thesis weakening — watch Friday's practice.",
+   "time": "Today",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "TE",
+   "team": "GB",
+   "name": "Tucker Kraft",
+   "status": "OFF PUP · KNEE",
+   "slot": "Watch list",
+   "note": "Removed from the PUP list and back at practice for the first time since the mid-season ACL tear. Has a shot at Week 1.",
+   "source": "Yahoo camp tracker · Thu Aug 13 · 4:30 PM",
+   "impact": "Late-round TE upside if the knee holds — cheaper than every startable TE.",
+   "time": "1 day",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "QB",
+   "team": "MIN",
+   "name": "Kyler Murray",
+   "status": "NAMED STARTER",
+   "slot": "Draft board",
+   "note": "Named the Vikings starter over J.J. McCarthy, per NBC's fantasy crew.",
+   "source": "NBC player news · Thu Aug 13 · 7:45 PM",
+   "impact": "Rushing QB with a job — a Trenches riser at a 163 ADP. Jefferson's floor stabilizes too.",
+   "time": "1 day",
+   "league": "The Trenches"
+  },
+  {
+   "pos": "WR",
+   "team": "NO",
+   "name": "Jordyn Tyson",
+   "status": "HAMSTRING · MRI",
+   "slot": "Sleeper list",
+   "note": "Left Thursday's practice early with a trainer — hamstring, per beat reports. Reaggravation risk is real: Grade 2 strain in the same situation last fall. MRI results pending.",
+   "source": "@SleeperNFL via beat feeds · Thu Aug 13 · 11:40 AM",
+   "impact": "Pause him on the sleeper list until the MRI comes back — same hamstring cost him three games last fall.",
+   "time": "Thu Aug 13 · 11:40 AM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "LAR",
+   "name": "Puka Nacua",
+   "status": "PSOAS · SHORT",
+   "slot": "Draft board · WR1 tier",
+   "note": "Left Tuesday's practice; McVay says it's psoas soreness, not the groin, and expects him ready to go when he returns next week. Outlook unchanged.",
+   "source": "Rotowire news · Thu Aug 13 · 4:04 PM",
+   "impact": "No draft-board move — short absence, McVay expects him ready to go next week.",
+   "time": "Thu Aug 13 · 4:04 PM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "TB",
+   "name": "Emeka Egbuka",
+   "status": "LOWER BODY",
+   "slot": "Draft board",
+   "note": "Limped off with trainers Wednesday, then watched the rest of practice from the sideline, per Garafolo. Initially called a minor toe issue.",
+   "source": "Rotowire news · Thu Aug 13 · 6:50 PM",
+   "impact": "Downgrade from 'no action' — hold off drafting until Tampa clarifies.",
+   "time": "Thu Aug 13 · 6:50 PM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "TB",
+   "name": "Jalen McMillan",
+   "status": "KNEE · NO TIMETABLE",
+   "slot": "Draft board",
+   "note": "Knee injury this week with no timetable to return, per Todd Bowles. Was a bounce-back candidate after last year's neck injury.",
+   "source": "FantasyPros wire · Thu Aug 13 · 5:20 PM",
+   "impact": "Remove from late-round consideration until a timetable exists.",
+   "time": "Thu Aug 13 · 5:20 PM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "TEN",
+   "name": "Elic Ayomanor",
+   "status": "SHOULDER · EVAL",
+   "slot": "Watch list",
+   "note": "Left Thursday's practice early with a shoulder injury; Saleh says he is being evaluated, update expected Friday.",
+   "source": "Beat feeds · Thu Aug 13 · 4:45 PM",
+   "impact": "Watch — Wan'Dale's target share grows if he misses time.",
+   "time": "Thu Aug 13 · 4:45 PM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "IND",
+   "name": "Alec Pierce",
+   "status": "OFF PUP SOON",
+   "slot": "Watch list",
+   "note": "Ankle — expected off PUP within a week, in line for Week 1. Positive update.",
+   "source": "NBC Sports player news · Wed Aug 12 · 10:25 AM",
+   "impact": "Positive — in line for Week 1; his late-round value holds.",
+   "time": "Wed Aug 12 · 10:25 AM",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "WR",
+   "team": "SF",
+   "name": "Ricky Pearsall",
+   "status": "OUT · SEASON",
+   "slot": "Bench",
+   "note": "Ruled out for the 2026 season after PCL surgery. The 49ers signed Deebo Samuel Sr. to replace him.",
+   "source": "NBC Sports player news · Mon Aug 10 · 6:20 PM",
+   "impact": "Dead roster spot all year. Drop him and pick up his replacement — rookie De'Zhaun Stribling is unrostered.",
+   "time": "This week",
+   "league": "Sunday Gravy"
+  },
+  {
+   "pos": "TE",
+   "team": "SF",
+   "name": "George Kittle",
+   "status": "PUP",
+   "slot": "Starter · TE",
+   "note": "Opened camp on the active/PUP list. No return date announced.",
+   "source": "Sharp Football IR tracker · Sun Aug 9 · 8:00 AM",
+   "impact": "Your only TE. If he is not activated by cut-down day, Mason Taylor is the best free-agent cover.",
+   "time": "3 days ago",
+   "league": "Both leagues"
+  },
+  {
+   "pos": "DB",
+   "team": "DET",
+   "name": "Brian Branch",
+   "status": "PUP",
+   "slot": "Starter · DB2",
+   "note": "On the PUP list along with fellow Lions safety Kerby Joseph.",
+   "source": "Sharp Football IR tracker · Sun Aug 9 · 8:00 AM",
+   "impact": "One of your four DB starts. Watch for activation before your draft; otherwise slide Emmanwori onto the watch list — he is also on PUP.",
+   "time": "3 days ago",
+   "league": "Sunday Gravy"
+  },
+  {
+   "pos": "RB",
+   "team": "DET",
+   "name": "Isiah Pacheco",
+   "status": "MCL SPRAIN",
+   "slot": "Bench",
+   "note": "Sprained his MCL in Lions camp. Dan Campbell says he feels pretty good about Pacheco being ready for the start of the season.",
+   "source": "Rotowire news · Mon Aug 10 · 2:48 PM",
+   "impact": "He is the Gibbs handcuff now. Hold — the timeline points to Week 1.",
+   "time": "This week",
+   "league": "The Trenches"
+  },
+  {
+   "pos": "WR",
+   "team": "CHI",
+   "name": "Luther Burden III",
+   "status": "GROIN",
+   "slot": "Starter · WR3",
+   "note": "Groin injury from Aug 8 practice will cost him the preseason; the team expects him healthy for Week 1. Cements him as the WR2 behind Odunze.",
+   "source": "ESPN fantasy buzz · Wed Aug 12 · 9:00 AM",
+   "impact": "News, not noise — but it is dragging his draft price below Odunze's. Value if he falls in your draft.",
+   "time": "This week",
+   "league": "Sunday Gravy"
+  },
+  {
+   "pos": "RB",
+   "team": "SEA",
+   "name": "Zach Charbonnet",
+   "status": "PUP · ACL",
+   "slot": "Watch list",
+   "note": "Still recovering from the ACL tear suffered in last season's playoffs. ESPN reported a long road back.",
+   "source": "Sharp Football IR tracker · Sun Aug 9 · 8:00 AM",
+   "impact": "With Walker traded to KC, rookie Jadarian Price opens as the committee headliner — Yahoo warns he is no bell-cow.",
+   "time": "3 days ago",
+   "league": "Both leagues"
+  }
+ ],
+ "news": [
+  {
+   "kind": "Wire",
+   "handle": "Yahoo lineup wire",
+   "trust": "Tier 1",
+   "time": "Fri Aug 14 · 11:00 AM",
+   "text": "Tonight’s ins and outs: Tua debuts for ATL with Bijan and London (Penix held out, ACL); Malik Willis makes his first Miami start; Bo Nix held out entirely (ankle); Jayden Daniels sits — Mariota starts WSH; Baker held back, Browning (back) out, so Bazelak/Daniels QB the Bucs.",
+   "players": "Malik Willis · QB · MIA"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Rotowire news",
+   "trust": "Tier 1",
+   "time": "Fri Aug 14 · 10:30 AM",
+   "text": "Texans believe backup QB Graham Mertz tore his ACL in Thursday’s opener vs the Chargers, per Schefter. Also: Anthony Richardson’s full line was 11/14 for 145 plus 53 rushing yards and a rushing TD (one INT, one lost fumble).",
+   "players": "Anthony Richardson · QB · IND"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo Sports live wire",
+   "trust": "Tier 1",
+   "time": "Fri Aug 14 · 2:30 PM",
+   "text": "Falcons LB James Pearce Jr. suspended eight games — the headliner in a batch of Friday bans outlined by ESPN's Jeremy Fowler. Titans CB Nazeeh Johnson got six games under the PED policy.",
+   "players": "James Pearce Jr. · LB · ATL",
+   "lean": "Off the LB board in both leagues"
+  },
+  {
+   "kind": "Wire",
+   "handle": "CBS preseason winners",
+   "trust": "Tier 2",
+   "time": "Fri Aug 14 · 11:00 AM",
+   "text": "De'Zhaun Stribling: 7 catches, 63 yards in one half vs Tennessee — the best offensive player on the field for SF. Steelers rookie Drew Allar threw two TDs and ran for another in his debut. Raiders' Mendoza led a TD drive, but Kubiak says the job is still Cousins' to lose.",
+   "players": "De'Zhaun Stribling · WR · SF",
+   "lean": "Sleeper #4 confirmed"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo camp tracker",
+   "trust": "Tier 1",
+   "time": "Fri Aug 14 · 9:00 AM",
+   "text": "Thursday's opener results: Bengals 16-14 Lions, Steelers 28-9 Packers, Patriots-Colts 13-13 tie, Chargers 27-7 Texans, Cardinals 27-14 Raiders, Titans 19-13 49ers. Tonight: DEN@ATL, MIA@WSH, TB@NYJ (all 6 PM CT).",
+   "players": "Preseason Week 1"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo camp tracker",
+   "trust": "Tier 1",
+   "time": "Thu Aug 13 · 8:15 AM",
+   "text": "Preseason Week 1 fallout: Jayden Reed (boot, unrelated to toe) and Rachaad White (groin, day-to-day) headline the injury report. Rhamondre Stevenson also banged up. Jefferson, Waddle, Hill sat with minor issues — no concern.",
+   "players": "Jayden Reed · WR · GB"
+  },
+  {
+   "kind": "Wire",
+   "handle": "NBC Sports player news",
+   "trust": "Tier 1",
+   "time": "Thu Aug 13 · 7:45 PM",
+   "text": "Kyler Murray named the Vikings' starter over J.J. McCarthy. Rotoworld crew also debating whether Omarion Hampton's ADP has run too hot, and who leads Denver's backfield with J.K. Dobbins nursing a soft-tissue injury.",
+   "players": "Kyler Murray · QB · MIN"
+  },
+  {
+   "kind": "Wire",
+   "handle": "FantasyPros wire",
+   "trust": "Tier 2",
+   "time": "Thu Aug 13 · 5:00 PM",
+   "text": "49ers signed Deebo Samuel Sr. after Pearsall's season-ending PCL surgery — Deebo slots in behind Mike Evans, pushing rookie De'Zhaun Stribling to WR3 with upside if either vet misses time.",
+   "players": "Deebo Samuel Sr. · WR · SF"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Rotowire news",
+   "trust": "Tier 1",
+   "time": "Thu Aug 13 · 4:04 PM",
+   "text": "Puka Nacua (psoas soreness, initially reported as groin) expected back at practice next week. McVay says he'll be ready to go — a short absence, outlook unchanged.",
+   "players": "Puka Nacua · WR · LAR",
+   "lean": "Hold — no ADP move"
+  },
+  {
+   "kind": "Post",
+   "handle": "@SleeperNFL via beat feeds",
+   "trust": "Tier 2",
+   "time": "Thu Aug 13 · 11:40 AM",
+   "text": "Saints rookie WR Jordyn Tyson (hamstring) left practice early with a trainer, per Mike Triplett. Same player who lost three games to a Grade 2 hamstring last fall — MRI pending.",
+   "players": "Jordyn Tyson · WR · NO",
+   "lean": "Pause the sleeper pick until the MRI"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo camp tracker",
+   "trust": "Tier 1",
+   "time": "Wed Aug 12 · 3:10 PM",
+   "text": "Emeka Egbuka left Bucs practice with a minor toe issue. Not considered serious — monitor like Nacua.",
+   "players": "Emeka Egbuka · WR · TB",
+   "lean": "No action"
+  },
+  {
+   "kind": "Wire",
+   "handle": "NBC Sports player news",
+   "trust": "Tier 1",
+   "time": "Wed Aug 12 · 10:25 AM",
+   "text": "Alec Pierce (ankle) expected off PUP within a week — in line for Week 1. Daniel Jones (Achilles) still ramping; Adrian Martinez would see extensive preseason work if Jones sits.",
+   "players": "Alec Pierce · WR · IND",
+   "lean": "Late-round value holds"
+  },
+  {
+   "kind": "Post",
+   "handle": "@AdamSchefter",
+   "trust": "Tier 1",
+   "time": "Wed Aug 12 · 4:42 PM",
+   "text": "UPDATE Aug 13 — Aaron Glenn says Sadiq will miss a couple of weeks; team hopeful for the season opener. Original: Jets rookie TE Kenyon Sadiq suffered a setback in his recovery from offseason hernia surgery and is expected to miss some time.",
+   "players": "Kenyon Sadiq · Mason Taylor"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo camp tracker",
+   "trust": "Tier 1",
+   "time": "Wed Aug 12 · 1:15 PM",
+   "text": "Puka Nacua exited Tuesday's practice with groin soreness that is considered minor — but he missed time in 2024, so there is history.",
+   "players": "Puka Nacua"
+  },
+  {
+   "kind": "Wire",
+   "handle": "NBC Sports player news",
+   "trust": "Tier 1",
+   "time": "Tue Aug 11 · 11:30 AM",
+   "text": "Malik Nabers practiced for the first time since his ACL tear and had been running routes before camp. Worst case now looks like missing a game or two; he is on track for Week 1.",
+   "players": "Malik Nabers"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Rotowire news",
+   "trust": "Tier 1",
+   "time": "Tue Aug 11 · 9:05 AM",
+   "text": "Mahomes says the injured knee feels great and he is targeting Week 1. Andy Reid has not committed to preseason snaps.",
+   "players": "Patrick Mahomes"
+  },
+  {
+   "kind": "Wire",
+   "handle": "NBC Sports player news",
+   "trust": "Tier 1",
+   "time": "Mon Aug 10 · 6:20 PM",
+   "text": "49ers rule Ricky Pearsall out for the 2026 season after PCL surgery. Deebo Samuel Sr. signed to fill the room alongside Mike Evans and rookie De'Zhaun Stribling.",
+   "players": "Ricky Pearsall · De'Zhaun Stribling"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Rotowire news",
+   "trust": "Tier 1",
+   "time": "Mon Aug 10 · 2:48 PM",
+   "text": "Isiah Pacheco sprained his MCL in Lions camp. Dan Campbell feels pretty good about him being ready for the start of the season.",
+   "players": "Isiah Pacheco"
+  },
+  {
+   "kind": "Report",
+   "handle": "Sharp Football IR tracker",
+   "trust": "Tier 2",
+   "time": "Sun Aug 9 · 8:00 AM",
+   "text": "Notable names on active/PUP: George Kittle, Brian Branch, Kerby Joseph, Nick Emmanwori, Zach Charbonnet, Micah Parsons.",
+   "players": "Kittle · Branch · Joseph · Charbonnet"
+  },
+  {
+   "kind": "Analysis",
+   "handle": "ESPN fantasy buzz",
+   "trust": "Tier 2",
+   "time": "Mon Aug 10 · 10:12 AM",
+   "text": "Luther Burden III's early-August groin injury will push drafters to Odunze in the sixth round. Burden becomes the value pick later.",
+   "players": "Luther Burden III · Rome Odunze"
+  },
+  {
+   "kind": "Wire",
+   "handle": "Yahoo camp tracker",
+   "trust": "Tier 1",
+   "time": "Mon Aug 10 · 3:33 PM",
+   "text": "Mike Evans nursing a quad in his first 49ers camp. Shanahan: being smart with the soon-to-be 33-year-old; expected back for the season opener.",
+   "players": "Mike Evans"
+  }
+ ],
+ "scout": [
+  {
+   "kind": "ADP riser",
+   "name": "Bo Nix",
+   "meta": "QB · DEN",
+   "text": "Biggest 7-day mover in the top 200: 120.0 → 111.0. Waddle trade has the market buying the Denver offense.",
+   "src": "ADPWire movers · Thu Aug 13",
+   "pos": "QB"
+  },
+  {
+   "kind": "ADP riser",
+   "name": "Josh Jacobs",
+   "meta": "RB · GB",
+   "text": "43.9 → 35.0 over 7 days — climbing into the third round.",
+   "src": "ADPWire movers · Thu Aug 13",
+   "pos": "RB"
+  },
+  {
+   "kind": "ADP riser",
+   "name": "Jaylen Waddle",
+   "meta": "WR · DEN",
+   "text": "52.7 → 44.0 since the trade to Denver. Note: crowds Courtland Sutton's targets.",
+   "src": "ADPWire + FantasyPros · Thu Aug 13",
+   "pos": "WR"
+  },
+  {
+   "kind": "ADP riser",
+   "name": "Kyle Pitts",
+   "meta": "TE · ATL",
+   "text": "88.6 → 80.0 over 7 days.",
+   "src": "ADPWire movers · Thu Aug 13",
+   "pos": "TE"
+  },
+  {
+   "kind": "ADP riser",
+   "name": "Stefon Diggs",
+   "meta": "WR · WSH",
+   "text": "Signed with Washington Aug 10; jumped into the 10th round and still climbing. WR23 in PPG last year on a 65% route share.",
+   "src": "FantasyPros + Yahoo · Thu Aug 13",
+   "pos": "WR"
+  },
+  {
+   "kind": "ADP riser",
+   "name": "Daniel Jones",
+   "meta": "QB · IND",
+   "text": "Biggest QB riser on NFFC: -12.2 to 205.8. Achilles recovery reportedly without limitations in Steichen's offense.",
+   "src": "NFFC ADP + FantasyPros · Tue Aug 11",
+   "pos": "QB"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Ja'Kobi Lane",
+   "meta": "WR · BAL · rookie",
+   "text": "NFL.com's favorite last-round dart: 80th overall pick, immediate camp hit per Ravens beat (Hensley).",
+   "src": "NFL.com sleepers · Thu Aug 13",
+   "pos": "WR"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Denzel Boston",
+   "meta": "WR · CLE · rookie",
+   "text": "Contested-catch and red-zone skill set with a shot at the Browns' No. 1 perimeter role; camp reports positive.",
+   "src": "NFL.com + SI · Thu Aug 13",
+   "pos": "WR"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Caleb Douglas",
+   "meta": "WR · MIA · rookie",
+   "text": "ADP #316 — free. Miami's WR room is wide open behind Waddle's departure.",
+   "src": "SI late-round rookies · Wed Aug 12",
+   "pos": "WR"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Malik Willis",
+   "meta": "QB · MIA",
+   "text": "Yahoo: non-zero chance he breaks the QB rush-attempt record (176). NFFC riser -8.5 to 187.7. Trenches cheat code.",
+   "src": "Yahoo sleepers + NFFC · Tue Aug 11",
+   "pos": "QB"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Tank Bigsby",
+   "meta": "RB · PHI",
+   "text": "Backup in an elite offense; NFFC riser -10.3 to 149.2.",
+   "src": "Yahoo sleepers + NFFC · Tue Aug 11",
+   "pos": "RB"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Tyler Allgeier",
+   "meta": "RB · ARI",
+   "text": "Rotowire's Cardinals pick: no worse than RB2 to Love and projects for the goal-line work.",
+   "src": "Rotowire 32 sleepers · Thu Aug 13",
+   "pos": "RB"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Jacoby Brissett",
+   "meta": "QB · ARI",
+   "text": "3,300 yards and 23 TD in 12 starts last year; first full offseason as the starter with McBride, Harrison and Love.",
+   "src": "Yahoo sleepers · Thu Aug 6",
+   "pos": "QB"
+  },
+  {
+   "kind": "Sleeper find",
+   "name": "Omar Cooper Jr.",
+   "meta": "WR · NYJ · rookie",
+   "text": "14th-round dart: big YAC body whose only target competition is Garrett Wilson. ADP dipping on name recognition alone.",
+   "src": "Yahoo ADP notes · Tue Aug 11",
+   "pos": "WR"
+  },
+  {
+   "kind": "ADP faller",
+   "name": "Kyler Murray",
+   "meta": "QB · MIN",
+   "text": "+14.4 to 163.6 on NFFC — still has to win the Minnesota job. Cheap rushing-QB shot if he does.",
+   "src": "NFFC ADP · Tue Aug 11",
+   "pos": "QB"
+  },
+  {
+   "kind": "ADP faller",
+   "name": "Rachaad White",
+   "meta": "RB · WSH",
+   "text": "+8.8 to 86.6 — market cooling on a player already on your sleeper list. Re-check the thesis.",
+   "src": "NFFC ADP · Tue Aug 11",
+   "pos": "RB"
+  },
+  {
+   "kind": "ADP faller",
+   "name": "Tyler Shough",
+   "meta": "QB · NO",
+   "text": "Yahoo calls him an August riser candidate, but NFFC has him +14.5 to 158.8 — sources disagree.",
+   "src": "Yahoo vs NFFC · Tue Aug 11",
+   "pos": "QB"
+  }
+ ],
+ "weekrev": {
+  "week": "Preseason Week 1",
+  "range": "Thu Aug 13 – Sat Aug 15",
+  "games": [
+   {
+    "day": "Thu Aug 13",
+    "score": "PIT 28 · GB 9",
+    "status": "FINAL",
+    "note": "Allar runs the show; Packers rested most starters"
+   },
+   {
+    "day": "Thu Aug 13",
+    "score": "CIN 16 · DET 14",
+    "status": "FINAL",
+    "note": "Flacco TD in relief of Burrow; McPherson 3 FG"
+   },
+   {
+    "day": "Thu Aug 13",
+    "score": "TEN 19 · SF 13",
+    "status": "FINAL",
+    "note": "Stribling 7-63 with SF starters benched"
+   },
+   {
+    "day": "Thu Aug 13",
+    "score": "LAC 27 · HOU 7",
+    "status": "FINAL",
+    "note": "Both playoff teams played it safe"
+   },
+   {
+    "day": "Thu Aug 13",
+    "score": "ARI 27 · LV 14",
+    "status": "FINAL",
+    "note": "Mendoza TD drive; Cousins solid — job still his"
+   },
+   {
+    "day": "Thu Aug 13",
+    "score": "NE 13 · IND 13",
+    "status": "FINAL · TIE",
+    "note": "Richardson ahead of Leonard for the backup job"
+   },
+   {
+    "day": "Fri Aug 14",
+    "score": "DEN @ ATL",
+    "status": "6:00 PM CT",
+    "note": "Tua’s ATL debut with Bijan + London; Nix held out (ankle)"
+   },
+   {
+    "day": "Fri Aug 14",
+    "score": "MIA @ WSH",
+    "status": "6:00 PM CT",
+    "note": "Tua expected snaps; WSH resting starters"
+   },
+   {
+    "day": "Fri Aug 14",
+    "score": "TB @ NYJ",
+    "status": "6:00 PM CT · NFLN",
+    "note": "Egbuka + McMillan out — watch the TB WR depth"
+   },
+   {
+    "day": "Sat Aug 15",
+    "score": "PHI @ BAL",
+    "status": "6:00 PM CT",
+    "note": "Likely light starter work on both sides"
+   },
+   {
+    "day": "Sat Aug 15",
+    "score": "DAL @ SEA",
+    "status": "7:00 PM CT · NFLN",
+    "note": "Primetime close to a 7-game Saturday slate"
+   }
+  ],
+  "stars": [
+   {
+    "name": "De'Zhaun Stribling",
+    "meta": "WR · SF · rookie",
+    "line": "7 rec · 63 yds · one half",
+    "read": "Sleeper #4 confirmed on film — best offensive player on the field vs TEN. Still undrafted in most leagues.",
+    "src": "CBS winners · Fri Aug 14"
+   },
+   {
+    "name": "Drew Allar",
+    "meta": "QB · PIT · rookie",
+    "line": "10/13 · 153 yds · 2 pass TD · 1 rush TD",
+    "read": "Ran the 28-9 rout of Green Bay. Rushing production makes him a Trenches name to watch if he ever starts.",
+    "src": "CBS + ESPN takeaways · Fri Aug 14"
+   },
+   {
+    "name": "Anthony Richardson",
+    "meta": "QB · IND",
+    "line": "11/14 · 145 yds · 53 rush yds · rush TD",
+    "read": "Outplayed Leonard in the backup battle behind Daniel Jones (Achilles). The rushing line is exactly the Trenches profile.",
+    "src": "CBS winners · Fri Aug 14"
+   },
+   {
+    "name": "Dohnte Meyers",
+    "meta": "WR · CIN · camp battle",
+    "line": "3-29 rec · 13-yd rush · 11-yd PR",
+    "read": "Swiss-army usage incl. punt returns — the return role is the one path that would make him sleeper-eligible here.",
+    "src": "CBS winners · Fri Aug 14"
+   },
+   {
+    "name": "Luke Altmyer",
+    "meta": "QB · DET · UDFA",
+    "line": "13/21 · 130 yds · TD · 2 INT",
+    "read": "Started after Bridgewater's retirement; Dobbs signed as the veteran backup. No fantasy action.",
+    "src": "ESPN takeaways · Fri Aug 14"
+   },
+   {
+    "name": "Evan McPherson",
+    "meta": "K · CIN",
+    "line": "3/3 FG",
+    "read": "You start a K in both leagues — quietly a fine late K target with the Bengals offense behind him.",
+    "src": "ESPN recap · Thu Aug 13"
+   },
+   {
+    "name": "Fernando Mendoza",
+    "meta": "QB · LV · rookie",
+    "line": "Led a TD drive in debut",
+    "read": "Good tape, but Kubiak says the job is still Cousins' to lose — no draft-board move yet.",
+    "src": "CBS + Yahoo wire · Fri Aug 14"
+   }
+  ]
+ },
+ "meta": [
+  {
+   "feed": "Alerts / status feed",
+   "asOf": "2026-08-14T18:00",
+   "maxAgeH": 24,
+   "source": "NBC, Rotowire, FantasyPros, beat feeds",
+   "tab": "Alerts"
+  },
+  {
+   "feed": "NBC player news",
+   "asOf": "2026-08-14T18:00",
+   "maxAgeH": 24,
+   "source": "nbcsports.com Rotoworld",
+   "tab": "NBC player news"
+  },
+  {
+   "feed": "News & posts",
+   "asOf": "2026-08-14T18:00",
+   "maxAgeH": 24,
+   "source": "Schefter, Yahoo tracker, NBC, Rotowire",
+   "tab": "News & posts"
+  },
+  {
+   "feed": "Vegas lines",
+   "asOf": "2026-08-13T12:00",
+   "maxAgeH": 72,
+   "source": "DraftKings openers via ESPN",
+   "tab": "FFBets · Predictions"
+  },
+  {
+   "feed": "Week 1 schedule",
+   "asOf": "2026-08-13T20:00",
+   "maxAgeH": 168,
+   "source": "NFL.com May 14 release",
+   "tab": "Schedule"
+  },
+  {
+   "feed": "Draft board / ADP blend",
+   "asOf": "2026-08-13T12:00",
+   "maxAgeH": 96,
+   "source": "ESPN + Yahoo sheets, aggregate ADP",
+   "tab": "Draft analyzer"
+  },
+  {
+   "feed": "Sleeper list",
+   "asOf": "2026-08-14T15:45",
+   "maxAgeH": 96,
+   "source": "PFF, Yahoo previews, B/R",
+   "tab": "Sleepers"
+  },
+  {
+   "feed": "Backup RBs / usage splits",
+   "asOf": "2026-08-12T12:00",
+   "maxAgeH": 168,
+   "source": "'25 snap analytics (estimates)",
+   "tab": "Backup RBs"
+  },
+  {
+   "feed": "Team intel / projections",
+   "asOf": "2026-08-12T12:00",
+   "maxAgeH": 168,
+   "source": "'25 stats + win totals (estimates)",
+   "tab": "Team intel"
+  },
+  {
+   "feed": "FFBets salaries/projections",
+   "asOf": "2026-08-13T12:00",
+   "maxAgeH": 96,
+   "source": "Model estimates — no live sheet",
+   "tab": "FFBets"
+  }
+ ],
+ "rotowire": [
+  {
+   "time": "Thu Aug 13 · 8:40 AM",
+   "player": "Emeka Egbuka",
+   "meta": "WR · TB",
+   "head": "Limped off with trainers — worse than first reported",
+   "text": "Left Wednesday's practice with an apparent lower-body injury and watched the rest from the sideline, per Garafolo. Rotoworld already had him flagged as overpriced in early drafts.",
+   "lean": "Pause at ADP"
+  },
+  {
+   "time": "Thu Aug 13 · 8:15 AM",
+   "player": "Roman Wilson",
+   "meta": "WR · PIT",
+   "head": "Running as the No. 3 WR with the first team",
+   "text": "Wilson has held the No. 3 role with Pittsburgh's first-team offense most of camp, per The Athletic — relevant with Pittman sidelined.",
+   "lean": "Deep-league watch"
+  },
+  {
+   "time": "Thu Aug 13 · 4:04 PM",
+   "player": "Puka Nacua",
+   "meta": "WR · LAR",
+   "head": "Expected back at practice next week",
+   "text": "McVay says the psoas soreness is short-term and Nacua will be ready to go when he returns. Outlook unchanged (Rotoworld injury roundup).",
+   "lean": "Hold"
+  },
+  {
+   "time": "Thu Aug 13 · 1:40 PM",
+   "player": "Josh Jacobs",
+   "meta": "RB · GB",
+   "head": "Dvorchak treating him as an RB2",
+   "text": "Kyle Dvorchak cites health concerns plus potential missed time from off-the-field antics as reasons to price Jacobs down.",
+   "lean": "Downgrade a round"
+  },
+  {
+   "time": "Thu Aug 13 · 11:30 AM",
+   "player": "Omarion Hampton",
+   "meta": "RB · LAC",
+   "head": "Overvalued? Backfield battle breakdown",
+   "text": "Daugherty and Carter break down the Chargers backfield battle and whether Hampton's ADP has run ahead of his role.",
+   "lean": "Caution at ADP"
+  },
+  {
+   "time": "Thu Aug 13 · 10:15 AM",
+   "player": "J.K. Dobbins",
+   "meta": "RB · DEN",
+   "head": "Nursing soft-tissue injury — room wide open",
+   "text": "With Dobbins dinged, Daugherty and Carter analyze the crowded Broncos backfield and who holds the edge for Week 1.",
+   "lean": "Monitor the room"
+  },
+  {
+   "time": "Thu Aug 13 · 9:00 AM",
+   "player": "Derrick Henry",
+   "meta": "RB · BAL",
+   "head": "A value 'for the 10th year in a row'",
+   "text": "Rotoworld's redraft rankings peg Henry as a value at ADP again while flagging Emeka Egbuka as overpriced in early drafts.",
+   "lean": "Draft with confidence"
+  },
+  {
+   "time": "Wed Aug 12 · 5:30 PM",
+   "player": "Justin Jefferson",
+   "meta": "WR · ARI",
+   "head": "Rankings crew sold on a rebound with Kyler",
+   "text": "Coming off a down season, the Rotoworld crew is betting on a Jefferson rebound with Kyler Murray under center.",
+   "lean": "Buy the dip"
+  },
+  {
+   "time": "Wed Aug 12 · 4:10 PM",
+   "player": "Michael Pittman Jr.",
+   "meta": "WR · PIT",
+   "head": "Sidelined — who benefits in Pittsburgh?",
+   "text": "Rotoworld examines which Steelers pass-catchers gain if Pittman misses time.",
+   "lean": "Watch PIT WR room"
+  },
+  {
+   "time": "Wed Aug 12 · 2:45 PM",
+   "player": "Bucky Irving",
+   "meta": "RB · TB",
+   "head": "The crew's unanimous bounce-back bet",
+   "text": "The rankings crew doesn't agree on much, but everyone is betting on Irving in 2026.",
+   "lean": "Target"
+  },
+  {
+   "time": "Wed Aug 12 · 1:15 PM",
+   "player": "Denzel Boston",
+   "meta": "WR · CLE",
+   "head": "Working with Browns first-team offense",
+   "text": "Dvorchak: Boston running with the first team further solidifies Cleveland's WR rollout.",
+   "lean": "Deep sleeper add"
+  },
+  {
+   "time": "Wed Aug 12 · 11:20 AM",
+   "player": "Josh Allen",
+   "meta": "QB · BUF",
+   "head": "Runaway favorite to finish QB1",
+   "text": "Rotoworld's preseason rankings make Allen the QB1 favorite; Lamar Jackson flagged as the rebound bet at a discount.",
+   "lean": "Anchor pick"
+  },
+  {
+   "time": "Wed Aug 12 · 10:05 AM",
+   "player": "Lamar Jackson",
+   "meta": "QB · BAL",
+   "head": "Strong rebound bet at discounted ADP",
+   "text": "Down year has his price depressed; Rotoworld likes the bounce-back.",
+   "lean": "Value in both leagues"
+  }
+ ]
+}

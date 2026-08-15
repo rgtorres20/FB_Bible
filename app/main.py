@@ -20,6 +20,17 @@ from .routes import auth, feeds, league
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 _FRONTEND_INDEX = _FRONTEND_DIR / "index.html"
 
+# index.html is a Claude Design (.dc) document: it loads ./support.js and a
+# _ds/ bundle at runtime. Serving it without those renders a blank page, which
+# is worse than an honest 404 -- so the mount requires the whole set.
+_FRONTEND_RUNTIME = (
+    _FRONTEND_DIR / "support.js",
+    _FRONTEND_DIR / "manifest.webmanifest",
+    _FRONTEND_DIR / "_ds",
+)
+_FRONTEND_MISSING = [p.name for p in (_FRONTEND_INDEX, *_FRONTEND_RUNTIME) if not p.exists()]
+_FRONTEND_READY = not _FRONTEND_MISSING
+
 settings = get_settings()
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -58,7 +69,8 @@ async def health() -> dict:
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
         "league_keys": settings.league_keys,
-        "frontend_deployed": _FRONTEND_INDEX.is_file(),
+        "frontend_ready": _FRONTEND_READY,
+        "frontend_missing": _FRONTEND_MISSING,
     }
 
 
@@ -70,8 +82,9 @@ async def health() -> dict:
 # Mounted last so /health, /api/* and /auth/* still win. Mounted at /app
 # rather than / so it cannot shadow them by accident.
 #
-# frontend/index.html does not exist yet -- the page still lives in the Claude
-# design project. Until it is committed, /app returns 404 and /health reports
-# frontend_deployed: false. See docs/MIGRATION.md.
-if _FRONTEND_DIR.is_dir():
+# index.html and its data/icons are in the repo, but the Claude Design runtime
+# it loads (support.js, manifest.webmanifest, _ds/) is not yet -- so the mount
+# stays off and /app 404s rather than serving a page that renders blank.
+# /health lists exactly what is missing. See docs/MIGRATION.md.
+if _FRONTEND_READY:
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
