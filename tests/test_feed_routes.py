@@ -347,3 +347,48 @@ async def test_sync_keeps_previous_adp_when_fetch_fails(sync_client, monkeypatch
     assert response.json()["adp_players"] == 1
     saved = await store.load()
     assert saved["adp"] == previous
+
+
+async def test_sync_carries_verdicts_forward_for_surviving_items(client, monkeypatch):
+    """Every sync used to save a dict with no 'verdicts' key, wiping the
+    hourly AI job's output minutes after it landed. Verdicts must survive a
+    sync and be pruned with the items they annotate."""
+    import httpx as _httpx
+
+    from app.config import get_settings
+    from app.routes import feeds as feeds_route
+
+    c, store = client
+    monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+
+    async def _offline(*args, **kwargs):
+        raise _httpx.ConnectError("offline under test")
+
+    monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(feeds_route.vegas, "fetch", _offline)
+
+    async def fake_poll(*args, **kwargs):
+        return {
+            "items": [
+                {"id": "keep", "title": "kept story", "published": "2026-08-15T12:00:00+00:00"}
+            ],
+            "sources": {},
+            "polled_at": "2026-08-15T15:00:00+00:00",
+        }
+
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll)
+
+    await store.save(
+        {
+            "items": [
+                {"id": "keep", "title": "kept story", "published": "2026-08-15T12:00:00+00:00"},
+                {"id": "gone", "title": "old story", "published": "2020-01-01T00:00:00+00:00"},
+            ],
+            "verdicts": {"keep": "still matters", "gone": "aged out"},
+        }
+    )
+
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    saved = await store.load()
+    assert saved["verdicts"] == {"keep": "still matters"}
