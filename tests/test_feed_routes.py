@@ -4,6 +4,7 @@ test_routes.py covers the disabled/unauthorised cases; this covers what
 happens when it actually works, plus the read filters the UI depends on.
 """
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,21 @@ from app import main
 from app.config import get_settings
 from app.feeds.store import FileFeedStore
 from app.routes import feeds as feeds_route
+
+
+@pytest.fixture(autouse=True)
+def offline_adp(monkeypatch):
+    """Sync fetches live ADP; tests must never touch the real API.
+
+    Simulates the no-network CI environment. Tests that want a working ADP
+    fetch monkeypatch their own fake over this one.
+    """
+
+    async def _offline(*args, **kwargs):
+        raise httpx.ConnectError("offline under test")
+
+    monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
+
 
 STORED = {
     "items": [
@@ -288,3 +304,45 @@ async def test_sync_survives_the_player_index_being_unavailable(sync_client, mon
 
     assert body["total"] == 1
     assert body["tagged"] == 0
+
+
+async def test_sync_stores_adp_board_and_snapshots_history(sync_client, monkeypatch):
+    c, store = sync_client
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll([]))
+
+    async def fake_adp(*args, **kwargs):
+        return {
+            "fetched_at": "2026-08-15T09:00:00+00:00",
+            "date": "2026-08-15",
+            "players": [{"name": "Bijan Robinson", "position": "RB", "team": "ATL", "adp": 1.4}],
+        }
+
+    monkeypatch.setattr(feeds_route.adp, "fetch", fake_adp)
+
+    body = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+
+    assert body["adp_players"] == 1
+    saved = await store.load()
+    assert saved["adp"]["state"]["players"][0]["name"] == "Bijan Robinson"
+    assert saved["adp"]["history"][-1]["date"] == "2026-08-15"
+    assert saved["adp"]["history"][-1]["adp"] == {"Bijan Robinson": 1.4}
+
+
+async def test_sync_keeps_previous_adp_when_fetch_fails(sync_client, monkeypatch):
+    """Yesterday's board is still a draft board; a fetch failure must not
+    wipe it or the movers history, and must never fail the news sync."""
+    c, store = sync_client
+    previous = {
+        "state": {"date": "2026-08-14", "players": [{"name": "A", "adp": 5.0}]},
+        "history": [{"date": "2026-08-14", "adp": {"A": 5.0}}],
+    }
+    await store.save({"items": [], "sources": {}, "polled_at": "x", "adp": previous})
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll([]))
+    # offline_adp autouse fixture already makes adp.fetch raise
+
+    response = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    assert response.status_code == 200
+    assert response.json()["adp_players"] == 1
+    saved = await store.load()
+    assert saved["adp"] == previous
