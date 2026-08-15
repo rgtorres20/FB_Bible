@@ -89,6 +89,26 @@
     border: 1px solid var(--color-neutral-300) !important;
     border-radius: 999px;
     margin: 0 2px;
+    background: var(--color-bg) !important;
+    font-weight: 600;
+  }
+
+  /* The page marks the active tab with a 3px left accent border, which the
+   * uniform chip border above erases -- leaving nothing that says "you are
+   * here" and nothing that reads as a menu. Re-express it as an inverted
+   * chip. Both spellings again: raw and runtime-serialized. */
+  aside nav button[style*="border-left: 3px solid"],
+  aside nav button[style*="border-left:3px solid"] {
+    background: var(--color-text) !important;
+    color: var(--color-bg) !important;
+    border-color: var(--color-text) !important;
+  }
+
+  /* Fade the right edge so it is visibly a strip that scrolls. */
+  aside nav {
+    background: rgba(0, 0, 0, 0.045);
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent);
   }
 
   /* Sync footer: keep (it holds SYNC NOW), just slimmer. */
