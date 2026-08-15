@@ -1,0 +1,26 @@
+name: Verify live
+
+# The standing answer to "is everything we fixed still working?" -- asserts
+# against the production deployment, not the code. CI proves commits; this
+# proves the running site: data freshness, source health, the served page
+# carrying its overlays. A failure emails the repo owner.
+
+on:
+  schedule:
+    - cron: "23 */2 * * *" # every 2 hours, offset to dodge top-of-hour load
+  workflow_dispatch:
+
+concurrency:
+  group: verify-live
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # stdlib only, on purpose: the watchdog must not fail because of its
+      # own dependencies.
+      - name: Verify production
+        run: python3 scripts/verify_live.py
