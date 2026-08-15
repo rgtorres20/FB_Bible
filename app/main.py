@@ -111,7 +111,12 @@ if _FRONTEND_READY:
         for these two paths while every other asset stays static.
         """
         html = _FRONTEND_INDEX.read_text(encoding="utf-8")
-        html = html.replace("</head>", '<link rel="stylesheet" href="mobile.css"></head>', 1)
+        html = html.replace(
+            "</head>",
+            '<link rel="stylesheet" href="mobile.css">'
+            '<script src="mobile.js" defer></script></head>',
+            1,
+        )
         return HTMLResponse(html)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")

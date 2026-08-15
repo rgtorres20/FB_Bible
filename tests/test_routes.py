@@ -99,6 +99,7 @@ def test_app_page_injects_the_mobile_stylesheet():
     response = client.get("/app/")
     assert response.status_code == 200
     assert '<link rel="stylesheet" href="mobile.css">' in response.text
+    assert '<script src="mobile.js" defer></script>' in response.text
 
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
     assert "mobile.css" not in on_disk
@@ -108,3 +109,9 @@ def test_mobile_css_is_served():
     response = client.get("/app/mobile.css")
     assert response.status_code == 200
     assert "@media (max-width: 768px)" in response.text
+
+
+def test_mobile_js_is_served():
+    response = client.get("/app/mobile.js")
+    assert response.status_code == 200
+    assert "fb-menu-btn" in response.text

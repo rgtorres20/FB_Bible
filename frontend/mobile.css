@@ -2,27 +2,33 @@
  *
  * index.html is a generated design document styled entirely with inline
  * styles, and we deliberately do not fork it (see docs/HOSTING.md). This
- * sheet is injected at serve time by the server and wins with !important
- * inside a phone-width media query, leaving desktop untouched.
+ * sheet is injected at serve time and wins with !important inside a
+ * phone-width media query; desktop is untouched.
  *
- * Selectors lean on two things that are stable here: inline-style substrings
- * (the page is pinned in this repo, regenerated only by deliberate import)
- * and the aside's child order (logo / league cards / theme / nav / footer).
+ * The sidebar is NOT redesigned for phones -- earlier chip-row attempt read
+ * as "my sidebar is gone" to its own user, which is the test that matters.
+ * Instead the desktop sidebar becomes a slide-in drawer behind a ☰ button
+ * (added by mobile.js), identical to the laptop's, league cards and all.
+ *
+ * Attribute selectors carry both spellings of inline styles: the raw
+ * document writes "min-height:100vh" but the .dc runtime re-serializes to
+ * "min-height: 100vh", and [style*=] matches the serialized form. One
+ * missing space cost a debugging round.
  */
+
+/* The button and backdrop exist on desktop too (script injects them
+ * unconditionally); hidden unless the phone layout is active. */
+#fb-menu-btn,
+#fb-backdrop {
+  display: none;
+}
 
 @media (max-width: 768px) {
   html {
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Root shell: side-by-side becomes stacked. Selected by its own inline
-   * style (the only min-height:100vh flex row in the page) — structural
-   * guesses like `x-dc > div` missed it, which left the row layout intact,
-   * aside at full viewport width and main crushed to 0px. */
-  /* Both spacings: the raw document writes "min-height:100vh", but the .dc
-   * runtime re-serializes inline styles with a space after the colon, and
-   * attribute selectors match the serialized form. One missing space cost a
-   * whole debugging round. */
+  /* Root shell stacks; main takes the full width. */
   div[style*="min-height:100vh"],
   div[style*="min-height: 100vh"] {
     flex-direction: column !important;
@@ -34,90 +40,62 @@
     flex: 1 1 auto !important;
   }
 
-  /* Sidebar becomes a compact header. */
+  /* The desktop sidebar, verbatim, as a drawer. No overrides on its
+   * children: league cards, section labels and the active-tab accent bar
+   * all render exactly as on the laptop. */
   aside {
-    position: static !important;
-    width: 100% !important;
-    flex: 0 0 auto !important;
-    height: auto !important;
-    border-right: none !important;
-    border-bottom: 2px solid var(--color-text);
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 85vw) !important;
+    flex: none !important;
+    height: 100% !important;
+    overflow-y: auto;
+    z-index: 1000;
+    background: var(--color-bg);
+    border-right: 2px solid var(--color-text) !important;
+    box-shadow: 6px 0 30px rgba(0, 0, 0, 0.35);
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  body.fb-menu-open aside {
+    transform: translateX(0);
   }
 
-  /* Logo block: tighter. */
-  aside > div:nth-child(1) {
-    padding: 10px 16px !important;
-    border-bottom: 1px solid var(--color-neutral-300) !important;
-  }
-
-  /* League summary cards: duplicated in the tabs; on a phone they push the
-   * content below the fold, so they go. */
-  aside > div:nth-child(2) {
-    display: none !important;
-  }
-
-  /* Theme picker row: slim. */
-  aside > div:nth-child(3) {
-    padding: 6px 16px !important;
-  }
-
-  /* Nav: vertical list becomes a horizontally scrolling chip row. */
-  aside nav {
-    display: flex !important;
-    flex-direction: row !important;
+  #fb-menu-btn {
+    display: flex;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+    width: 44px;
+    height: 44px;
     align-items: center;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-    padding: 6px 8px !important;
-    gap: 2px;
-    scrollbar-width: none;
+    justify-content: center;
+    font-size: 20px;
+    border: 2px solid var(--color-text);
+    border-radius: 10px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    box-shadow: 2px 2px 0 var(--color-text);
   }
-  aside nav::-webkit-scrollbar {
+
+  #fb-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.4);
+  }
+  body:not(.fb-menu-open) #fb-backdrop {
     display: none;
   }
-  aside nav > * {
-    flex: 0 0 auto;
-  }
-  /* Section labels (NEWS & STATUS, DRAFT PREP, ...) are meaningless in a
-   * chip row. Buttons are the items; divs are the labels and rules. */
-  aside nav > div {
-    display: none !important;
-  }
-  aside nav button {
-    padding: 8px 12px !important;
-    border: 1px solid var(--color-neutral-300) !important;
-    border-radius: 999px;
-    margin: 0 2px;
-    background: var(--color-bg) !important;
-    font-weight: 600;
+  body.fb-menu-open #fb-backdrop {
+    display: block;
   }
 
-  /* The page marks the active tab with a 3px left accent border, which the
-   * uniform chip border above erases -- leaving nothing that says "you are
-   * here" and nothing that reads as a menu. Re-express it as an inverted
-   * chip. Both spellings again: raw and runtime-serialized. */
-  aside nav button[style*="border-left: 3px solid"],
-  aside nav button[style*="border-left:3px solid"] {
-    background: var(--color-text) !important;
-    color: var(--color-bg) !important;
-    border-color: var(--color-text) !important;
-  }
-
-  /* Fade the right edge so it is visibly a strip that scrolls. */
-  aside nav {
-    background: rgba(0, 0, 0, 0.045);
-    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent);
-  }
-
-  /* Sync footer: keep (it holds SYNC NOW), just slimmer. */
-  aside > div:last-child {
-    padding: 8px 16px !important;
-  }
-
-  /* Content grids linearize. Later rules re-widen the ones that read better
-   * two-up. Same specificity, so order matters. */
+  /* Content grids linearize; the 4-up stat strip reads better two-up.
+   * Same specificity, so order matters. */
   div[style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
   }
@@ -132,8 +110,9 @@
     padding-right: 16px !important;
   }
 
-  /* Header stat tiles and similar flex strips wrap instead of overflowing. */
-  aside ~ div div[style*="display:flex"] {
+  /* Header stat tiles and similar strips wrap instead of overflowing. */
+  main div[style*="display:flex"],
+  main div[style*="display: flex"] {
     flex-wrap: wrap;
   }
 
