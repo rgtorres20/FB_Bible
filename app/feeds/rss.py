@@ -12,6 +12,7 @@ article text would be republishing it. See docs/LICENSING.md.
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -43,10 +44,18 @@ class FeedItem:
 
 
 def _clean(text: str | None) -> str:
-    """Strip tags and collapse whitespace. Feeds routinely embed HTML."""
+    """Strip tags, decode entities, collapse whitespace.
+
+    Feeds embed HTML and double-escape entities: Yahoo ships
+    "Jets&amp;#39; Geno Smith". Unescaping twice covers that without
+    corrupting text that was only escaped once.
+    """
     if not text:
         return ""
-    return _WS_RE.sub(" ", _TAG_RE.sub(" ", text)).strip()
+    plain = _TAG_RE.sub(" ", text)
+    once = html.unescape(plain)
+    twice = html.unescape(once)
+    return _WS_RE.sub(" ", twice).strip()
 
 
 def _truncate(text: str, limit: int = SUMMARY_LIMIT) -> str:

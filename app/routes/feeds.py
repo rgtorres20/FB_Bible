@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from ..config import Settings, get_settings
-from ..feeds import build_feed_store, poller
+from ..feeds import build_feed_store, players, poller
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -38,6 +38,12 @@ async def read_feeds(
     limit: int = Query(default=100, ge=1, le=400),
     source: str | None = Query(default=None, description="Filter to one source key"),
     tier: int | None = Query(default=None, ge=1, le=2),
+    player: str | None = Query(
+        default=None, description="Only items mentioning this player id or name"
+    ),
+    tagged_only: bool = Query(
+        default=False, description="Only items that mention a fantasy-relevant player"
+    ),
     store: FeedStore = Depends(get_feed_store),
 ) -> dict:
     data = await store.load()
@@ -47,6 +53,18 @@ async def read_feeds(
         items = [i for i in items if i.get("source_key") == source]
     if tier:
         items = [i for i in items if i.get("tier") == tier]
+    if tagged_only:
+        items = [i for i in items if i.get("players")]
+    if player:
+        needle = player.strip().lower()
+        items = [
+            i
+            for i in items
+            if any(
+                p.get("id") == player or needle in (p.get("name") or "").lower()
+                for p in i.get("players", [])
+            )
+        ]
 
     now = datetime.now(UTC)
     sources = data.get("sources", {})
@@ -79,6 +97,22 @@ async def sync(
         raise HTTPException(status_code=401, detail="Bad or missing X-Sync-Token.")
 
     polled = await poller.poll()
+
+    # Tag items with the players they mention -- this is what makes the feed
+    # answerable to "does this affect my board". The index is cached because
+    # the source dump is ~14MB; a fetch failure degrades to untagged items
+    # rather than failing the whole sync.
+    index = await store.load_players()
+    if index is None:
+        try:
+            index = await players.fetch_index()
+            await store.save_players(index)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("player index unavailable, items will be untagged: %s", exc)
+            index = None
+    if index:
+        players.tag_items(polled["items"], index)
+
     existing = await store.load()
     merged = poller.merge(existing, polled["items"], datetime.now(UTC))
 
@@ -97,9 +131,11 @@ async def sync(
         len(merged["items"]),
         len(failed),
     )
+    tagged = sum(1 for i in merged["items"] if i.get("players"))
     return {
         "new": len(merged["new_ids"]),
         "total": len(merged["items"]),
+        "tagged": tagged,
         "sources_ok": len(polled["sources"]) - len(failed),
         "sources_failed": failed,
         "polled_at": polled["polled_at"],

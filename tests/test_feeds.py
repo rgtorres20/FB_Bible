@@ -146,3 +146,16 @@ def test_freshness_states():
 
     assert poller.freshness({"ok": False, "error": "HTTP 500"}, NOW) == "FAILED"
     assert poller.freshness({"ok": True}, NOW) == "STALE"
+
+
+def test_html_entities_are_decoded_including_double_escaped():
+    """Live feeds ship "Jets&amp;#39; Geno Smith" -- escaped twice."""
+    xml = (
+        "<rss><channel><item>"
+        "<title>Jets&amp;#39; Geno Smith has sore ankle</title>"
+        "<description>Cowboys &amp;amp; Giants split &amp;quot;reps&amp;quot;</description>"
+        "</item></channel></rss>"
+    )
+    item = rss.parse(xml, "x", "X", 1)[0]
+    assert item.title == "Jets' Geno Smith has sore ankle"
+    assert item.summary == 'Cowboys & Giants split "reps"'
