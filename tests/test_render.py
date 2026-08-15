@@ -315,11 +315,16 @@ def test_vegas_meta_row_stamps_when_lines_are_live():
             },
         ],
     }
-    live = {"fetched_at": "2026-08-15T10:00:00+00:00", "games": [{"game": "NE @ SEA"}]}
-    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=live)
+    live = {
+        "fetched_at": "2026-08-15T10:00:00+00:00",
+        "week_label": "Week 1",
+        "games": [{"game": "NE @ SEA"}],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=live)
 
-    assert merged["meta"][0]["asOf"] == "2026-08-15T05:00"  # 10:00 UTC -> 5:00 AM CDT
-    assert "live odds" in merged["meta"][0]["source"]
+    assert merged["meta"][0]["asOf"].startswith("2026-08-15")
+    assert "live" in merged["meta"][0]["source"]
+    assert "Week 1" in merged["meta"][0]["source"]
 
     untouched = render.merge_into_feeds(bundled, [ITEM], NOW)  # no vegas data
     assert untouched["meta"][0] == bundled["meta"][0]
@@ -342,11 +347,11 @@ def test_schedule_meta_row_stamps_when_kickoffs_are_live():
         "fetched_at": "2026-08-15T10:00:00+00:00",
         "games": [{"game": "NE @ SEA", "kickoff": "2026-09-10T00:20Z"}],
     }
-    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=live)
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=live)
     assert merged["meta"][0]["asOf"] == "2026-08-15T05:00"
     assert "live kickoff" in merged["meta"][0]["source"]
 
     # Odds-only data (no kickoff field) must not claim the schedule is live.
     odds_only = {"fetched_at": live["fetched_at"], "games": [{"game": "NE @ SEA"}]}
-    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=odds_only)
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=odds_only)
     assert merged["meta"][0] == bundled["meta"][0]

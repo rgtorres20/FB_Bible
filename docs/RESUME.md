@@ -77,9 +77,23 @@ should work first time.
      the 2 based on avg"); daily snapshots in the feed store drive
      risers/fallers (movers appear once ~1+ day of history exists);
      Sleeper-rank-vs-ADP gaps + wire sleeper articles fill "Sleeper find".
-   - *Vegas lines (FFBets · Predictions)*: ESPN's public scoreboard JSON
-     carries odds, no auth. NEXT.
+   - *Vegas lines (FFBets · Predictions)*: DONE (Aug 15, `app/feeds/vegas.py`).
+     ESPN scoreboard JSON (DraftKings spread+total); page's VEGAS table
+     rebound to F.vegas at serve time, committed table as fallback.
+     Prop-angle column carries facts only (kickoffs, slate superlatives).
+     DELIVERY QUIRK, hard-won: ESPN 403s Vercel's IP range outright, and
+     ALSO 403s faked browser headers from anywhere (TLS fingerprint check)
+     while the honest tool UA passes from residential/runner IPs. So the
+     slate is fetched by the sync-feeds workflow runner
+     (scripts/push_vegas.py) and POSTed to /internal/vegas. VERIFY next
+     session: the hourly workflow's "Push Vegas slate" step succeeds from
+     GitHub's IPs (a manual local run seeded the first slate).
    - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
+   - *AI verdicts note*: verdicts.yml deployed but GitHub's scheduler had
+     not fired it as of two cycles later (0 runs). New-workflow cron lag is
+     normal; if it stays at 0 runs for a day, trigger once by hand (Actions
+     → AI verdicts → Run workflow) which also confirms the models: read
+     permission works.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
@@ -125,13 +139,20 @@ The watchdog asserts the decorator and its styles keep serving.
 
 ## Also done Aug 15 afternoon
 
-- **Vegas lines are live**: `app/feeds/vegas.py` polls ESPN's scoreboard
-  odds on the hourly sync; the served page's VEGAS const is swapped at
-  serve time (curated prop-angle reads survive by matchup), Data health
-  stamps honestly, and the watchdog fails if the board reverts to the
-  curated openers. First deploy note: run the sync-feeds workflow once
-  manually after merging, or the watchdog's "Vegas lines are live" check
-  rightly complains until the hourly sync lands.
+- **Vegas lines are live** — two parallel builds reconciled (Aug 15
+  evening). Delivery is the runner-push design (ESPN 403s Vercel's IPs, so
+  `scripts/push_vegas.py` fetches from the sync-feeds runner and POSTs to
+  `/internal/vegas`; the page reads it via the `F.vegas` rebind), now
+  pinned to the regular-season Week 1 slate instead of the current
+  (preseason) week. On top of that ride: the odds caption stops claiming
+  openers, TD-lean confidence tracks implied-total movement, and the
+  Week 1 schedule swaps in real kickoffs — all serve-time, all falling
+  back to the committed page. The read column stays facts-only (kickoffs,
+  slate superlatives): curated prop angles would silently go false as
+  lines move. First deploy note: run the sync-feeds workflow once
+  manually after merging so the runner pushes a Week-1 slate with the new
+  schedule fields; until then the watchdog's Vegas/TD/schedule checks
+  rightly complain.
 - **Beta/prod**: `beta` branch = stable Vercel preview with a BETA badge
   and `/health` stage reporting. Full model: docs/ENVIRONMENTS.md.
 - **Stale-data audit + rule**: docs/STALE_DATA.md inventories every

@@ -127,39 +127,41 @@ if _FRONTEND_READY:
         # string edits -- the builder's code stays intact on disk and in git,
         # just unreferenced in the served copy, so restoring it is deleting
         # these two lines.
+        # Vegas lines: rebind the committed VEGAS table to the fetched data
+        # file, which the overlay route fills with live ESPN/DraftKings rows.
+        # F is the parsed feeds.json in the enclosing scope; the `||` keeps
+        # the committed table as the fallback when the overlay has no lines.
+        html = html.replace("vegas: VEGAS,", "vegas: (F.vegas || VEGAS),", 1)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
             '[{ id: "predict", label: "Predictions" }]',
             1,
         )
-        # Live Vegas lines, same serve-time pattern. Every failure path keeps
-        # the committed const: stale-but-honest beats a blank odds board.
+        # Live-line extras, every failure path serving the committed page:
+        # the odds caption stops claiming openers, TD-lean confidence tracks
+        # implied-total movement (the leans stay the owner's), and the Week 1
+        # schedule swaps in real kickoffs once the pushed slate carries them.
         if store is not None:
             try:
                 stored = await store.load()
                 state = stored.get("vegas") or {}
-                live = vegas.rows(state, vegas.curated_reads())
-                html = vegas.inject(html, live, vegas.central_stamp(state.get("fetched_at")))
-                # TD-lean confidence tracks the same live lines: leans stay
-                # the owner's Aug-14 calls, confidence shifts with implied
-                # totals, and the moved rows say so.
-                if live:
+                games = state.get("games") or []
+                if games:
+                    html = vegas.refresh_caption(html)
                     adjusted = vegas.adjust_predictions(
                         vegas.curated_predictions(),
                         vegas.curated_implied(),
-                        vegas.live_implied(live),
+                        vegas.implied_by_team(games),
                     )
                     html = vegas.inject_predictions(html, adjusted)
-                # Week 1 schedule rides the same payload: kickoff, teams and
-                # network are ESPN's; the per-game notes stay the owner's.
-                html = vegas.inject_schedule(
-                    html,
-                    vegas.schedule_rows(state),
-                    vegas.central_stamp(state.get("fetched_at")),
-                )
+                    html = vegas.inject_schedule(
+                        html,
+                        vegas.schedule_rows(state),
+                        vegas.central_stamp(state.get("fetched_at")),
+                    )
             except Exception as exc:  # noqa: BLE001 - odds must never blank the page
-                logging.getLogger(__name__).warning("vegas overlay unavailable: %s", exc)
+                logging.getLogger(__name__).warning("vegas page extras unavailable: %s", exc)
         # A beta deploy announces itself (styles in mobile.css). Prod and
         # local runs serve no badge at all.
         if settings.stage == "preview":

@@ -86,8 +86,8 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         adp_data=stored.get("adp"),
         index=index,
         verdicts=stored.get("verdicts"),
+        vegas_state=stored.get("vegas"),
         injury_names=injury.watched_names(),
-        vegas_data=stored.get("vegas"),
     )
 
 
@@ -168,6 +168,61 @@ class VerdictsIn(BaseModel):
     verdicts: dict[str, str]
 
 
+class VegasIn(BaseModel):
+    state: dict
+
+
+# The odds table renders the first five; the last four feed the Week 1
+# schedule tab (kickoff ISO, full team names, network).
+_VEGAS_ROW_FIELDS = (
+    "game",
+    "fav",
+    "total",
+    "imp",
+    "read",
+    "kickoff",
+    "away_name",
+    "home_name",
+    "tv",
+)
+MAX_VEGAS_ROWS = 32
+
+
+@router.post("/internal/vegas", summary="Store the Vegas slate pushed by the scheduler")
+async def save_vegas(
+    payload: VegasIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """ESPN 403s requests from Vercel's IP range (verified live 2026-08-15),
+    so the GitHub Actions runner fetches the scoreboard and pushes the slate
+    here -- the same split as the sync scheduler itself: GitHub provides the
+    network vantage point, the deployment stores and serves.
+
+    Rows are rebuilt field-by-field rather than stored verbatim: this data
+    is rendered into the page, so only the known string columns pass.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    games = []
+    for row in (payload.state.get("games") or [])[:MAX_VEGAS_ROWS]:
+        if not isinstance(row, dict) or not row.get("game"):
+            continue
+        games.append({field: str(row.get(field) or "") for field in _VEGAS_ROW_FIELDS})
+    if not games:
+        raise HTTPException(status_code=422, detail="No usable rows in state.games.")
+
+    data = await store.load()
+    data["vegas"] = {
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "week_label": str(payload.state.get("week_label") or "")[:40],
+        "games": games,
+    }
+    await store.save(data)
+    return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
 MAX_VERDICT_CHARS = 200
 
 
@@ -242,12 +297,14 @@ async def sync(
     except Exception as exc:  # noqa: BLE001 - ADP must never sink the news sync
         log.warning("ADP fetch failed, keeping previous board: %s", exc)
 
-    # Vegas lines ride the same sync with the same failure rule: yesterday's
-    # posted line is a usable board, a blanked one is not.
+    # Vegas lines ride along under the same rule: stale lines with an honest
+    # stamp beat no lines, so a failed fetch keeps the previous slate.
     vegas_state = existing.get("vegas") or {}
+    vegas_error = None
     try:
         vegas_state = await vegas.fetch()
-    except Exception as exc:  # noqa: BLE001 - odds must never sink the news sync
+    except Exception as exc:  # noqa: BLE001
+        vegas_error = f"{type(exc).__name__}: {exc}"[:200]
         log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
 
     await store.save(
@@ -276,5 +333,6 @@ async def sync(
         "sources_failed": failed,
         "adp_players": len(adp_state.get("players", [])),
         "vegas_games": len(vegas_state.get("games", [])),
+        "vegas_error": vegas_error,
         "polled_at": polled["polled_at"],
     }

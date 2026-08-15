@@ -1,26 +1,30 @@
-"""Live Vegas lines for the FFBets Predictions tab.
+"""Live Vegas lines for the FFBets tab, from ESPN's public scoreboard.
 
-ESPN's public scoreboard JSON carries game odds (spread, total, provider)
-with no auth -- the same freshness rule as the news wire: the page's const
-VEGAS block was hand-curated from the Aug 14 openers and goes stale the
-moment a line moves.
+ESPN's site API serves NFL games with DraftKings odds -- spread and total --
+as plain JSON, no auth. That replaces the committed VEGAS table in the page,
+which was written on Aug 13 and can only rot. The fetch is pinned to the
+regular-season Week 1 slate: that is what the tab claims to show and what
+draft prep needs. Phase 3 rotates it weekly.
 
-The page renders `const VEGAS = [...]` from its own markup, and the tab is
-not fed by feeds.json -- so the live board is injected the same way the
-FFBets mode flip is: a serve-time string edit of the const in the served
-copy of index.html. Disk stays pristine; the fallback on any failure is the
-curated block already in the file (stale-but-honest beats blank).
+Delivery quirk, hard-won (verified live 2026-08-15): ESPN 403s Vercel's IP
+range outright, and ALSO 403s faked browser headers from anywhere (TLS
+fingerprint check), while the honest tool UA passes from residential and
+GitHub-runner IPs. So the deployment never fetches its own lines -- the
+sync-feeds workflow runner fetches (scripts/push_vegas.py) and POSTs the
+slate to /internal/vegas, and the overlay serves it to the page via the
+`vegas: (F.vegas || VEGAS)` rebind in app_page.
 
-The curated rows carry a `read` column with the owner's prop angles. Those
-are judgements a scoreboard cannot supply, so live rows keep the curated
-read for the same matchup (matched by team key, ignoring venue notes) and
-leave it empty for games the curated block never covered.
+The page's fifth column ("Prop angle") is editorial, and the wire rule
+applies here the same as everywhere else: a fetch cannot supply judgement.
+Live rows carry factual reads only -- slate superlatives (highest/lowest
+total, heaviest favorite) and kickoff times -- never invented betting takes.
+The owner's prop angles live on in the PREDICTIONS table below it, whose
+confidence tracks these same lines (see the TD-leans section).
 """
 
 from __future__ import annotations
 
 import json
-import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,145 +32,175 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-log = logging.getLogger(__name__)
-
-SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
-# Regular season week 1 -- the draft-prep slate. Phase 3 rotates this weekly.
+URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+# Regular season week 1 -- the draft-prep slate the tab claims to show.
 SEASON_TYPE = 2
 WEEK = 1
 YEAR = 2026
 
-_FRONTEND_INDEX = Path(__file__).resolve().parent.parent.parent / "frontend" / "index.html"
-_VEGAS_BLOCK = re.compile(r"const VEGAS = \[.*?\n\];", re.S)
-_CURATED_ROW = re.compile(r'\{ game: "([^"]+)".*?read: "([^"]*)" \}')
-_DETAILS = re.compile(r"^([A-Z]{2,4})\s*(-\d+(?:\.\d+)?)$")
-
+CENTRAL = ZoneInfo("America/Chicago")
 DOT = "·"
 
-
-def _fmt(value: float) -> str:
-    """47.0 -> '47', 44.5 -> '44.5'."""
-    return f"{value:g}"
-
-
-def _implied_points(details: str, over_under: float | None) -> tuple[str, float, float] | None:
-    match = _DETAILS.match(details.strip())
-    if not match or over_under is None:
-        return None
-    fav, spread = match.group(1), abs(float(match.group(2)))
-    fav_pts = (over_under + spread) / 2
-    return fav, fav_pts, over_under - fav_pts
-
-
-def parse_scoreboard(payload: dict) -> list[dict]:
-    """Flatten ESPN's scoreboard into the rows the page's VEGAS table shows.
-
-    Kept total: a game with no posted odds still lists with em-dashes --
-    an absent game reads as a scraping bug, a dashed line reads as 'Vegas
-    has not posted this one', which is the truth.
-    """
-    rows: list[dict] = []
-    for event in payload.get("events") or []:
-        competitions = event.get("competitions") or [{}]
-        comp = competitions[0]
-        home = away = home_name = away_name = ""
-        for side in comp.get("competitors") or []:
-            team = side.get("team") or {}
-            if side.get("homeAway") == "home":
-                home, home_name = team.get("abbreviation", ""), team.get("displayName", "")
-            elif side.get("homeAway") == "away":
-                away, away_name = team.get("abbreviation", ""), team.get("displayName", "")
-        game = event.get("shortName") or (f"{away} @ {home}" if home and away else "")
-        if not game:
-            continue
-
-        odds = (comp.get("odds") or [{}])[0]
-        details = (odds.get("details") or "").strip()
-        over_under = odds.get("overUnder")
-
-        imp = "—"
-        points = _implied_points(details, over_under) if details else None
-        if points:
-            fav, fav_pts, dog_pts = points
-            dog = away if fav == home else home
-            imp = f"{fav} {_fmt(fav_pts)} {DOT} {dog} {_fmt(dog_pts)}"
-
-        broadcasts = comp.get("broadcasts") or []
-        tv = ", ".join((broadcasts[0].get("names") or [])[:1]) if broadcasts else ""
-
-        rows.append(
-            {
-                "game": game,
-                "fav": details or "—",
-                "total": _fmt(over_under) if over_under is not None else "—",
-                "imp": imp,
-                "provider": (odds.get("provider") or {}).get("name", ""),
-                # The schedule tab reads these; the odds table ignores them.
-                "kickoff": event.get("date", ""),
-                "away_name": away_name,
-                "home_name": home_name,
-                "tv": tv,
-            }
-        )
-    return rows
+_FRONTEND_INDEX = Path(__file__).resolve().parent.parent.parent / "frontend" / "index.html"
+_SPREAD = re.compile(r"^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$")
 
 
 async def fetch(client: httpx.AsyncClient | None = None) -> dict:
-    """Week-1 lines from ESPN. Returns the state dict stored with the feed."""
+    """The Week 1 scoreboard with odds, reduced to the page's table shape."""
     own_client = client is None
     if own_client:
+        # Plain honest UA, verified working from residential and GitHub
+        # runner IPs. Do NOT fake browser headers: ESPN's bot detection 403s
+        # a Chrome UA whose TLS fingerprint is not Chrome (verified live
+        # 2026-08-15 -- the "browser headers" version broke fetches that the
+        # tool UA passed). Vercel's IP range is blocked outright regardless
+        # of headers, which is why the slate is pushed from the sync-feeds
+        # workflow runner instead (scripts/push_vegas.py).
         client = httpx.AsyncClient(
-            timeout=30.0, headers={"User-Agent": "FBBible/1.0 (draft prep, hourly)"}
+            timeout=30.0,
+            follow_redirects=True,
+            headers={"User-Agent": "FBBible/1.0 (personal draft tool, hourly)"},
         )
     try:
-        resp = await client.get(
-            SCOREBOARD_URL,
-            params={"seasontype": SEASON_TYPE, "week": WEEK, "dates": YEAR},
+        response = await client.get(
+            URL, params={"seasontype": SEASON_TYPE, "week": WEEK, "dates": YEAR}
         )
-        resp.raise_for_status()
-        games = parse_scoreboard(resp.json())
+        response.raise_for_status()
+        payload = response.json()
     finally:
         if own_client:
             await client.aclose()
 
+    games = build_rows(payload)
     if not games:
-        raise ValueError("ESPN scoreboard returned 0 games")
-    return {"fetched_at": datetime.now(UTC).isoformat(), "games": games}
+        raise ValueError("scoreboard had 0 parseable games")
+
+    week = payload.get("week", {}).get("number")
+    season_type = payload.get("season", {}).get("type")
+    label = f"{'Preseason ' if season_type == 1 else ''}Week {week}" if week else ""
+    return {
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "week_label": label,
+        "games": games,
+    }
 
 
-# --- serving the live board ------------------------------------------------
+def implied(details: str, total: float | None, away: str = "", home: str = "") -> tuple[str, str]:
+    """('BUF -3', 38.5) -> ('BUF -3', 'BUF 20.8 · CAR 17.8').
+
+    Returns (fav, implied-points) where implied is '—' whenever the spread
+    or total is missing or not a plain point spread. The underdog is named
+    when the caller supplies the matchup; 'opp' otherwise.
+    """
+    details = (details or "").strip()
+    if not details:
+        return "—", "—"
+    match = _SPREAD.match(details)
+    if not match or total is None:
+        return details, "—"
+    team, spread = match.group(1), float(match.group(2))
+    fav_points = round((total - spread) / 2, 1)  # spread is negative for the favourite
+    dog_points = round(total - fav_points, 1)
+    dog = (home if team == away else away) or "opp"
+    return details, f"{team} {fav_points:g} {DOT} {dog} {dog_points:g}"
 
 
-def _game_key(game: str) -> str:
-    """'SF @ LAR (Melbourne)' and 'SF @ LAR' are the same matchup."""
-    return re.sub(r"\s*\(.*?\)", "", game).strip().upper()
-
-
-def curated_reads() -> dict[str, str]:
-    """The owner's prop-angle column, parsed from the page's own const --
-    the page is the source of truth and a copy here would drift."""
+def _kickoff(iso: str | None) -> str:
+    if not iso:
+        return ""
     try:
-        text = _FRONTEND_INDEX.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    block = _VEGAS_BLOCK.search(text)
-    if not block:
-        return {}
-    return {_game_key(game): read for game, read in _CURATED_ROW.findall(block.group(0))}
+        stamp = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(CENTRAL)
+    except ValueError:
+        return ""
+    hour = stamp.hour % 12 or 12
+    meridiem = "AM" if stamp.hour < 12 else "PM"
+    return f"{stamp:%a} {hour}:{stamp:%M} {meridiem} CT"
 
 
-def rows(state: dict, reads: dict[str, str]) -> list[dict]:
-    """Live games in the page's VEGAS row shape, curated reads carried over."""
-    return [
-        {
-            "game": g["game"],
-            "fav": g["fav"],
-            "total": g["total"],
-            "imp": g["imp"],
-            "read": reads.get(_game_key(g["game"]), ""),
-        }
-        for g in state.get("games") or []
-    ]
+def build_rows(payload: dict) -> list[dict]:
+    rows = []
+    for event in payload.get("events", []):
+        try:
+            competition = (event.get("competitions") or [{}])[0]
+            sides: dict[str, dict] = {
+                c.get("homeAway"): c.get("team", {}) for c in competition.get("competitors", [])
+            }
+            if "home" not in sides or "away" not in sides:
+                continue
+            away = sides["away"].get("abbreviation", "?")
+            home = sides["home"].get("abbreviation", "?")
+            odds = (competition.get("odds") or [{}])[0]
+            total = odds.get("overUnder")
+            fav, imp = implied(odds.get("details") or "", total, away, home)
+            broadcasts = competition.get("broadcasts") or []
+            rows.append(
+                {
+                    "game": f"{away} @ {home}",
+                    "fav": fav,
+                    "total": f"{total:g}" if isinstance(total, int | float) else "—",
+                    "imp": imp,
+                    "read": _kickoff(event.get("date")),
+                    # The schedule tab reads these; the odds table ignores them.
+                    "kickoff": event.get("date", ""),
+                    "away_name": sides["away"].get("displayName", ""),
+                    "home_name": sides["home"].get("displayName", ""),
+                    "tv": ((broadcasts[0].get("names") or [""])[0] if broadcasts else ""),
+                    "_ou": total if isinstance(total, int | float) else None,
+                }
+            )
+        except Exception:  # noqa: BLE001 - one malformed event must not sink the slate
+            continue
+
+    _annotate_superlatives(rows)
+    for row in rows:
+        row.pop("_ou", None)
+    return rows
+
+
+def _annotate_superlatives(rows: list[dict]) -> None:
+    """Factual slate context in the read column, never a betting take."""
+    with_ou = [r for r in rows if r["_ou"] is not None]
+    if len(with_ou) >= 2:
+        high = max(with_ou, key=lambda r: r["_ou"])
+        low = min(with_ou, key=lambda r: r["_ou"])
+        high["read"] = f"Highest total on the slate {DOT} {high['read']}".rstrip(f" {DOT}")
+        low["read"] = f"Lowest total on the slate {DOT} {low['read']}".rstrip(f" {DOT}")
+
+    def spread_size(row: dict) -> float:
+        match = _SPREAD.match(row["fav"])
+        return abs(float(match.group(2))) if match else 0.0
+
+    spreads = [r for r in rows if spread_size(r) > 0]
+    if spreads:
+        heavy = max(spreads, key=spread_size)
+        if spread_size(heavy) >= 6:
+            heavy["read"] = f"Heaviest favorite of the slate {DOT} {heavy['read']}".rstrip(
+                f" {DOT}"
+            )
+
+
+def central_stamp(iso: str | None) -> str:
+    """fetched_at -> the naive Central 'YYYY-MM-DDTHH:MM' Data health reads."""
+    if not iso:
+        return ""
+    try:
+        local = datetime.fromisoformat(iso).astimezone(CENTRAL)
+    except ValueError:
+        return ""
+    return f"{local:%Y-%m-%dT%H:%M}"
+
+
+# --- the served page's odds caption ----------------------------------------
+# The table's data goes live through the feeds.json overlay (F.vegas), but
+# the caption above it is template text still describing the Aug-14 openers.
+# When live lines exist the served copy says so instead.
+
+CURATED_CAPTION = "DraftKings openers via ESPN — lines move; re-sync before kickoff"
+LIVE_CAPTION = "Live via ESPN — refreshed with every news sync"
+
+
+def refresh_caption(html: str) -> str:
+    return html.replace(CURATED_CAPTION, LIVE_CAPTION, 1)
 
 
 # --- live-adjusted TD leans ------------------------------------------------
@@ -177,6 +211,7 @@ def rows(state: dict, reads: dict[str, str]) -> list[dict]:
 # team's live implied total has moved from the curated opener, and say so on
 # the row. No invented model -- a transparent delta from real line movement.
 
+_VEGAS_BLOCK = re.compile(r"const VEGAS = \[.*?\n\];", re.S)
 _PRED_BLOCK = re.compile(r"const PREDICTIONS = \[.*?\n\];", re.S)
 _PRED_ROW = re.compile(
     r'\{ name: "([^"]+)", meta: "([^"]+)", prop: "([^"]+)", line: "([^"]+)", '
@@ -184,6 +219,7 @@ _PRED_ROW = re.compile(
 )
 _IMP_FIELD = re.compile(r'imp: "([^"]*)"')
 _IMP_TEAM = re.compile(r"([A-Z]{2,4})\s+(\d+(?:\.\d+)?)")
+_GAME_TEAMS = re.compile(r"^([A-Z]{2,4}) @ ([A-Z]{2,4})")
 
 # Confidence points per point of implied-total movement. A team's implied
 # total moving one point is a real but modest scoring-environment shift.
@@ -202,17 +238,14 @@ PRED_LIVE_CAPTION = (
 )
 
 
-def _implied_map(imp_strings: list[str]) -> dict[str, float]:
-    """['SEA 24 · NE 20.5', ...] -> {'SEA': 24.0, 'NE': 20.5, ...}."""
-    teams: dict[str, float] = {}
-    for imp in imp_strings:
-        for team, points in _IMP_TEAM.findall(imp):
-            teams[team] = float(points)
-    return teams
+def _fmt(value: float) -> str:
+    """47.0 -> '47', 44.5 -> '44.5'."""
+    return f"{value:g}"
 
 
 def curated_predictions() -> list[dict]:
-    """The owner's TD-lean rows, parsed from the page's own const."""
+    """The owner's TD-lean rows, parsed from the page's own const -- the
+    page is the source of truth and a copy here would drift."""
     try:
         text = _FRONTEND_INDEX.read_text(encoding="utf-8")
     except OSError:
@@ -234,11 +267,6 @@ def curated_predictions() -> list[dict]:
     ]
 
 
-def live_implied(live_rows: list[dict]) -> dict[str, float]:
-    """Implied totals from the live board's rendered rows."""
-    return _implied_map([r.get("imp", "") for r in live_rows])
-
-
 def curated_implied() -> dict[str, float]:
     """Implied totals from the committed VEGAS openers -- the baseline the
     curated confidence numbers were set against."""
@@ -249,7 +277,36 @@ def curated_implied() -> dict[str, float]:
     block = _VEGAS_BLOCK.search(text)
     if not block:
         return {}
-    return _implied_map(_IMP_FIELD.findall(block.group(0)))
+    teams: dict[str, float] = {}
+    for imp in _IMP_FIELD.findall(block.group(0)):
+        for team, points in _IMP_TEAM.findall(imp):
+            teams[team] = float(points)
+    return teams
+
+
+def implied_by_team(games: list[dict]) -> dict[str, float]:
+    """Per-team implied totals recomputed from stored rows' fav + total.
+
+    Works on the sanitized five-string-column rows: 'NE @ SEA' + 'SEA -3.5'
+    + '44.5' names both sides. Games without a parseable spread and total
+    contribute nothing -- no baseline, no guess."""
+    teams: dict[str, float] = {}
+    for row in games:
+        game = _GAME_TEAMS.match(row.get("game") or "")
+        spread = _SPREAD.match((row.get("fav") or "").strip())
+        try:
+            total = float(row.get("total") or "")
+        except ValueError:
+            continue
+        if not game or not spread:
+            continue
+        away, home = game.group(1), game.group(2)
+        fav = spread.group(1)
+        fav_points = round((total - float(spread.group(2))) / 2, 1)
+        dog = home if fav == away else away
+        teams[fav] = fav_points
+        teams[dog] = round(total - fav_points, 1)
+    return teams
 
 
 def adjust_predictions(
@@ -288,57 +345,10 @@ def inject_predictions(html: str, adjusted: list[dict]) -> str:
     return swapped.replace(PRED_CAPTION, PRED_LIVE_CAPTION, 1)
 
 
-CURATED_CAPTION = "DraftKings openers via ESPN — lines move; re-sync before kickoff"
-LIVE_CAPTION = "Live via ESPN — refreshed with every news sync"
-LIVE_SOURCE = "ESPN live odds — synced with the news poll"
-
-# The page's own Data health seed row for this feed (superseded by the
-# feeds.json overlay, but the fallback must not claim live data is a
-# two-day-old chat sync).
-_META_ROW = re.compile(
-    r'(\{ feed: "Vegas lines", asOf: ")[^"]*(", maxAgeH: \d+, source: ")[^"]*(")'
-)
-
-
-def central_stamp(iso: str | None) -> str:
-    """fetched_at -> the naive Central 'YYYY-MM-DDTHH:MM' Data health reads."""
-    if not iso:
-        return ""
-    try:
-        local = datetime.fromisoformat(iso).astimezone(ZoneInfo("America/Chicago"))
-    except ValueError:
-        return ""
-    return f"{local:%Y-%m-%dT%H:%M}"
-
-
-def inject(html: str, live_rows: list[dict], stamp: str = "") -> str:
-    """Swap the curated VEGAS const for the live board in the served page.
-
-    json.dumps output is valid JS. If the const's literal shape ever changes
-    under a design-project sync, the regex misses and the page serves its
-    committed block -- stale-but-honest, and test_vegas notices."""
-    if not live_rows:
-        return html
-    replacement = f"const VEGAS = {json.dumps(live_rows)};"
-    swapped, count = _VEGAS_BLOCK.subn(lambda _: replacement, html, count=1)
-    if not count:
-        return html
-    swapped = swapped.replace(CURATED_CAPTION, LIVE_CAPTION, 1)
-    if stamp:
-        swapped = _META_ROW.sub(
-            lambda m: f"{m.group(1)}{stamp}{m.group(2)}{LIVE_SOURCE}{m.group(3)}",
-            swapped,
-            count=1,
-        )
-    return swapped
-
-
 # --- the Week 1 schedule tab -----------------------------------------------
 # Same payload, second surface: the WEEK1 const was hand-typed from the May
 # schedule release. Kickoff, teams and network all arrive with the odds; the
 # per-game fantasy notes are the owner's and ride along by matchup.
-
-CENTRAL = ZoneInfo("America/Chicago")
 
 _WEEK1_BLOCK = re.compile(r"const WEEK1 = \[.*?\n\];", re.S)
 _WEEK1_ROW = re.compile(

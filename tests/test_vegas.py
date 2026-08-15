@@ -1,10 +1,16 @@
-"""Live Vegas lines: ESPN scoreboard parsing and the serve-time injection.
+"""Vegas lines: ESPN scoreboard parsing, the honest-read rule, the push
+endpoint, and the serve-time extras that ride the same slate (TD-lean
+confidence tracking and the Week 1 schedule).
 
-The fixture mirrors the real scoreboard JSON shape (events -> competitions ->
-competitors/odds), including a game with no posted odds -- ESPN ships empty
-odds arrays before books post lines, and that case must render as dashes,
-not vanish or crash.
+Contract under test: spreads and totals come through as the page's table
+shape, implied points are arithmetic (not judgement), the read column only
+ever carries facts (kickoff times, slate superlatives), and a broken event
+or a zero-game payload degrades exactly like every other source. The
+fixture mirrors the real scoreboard JSON shape, including a game with no
+posted odds -- ESPN ships empty odds arrays before books post lines.
 """
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -17,62 +23,107 @@ from app.feeds import vegas
 PAYLOAD = json.loads(Path("tests/fixtures/espn_scoreboard_sample.json").read_text(encoding="utf-8"))
 
 
-def test_parses_games_with_spread_total_and_implied_points():
-    rows = vegas.parse_scoreboard(PAYLOAD)
+def _event(away: str, home: str, details: str | None, over_under: float | None) -> dict:
+    odds = {}
+    if details is not None:
+        odds["details"] = details
+    if over_under is not None:
+        odds["overUnder"] = over_under
+    return {
+        "date": "2026-08-15T17:00Z",
+        "competitions": [
+            {
+                "competitors": [
+                    {"homeAway": "home", "team": {"abbreviation": home}},
+                    {"homeAway": "away", "team": {"abbreviation": away}},
+                ],
+                "odds": [odds] if odds else [],
+            }
+        ],
+    }
 
-    sea = next(r for r in rows if r["game"] == "NE @ SEA")
-    assert sea["fav"] == "SEA -3.5"
-    assert sea["total"] == "44.5"
-    assert sea["imp"] == "SEA 24 · NE 20.5"
-    assert sea["provider"] == "ESPN BET"
+
+def test_implied_points_are_arithmetic():
+    fav, imp = vegas.implied("BUF -4", 44.0)
+    assert fav == "BUF -4"
+    assert imp == "BUF 24 · opp 20"
 
 
-def test_a_game_with_no_posted_odds_renders_dashes_not_nothing():
-    """An absent game reads as a bug; a dashed line reads as 'not posted',
-    which is the truth."""
-    rows = vegas.parse_scoreboard(PAYLOAD)
-
-    kc = next(r for r in rows if r["game"] == "DEN @ KC")
-    assert kc["fav"] == "—"
-    assert kc["total"] == "—"
-    assert kc["imp"] == "—"
+def test_implied_names_the_underdog_when_the_matchup_is_known():
+    _, imp = vegas.implied("BUF -4", 44.0, away="CAR", home="BUF")
+    assert imp == "BUF 24 · CAR 20"
+    _, away_fav = vegas.implied("DAL -2.5", 48.5, away="DAL", home="NYG")
+    assert away_fav == "DAL 25.5 · NYG 23"
 
 
-def test_implied_points_handle_the_away_favorite():
+def test_non_spread_details_pass_through_without_fake_math():
+    assert vegas.implied("EVEN", 44.0) == ("EVEN", "—")
+    assert vegas.implied("", 44.0) == ("—", "—")
+    assert vegas.implied("BUF -4", None) == ("BUF -4", "—")
+
+
+def test_build_rows_shapes_games_and_annotates_superlatives():
     payload = {
         "events": [
-            {
-                "shortName": "DAL @ NYG",
-                "competitions": [
-                    {
-                        "competitors": [
-                            {"homeAway": "home", "team": {"abbreviation": "NYG"}},
-                            {"homeAway": "away", "team": {"abbreviation": "DAL"}},
-                        ],
-                        "odds": [{"details": "DAL -2.5", "overUnder": 48.5}],
-                    }
-                ],
-            }
+            _event("CAR", "BUF", "BUF -3", 38.5),
+            _event("CLE", "CHI", "CLE -7", 51.5),
+            _event("MIN", "NYG", None, None),
+            {"competitions": [{}]},  # malformed: skipped, not fatal
         ]
     }
-    row = vegas.parse_scoreboard(payload)[0]
-    assert row["imp"] == "DAL 25.5 · NYG 23"
+    rows = vegas.build_rows(payload)
+
+    assert [r["game"] for r in rows] == ["CAR @ BUF", "CLE @ CHI", "MIN @ NYG"]
+    by_game = {r["game"]: r for r in rows}
+    assert by_game["MIN @ NYG"]["fav"] == "—"
+    assert by_game["MIN @ NYG"]["total"] == "—"
+    assert "Lowest total" in by_game["CAR @ BUF"]["read"]
+    assert "Highest total" in by_game["CLE @ CHI"]["read"]
+    assert "Heaviest favorite" in by_game["CLE @ CHI"]["read"]
+    # Reads are kickoff times and slate facts -- never betting advice.
+    assert "CT" in by_game["MIN @ NYG"]["read"]
+    assert not any("_ou" in r for r in rows)
 
 
-def test_junk_payload_parses_to_empty_not_exception():
-    assert vegas.parse_scoreboard({}) == []
-    assert vegas.parse_scoreboard({"events": [{}]}) == []
+def test_build_rows_carries_schedule_fields_from_the_real_shape():
+    rows = vegas.build_rows(PAYLOAD)
+
+    sea = next(r for r in rows if r["game"] == "NE @ SEA")
+    assert sea["kickoff"] == "2026-09-10T00:20Z"
+    assert sea["away_name"] == "New England Patriots"
+    assert sea["home_name"] == "Seattle Seahawks"
+    assert sea["tv"] == "NBC"
+    assert sea["imp"] == "SEA 24 · NE 20.5"
+
+    kc = next(r for r in rows if r["game"] == "DEN @ KC")
+    assert kc["fav"] == "—"  # no posted odds renders dashes, not nothing
 
 
-async def test_fetch_raises_on_zero_games_so_sync_keeps_the_old_board():
+async def test_fetch_raises_on_empty_scoreboard():
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"events": []}))
     ) as client:
-        with pytest.raises(ValueError, match="0 games"):
+        with pytest.raises(ValueError, match="0 parseable"):
             await vegas.fetch(client)
 
 
+async def test_fetch_labels_the_week():
+    payload = {
+        "week": {"number": 2},
+        "season": {"type": 1},
+        "events": [_event("CAR", "BUF", "BUF -3", 38.5)],
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=payload))
+    ) as client:
+        state = await vegas.fetch(client)
+    assert state["week_label"] == "Preseason Week 2"
+    assert state["games"][0]["game"] == "CAR @ BUF"
+
+
 async def test_fetch_asks_espn_for_regular_season_week_1():
+    """The tab claims the Week 1 slate; the fetch must pin it rather than
+    take whatever week the calendar is on (preseason, in August)."""
     seen = {}
 
     def record(req):
@@ -80,67 +131,113 @@ async def test_fetch_asks_espn_for_regular_season_week_1():
         return httpx.Response(200, json=PAYLOAD)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
-        state = await vegas.fetch(client)
+        await vegas.fetch(client)
 
     assert seen["seasontype"] == "2"
     assert seen["week"] == "1"
-    assert len(state["games"]) == 3
-    assert state["fetched_at"]
 
 
-# --- curated reads and injection -------------------------------------------
+# --- /internal/vegas push endpoint -----------------------------------------
 
 
-def test_curated_reads_parse_the_real_page():
-    reads = vegas.curated_reads()
-    assert len(reads) >= 8
-    # The Melbourne venue note must not break the matchup key.
-    assert "SF @ LAR" in reads
-    assert "NE @ SEA" in reads
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app import main as _main  # noqa: E402
+from app.config import get_settings as _get_settings  # noqa: E402
+from app.feeds.store import FileFeedStore as _FileFeedStore  # noqa: E402
+from app.routes import feeds as _feeds_route  # noqa: E402
 
 
-def test_rows_carry_curated_reads_onto_live_games():
-    state = {"games": vegas.parse_scoreboard(PAYLOAD)}
-    rows = vegas.rows(state, {"NE @ SEA": "lean under in a banner-night slog"})
-
-    sea = next(r for r in rows if r["game"] == "NE @ SEA")
-    assert sea["read"] == "lean under in a banner-night slog"
-    kc = next(r for r in rows if r["game"] == "DEN @ KC")
-    assert kc["read"] == ""  # no curated angle: empty beats invented
-
-
-def test_inject_swaps_the_const_and_the_caption_in_the_real_page():
-    html = Path("frontend/index.html").read_text(encoding="utf-8")
-    live = vegas.rows({"games": vegas.parse_scoreboard(PAYLOAD)}, vegas.curated_reads())
-
-    served = vegas.inject(html, live)
-
-    assert "SEA 24 \\u00b7 NE 20.5" in served or "SEA 24 · NE 20.5" in served
-    assert vegas.LIVE_CAPTION in served
-    assert vegas.CURATED_CAPTION not in served
-    # The curated openers are gone from the served copy, not from disk.
-    assert "banner-night slog" in served  # the curated read survives on its row
+@pytest.fixture
+def push_client(tmp_path, monkeypatch):
+    monkeypatch.setattr(_get_settings(), "sync_token", "secret-token", raising=False)
+    store = _FileFeedStore(str(tmp_path / "feeds.json"))
+    _main.app.dependency_overrides[_feeds_route.get_feed_store] = lambda: store
+    yield TestClient(_main.app), store
+    _main.app.dependency_overrides.clear()
 
 
-def test_inject_with_no_rows_serves_the_page_untouched():
-    html = Path("frontend/index.html").read_text(encoding="utf-8")
-    assert vegas.inject(html, []) == html
+async def test_vegas_push_requires_token(push_client):
+    c, _ = push_client
+    response = c.post("/internal/vegas", json={"state": {"games": [{"game": "A @ B"}]}})
+    assert response.status_code == 401
 
 
-def test_inject_stamps_the_pages_data_health_seed_row():
-    html = Path("frontend/index.html").read_text(encoding="utf-8")
-    live = vegas.rows({"games": vegas.parse_scoreboard(PAYLOAD)}, {})
+async def test_vegas_push_sanitizes_rows_to_known_string_fields(push_client):
+    """Pushed rows render into the page, so only the known columns may
+    pass -- injected extra keys and non-dict rows must be dropped."""
+    c, store = push_client
+    response = c.post(
+        "/internal/vegas",
+        json={
+            "state": {
+                "week_label": "Preseason Week 2",
+                "games": [
+                    {"game": "CAR @ BUF", "fav": "BUF -3", "total": 38.5, "evil": {"x": 1}},
+                    {"fav": "no game key"},
+                    "not-a-dict",
+                ],
+            }
+        },
+        headers={"X-Sync-Token": "secret-token"},
+    )
 
-    served = vegas.inject(html, live, stamp="2026-08-15T11:00")
+    assert response.json() == {"stored": 1, "week_label": "Preseason Week 2"}
+    saved = await store.load()
+    row = saved["vegas"]["games"][0]
+    assert set(row) == {
+        "game",
+        "fav",
+        "total",
+        "imp",
+        "read",
+        "kickoff",
+        "away_name",
+        "home_name",
+        "tv",
+    }
+    assert row["total"] == "38.5"  # coerced to string
+    assert row["kickoff"] == ""  # absent fields stay empty strings, not None
 
-    assert '{ feed: "Vegas lines", asOf: "2026-08-15T11:00"' in served
-    assert "DraftKings openers" not in served
+
+async def test_vegas_push_rejects_empty_slate(push_client):
+    c, _ = push_client
+    response = c.post(
+        "/internal/vegas",
+        json={"state": {"games": []}},
+        headers={"X-Sync-Token": "secret-token"},
+    )
+    assert response.status_code == 422
 
 
-def test_central_stamp_converts_and_survives_junk():
-    assert vegas.central_stamp("2026-08-15T16:00:00+00:00") == "2026-08-15T11:00"
-    assert vegas.central_stamp(None) == ""
-    assert vegas.central_stamp("garbage") == ""
+async def test_pushed_slate_survives_a_sync_whose_fetch_fails(push_client, monkeypatch):
+    """The whole architecture: GitHub pushes lines, Vercel's own fetch 403s,
+    the sync must carry the pushed slate forward instead of blanking it."""
+    import httpx as _httpx
+
+    c, store = push_client
+
+    async def _offline(*args, **kwargs):
+        raise _httpx.ConnectError("espn 403 / offline")
+
+    monkeypatch.setattr(_feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(_feeds_route.vegas, "fetch", _offline)
+
+    async def fake_poll(*args, **kwargs):
+        return {"items": [], "sources": {}, "polled_at": "2026-08-15T15:00:00+00:00"}
+
+    monkeypatch.setattr(_feeds_route.poller, "poll", fake_poll)
+
+    c.post(
+        "/internal/vegas",
+        json={"state": {"week_label": "W", "games": [{"game": "CAR @ BUF", "fav": "BUF -3"}]}},
+        headers={"X-Sync-Token": "secret-token"},
+    )
+    body = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+
+    assert body["vegas_games"] == 1
+    saved = await store.load()
+    assert saved["vegas"]["games"][0]["game"] == "CAR @ BUF"
 
 
 # --- live-adjusted TD leans ------------------------------------------------
@@ -159,6 +256,20 @@ def test_curated_implied_reads_the_openers():
     implied = vegas.curated_implied()
     assert implied["SEA"] == 24.0
     assert implied["NE"] == 20.5
+
+
+def test_implied_by_team_recomputes_from_sanitized_rows():
+    games = [
+        {"game": "NE @ SEA", "fav": "SEA -3.5", "total": "44.5"},
+        {"game": "DAL @ NYG", "fav": "DAL -2.5", "total": "48.5"},  # away favorite
+        {"game": "DEN @ KC", "fav": "—", "total": "—"},  # unposted: no guess
+    ]
+    implied = vegas.implied_by_team(games)
+    assert implied["SEA"] == 24.0
+    assert implied["NE"] == 20.5
+    assert implied["DAL"] == 25.5
+    assert implied["NYG"] == 23.0
+    assert "KC" not in implied and "DEN" not in implied
 
 
 def test_confidence_shifts_with_the_implied_total_and_says_so():
@@ -224,11 +335,24 @@ def test_inject_predictions_swaps_const_and_caption():
     assert vegas.inject_predictions(html, []) == html
 
 
+def test_refresh_caption_stops_claiming_openers():
+    html = Path("frontend/index.html").read_text(encoding="utf-8")
+    served = vegas.refresh_caption(html)
+    assert vegas.LIVE_CAPTION in served
+    assert vegas.CURATED_CAPTION not in served
+
+
+def test_central_stamp_converts_and_survives_junk():
+    assert vegas.central_stamp("2026-08-15T16:00:00+00:00") == "2026-08-15T11:00"
+    assert vegas.central_stamp(None) == ""
+    assert vegas.central_stamp("garbage") == ""
+
+
 # --- the Week 1 schedule tab -----------------------------------------------
 
 
 def test_kickoffs_render_in_central_time():
-    rows = vegas.parse_scoreboard(PAYLOAD)
+    rows = vegas.build_rows(PAYLOAD)
     sched = vegas.schedule_rows({"games": rows}, curated={})
 
     sea = next(s for s in sched if s["home"] == "Seattle Seahawks")
@@ -248,7 +372,7 @@ def test_curated_week1_notes_parse_the_real_page_and_ride_along():
     key = "New England Patriots @ Seattle Seahawks"
     assert "banner" in curated[key]["note"].lower()
 
-    sched = vegas.schedule_rows({"games": vegas.parse_scoreboard(PAYLOAD)})
+    sched = vegas.schedule_rows({"games": vegas.build_rows(PAYLOAD)})
     sea = next(s for s in sched if s["home"] == "Seattle Seahawks")
     assert "banner" in sea["note"].lower()
 
@@ -263,7 +387,7 @@ def test_schedule_skips_games_with_no_kickoff_and_empties_do_not_inject():
 
 def test_inject_schedule_swaps_const_and_stamps_data_health():
     html = Path("frontend/index.html").read_text(encoding="utf-8")
-    sched = vegas.schedule_rows({"games": vegas.parse_scoreboard(PAYLOAD)})
+    sched = vegas.schedule_rows({"games": vegas.build_rows(PAYLOAD)})
 
     served = vegas.inject_schedule(html, sched, stamp="2026-08-15T11:00")
 

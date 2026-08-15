@@ -125,8 +125,8 @@ def merge_into_feeds(
     adp_data: dict | None = None,
     index: dict | None = None,
     verdicts: dict[str, str] | None = None,
+    vegas_state: dict | None = None,
     injury_names: tuple[str, ...] | None = None,
-    vegas_data: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -195,6 +195,13 @@ def merge_into_feeds(
     if live_scout:
         merged["scout"] = live_scout
 
+    # Vegas lines: the page's VEGAS constant is rebound to F.vegas at serve
+    # time (see app_page), so putting live rows here replaces the committed
+    # table. Absent on failure -- the page then falls back to its own seed.
+    live_vegas = (vegas_state or {}).get("games") or []
+    if live_vegas:
+        merged["vegas"] = live_vegas
+
     # Out & returning is curated in the page and has no timestamps of its
     # own; the freshest wire mention of each listed player is one the server
     # can honestly supply. mobile.js renders these onto the rows. Matched
@@ -222,7 +229,6 @@ def merge_into_feeds(
     # hardcoded "live" labels were in the unsafe one.
     local_now = now.astimezone(CENTRAL)
     stamp = f"{local_now:%Y-%m-%dT%H:%M}"
-    vegas_live = bool((vegas_data or {}).get("games"))
     meta_rows = []
     for entry in bundled.get("meta", []):
         feed = entry.get("feed")
@@ -238,18 +244,17 @@ def merge_into_feeds(
                 "asOf": stamp,
                 "source": "FFC live drafts (10+12tm PPR avg) + Sleeper rank",
             }
-        elif vegas_live and feed == "Vegas lines":
+        elif live_vegas and feed == "Vegas lines":
+            label = (vegas_state or {}).get("week_label") or "current slate"
             entry = {
                 **entry,
-                "asOf": vegas.central_stamp((vegas_data or {}).get("fetched_at")) or stamp,
-                "source": vegas.LIVE_SOURCE,
+                "asOf": stamp,
+                "source": f"DraftKings via ESPN — live, {label}",
             }
-        elif feed == "Week 1 schedule" and any(
-            g.get("kickoff") for g in (vegas_data or {}).get("games") or []
-        ):
+        elif feed == "Week 1 schedule" and any(g.get("kickoff") for g in live_vegas):
             entry = {
                 **entry,
-                "asOf": vegas.central_stamp((vegas_data or {}).get("fetched_at")) or stamp,
+                "asOf": vegas.central_stamp((vegas_state or {}).get("fetched_at")) or stamp,
                 "source": vegas.SCHED_LIVE_SOURCE,
             }
         meta_rows.append(entry)

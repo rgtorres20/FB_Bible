@@ -93,6 +93,7 @@ def main() -> int:
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
     # Strict on purpose: once the live board has shipped, a revert to the
     # curated openers means the odds pipeline is stale -- a true failure.
+    check("vegas table rebound to live data", "vegas: (F.vegas || VEGAS)," in served)
     check("Vegas lines are live", "Live via ESPN" in served)
     check("TD leans track live lines", "confidence adjusted" in served)
     check("Week 1 schedule is live", "live kickoff times" in served)

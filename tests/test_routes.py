@@ -144,3 +144,15 @@ def test_injection_happens_exactly_once():
     served = client.get("/app/").text
     assert served.count('href="mobile.css"') == 1
     assert served.count('src="mobile.js"') == 1
+
+
+def test_vegas_table_is_rebound_to_live_data_at_serve_time():
+    """The committed VEGAS constant becomes the fallback; the overlay's
+    F.vegas wins when live lines exist. Disk stays pristine."""
+    from pathlib import Path
+
+    served = client.get("/app/").text
+    assert "vegas: (F.vegas || VEGAS)," in served
+
+    on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert "F.vegas" not in on_disk
