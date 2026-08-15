@@ -72,19 +72,24 @@ should work first time.
    Yahoo access for live adds — but trigger-on-wire-news can work today
    against the live feed.
 2. **More stale tabs → live**, in value order:
-   - *Draft board / ADP blend*: FantasyFootballCalculator has a free no-key
-     JSON ADP API — highest value, ADP drifts daily during draft season.
+   - *Scout finds / ADP*: DONE (Aug 15, `app/feeds/adp.py`). FFC free ADP
+     for both league sizes averaged per the owner's instruction ("combine
+     the 2 based on avg"); daily snapshots in the feed store drive
+     risers/fallers (movers appear once ~1+ day of history exists);
+     Sleeper-rank-vs-ADP gaps + wire sleeper articles fill "Sleeper find".
    - *Vegas lines (FFBets · Predictions)*: ESPN's public scoreboard JSON
-     carries odds, no auth.
+     carries odds, no auth. NEXT.
    - *Week 1 schedule*: same ESPN endpoint, trivial, low value until Sep.
-3. **AI layer ("make it more AI-driven")**: a scheduled job calling the
-   Claude API (Haiku) over the polled wire to draft the judgement-tab
-   content the RSS pipeline deliberately refuses to fabricate — verdict
-   drafts for Alerts/lean columns, marked as drafts for the owner to keep
-   or kill. This is the honest version of "AI-driven scraping": summarise
-   and classify licensed feeds we already poll, not search-scrape the open
-   web. Cost at this volume: cents per day.
-   NOT built yet — needs an ANTHROPIC_API_KEY decision (billing) first.
+3. **AI layer, free ("make it better but free")**: user asked for a
+   zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
+   authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
+   sync-feeds Action, no card, no new secret. Rate limits are tight but an
+   hourly job drafting ~10 verdict lines fits. The job would POST drafted
+   verdicts to a new `/internal/verdicts` endpoint (same X-Sync-Token
+   pattern), stored in Redis and overlaid on Alerts' lean/verdict columns
+   prefixed "AI draft:". Fallbacks if quality disappoints: Groq or Google
+   AI Studio free tiers (need one extra key each, still $0). The paid
+   Claude/Haiku route stays documented as the quality upgrade path.
 4. **Yahoo access application**: ready to paste from
    `docs/YAHOO_APPLICATION.md`. Submitting starts their review clock.
 
