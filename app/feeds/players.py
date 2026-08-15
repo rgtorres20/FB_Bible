@@ -210,8 +210,26 @@ def find_players(text: str, index: dict, limit: int = 6) -> list[dict]:
 
 
 def tag_items(items: list[dict], index: dict) -> list[dict]:
-    """Attach a `players` list to each item. Mutates and returns the list."""
+    """Attach a `players` list to each item. Mutates and returns the list.
+
+    Items that arrive pre-seeded (Rotoworld names its player structurally,
+    which beats matching the headline text) are enriched with the index's
+    id and rank when the player is known -- never clobbered.
+    """
+    by_name = index.get("by_name", {})
+    players = index.get("players", {})
     for item in items:
+        seeded = item.get("players")
+        if seeded:
+            for entry in seeded:
+                pid = by_name.get(normalize(entry.get("name", "")).strip())
+                if pid and pid in players:
+                    known = players[pid]
+                    entry["id"] = pid
+                    entry["rank"] = known.get("rank")
+                    entry.setdefault("position", known.get("position"))
+                    entry["team"] = entry.get("team") or known.get("team")
+            continue
         text = f"{item.get('title', '')} {item.get('summary', '')}"
         item["players"] = find_players(text, index)
     return items

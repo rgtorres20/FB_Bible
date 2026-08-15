@@ -24,6 +24,8 @@ class Source:
     budget_hours: int
     # Printed with the items. Some publishers require it; all deserve it.
     attribution: str
+    # "rss" or "rotoworld": how the response body is parsed.
+    parser: str = "rss"
 
 
 FEED_SOURCES: tuple[Source, ...] = (
@@ -66,6 +68,19 @@ FEED_SOURCES: tuple[Source, ...] = (
         tier=2,
         budget_hours=24,
         attribution="CBS Sports",
+    ),
+)
+
+FEED_SOURCES = (
+    *FEED_SOURCES,
+    Source(
+        key="rotoworld_pn",
+        name="NBC Rotoworld",
+        url="https://www.nbcsports.com/fantasy/football/player-news",
+        tier=1,
+        budget_hours=24,
+        attribution="NBC Sports Rotoworld",
+        parser="rotoworld",
     ),
 )
 

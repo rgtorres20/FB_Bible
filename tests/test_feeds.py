@@ -159,3 +159,73 @@ def test_html_entities_are_decoded_including_double_escaped():
     item = rss.parse(xml, "x", "X", 1)[0]
     assert item.title == "Jets' Geno Smith has sore ankle"
     assert item.summary == 'Cowboys & Giants split "reps"'
+
+
+# --- Rotoworld page parsing (fixture carved from the real page, Aug 15) ----
+
+
+def test_rotoworld_parses_real_page_structure():
+    from pathlib import Path
+
+    from app.feeds import rotoworld
+
+    html = Path("tests/fixtures/rotoworld_sample.html").read_text(encoding="utf-8")
+    items = rotoworld.parse(html)
+
+    assert len(items) == 2
+    first = items[0]
+    assert first["source_key"] == "rotoworld_pn"
+    assert first["tier"] == 1
+    assert first["published"].startswith("2026-08-15T")
+    assert first["players"][0]["name"] == "Omar Cooper"
+    assert first["players"][0]["position"] == "WR"
+    assert first["players"][0]["team"] == "NYJ"
+    assert first["title"].startswith("Jets WR Omar Cooper")
+    # Their analysis is their product: truncated, and the link goes back.
+    assert len(first["summary"]) <= 281
+    assert first["link"].startswith("https://www.nbcsports.com/")
+
+
+def test_rotoworld_junk_input_parses_to_empty():
+    from app.feeds import rotoworld
+
+    assert rotoworld.parse("<html>nothing here</html>") == []
+    assert rotoworld.parse("") == []
+
+
+def test_tagger_enriches_but_never_clobbers_seeded_players():
+    """Rotoworld names its player structurally; the tagger adds id/rank when
+    the index knows them and must not replace the seeded entry."""
+    from app.feeds import players as players_mod
+
+    index = players_mod.build_index(
+        {
+            "9493": {
+                "active": True,
+                "position": "WR",
+                "full_name": "Puka Nacua",
+                "team": "LAR",
+                "injury_status": None,
+                "search_rank": 4,
+            }
+        }
+    )
+    seeded = {
+        "title": "Rams WR Puka Nacua practiced fully",
+        "summary": "",
+        "players": [{"id": "rw:puka-nacua", "name": "Puka Nacua", "position": "WR", "team": None}],
+    }
+    unknown = {
+        "title": "Jets WR Omar Cooper caught 2-of-3 targets",
+        "summary": "",
+        "players": [
+            {"id": "rw:omar-cooper", "name": "Omar Cooper", "position": "WR", "team": "NYJ"}
+        ],
+    }
+    players_mod.tag_items([seeded, unknown], index)
+
+    assert seeded["players"][0]["id"] == "9493"  # enriched to the index id
+    assert seeded["players"][0]["rank"] == 4
+    assert seeded["players"][0]["team"] == "LAR"  # filled from the index
+    assert unknown["players"][0]["id"] == "rw:omar-cooper"  # unknown stays seeded
+    assert unknown["players"][0]["team"] == "NYJ"

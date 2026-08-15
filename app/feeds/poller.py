@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from . import rss
+from . import rotoworld, rss
 from .sources import FEED_SOURCES, Source
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,11 @@ async def _fetch(client: httpx.AsyncClient, source: Source) -> tuple[Source, lis
         response = await client.get(source.url)
         if response.status_code != 200:
             return source, [], f"HTTP {response.status_code}"
+        if source.parser == "rotoworld":
+            parsed = rotoworld.parse(response.text)
+            if not parsed:
+                return source, [], "parsed 0 posts"
+            return source, parsed, None
         items = rss.parse(response.content, source.key, source.name, source.tier)
         if not items:
             return source, [], "parsed 0 items"
@@ -98,7 +103,7 @@ async def poll(sources: tuple[Source, ...] = FEED_SOURCES, timeout: float = 20.0
             "error": error,
             "fetched_at": now.isoformat(),
         }
-        items.extend(item.to_dict() for item in parsed)
+        items.extend(i if isinstance(i, dict) else i.to_dict() for i in parsed)
 
     return {"items": items, "sources": status, "polled_at": now.isoformat()}
 
