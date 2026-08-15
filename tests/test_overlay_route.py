@@ -113,3 +113,73 @@ async def test_overlay_with_empty_store_serves_bundled_untouched(client):
 
     assert body["news"] == BUNDLED["news"]
     assert body["meta"] == BUNDLED["meta"]
+
+
+# --- the served page: live Vegas lines and stage badge ---------------------
+
+
+def _vegas_game() -> dict:
+    return {
+        "game": "NE @ SEA",
+        "fav": "SEA -7.5",  # deliberately different from the curated opener
+        "total": "47.5",
+        "imp": "SEA 27.5 · NE 20",
+        "provider": "ESPN BET",
+    }
+
+
+@pytest.fixture
+def page_client(tmp_path, monkeypatch):
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = lambda: store
+    yield TestClient(main.app), store
+    main.app.dependency_overrides.clear()
+
+
+async def test_served_page_swaps_in_live_vegas_lines(page_client):
+    c, store = page_client
+    await store.save(
+        {
+            "items": [],
+            "vegas": {"fetched_at": "2026-08-15T16:00:00+00:00", "games": [_vegas_game()]},
+        }
+    )
+
+    served = c.get("/app/").text
+
+    assert "SEA -7.5" in served
+    assert "Live via ESPN" in served
+    assert "DraftKings openers" not in served
+    # The curated prop angle for that matchup survives onto the live row.
+    assert "banner-night slog" in served
+    # TD leans go live-adjusted whenever the board is live.
+    assert "confidence adjusted" in served
+
+
+async def test_served_page_keeps_curated_vegas_when_store_is_empty(page_client):
+    c, _ = page_client
+
+    served = c.get("/app/").text
+
+    assert "SEA -3.5" in served  # the committed opener
+    assert "DraftKings openers" in served
+
+
+async def test_served_page_keeps_curated_vegas_when_store_is_down(page_client):
+    c, _ = page_client
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = ExplodingStore
+
+    served = c.get("/app/")
+
+    assert served.status_code == 200
+    assert "DraftKings openers" in served.text
+
+
+async def test_beta_deploys_announce_themselves(page_client, monkeypatch):
+    c, _ = page_client
+    monkeypatch.setattr(get_settings(), "vercel_env", "preview", raising=False)
+
+    assert 'id="fb-stage-badge"' in c.get("/app/").text
+
+    monkeypatch.setattr(get_settings(), "vercel_env", "production", raising=False)
+    assert "fb-stage-badge" not in c.get("/app/").text

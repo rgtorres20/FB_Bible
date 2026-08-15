@@ -1,0 +1,98 @@
+{
+  "leagues": [{"abbreviation": "NFL", "season": {"year": 2026, "type": {"id": "2"}}}],
+  "week": {"number": 1},
+  "events": [
+    {
+      "id": "401770001",
+      "date": "2026-09-13T17:00Z",
+      "shortName": "NE @ SEA",
+      "season": {"year": 2026, "type": 2},
+      "week": {"number": 1},
+      "competitions": [
+        {
+          "id": "401770001",
+          "date": "2026-09-13T17:00Z",
+          "competitors": [
+            {
+              "id": "1",
+              "homeAway": "home",
+              "team": {"id": "26", "abbreviation": "SEA", "displayName": "Seattle Seahawks"}
+            },
+            {
+              "id": "2",
+              "homeAway": "away",
+              "team": {"id": "17", "abbreviation": "NE", "displayName": "New England Patriots"}
+            }
+          ],
+          "odds": [
+            {
+              "provider": {"id": "58", "name": "ESPN BET", "priority": 1},
+              "details": "SEA -3.5",
+              "overUnder": 44.5,
+              "spread": -3.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401770002",
+      "date": "2026-09-14T00:20Z",
+      "shortName": "SF @ LAR",
+      "season": {"year": 2026, "type": 2},
+      "week": {"number": 1},
+      "competitions": [
+        {
+          "id": "401770002",
+          "date": "2026-09-14T00:20Z",
+          "competitors": [
+            {
+              "id": "3",
+              "homeAway": "home",
+              "team": {"id": "14", "abbreviation": "LAR", "displayName": "Los Angeles Rams"}
+            },
+            {
+              "id": "4",
+              "homeAway": "away",
+              "team": {"id": "25", "abbreviation": "SF", "displayName": "San Francisco 49ers"}
+            }
+          ],
+          "odds": [
+            {
+              "provider": {"id": "58", "name": "ESPN BET", "priority": 1},
+              "details": "LAR -2.5",
+              "overUnder": 48.5,
+              "spread": -2.5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401770003",
+      "date": "2026-09-13T20:25Z",
+      "shortName": "DEN @ KC",
+      "season": {"year": 2026, "type": 2},
+      "week": {"number": 1},
+      "competitions": [
+        {
+          "id": "401770003",
+          "date": "2026-09-13T20:25Z",
+          "competitors": [
+            {
+              "id": "5",
+              "homeAway": "home",
+              "team": {"id": "12", "abbreviation": "KC", "displayName": "Kansas City Chiefs"}
+            },
+            {
+              "id": "6",
+              "homeAway": "away",
+              "team": {"id": "7", "abbreviation": "DEN", "displayName": "Denver Broncos"}
+            }
+          ],
+          "odds": []
+        }
+      ]
+    }
+  ]
+}

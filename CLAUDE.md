@@ -56,6 +56,20 @@ from Sleeper. Neither blocks personal single-user use.
   the real shape.
 - `/api/raw/{path}` is the escape hatch for exploring unmodelled resources.
   Prefer adding an extractor over letting the browser app consume raw shapes.
+- **No stale data.** Every user-facing surface is live-polled, the owner's
+  own judgement, or curated facts wearing an honest as-of stamp — nothing
+  claims freshness it does not have. The audit and the plan for what is
+  still curated: [docs/STALE_DATA.md](docs/STALE_DATA.md). A surface that
+  goes live gets a `verify-live.yml` check in the same commit.
+- **No false positives.** Never fabricate a judgement, a number, or a
+  freshness label to make a surface look complete — an empty truthful
+  section beats an invented one. When a call is genuinely uncertain, ask
+  the owner instead of guessing.
+- **Two stages, one codebase.** `main` deploys prod; the `beta` branch
+  deploys a stable Vercel preview that wears a BETA badge and reads (never
+  writes) the shared feed store. See
+  [docs/ENVIRONMENTS.md](docs/ENVIRONMENTS.md) before touching deploy or
+  store wiring.
 
 ## Working rules
 
@@ -71,8 +85,9 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-254 tests green — 238 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
-lint and format clean. CI runs all of it plus a secret guard on every push.
+277 tests green — 261 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+lint and format clean. CI runs all of it plus a secret guard on every push
+to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
 
 The served page reads live data: the `/app/data/feeds.json` overlay merges the

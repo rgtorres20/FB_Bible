@@ -300,3 +300,26 @@ def test_merge_omits_injury_wire_when_nothing_matches():
     merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("George Kittle",))
     assert "injury_wire" not in merged
     assert "injury_wire" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)
+
+
+def test_vegas_meta_row_stamps_when_lines_are_live():
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "Vegas lines",
+                "asOf": "2026-08-13T12:00",
+                "maxAgeH": 72,
+                "source": "DraftKings openers via ESPN",
+                "tab": "FFBets",
+            },
+        ],
+    }
+    live = {"fetched_at": "2026-08-15T10:00:00+00:00", "games": [{"game": "NE @ SEA"}]}
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_data=live)
+
+    assert merged["meta"][0]["asOf"] == "2026-08-15T05:00"  # 10:00 UTC -> 5:00 AM CDT
+    assert "live odds" in merged["meta"][0]["source"]
+
+    untouched = render.merge_into_feeds(bundled, [ITEM], NOW)  # no vegas data
+    assert untouched["meta"][0] == bundled["meta"][0]

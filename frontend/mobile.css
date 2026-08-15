@@ -197,3 +197,21 @@ aside > div:nth-child(2) {
 .fb-wire-stamp a {
   color: inherit;
 }
+
+/* Beta deploys announce themselves (injected by the server on preview
+ * stages only -- see app_page). Fixed bottom-right, clear of the menu
+ * button and the sync footer. */
+#fb-stage-badge {
+  position: fixed;
+  bottom: 14px;
+  right: 14px;
+  z-index: 1001;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  border: 2px solid var(--color-accent, #b00);
+  background: var(--color-bg, #fff);
+  color: var(--color-accent-700, #b00);
+  pointer-events: none;
+}

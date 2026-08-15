@@ -123,13 +123,31 @@ All five items shipped:
 
 The watchdog asserts the decorator and its styles keep serving.
 
+## Also done Aug 15 afternoon
+
+- **Vegas lines are live**: `app/feeds/vegas.py` polls ESPN's scoreboard
+  odds on the hourly sync; the served page's VEGAS const is swapped at
+  serve time (curated prop-angle reads survive by matchup), Data health
+  stamps honestly, and the watchdog fails if the board reverts to the
+  curated openers. First deploy note: run the sync-feeds workflow once
+  manually after merging, or the watchdog's "Vegas lines are live" check
+  rightly complains until the hourly sync lands.
+- **Beta/prod**: `beta` branch = stable Vercel preview with a BETA badge
+  and `/health` stage reporting. Full model: docs/ENVIRONMENTS.md.
+- **Stale-data audit + rule**: docs/STALE_DATA.md inventories every
+  surface; CLAUDE.md now carries the no-stale-data and no-false-positives
+  rules.
+
 ## Next work, no dependencies — highest value first
 
-1. **Vegas lines (FFBets · Predictions).** ESPN's public scoreboard JSON
-   carries odds, no auth. Was marked NEXT in the Aug 15 action items.
-2. **Week 1 schedule** — same ESPN endpoint, trivial, low value until Sep.
-3. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
+1. **Week 1 schedule tab from the stored scoreboard payload** — kickoff
+   dates are already in `vegas.games`' source feed; add them to the parse
+   and overlay the schedule tab. Small.
+2. **Submit the Yahoo access application** (`docs/YAHOO_APPLICATION.md`) —
    user action; starts their review clock.
+
+(TD leans went live Aug 15 with the Vegas board — confidence tracks
+implied-total movement; see STALE_DATA.md #2.)
 
 ## Housekeeping worth doing when fresh
 

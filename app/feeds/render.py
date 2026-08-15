@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import adp, impact, injury
+from . import adp, impact, injury, vegas
 
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
@@ -126,6 +126,7 @@ def merge_into_feeds(
     index: dict | None = None,
     verdicts: dict[str, str] | None = None,
     injury_names: tuple[str, ...] | None = None,
+    vegas_data: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -221,6 +222,7 @@ def merge_into_feeds(
     # hardcoded "live" labels were in the unsafe one.
     local_now = now.astimezone(CENTRAL)
     stamp = f"{local_now:%Y-%m-%dT%H:%M}"
+    vegas_live = bool((vegas_data or {}).get("games"))
     meta_rows = []
     for entry in bundled.get("meta", []):
         feed = entry.get("feed")
@@ -235,6 +237,12 @@ def merge_into_feeds(
                 **entry,
                 "asOf": stamp,
                 "source": "FFC live drafts (10+12tm PPR avg) + Sleeper rank",
+            }
+        elif vegas_live and feed == "Vegas lines":
+            entry = {
+                **entry,
+                "asOf": vegas.central_stamp((vegas_data or {}).get("fetched_at")) or stamp,
+                "source": vegas.LIVE_SOURCE,
             }
         meta_rows.append(entry)
     merged["meta"] = meta_rows

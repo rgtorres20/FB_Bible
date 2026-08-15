@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, cheatsheet, injury, players, poller, render
+from ..feeds import adp, build_feed_store, cheatsheet, injury, players, poller, render, vegas
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,15 @@ def get_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore:
         return build_feed_store(settings)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=f"Feed store not configured: {exc}") from exc
+
+
+def get_optional_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore | None:
+    """For routes that overlay live data onto a page: a missing store means
+    'serve the committed content', never a 503 -- the page must render."""
+    try:
+        return build_feed_store(settings)
+    except ValueError:
+        return None
 
 
 @router.get("/app/data/feeds.json", include_in_schema=False)
@@ -78,6 +87,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         index=index,
         verdicts=stored.get("verdicts"),
         injury_names=injury.watched_names(),
+        vegas_data=stored.get("vegas"),
     )
 
 
@@ -232,12 +242,21 @@ async def sync(
     except Exception as exc:  # noqa: BLE001 - ADP must never sink the news sync
         log.warning("ADP fetch failed, keeping previous board: %s", exc)
 
+    # Vegas lines ride the same sync with the same failure rule: yesterday's
+    # posted line is a usable board, a blanked one is not.
+    vegas_state = existing.get("vegas") or {}
+    try:
+        vegas_state = await vegas.fetch()
+    except Exception as exc:  # noqa: BLE001 - odds must never sink the news sync
+        log.warning("Vegas fetch failed, keeping previous lines: %s", exc)
+
     await store.save(
         {
             "items": merged["items"],
             "sources": polled["sources"],
             "polled_at": polled["polled_at"],
             "adp": {"state": adp_state, "history": adp_history},
+            "vegas": vegas_state,
         }
     )
 
@@ -256,5 +275,6 @@ async def sync(
         "sources_ok": len(polled["sources"]) - len(failed),
         "sources_failed": failed,
         "adp_players": len(adp_state.get("players", [])),
+        "vegas_games": len(vegas_state.get("games", [])),
         "polled_at": polled["polled_at"],
     }

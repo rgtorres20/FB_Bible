@@ -91,6 +91,10 @@ def main() -> int:
     check("mobile stylesheet injected", 'href="mobile.css"' in served)
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
+    # Strict on purpose: once the live board has shipped, a revert to the
+    # curated openers means the odds pipeline is stale -- a true failure.
+    check("Vegas lines are live", "Live via ESPN" in served)
+    check("TD leans track live lines", "confidence adjusted" in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
     mobile_css = get("/app/mobile.css")
