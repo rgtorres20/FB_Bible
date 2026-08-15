@@ -67,7 +67,12 @@ from Sleeper. Neither blocks personal single-user use.
 
 Phase 2 complete as scaffolded: OAuth (authorize / exchange / refresh),
 encrypted swappable token store, and read endpoints for leagues, teams,
-rosters, draft results, scoreboard and transactions. 17 tests, lint clean.
+rosters, draft results, scoreboard and transactions. Plus the browser client
+in `web/` and CI in `.github/workflows/ci.yml`.
+
+43 tests green — 27 Python (`pytest`) and 16 JS (`cd web && node --test`) —
+lint and format clean. CI runs all of it plus a secret guard on every push.
+Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
 
 Not yet done: verified against a live Yahoo account (needs the developer app
 registered — see docs/YAHOO_SETUP.md), and the browser app still points at its
