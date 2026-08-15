@@ -43,6 +43,24 @@
       document.body.classList.remove('fb-menu-open');
     });
 
+    // Installed as a PWA there is no browser chrome: any link that navigates
+    // the app itself away leaves the user stranded with no back button
+    // ("player details didn't let me go back"). External links therefore
+    // open outside the shell; the app never leaves itself.
+    document.addEventListener('click', function (event) {
+      var a = event.target.closest && event.target.closest('a[href]');
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      if (/^https?:/i.test(href)) {
+        try {
+          if (new URL(href).origin !== location.origin) {
+            event.preventDefault();
+            window.open(href, '_blank', 'noopener');
+          }
+        } catch (e) {}
+      }
+    }, true);
+
     // Capture phase: the page's own nav handling stops propagation, which is
     // why a bubble listener on the aside never saw the click.
     document.addEventListener('click', function (event) {
