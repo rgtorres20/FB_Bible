@@ -58,3 +58,17 @@ jobs:
           else
             echo "::warning::One or more sources failed — see sources_failed above"
           fi
+
+      # ESPN 403s Vercel's IP range, so the Vegas slate is fetched from this
+      # runner and pushed to the deployment -- same division of labour as the
+      # sync trigger itself. A failed fetch skips quietly; the stored slate
+      # persists and Data health keeps its honest stamp.
+      - uses: actions/checkout@v4
+
+      - name: Push Vegas slate
+        env:
+          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          python3 -m pip install --quiet httpx
+          python3 scripts/push_vegas.py

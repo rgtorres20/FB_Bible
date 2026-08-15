@@ -89,3 +89,95 @@ async def test_fetch_labels_the_week():
         state = await vegas.fetch(client)
     assert state["week_label"] == "Preseason Week 2"
     assert state["games"][0]["game"] == "CAR @ BUF"
+
+
+# --- /internal/vegas push endpoint -----------------------------------------
+
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app import main as _main  # noqa: E402
+from app.config import get_settings as _get_settings  # noqa: E402
+from app.feeds.store import FileFeedStore as _FileFeedStore  # noqa: E402
+from app.routes import feeds as _feeds_route  # noqa: E402
+
+
+@pytest.fixture
+def push_client(tmp_path, monkeypatch):
+    monkeypatch.setattr(_get_settings(), "sync_token", "secret-token", raising=False)
+    store = _FileFeedStore(str(tmp_path / "feeds.json"))
+    _main.app.dependency_overrides[_feeds_route.get_feed_store] = lambda: store
+    yield TestClient(_main.app), store
+    _main.app.dependency_overrides.clear()
+
+
+async def test_vegas_push_requires_token(push_client):
+    c, _ = push_client
+    response = c.post("/internal/vegas", json={"state": {"games": [{"game": "A @ B"}]}})
+    assert response.status_code == 401
+
+
+async def test_vegas_push_sanitizes_rows_to_known_string_fields(push_client):
+    """Pushed rows render into the page, so only the five known columns may
+    pass -- injected extra keys and non-dict rows must be dropped."""
+    c, store = push_client
+    response = c.post(
+        "/internal/vegas",
+        json={
+            "state": {
+                "week_label": "Preseason Week 2",
+                "games": [
+                    {"game": "CAR @ BUF", "fav": "BUF -3", "total": 38.5, "evil": {"x": 1}},
+                    {"fav": "no game key"},
+                    "not-a-dict",
+                ],
+            }
+        },
+        headers={"X-Sync-Token": "secret-token"},
+    )
+
+    assert response.json() == {"stored": 1, "week_label": "Preseason Week 2"}
+    saved = await store.load()
+    row = saved["vegas"]["games"][0]
+    assert set(row) == {"game", "fav", "total", "imp", "read"}
+    assert row["total"] == "38.5"  # coerced to string
+
+
+async def test_vegas_push_rejects_empty_slate(push_client):
+    c, _ = push_client
+    response = c.post(
+        "/internal/vegas",
+        json={"state": {"games": []}},
+        headers={"X-Sync-Token": "secret-token"},
+    )
+    assert response.status_code == 422
+
+
+async def test_pushed_slate_survives_a_sync_whose_fetch_fails(push_client, monkeypatch):
+    """The whole architecture: GitHub pushes lines, Vercel's own fetch 403s,
+    the sync must carry the pushed slate forward instead of blanking it."""
+    import httpx as _httpx
+
+    c, store = push_client
+
+    async def _offline(*args, **kwargs):
+        raise _httpx.ConnectError("espn 403 / offline")
+
+    monkeypatch.setattr(_feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(_feeds_route.vegas, "fetch", _offline)
+
+    async def fake_poll(*args, **kwargs):
+        return {"items": [], "sources": {}, "polled_at": "2026-08-15T15:00:00+00:00"}
+
+    monkeypatch.setattr(_feeds_route.poller, "poll", fake_poll)
+
+    c.post(
+        "/internal/vegas",
+        json={"state": {"week_label": "W", "games": [{"game": "CAR @ BUF", "fav": "BUF -3"}]}},
+        headers={"X-Sync-Token": "secret-token"},
+    )
+    body = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+
+    assert body["vegas_games"] == 1
+    saved = await store.load()
+    assert saved["vegas"]["games"][0]["game"] == "CAR @ BUF"

@@ -158,6 +158,49 @@ class VerdictsIn(BaseModel):
     verdicts: dict[str, str]
 
 
+class VegasIn(BaseModel):
+    state: dict
+
+
+_VEGAS_ROW_FIELDS = ("game", "fav", "total", "imp", "read")
+MAX_VEGAS_ROWS = 32
+
+
+@router.post("/internal/vegas", summary="Store the Vegas slate pushed by the scheduler")
+async def save_vegas(
+    payload: VegasIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """ESPN 403s requests from Vercel's IP range (verified live 2026-08-15),
+    so the GitHub Actions runner fetches the scoreboard and pushes the slate
+    here -- the same split as the sync scheduler itself: GitHub provides the
+    network vantage point, the deployment stores and serves.
+
+    Rows are rebuilt field-by-field rather than stored verbatim: this data
+    is rendered into the page, so only the five known string columns pass.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    games = []
+    for row in (payload.state.get("games") or [])[:MAX_VEGAS_ROWS]:
+        if not isinstance(row, dict) or not row.get("game"):
+            continue
+        games.append({field: str(row.get(field) or "") for field in _VEGAS_ROW_FIELDS})
+    if not games:
+        raise HTTPException(status_code=422, detail="No usable rows in state.games.")
+
+    data = await store.load()
+    data["vegas"] = {
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "week_label": str(payload.state.get("week_label") or "")[:40],
+        "games": games,
+    }
+    await store.save(data)
+    return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
 MAX_VERDICT_CHARS = 200
 
 
