@@ -50,22 +50,38 @@ owner decision: one provider, one secret. Worth noting the compounding —
 two independent silent-failure bugs stacked on a dead upstream, and each
 one alone would have hidden the others.
 
+## Owner's call, not ours
+
+**The board lists Jayden Reed twice** — tier 7 as WR32 (no read) and tier
+11 as WR38 (with the PFF slot-yards note). Found while joining ADP: 205
+board rows, 204 distinct players. During a draft he shows up twice, and
+marking one row taken leaves the other looking available. Which ranking is
+right is an editorial call, so nothing was changed; the join keys by name,
+so both rows correctly show the same live ADP.
+
 ## Backlog — high value, needs design or decisions
 
 Ordered by draft-day value.
 
-1. **Draft analyzer board is not live, but Data health says it is.** The
-   live ADP blend only feeds the Scout finds tab; the board the owner
-   drafts from is the in-page `BOARD` const, and its "ADP" column is the
-   row's own rank restated (`round.pick` arithmetic on the index), so the
-   "mine vs ADP" delta and blend slider compute on a constant. Fix: overlay
-   `merged["board"]` from the live blend + `F.board || BOARD` rebind, show
-   real per-size ADP (12tm for Sunday Gravy, 10tm for The Trenches — both
-   already stored per player), and only stamp the Data-health rows for
-   surfaces actually replaced.
+1. ~~**Draft analyzer board is not live**~~ — DONE Aug 15 evening
+   (`app/feeds/board.py`). The ADP column now carries real FFC ADP joined
+   by player name at serve time, **per league size** — 12-team for Sunday
+   Gravy, 10-team for The Trenches — and the delta, blend slider and sort
+   all read that number instead of the row's restated rank. A player the
+   live board does not cover shows "—" rather than a second scale's
+   number; his row still sorts on rank and still shows the owner's own
+   value. Data health now stamps the board only when it is genuinely
+   live, and stopped stamping the Sleepers tab, which still renders its
+   committed const. Watchdog asserts both the live map and the absence of
+   any consumer still reading the derived string.
+   *Still open here:* the Sleepers tab itself (`TARGETS`) is untouched, so
+   its as-of date is its own; and the `/12` round arithmetic elsewhere in
+   the page is still 12-team-only (see item 2).
 2. **Draft-day pick math.** No draft-slot input, no snake math, no "gone
    before my next pick" flag, no 10-vs-12-team awareness outside `/12`
-   arithmetic. Live ADP + pick count is all it needs.
+   arithmetic. Live ADP + pick count is all it needs — and now that the
+   board carries real per-league ADP, this is mostly arithmetic on data
+   already in the page.
 3. **"Rank QBs per league" is one browser heuristic with 12 of 24 QBs
    classified.** Unclassified QBs (including Kyler Murray, whose own row
    says "plays in both leagues") get the worst multiplier ×0.32 in The

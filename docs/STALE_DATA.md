@@ -14,7 +14,8 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 |---|---|---|
 | News & posts | ESPN, Yahoo, Rotowire, PFT, CBS wire | ~hourly sync |
 | NBC player news | Rotoworld page scrape | ~hourly sync |
-| Draft board ADP / movers / sleeper finds | FFC live drafts + Sleeper ranks | ~hourly + daily snapshots |
+| Draft analyzer ADP column | FFC live drafts, per league size | ~hourly |
+| Scout finds: movers / sleeper gaps | FFC live drafts + Sleeper ranks | ~hourly + daily snapshots |
 | Vegas lines (FFBets · Predictions) | ESPN scoreboard odds | ~hourly sync (Aug 15) |
 | TD-lean confidence (FFBets) | implied-total movement vs openers | every request (Aug 15) |
 | Week 1 schedule (kickoff/teams/TV) | ESPN scoreboard | ~hourly sync (Aug 15) |

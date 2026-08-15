@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .feeds import vegas
+from .feeds import board, vegas
 from .feeds.store import FeedStore
 from .routes import auth, feeds, league
 
@@ -144,10 +144,13 @@ if _FRONTEND_READY:
             '[{ id: "predict", label: "Predictions" }]',
             1,
         )
-        # Live-line extras, every failure path serving the committed page:
-        # the odds caption stops claiming openers, TD-lean confidence tracks
-        # implied-total movement (the leans stay the owner's), and the Week 1
-        # schedule swaps in real kickoffs once the pushed slate carries them.
+        # Live overlays, every failure path serving the committed page: the
+        # odds caption stops claiming openers, TD-lean confidence tracks
+        # implied-total movement (the leans stay the owner's), the Week 1
+        # schedule swaps in real kickoffs once the pushed slate carries them,
+        # and the draft board's ADP column becomes real ADP. The board is
+        # deliberately outside the odds check -- it rides the ADP feed, which
+        # is fetched by the deployment itself and fails independently.
         if store is not None:
             try:
                 stored = await store.load()
@@ -166,8 +169,14 @@ if _FRONTEND_READY:
                         vegas.schedule_rows(state),
                         vegas.central_stamp(state.get("fetched_at")),
                     )
-            except Exception as exc:  # noqa: BLE001 - odds must never blank the page
-                logging.getLogger(__name__).warning("vegas page extras unavailable: %s", exc)
+                # The Draft analyzer's ADP column, joined from the live
+                # blend. Uncovered players show a dash rather than the
+                # derived round.pick number they used to show.
+                html, covered = board.inject(html, (stored.get("adp") or {}).get("state"))
+                if covered:
+                    logging.getLogger(__name__).info("board: %d rows carry live ADP", covered)
+            except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
+                logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
         # A beta deploy announces itself (styles in mobile.css). Prod and
         # local runs serve no badge at all.
         if settings.stage == "preview":
