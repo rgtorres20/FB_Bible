@@ -143,9 +143,28 @@ def _selected_position(player: dict) -> str | None:
 
 
 def _dig(node: Any, *keys: str) -> Any:
-    """Walk nested keys, returning None the moment the path breaks."""
+    """Walk nested keys, stepping through lists on the way.
+
+    Lists are unavoidable here: `normalize` turns Yahoo's index-keyed
+    collections into them, so `users` becomes a one-element list and a
+    dict-only walk gives up at the first hop. That silently emptied
+    /api/leagues — the one endpoint the phase-2 spec calls its acceptance
+    test — so the walk searches list members for the key instead of stopping.
+    """
     for key in keys:
-        if not isinstance(node, dict):
+        node = _lookup(node, key)
+        if node is None:
             return None
-        node = node.get(key)
     return node
+
+
+def _lookup(node: Any, key: str) -> Any:
+    """Find `key` on a dict, or on the first list member that carries it."""
+    if isinstance(node, dict):
+        return node.get(key)
+    if isinstance(node, list):
+        for item in node:
+            found = _lookup(item, key)
+            if found is not None:
+                return found
+    return None
