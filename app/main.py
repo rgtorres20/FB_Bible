@@ -8,12 +8,17 @@ Runs two ways from the same module, deliberately:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .routes import auth, feeds, league
+
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+_FRONTEND_INDEX = _FRONTEND_DIR / "index.html"
 
 settings = get_settings()
 logging.basicConfig(
@@ -53,4 +58,20 @@ async def health() -> dict:
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
         "league_keys": settings.league_keys,
+        "frontend_deployed": _FRONTEND_INDEX.is_file(),
     }
+
+
+# --- The app itself -------------------------------------------------------
+# Serving the page from the same origin as the API is deliberate: it makes
+# CORS a non-issue, puts the whole thing on one URL you can open on a phone,
+# and means one deploy rather than two.
+#
+# Mounted last so /health, /api/* and /auth/* still win. Mounted at /app
+# rather than / so it cannot shadow them by accident.
+#
+# frontend/index.html does not exist yet -- the page still lives in the Claude
+# design project. Until it is committed, /app returns 404 and /health reports
+# frontend_deployed: false. See docs/MIGRATION.md.
+if _FRONTEND_DIR.is_dir():
+    app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
