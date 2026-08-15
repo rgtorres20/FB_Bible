@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     # "file" for local dev, "redis" for serverless (no writable disk).
     token_store: Literal["file", "redis"] = "file"
     token_file_path: str = ".tokens.json"
+    # Polled news items. Shares the redis/file decision with the token store.
+    feed_file_path: str = "data/feeds.json"
     redis_url: str = ""
 
     # Encrypts tokens at rest. Generate with:
@@ -41,6 +43,8 @@ class Settings(BaseSettings):
     # --- App ----------------------------------------------------------------
     # Signs the OAuth `state` parameter so callbacks can't be forged.
     session_secret: str = "dev-only-change-me"
+    # Shared secret for POST /internal/sync. Empty disables scheduled sync.
+    sync_token: str = ""
     # Origins allowed to call this API (the Fantasy Bible page).
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"

@@ -65,3 +65,19 @@ def test_unconfigured_token_store_returns_503_not_500(monkeypatch):
 
     assert exc.value.status_code == 503
     assert "TOKEN_ENCRYPTION_KEY" in exc.value.detail
+
+
+def test_sync_requires_a_token():
+    """SYNC_TOKEN is unset in tests, so scheduled sync must report itself
+    disabled rather than quietly polling five publishers."""
+    response = client.post("/internal/sync")
+    assert response.status_code == 503
+    assert "SYNC_TOKEN" in response.json()["detail"]
+
+
+def test_feeds_endpoint_is_readable_when_empty():
+    response = client.get("/api/feeds")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"] == []
+    assert body["total"] == 0

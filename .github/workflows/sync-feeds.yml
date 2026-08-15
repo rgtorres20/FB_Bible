@@ -1,0 +1,60 @@
+name: Sync feeds
+
+# Vercel's Hobby plan caps its own cron at once per day, which is useless for
+# injury news. GitHub Actions schedules run every 5 minutes minimum and are
+# free on public repos, so the scheduler lives here and the work happens on
+# the deployment.
+#
+# Two caveats, both documented in docs/HOSTING.md:
+#  - Timing is best effort. GitHub delays or drops scheduled runs under load,
+#    worst around the top of each hour.
+#  - On a public repo, scheduled workflows are disabled automatically after
+#    60 days with no repository activity.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: # lets you force a sync from the Actions tab
+
+concurrency:
+  group: sync-feeds
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync
+        env:
+          BASE_URL: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN secret is not set. Add it under Settings > Secrets > Actions."
+            exit 1
+          fi
+
+          # -sS keeps curl quiet but still prints errors; the token goes in a
+          # header, never the URL, so it stays out of logs and referrers.
+          body=$(curl -sS -X POST "$BASE_URL/internal/sync" \
+            -H "X-Sync-Token: $SYNC_TOKEN" \
+            -w "\n%{http_code}" --max-time 120)
+
+          status=$(echo "$body" | tail -1)
+          payload=$(echo "$body" | sed '$d')
+
+          echo "HTTP $status"
+          echo "$payload"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Sync failed with HTTP $status"
+            exit 1
+          fi
+
+          # Surface a failed publisher without failing the whole run -- four
+          # of five sources updating is still a good sync.
+          if echo "$payload" | grep -q '"sources_failed":\[\]'; then
+            echo "All sources OK"
+          else
+            echo "::warning::One or more sources failed — see sources_failed above"
+          fi

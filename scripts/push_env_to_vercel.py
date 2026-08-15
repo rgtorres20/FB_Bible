@@ -34,6 +34,7 @@ REQUIRED = [
 # simpler there), and the two no longer have to agree.
 FORCED = {"TOKEN_STORE": "redis"}
 OPTIONAL = [
+    "SYNC_TOKEN",
     "YAHOO_CLIENT_ID",
     "YAHOO_CLIENT_SECRET",
     "YAHOO_REDIRECT_URI",

@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routes import auth, league
+from .routes import auth, feeds, league
 
 settings = get_settings()
 logging.basicConfig(
@@ -40,6 +40,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(league.router)
+app.include_router(feeds.router)
 
 
 @app.get("/health", tags=["meta"], summary="Liveness plus configuration state")
