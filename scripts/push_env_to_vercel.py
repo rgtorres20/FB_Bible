@@ -13,6 +13,7 @@ Add --dry-run to see exactly what it would do without touching Vercel.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -55,12 +56,36 @@ def read_env(path: Path) -> dict[str, str]:
     return values
 
 
+def _runnable(path: str) -> list[str]:
+    """Wrap a resolved executable so subprocess can actually start it.
+
+    On Windows `npx` is `npx.CMD`, a batch file. CreateProcess cannot run
+    those, so a bare "npx" -- or even the full .CMD path -- fails with
+    WinError 2. Batch files need cmd.exe.
+    """
+    if os.name == "nt" and path.lower().endswith((".cmd", ".bat")):
+        return ["cmd", "/c", path]
+    return [path]
+
+
 def vercel_cmd() -> list[str]:
-    if shutil.which("vercel"):
-        return ["vercel"]
-    if shutil.which("npx"):
-        return ["npx", "--yes", "vercel"]
+    # Use the resolved path, not the bare name: PATH lookup rules differ
+    # between the shell and CreateProcess.
+    direct = shutil.which("vercel")
+    if direct:
+        return _runnable(direct)
+    npx = shutil.which("npx")
+    if npx:
+        return [*_runnable(npx), "--yes", "vercel"]
     sys.exit("Neither `vercel` nor `npx` is on PATH. Install Node, then: npx vercel login")
+
+
+def check_logged_in(base: list[str]) -> bool:
+    """Fail early and clearly rather than once per variable."""
+    result = subprocess.run(
+        [*base, "whoami"], capture_output=True, text=True, cwd=REPO_ROOT, timeout=120
+    )
+    return result.returncode == 0
 
 
 def set_var(base: list[str], name: str, value: str, dry_run: bool) -> bool:
@@ -134,6 +159,16 @@ def main() -> int:
         return 1
 
     base = vercel_cmd()
+
+    # Check once, up front. Otherwise every variable fails separately and the
+    # real cause -- not signed in -- is buried under eight identical errors.
+    if not args.dry_run and not check_logged_in(base):
+        print("Not signed in to Vercel, or this folder is not linked to the project.")
+        print("Run these two once, then re-run this script:")
+        print("  npx vercel login")
+        print("  npx vercel link      # choose the fb-bible project")
+        return 1
+
     print(f"Pushing to Vercel production via: {' '.join(base)}\n")
 
     ok = True
