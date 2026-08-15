@@ -12,18 +12,24 @@ hammer them.
 from __future__ import annotations
 
 import hmac
+import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from ..config import Settings, get_settings
-from ..feeds import build_feed_store, players, poller
+from ..feeds import build_feed_store, players, poller, render
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["feeds"])
+
+# The committed feeds.json the page ships with. Live wire items are overlaid
+# onto it; everything else in the file is served as-is.
+BUNDLED_FEEDS = Path(__file__).resolve().parent.parent.parent / "frontend" / "data" / "feeds.json"
 
 
 def get_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore:
@@ -31,6 +37,31 @@ def get_feed_store(settings: Settings = Depends(get_settings)) -> FeedStore:
         return build_feed_store(settings)
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=f"Feed store not configured: {exc}") from exc
+
+
+@router.get("/app/data/feeds.json", include_in_schema=False)
+async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
+    """Serve the page's own data file, with live news overlaid.
+
+    Declared before the /app static mount so this wins over the file on disk.
+    The page fetches this path at startup already -- so pointing it at live
+    data needs no change to index.html, and no fork from the design project.
+
+    Every failure path falls back to the committed file: a blank news tab
+    would be worse than a slightly stale one.
+    """
+    try:
+        bundled = json.loads(BUNDLED_FEEDS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        bundled = {}
+
+    try:
+        stored = await store.load()
+    except Exception as exc:  # noqa: BLE001 - never take the app down for this
+        log.warning("feed store unavailable, serving bundled feeds: %s", exc)
+        return bundled
+
+    return render.merge_into_feeds(bundled, stored.get("items", []), datetime.now(UTC))
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")
