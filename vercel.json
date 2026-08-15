@@ -1,15 +1,19 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "// includeFiles": "Without this, only the entrypoint is bundled and `import app` fails at invocation with FUNCTION_INVOCATION_FAILED.",
+        "includeFiles": "app/**"
+      }
     }
   ],
-  "rewrites": [
+  "// routes": "Must be `routes`, not `rewrites`: when a `builds` key is present Vercel uses legacy routing and silently ignores `rewrites`, 404ing every path.",
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index"
+      "src": "/(.*)",
+      "dest": "api/index.py"
     }
   ]
 }
