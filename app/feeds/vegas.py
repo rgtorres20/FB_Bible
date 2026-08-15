@@ -29,8 +29,22 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
     """Current scoreboard with odds, reduced to the page's table shape."""
     own_client = client is None
     if own_client:
+        # ESPN's site API 403s requests from datacenter IPs unless they look
+        # like a browser (verified live from Vercel on 2026-08-15; the same
+        # request with a tool UA works from residential IPs). Standard
+        # browser headers are the documented-by-practice way every scoreboard
+        # widget calls this public endpoint.
         client = httpx.AsyncClient(
-            timeout=30.0, headers={"User-Agent": "FBBible/1.0 (draft prep, hourly)"}
+            timeout=30.0,
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://www.espn.com/",
+            },
         )
     try:
         response = await client.get(URL)
