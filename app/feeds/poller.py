@@ -61,11 +61,22 @@ def merge(existing: dict, fresh: list[dict], now: datetime) -> dict:
     """Combine stored and newly-fetched items. Pure, so it is testable."""
     by_id = {item["id"]: item for item in existing.get("items", [])}
 
+    stamp = now.isoformat()
     new_ids = []
     for item in fresh:
-        if item["id"] not in by_id:
+        prior = by_id.get(item["id"])
+        if prior is None:
             new_ids.append(item["id"])
         # Overwrite regardless: publishers do edit headlines after posting.
+        # first_seen survives the overwrite -- it records when the story first
+        # reached this feed, which is what "new since last visit" needs, and
+        # an edit is not a new story. Items stored before this field existed
+        # stay unstamped: unknown arrival is not the same as arrived-just-now.
+        item = dict(item)
+        if prior is None:
+            item["first_seen"] = stamp
+        elif "first_seen" in prior:
+            item["first_seen"] = prior["first_seen"]
         by_id[item["id"]] = item
 
     cutoff = (now - timedelta(days=MAX_AGE_DAYS)).isoformat()

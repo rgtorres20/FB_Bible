@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, cheatsheet, players, poller, render
+from ..feeds import adp, build_feed_store, cheatsheet, injury, players, poller, render
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         adp_data=stored.get("adp"),
         index=index,
         verdicts=stored.get("verdicts"),
+        injury_names=injury.watched_names(),
     )
 
 

@@ -273,3 +273,38 @@ async def test_rotoworld_fetch_parses_the_real_page_shape():
     ) as client_:
         items = await rotoworld.fetch(client_)
     assert items and items[0]["source_key"] == "rotoworld_pn"
+
+
+# --- first_seen: what "new since last visit" is built on -------------------
+
+
+def test_merge_stamps_first_seen_on_new_items():
+    result = poller.merge({}, [item("a")], NOW)
+    assert result["items"][0]["first_seen"] == NOW.isoformat()
+
+
+def test_merge_preserves_first_seen_when_a_headline_is_edited():
+    """Publishers edit posted stories; an edit is not a new arrival."""
+    earlier = NOW - timedelta(hours=5)
+    first = poller.merge({}, [item("a")], earlier)
+
+    edited = {**item("a"), "title": "edited headline"}
+    second = poller.merge({"items": first["items"]}, [edited], NOW)
+
+    got = second["items"][0]
+    assert got["title"] == "edited headline"
+    assert got["first_seen"] == earlier.isoformat()
+
+
+def test_merge_leaves_pre_feature_items_unstamped():
+    """Items stored before the field existed have an unknown arrival time.
+    Stamping them now would badge three-day-old stories as new."""
+    stored = {"items": [item("a")]}
+    result = poller.merge(stored, [item("a")], NOW)
+    assert "first_seen" not in result["items"][0]
+
+
+def test_merge_does_not_mutate_the_fresh_input():
+    fresh = item("a")
+    poller.merge({}, [fresh], NOW)
+    assert "first_seen" not in fresh

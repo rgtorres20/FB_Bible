@@ -26,3 +26,7 @@ venv/
 # Export archives: their contents belong in the tree, the archive does not.
 # One was committed into frontend/ and served publicly at /app/.
 *.zip
+
+# Test coverage artifacts
+.coverage
+htmlcov/

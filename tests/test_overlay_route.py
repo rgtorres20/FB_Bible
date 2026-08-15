@@ -91,6 +91,9 @@ async def test_overlay_serves_live_wire_on_top_of_bundled(client):
     assert stamped["News & posts"].startswith("2026-")
     # Everything the wire cannot know survives from the committed file.
     assert body["alerts"] == BUNDLED["alerts"]
+    # Nacua is on the page's Out & returning tab, so his wire mention becomes
+    # that row's timestamp (rendered by mobile.js).
+    assert body["injury_wire"]["Puka Nacua"]["head"].startswith("Puka Nacua carted off")
 
 
 async def test_overlay_falls_back_to_bundled_when_store_is_down(client):

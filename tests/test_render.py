@@ -255,3 +255,48 @@ def test_nbc_meta_stamp_updates_alongside_news(  # noqa: D103
     merged = render.merge_into_feeds(bundled, [ITEM], NOW)
     assert merged["meta"][0]["asOf"] == "2026-08-15T01:00"
     assert "live wire" in merged["meta"][0]["source"]
+
+
+def test_news_entry_carries_first_seen_for_the_new_badge():
+    entry = render.to_news_entry({**ITEM, "first_seen": "2026-08-15T05:00:00+00:00"})
+    assert entry["first_seen"] == "2026-08-15T05:00:00+00:00"
+    assert render.to_news_entry(ITEM)["first_seen"] == ""
+
+
+def test_merge_orders_news_by_decayed_impact_not_raw_time():
+    """A two-day-old ACL still matters more to a draft board than this
+    morning's routine note. Chronological order buried it."""
+    severe_old = {
+        **ITEM,
+        "title": "Torn ACL ends the year for the starting back",
+        "summary": "",
+        "published": "2026-08-13T06:00:00+00:00",
+        "players": [{"id": "p1", "name": "Player One", "position": "RB", "team": "DAL"}],
+    }
+    routine_fresh = {
+        **ITEM,
+        "title": "Backup lineman moved around during drills",
+        "summary": "",
+        "published": "2026-08-15T05:00:00+00:00",
+        "players": [{"id": "p2", "name": "Player Two", "position": "G", "team": "NYJ"}],
+    }
+    merged = render.merge_into_feeds(BUNDLED, [routine_fresh, severe_old], NOW)
+
+    wire = [n["text"] for n in merged["news"] if n.get("kind") == "Wire" and n.get("link")]
+    assert wire[0].startswith("Torn ACL")
+
+
+def test_merge_attaches_wire_stamps_for_watched_injury_names():
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("Puka Nacua",))
+
+    stamp = merged["injury_wire"]["Puka Nacua"]
+    assert stamp["time"] == "Fri Aug 14 · 11:00 AM"
+    assert stamp["head"].startswith("Nacua expected back")
+    assert stamp["link"] == ITEM["link"]
+    assert stamp["source"] == "ESPN NFL"
+
+
+def test_merge_omits_injury_wire_when_nothing_matches():
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("George Kittle",))
+    assert "injury_wire" not in merged
+    assert "injury_wire" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)

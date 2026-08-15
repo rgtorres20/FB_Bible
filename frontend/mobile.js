@@ -89,3 +89,125 @@
 
   init();
 })();
+
+/* Live-overlay decorations, same no-fork rule as the drawer above.
+ *
+ * The served data/feeds.json carries two things the page's template does not
+ * render: `first_seen` on each news entry, and `injury_wire` -- the freshest
+ * wire mention per player on the Out & returning tab. This paints both onto
+ * the rendered rows:
+ *
+ *   news rows    a NEW badge on stories that arrived since the last visit
+ *   injury rows  "Wire · Fri Aug 15 · 9:40 AM · ESPN — headline" (linked),
+ *                or an honest "no wire mention" when the feed has none
+ *
+ * The page re-renders whole screens on navigation, so decoration re-applies
+ * via a MutationObserver and must stay idempotent -- inserted nodes carry
+ * marker classes and rows are skipped once stamped.
+ */
+(function () {
+  var data = null;
+  var prevVisit = '';
+
+  /* A "visit" survives reloads for 30 minutes: refreshing mid-read must not
+   * wipe the badges that brought you to the tab. */
+  try {
+    var visit = JSON.parse(localStorage.getItem('fb_visit') || '{}');
+    var now = Date.now();
+    if (!visit.cur || now - Date.parse(visit.cur) > 30 * 60 * 1000) {
+      visit.prev = visit.cur || '';
+      visit.cur = new Date(now).toISOString();
+      localStorage.setItem('fb_visit', JSON.stringify(visit));
+    }
+    prevVisit = visit.prev || '';
+  } catch (e) {}
+
+  var pending = false;
+  function schedule() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; decorate(); });
+  }
+
+  fetch('data/feeds.json')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (f) { if (f) { data = f; schedule(); } })
+    .catch(function () {});
+
+  function newTexts() {
+    /* First-ever visit: everything would be "new", which marks nothing. */
+    var map = {};
+    if (!prevVisit) return map;
+    (data.news || []).forEach(function (n) {
+      if (n.first_seen && n.first_seen > prevVisit) map[n.text] = true;
+    });
+    return map;
+  }
+
+  function badgeNews() {
+    var fresh = newTexts();
+    /* The news body div is the only 72ch element; exact text match keeps
+     * accidental style twins harmless. */
+    var bodies = document.querySelectorAll('div[style*="72ch"]');
+    for (var i = 0; i < bodies.length; i++) {
+      var el = bodies[i];
+      if (!fresh[el.textContent] || el.querySelector('.fb-new-badge')) continue;
+      var badge = document.createElement('span');
+      badge.className = 'fb-new-badge';
+      badge.textContent = 'NEW';
+      el.insertBefore(badge, el.firstChild);
+    }
+  }
+
+  function stampInjury() {
+    var wire = data.injury_wire || {};
+    /* Scope to the injury tab via its section header, so a player's name on
+     * some other screen never grows a wire stamp. */
+    var root = null;
+    var headers = document.querySelectorAll('div[style*="0.14em"]');
+    for (var i = 0; i < headers.length; i++) {
+      if (headers[i].textContent === 'Out for season / PUP') {
+        root = headers[i].closest('div[style*="grid-template-columns"]');
+        break;
+      }
+    }
+    if (!root) return;
+
+    var names = root.querySelectorAll('span[style*="-0.02em"]');
+    for (var j = 0; j < names.length; j++) {
+      var row = names[j].parentElement && names[j].parentElement.parentElement;
+      if (!row || row.querySelector('.fb-wire-stamp')) continue;
+      var info = wire[names[j].textContent.trim()];
+      var stamp = document.createElement('div');
+      stamp.className = 'fb-wire-stamp';
+      if (info) {
+        var text = 'Wire ' + (info.time ? '· ' + info.time + ' ' : '') +
+          (info.source ? '· ' + info.source + ' ' : '') + '— ' + info.head;
+        if (info.link) {
+          var a = document.createElement('a');
+          a.href = info.link;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = text;
+          stamp.appendChild(a);
+        } else {
+          stamp.textContent = text;
+        }
+      } else {
+        stamp.textContent = 'No wire mention in the last 21 days';
+      }
+      row.appendChild(stamp);
+    }
+  }
+
+  function decorate() {
+    if (!data) return;
+    badgeNews();
+    stampInjury();
+  }
+
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+})();

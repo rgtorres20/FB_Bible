@@ -93,8 +93,12 @@ def main() -> int:
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
-    check("mobile.css serves", b"min-height: 100vh" in get("/app/mobile.css"))
-    check("mobile.js serves", b"fb-menu-btn" in get("/app/mobile.js"))
+    mobile_css = get("/app/mobile.css")
+    check("mobile.css serves", b"min-height: 100vh" in mobile_css)
+    check("wire-stamp styles serve", b"fb-wire-stamp" in mobile_css)
+    mobile_js = get("/app/mobile.js")
+    check("mobile.js serves", b"fb-menu-btn" in mobile_js)
+    check("overlay decorator serves", b"fb-new-badge" in mobile_js and b"injury_wire" in mobile_js)
 
     # --- verdict -----------------------------------------------------------
     print(f"\n{len(passes)} passed, {len(failures)} failed")
