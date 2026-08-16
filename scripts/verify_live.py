@@ -11,6 +11,7 @@ stdlib only: the job should never fail because of its own dependencies.
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
@@ -87,7 +88,7 @@ def main() -> int:
     check("Data health stamp updates", news_as_of[:10] >= lagged, news_as_of)
 
     # Reported, not asserted. Verdicts are best-effort: the job exits 0 on a
-    # rate limit or model failure, so a zero hour is legitimate and failing
+    # rate limit or a missing key, so a zero hour is legitimate and failing
     # here would cry wolf. But a permanent break used to be invisible -- and
     # a sync bug silently deleted every verdict for a day before anyone
     # noticed -- so the count belongs in the log either way.
@@ -122,6 +123,19 @@ def main() -> int:
     check("Vegas lines are live", "Live via ESPN" in served)
     check("TD leans track live lines", "confidence adjusted" in served)
     check("Week 1 schedule is live", "live kickoff times" in served)
+    # The draft board's ADP column: real numbers, and no consumer left
+    # reading the old derived round.pick string.
+    check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
+    check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
+    # A player listed twice appears twice mid-draft, and marking one row
+    # taken leaves the other looking available.
+    rows = re.search(r"const RAW_BOARD = \[(.*?)\n\];", served, re.S)
+    board_names = re.findall(r'^\s*\[\d+,"([^"]+)"', rows.group(1), re.M) if rows else []
+    check(
+        "board has no duplicate players",
+        bool(board_names) and len(board_names) == len(set(board_names)),
+        f"{len(board_names)} rows, {len(set(board_names))} distinct",
+    )
     # The draft board's ADP column: real numbers, and no consumer left
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)

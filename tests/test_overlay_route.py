@@ -9,6 +9,7 @@ committed file served untouched when anything at all goes wrong.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -251,3 +252,18 @@ async def test_served_page_keeps_the_committed_board_without_live_adp(page_clien
     served = c.get("/app/").text
     assert 'adp: round + "." + String(pick).padStart(2, "0")' in served
     assert "FB_LIVE_ADP" not in served
+
+
+async def test_served_page_carries_no_duplicate_board_rows(page_client):
+    """Jayden Reed was on the board twice, so he appeared twice mid-draft
+    and marking one row taken left the other looking available."""
+    c, _ = page_client
+
+    served = c.get("/app/").text
+
+    block = re.search(r"const RAW_BOARD = \[(.*?)\n\];", served, re.S).group(1)
+    names = re.findall(r'^\s*\[\d+,"([^"]+)"', block, re.M)
+    assert names, "board rows not found in the served page"
+    assert len(names) == len(set(names))
+    assert '[7,"Jayden Reed","WR · GB","WR32"' in served
+    assert '[11,"Jayden Reed"' not in served

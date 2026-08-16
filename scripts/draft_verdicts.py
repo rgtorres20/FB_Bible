@@ -1,17 +1,23 @@
 """Draft one-line verdicts for the newest wire items, for free.
 
-STATUS: dormant until a provider key exists. GitHub Models was retired on
-2026-07-30 -- two weeks before this script was written -- so every request
-to models.github.ai returns HTTP 410 Gone. The job never produced a
-verdict, and because a failed model call exits 0 the workflow reported
-green the whole time (now it emits ::warning:: annotations instead). The
-schedule is off; manual dispatch remains for testing.
+PROVIDER: **Google AI Studio** (owner's call, Aug 15) -- free tier, no
+card, through its OpenAI-compatible endpoint, so this stays plain
+chat-completions. gemini-2.5-flash allows a few hundred requests a day and
+this job makes one an hour. Any other OpenAI-compatible provider is a
+config change, not a code change: set VERDICT_API_URL / VERDICT_MODEL as
+repo variables (Groq's llama-3.3-70b-versatile is the documented
+alternative, paid Claude the quality upgrade).
 
-Reviving it is configuration, not code: the provider is pluggable via env
--- set AI_API_KEY as a repo secret and VERDICT_API_URL / VERDICT_MODEL as
-repo variables (Groq or Google AI Studio free tiers, or paid Claude; see
-MODELS_URL below), then re-enable the cron in verdicts.yml. One batched
-request an hour fits every free tier involved.
+**Needs one secret: `AI_API_KEY`** (aistudio.google.com -> Get API key).
+Until it exists the job no-ops with a warning rather than failing, which
+is why the hourly schedule is on already -- verdicts start on the next run
+after the key lands, with no code change and no redeploy.
+
+History worth keeping: this originally ran on GitHub Models, retired
+2026-07-30, two weeks before the script was written. Every run returned
+HTTP 410 Gone while reporting success, so the feature shipped having never
+once produced a verdict. Hence the rule below that a permanent rejection
+must look different from a busy one.
 
 The output is deliberately modest: a factual one-liner per item, posted to
 the app's /internal/verdicts endpoint where it renders prefixed "AI draft:"
@@ -31,21 +37,15 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
-# GitHub Models entered a "scheduled retirement brownout" (HTTP 410, verified
-# 2026-08-15), so the provider is pluggable: any OpenAI-compatible
-# chat/completions endpoint works. Free-tier options that fit the hourly
-# volume: Groq (https://api.groq.com/openai/v1/chat/completions,
-# llama-3.3-70b-versatile) or Google AI Studio
-# (https://generativelanguage.googleapis.com/v1beta/openai/chat/completions,
-# gemini-2.0-flash). Set VERDICT_API_URL + VERDICT_MODEL as repo variables
-# and AI_API_KEY as a repo secret; with none set, it still tries GitHub
-# Models in case the brownout lifts.
+# Defaults are the chosen provider, so a working setup needs the secret and
+# nothing else. Overriding both vars moves to any other OpenAI-compatible
+# endpoint -- e.g. Groq at https://api.groq.com/openai/v1/chat/completions
+# with llama-3.3-70b-versatile.
 # `or` rather than a get() default: unset workflow vars arrive as empty
 # strings, which must not silently blank the URL.
-MODELS_URL = (
-    os.environ.get("VERDICT_API_URL") or "https://models.github.ai/inference/chat/completions"
-)
-MODEL = os.environ.get("VERDICT_MODEL") or "openai/gpt-4o-mini"
+GOOGLE_AI_STUDIO = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
+MODEL = os.environ.get("VERDICT_MODEL") or "gemini-2.5-flash"
 MAX_ITEMS = 18
 
 SYSTEM_PROMPT = (
@@ -116,11 +116,20 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
 
 
 def main() -> int:
-    api_key = os.environ.get("AI_API_KEY") or os.environ.get("GITHUB_TOKEN", "")
+    # Either name works, so whichever the owner creates the secret under
+    # takes effect. GITHUB_TOKEN is gone: that provider is retired.
+    api_key = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
     sync_token = os.environ.get("SYNC_TOKEN", "")
-    if not api_key or not sync_token:
-        print("::warning::verdicts: need an API key (AI_API_KEY or GITHUB_TOKEN) + SYNC_TOKEN")
+    if not sync_token:
+        print("::error::verdicts: SYNC_TOKEN is required")
         return 2
+    if not api_key:
+        # Checked before any fetch, so a keyless run costs nothing. A warning
+        # rather than a failure: the schedule stays on and starts producing
+        # the hour the secret is added.
+        print("::warning::verdicts: AI_API_KEY is not set -- nothing drafted this run.")
+        print("Create a key at aistudio.google.com -> Get API key, add it as a repo secret.")
+        return 0
 
     items = newest_items()
     if not items:
@@ -131,12 +140,12 @@ def main() -> int:
     try:
         verdicts = draft(items, api_key)
     except urllib.error.HTTPError as exc:
-        # 410/404 means the endpoint is gone for good, not busy. That is
-        # what hid this for a day: a permanent failure looked exactly like
-        # a rate limit, and both exited 0 under a green check.
-        if exc.code in (404, 410):
-            print(f"::error::Model endpoint is permanently gone (HTTP {exc.code}) at {MODELS_URL}.")
-            print("Pick a provider: AI_API_KEY secret + VERDICT_API_URL/VERDICT_MODEL vars.")
+        # A dead endpoint or a rejected key must not look like a busy one.
+        # That is exactly what hid the GitHub Models retirement for a day:
+        # permanent and transient failures both exited 0 under a green check.
+        if exc.code in (400, 401, 403, 404, 410):
+            print(f"::error::Model call rejected permanently (HTTP {exc.code}) at {MODELS_URL}.")
+            print("Check AI_API_KEY and VERDICT_MODEL -- see docs/STALE_DATA.md.")
             return 1
         print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
         return 0
