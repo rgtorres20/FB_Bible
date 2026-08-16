@@ -132,8 +132,9 @@ should work first time.
 six sources not FAILED, overlays served, mobile injected, FFBets predict
 mode, Vegas/TD-lean/schedule/draft-board surfaces still live, decorator assets still
 serving). A failure emails the repo owner. Run it on demand from the
-Actions tab. Last full green: Aug 15 22:30 CDT against `0cd30b1` — 37/37,
-including the live draft board and its no-duplicate-players guard.
+Actions tab. Last full green: Aug 15 22:30 CDT against `0cd30b1`, all
+passing — including the live draft board and its no-duplicate-players
+guard, which reported `204 rows, 204 distinct`.
 
 Known watchdog weakness (see GAP_REVIEW): a single transient publisher
 error flips a source to FAILED and fails the whole run, while the sync
