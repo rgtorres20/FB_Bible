@@ -112,16 +112,16 @@ should work first time.
      on the next hourly run; no code change, no redeploy. The watchdog
      logs `AI-drafted verdicts on the news tab: N` every 2 hours, so you
      can confirm it took.
-3. **AI layer, free ("make it better but free")**: user asked for a
-   zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
-   authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
-   sync-feeds Action, no card, no new secret. Rate limits are tight but an
-   hourly job drafting ~10 verdict lines fits. The job would POST drafted
-   verdicts to a new `/internal/verdicts` endpoint (same X-Sync-Token
-   pattern), stored in Redis and overlaid on Alerts' lean/verdict columns
-   prefixed "AI draft:". Fallbacks if quality disappoints: Groq or Google
-   AI Studio free tiers (need one extra key each, still $0). The paid
-   Claude/Haiku route stays documented as the quality upgrade path.
+3. **AI layer, free ("make it better but free")**: SETTLED — see the AI
+   verdicts entry above. The original GitHub Models plan is dead (retired
+   upstream); the route is **Google AI Studio**, free tier, one key. The
+   plumbing it describes is all built and unchanged: the job drafts
+   one-liners for the newest tagged items, POSTs them to
+   `/internal/verdicts` behind the same X-Sync-Token, they are stored in
+   Redis keyed by wire-item id (ids we do not hold are rejected, so a
+   hallucinated id dies at the door), and the page renders them prefixed
+   "AI draft:" so they never read as your judgement. Paid Claude remains
+   the quality upgrade path — two constants.
 4. **Yahoo access application**: ready to paste from
    `docs/YAHOO_APPLICATION.md`. Submitting starts their review clock.
 
