@@ -108,7 +108,8 @@ should work first time.
      against a few-hundred-a-day limit. The hourly schedule is back on and
      no-ops with a warning until the key exists.
      **YOUR STEP:** create a key at <https://aistudio.google.com> → Get
-     API key, add it as the `GEMINI_API_KEY` repo secret. Verdicts start
+     API key, add it as the `AI_API_KEY` repo secret (`GEMINI_API_KEY`
+     is accepted too, so either name works). Verdicts start
      on the next hourly run; no code change, no redeploy. The watchdog
      logs `AI-drafted verdicts on the news tab: N` every 2 hours, so you
      can confirm it took.

@@ -87,14 +87,30 @@ def main() -> int:
     lagged = f"{datetime.now(UTC) - timedelta(hours=30):%Y-%m-%d}"
     check("Data health stamp updates", news_as_of[:10] >= lagged, news_as_of)
 
-    # Reported, not asserted. Verdicts are best-effort: the model job exits
-    # 0 on a rate limit or a missing key, so a zero hour is legitimate and
-    # failing here would cry wolf. But a permanent break used to be
-    # invisible -- a retired provider returned 410 under a green check for a
-    # day -- so the count belongs in the log either way. Expect 0 until
-    # GEMINI_API_KEY is set.
+    # Reported, not asserted. Verdicts are best-effort: the job exits 0 on a
+    # rate limit or a missing key, so a zero hour is legitimate and failing
+    # here would cry wolf. But a permanent break used to be invisible -- and
+    # a sync bug silently deleted every verdict for a day before anyone
+    # noticed -- so the count belongs in the log either way.
     drafted = sum(1 for e in page_data.get("news", []) if str(e.get("impact", "")).startswith("AI"))
     print(f"  INFO  AI-drafted verdicts on the news tab: {drafted}")
+
+    # --- live draft-prep surfaces (Aug 15) ---------------------------------
+    scout = page_data.get("scout", [])
+    check(
+        "Scout finds are live-generated",
+        bool(scout)
+        and any("FFC" in e.get("src", "") or "Sleeper rank" in e.get("src", "") for e in scout),
+        f"{len(scout)} cards",
+    )
+    vegas_rows = page_data.get("vegas", [])
+    check("Vegas slate present", len(vegas_rows) >= 8, f"{len(vegas_rows)} games")
+    check(
+        "Vegas slate marked live in Data health",
+        "live" in meta.get("Vegas lines", {}).get("source", ""),
+    )
+    cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
+    check("cheat sheet serves the live board", "rushing league" in cheat and "Blend" in cheat)
 
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
@@ -120,6 +136,10 @@ def main() -> int:
         bool(board_names) and len(board_names) == len(set(board_names)),
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
+    # The draft board's ADP column: real numbers, and no consumer left
+    # reading the old derived round.pick string.
+    check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
+    check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
     mobile_css = get("/app/mobile.css")

@@ -1,21 +1,23 @@
 """Draft one-line verdicts for the newest wire items, for free.
 
-Runs inside GitHub Actions on a schedule. The provider is **Google AI
-Studio** (owner's call, Aug 15), through its OpenAI-compatible endpoint --
-so this stays plain chat-completions and could move again by changing two
-constants. Free tier, no card: gemini-2.5-flash allows a few hundred
-requests a day and this job makes one an hour.
+PROVIDER: **Google AI Studio** (owner's call, Aug 15) -- free tier, no
+card, through its OpenAI-compatible endpoint, so this stays plain
+chat-completions. gemini-2.5-flash allows a few hundred requests a day and
+this job makes one an hour. Any other OpenAI-compatible provider is a
+config change, not a code change: set VERDICT_API_URL / VERDICT_MODEL as
+repo variables (Groq's llama-3.3-70b-versatile is the documented
+alternative, paid Claude the quality upgrade).
 
-History worth keeping: this originally ran on GitHub Models, which was
-retired 2026-07-30 -- two weeks before the script was written. Every run
-returned HTTP 410 Gone while reporting success, so the feature shipped
-having never once produced a verdict. Hence the rule below that a
-permanent failure must look different from a busy one.
+**Needs one secret: `AI_API_KEY`** (aistudio.google.com -> Get API key).
+Until it exists the job no-ops with a warning rather than failing, which
+is why the hourly schedule is on already -- verdicts start on the next run
+after the key lands, with no code change and no redeploy.
 
-**Needs `GEMINI_API_KEY`** as a repository secret (aistudio.google.com ->
-Get API key). Until it exists the job no-ops with a warning rather than
-failing, so the schedule can be on and the feature starts working the
-moment the key lands.
+History worth keeping: this originally ran on GitHub Models, retired
+2026-07-30, two weeks before the script was written. Every run returned
+HTTP 410 Gone while reporting success, so the feature shipped having never
+once produced a verdict. Hence the rule below that a permanent rejection
+must look different from a busy one.
 
 The output is deliberately modest: a factual one-liner per item, posted to
 the app's /internal/verdicts endpoint where it renders prefixed "AI draft:"
@@ -35,13 +37,15 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
-# Google AI Studio's OpenAI-compatible surface, so the request below stays
-# ordinary chat-completions and the provider is two constants deep.
-MODELS_URL = os.environ.get(
-    "VERDICT_URL", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-)
-# Small, fast, free-tier friendly. Swap via env if quality disappoints.
-MODEL = os.environ.get("VERDICT_MODEL", "gemini-2.5-flash")
+# Defaults are the chosen provider, so a working setup needs the secret and
+# nothing else. Overriding both vars moves to any other OpenAI-compatible
+# endpoint -- e.g. Groq at https://api.groq.com/openai/v1/chat/completions
+# with llama-3.3-70b-versatile.
+# `or` rather than a get() default: unset workflow vars arrive as empty
+# strings, which must not silently blank the URL.
+GOOGLE_AI_STUDIO = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
+MODEL = os.environ.get("VERDICT_MODEL") or "gemini-2.5-flash"
 MAX_ITEMS = 18
 
 SYSTEM_PROMPT = (
@@ -112,17 +116,19 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
 
 
 def main() -> int:
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    # Either name works, so whichever the owner creates the secret under
+    # takes effect. GITHUB_TOKEN is gone: that provider is retired.
+    api_key = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
     sync_token = os.environ.get("SYNC_TOKEN", "")
     if not sync_token:
-        print("SYNC_TOKEN is required")
+        print("::error::verdicts: SYNC_TOKEN is required")
         return 2
     if not api_key:
-        # Checked before any fetch so a keyless run costs nothing. Warn
-        # rather than fail: the schedule stays on and starts producing the
-        # hour the secret is added, with no code change.
-        print("::warning::GEMINI_API_KEY is not set -- no verdicts drafted this run.")
-        print("Add it at aistudio.google.com -> Get API key, then store it as a repo secret.")
+        # Checked before any fetch, so a keyless run costs nothing. A warning
+        # rather than a failure: the schedule stays on and starts producing
+        # the hour the secret is added.
+        print("::warning::verdicts: AI_API_KEY is not set -- nothing drafted this run.")
+        print("Create a key at aistudio.google.com -> Get API key, add it as a repo secret.")
         return 0
 
     items = newest_items()
@@ -139,7 +145,7 @@ def main() -> int:
         # permanent and transient failures both exited 0 under a green check.
         if exc.code in (400, 401, 403, 404, 410):
             print(f"::error::Model call rejected permanently (HTTP {exc.code}) at {MODELS_URL}.")
-            print("Check GEMINI_API_KEY and the model name -- see docs/STALE_DATA.md.")
+            print("Check AI_API_KEY and VERDICT_MODEL -- see docs/STALE_DATA.md.")
             return 1
         print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
         return 0
@@ -150,7 +156,7 @@ def main() -> int:
         return 0
 
     if not verdicts:
-        print("model returned no usable verdicts")
+        print("::warning::verdicts: model returned no usable verdicts")
         return 0
 
     result = http_json(

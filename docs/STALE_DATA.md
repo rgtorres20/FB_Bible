@@ -45,8 +45,9 @@ requests a day; this job makes one an hour.
 
 **One step left, and it is the owner's:** create a key at
 <https://aistudio.google.com> → *Get API key*, and add it as the
-`GEMINI_API_KEY` repository secret (Settings → Secrets and variables →
-Actions). The hourly schedule is already on and no-ops with a warning
+`AI_API_KEY` repository secret — Settings → Secrets and variables →
+Actions. (`GEMINI_API_KEY` is accepted too, so either name works.)
+The hourly schedule is already on and no-ops with a warning
 until the key exists, so verdicts begin appearing on the next run after
 it is added — no code change, no redeploy. Until then this surface is
 honestly *not* live, and the news tab shows `Auto:` lines.

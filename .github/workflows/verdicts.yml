@@ -5,7 +5,8 @@ name: AI verdicts
 # Provider is Google AI Studio (owner's call, Aug 15) via its
 # OpenAI-compatible endpoint. Free tier, no card.
 #
-# NEEDS the GEMINI_API_KEY repository secret. Until it exists the job
+# NEEDS the AI_API_KEY repository secret (GEMINI_API_KEY also accepted).
+# Until it exists the job
 # no-ops with a warning instead of failing, which is why the schedule can
 # be on already: the feature starts producing the hour the key lands, with
 # no code change and no red runs in the meantime.
@@ -37,5 +38,11 @@ jobs:
       - name: Draft and post verdicts
         run: python3 scripts/draft_verdicts.py
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # The one secret this needs. GEMINI_API_KEY is accepted too, so
+          # whichever name the key is stored under works.
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional: point at any other OpenAI-compatible provider.
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
