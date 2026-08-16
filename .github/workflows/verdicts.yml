@@ -37,3 +37,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # Free-tier provider override (GitHub Models is being retired):
+          # set AI_API_KEY as a repo secret and the two vars below to switch
+          # to Groq / Google AI Studio. See scripts/draft_verdicts.py.
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}

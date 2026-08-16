@@ -1,22 +1,17 @@
 """Draft one-line verdicts for the newest wire items, for free.
 
-STATUS: NOT WORKING, and not fixable here. GitHub Models was retired on
+STATUS: dormant until a provider key exists. GitHub Models was retired on
 2026-07-30 -- two weeks before this script was written -- so every request
-to models.github.ai returns HTTP 410 Gone. Verified live 2026-08-15: the
-job has never once produced a verdict, and because a failed model call
-exits 0 the workflow reported green the whole time. The schedule is off;
-reviving this needs a provider decision plus one new secret (Groq or
-Google AI Studio free tiers, or paid Claude). See docs/STALE_DATA.md.
+to models.github.ai returns HTTP 410 Gone. The job never produced a
+verdict, and because a failed model call exits 0 the workflow reported
+green the whole time (now it emits ::warning:: annotations instead). The
+schedule is off; manual dispatch remains for testing.
 
-Everything below still works as written against any OpenAI-compatible
-chat-completions endpoint -- point MODELS_URL and MODEL at one, supply its
-key as the bearer token, and the pipeline runs unchanged.
-
-Runs inside GitHub Actions on a schedule. The model was GitHub Models --
-inference that any GitHub account got at no cost, authenticated with the
-workflow's own GITHUB_TOKEN (`permissions: models: read`). No API key to
-buy, no card on file; the rate limits were tight but one batched request an
-hour was far inside them.
+Reviving it is configuration, not code: the provider is pluggable via env
+-- set AI_API_KEY as a repo secret and VERDICT_API_URL / VERDICT_MODEL as
+repo variables (Groq or Google AI Studio free tiers, or paid Claude; see
+MODELS_URL below), then re-enable the cron in verdicts.yml. One batched
+request an hour fits every free tier involved.
 
 The output is deliberately modest: a factual one-liner per item, posted to
 the app's /internal/verdicts endpoint where it renders prefixed "AI draft:"
@@ -36,9 +31,21 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
-MODELS_URL = "https://models.github.ai/inference/chat/completions"
-# Small, fast, free-tier friendly. Swap via env if quality disappoints.
-MODEL = os.environ.get("VERDICT_MODEL", "openai/gpt-4o-mini")
+# GitHub Models entered a "scheduled retirement brownout" (HTTP 410, verified
+# 2026-08-15), so the provider is pluggable: any OpenAI-compatible
+# chat/completions endpoint works. Free-tier options that fit the hourly
+# volume: Groq (https://api.groq.com/openai/v1/chat/completions,
+# llama-3.3-70b-versatile) or Google AI Studio
+# (https://generativelanguage.googleapis.com/v1beta/openai/chat/completions,
+# gemini-2.0-flash). Set VERDICT_API_URL + VERDICT_MODEL as repo variables
+# and AI_API_KEY as a repo secret; with none set, it still tries GitHub
+# Models in case the brownout lifts.
+# `or` rather than a get() default: unset workflow vars arrive as empty
+# strings, which must not silently blank the URL.
+MODELS_URL = (
+    os.environ.get("VERDICT_API_URL") or "https://models.github.ai/inference/chat/completions"
+)
+MODEL = os.environ.get("VERDICT_MODEL") or "openai/gpt-4o-mini"
 MAX_ITEMS = 18
 
 SYSTEM_PROMPT = (
@@ -68,7 +75,7 @@ def newest_items() -> list[dict]:
     return feed.get("items", [])
 
 
-def draft(items: list[dict], github_token: str) -> dict[str, str]:
+def draft(items: list[dict], api_key: str) -> dict[str, str]:
     lines = []
     for item in items:
         players = ", ".join(
@@ -96,7 +103,7 @@ def draft(items: list[dict], github_token: str) -> dict[str, str]:
                 {"role": "user", "content": "\n".join(lines)},
             ],
         },
-        headers={"Authorization": f"Bearer {github_token}"},
+        headers={"Authorization": f"Bearer {api_key}"},
     )
     content = response["choices"][0]["message"]["content"].strip()
     # Models love to wrap JSON in a code fence; strip it rather than fail.
@@ -109,10 +116,10 @@ def draft(items: list[dict], github_token: str) -> dict[str, str]:
 
 
 def main() -> int:
-    github_token = os.environ.get("GITHUB_TOKEN", "")
+    api_key = os.environ.get("AI_API_KEY") or os.environ.get("GITHUB_TOKEN", "")
     sync_token = os.environ.get("SYNC_TOKEN", "")
-    if not github_token or not sync_token:
-        print("GITHUB_TOKEN and SYNC_TOKEN are required")
+    if not api_key or not sync_token:
+        print("::warning::verdicts: need an API key (AI_API_KEY or GITHUB_TOKEN) + SYNC_TOKEN")
         return 2
 
     items = newest_items()
@@ -122,14 +129,14 @@ def main() -> int:
     print(f"drafting verdicts for {len(items)} items via {MODEL}")
 
     try:
-        verdicts = draft(items, github_token)
+        verdicts = draft(items, api_key)
     except urllib.error.HTTPError as exc:
         # 410/404 means the endpoint is gone for good, not busy. That is
         # what hid this for a day: a permanent failure looked exactly like
         # a rate limit, and both exited 0 under a green check.
         if exc.code in (404, 410):
             print(f"::error::Model endpoint is permanently gone (HTTP {exc.code}) at {MODELS_URL}.")
-            print("GitHub Models retired 2026-07-30. Pick a provider -- see docs/STALE_DATA.md.")
+            print("Pick a provider: AI_API_KEY secret + VERDICT_API_URL/VERDICT_MODEL vars.")
             return 1
         print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
         return 0
@@ -140,7 +147,7 @@ def main() -> int:
         return 0
 
     if not verdicts:
-        print("model returned no usable verdicts")
+        print("::warning::verdicts: model returned no usable verdicts")
         return 0
 
     result = http_json(

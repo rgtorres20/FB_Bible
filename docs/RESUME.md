@@ -95,21 +95,21 @@ should work first time.
    - *Week 1 schedule*: DONE (Aug 15 evening) — same payload, kickoff
      day/time in Central, teams and network; owner's per-game notes ride
      along by matchup.
-   - *AI verdicts*: **NOT WORKING, needs a decision from you.** Chased to
-     the bottom Aug 15 evening. verdicts.yml fires and reports success, but
-     reading its log shows every run ends `HTTP Error 410: Gone` —
-     **GitHub Models was retired 2026-07-30**, two weeks before this layer
-     was built. Not one verdict has ever been produced. Two bugs kept that
-     invisible and are both fixed: `/internal/sync` was deleting stored
-     verdicts on every run, and a permanent 410 was caught by the same
-     handler as a rate limit, both exiting 0 under a green check. The cron
-     is now off (an hourly job that can only 410 is waste); manual
-     dispatch stays for testing the fix.
-     **To revive it:** pick a provider and add one secret — Groq or Google
-     AI Studio (free tiers) or paid Claude. The pipeline is
-     provider-agnostic: point `MODELS_URL`/`MODEL` in
-     `scripts/draft_verdicts.py` at any OpenAI-compatible endpoint and
-     supply its key as the bearer token; everything downstream is unchanged.
+   - *AI verdicts*: **NOT WORKING, needs a 5-minute user action.** Chased
+     to the bottom Aug 15 evening. verdicts.yml reported success, but every
+     run ended `HTTP Error 410: Gone` — **GitHub Models was retired
+     2026-07-30**, two weeks before this layer was built. Not one verdict
+     has ever been produced. Two bugs kept that invisible and are both
+     fixed: `/internal/sync` was deleting stored verdicts on every run, and
+     a permanent 410 was caught by the same handler as a rate limit, both
+     exiting 0 under a green check. The cron is off; manual dispatch stays.
+     **To revive it for $0 (no code changes, env only):** create a free
+     Groq account (console.groq.com, no card), then in the repo set secret
+     AI_API_KEY = the Groq key, variable VERDICT_API_URL =
+     https://api.groq.com/openai/v1/chat/completions, variable
+     VERDICT_MODEL = llama-3.3-70b-versatile, and re-enable the cron in
+     verdicts.yml. Google AI Studio works the same way. A permanent 410/404
+     now fails the run with ::error::; transient failures ::warning::.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
