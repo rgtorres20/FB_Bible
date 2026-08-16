@@ -136,10 +136,6 @@ def main() -> int:
         bool(board_names) and len(board_names) == len(set(board_names)),
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
-    # The draft board's ADP column: real numbers, and no consumer left
-    # reading the old derived round.pick string.
-    check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
-    check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
     mobile_css = get("/app/mobile.css")

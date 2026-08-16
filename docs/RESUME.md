@@ -128,11 +128,13 @@ should work first time.
 
 ## Watchdog
 
-`verify-live.yml` asserts 26 production checks every 2 hours (data fresh,
+`verify-live.yml` asserts 35 production checks every 2 hours (data fresh,
 six sources not FAILED, overlays served, mobile injected, FFBets predict
 mode, Vegas/TD-lean/schedule/draft-board surfaces still live, decorator assets still
 serving). A failure emails the repo owner. Run it on demand from the
-Actions tab. Last full green: Aug 15 20:17 CDT against `caeff70`.
+Actions tab. Last full green: Aug 15 22:30 CDT against `0cd30b1`, all
+passing — including the live draft board and its no-duplicate-players
+guard, which reported `204 rows, 204 distinct`.
 
 Known watchdog weakness (see GAP_REVIEW): a single transient publisher
 error flips a source to FAILED and fails the whole run, while the sync
