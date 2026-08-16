@@ -22,7 +22,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 294 Python + 16 JS, CI green on every push |
+| Tests | 299 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -95,21 +95,23 @@ should work first time.
    - *Week 1 schedule*: DONE (Aug 15 evening) — same payload, kickoff
      day/time in Central, teams and network; owner's per-game notes ride
      along by matchup.
-   - *AI verdicts*: **NOT WORKING, needs a decision from you.** Chased to
-     the bottom Aug 15 evening. verdicts.yml fires and reports success, but
-     reading its log shows every run ends `HTTP Error 410: Gone` —
-     **GitHub Models was retired 2026-07-30**, two weeks before this layer
-     was built. Not one verdict has ever been produced. Two bugs kept that
-     invisible and are both fixed: `/internal/sync` was deleting stored
-     verdicts on every run, and a permanent 410 was caught by the same
-     handler as a rate limit, both exiting 0 under a green check. The cron
-     is now off (an hourly job that can only 410 is waste); manual
-     dispatch stays for testing the fix.
-     **To revive it:** pick a provider and add one secret — Groq or Google
-     AI Studio (free tiers) or paid Claude. The pipeline is
-     provider-agnostic: point `MODELS_URL`/`MODEL` in
-     `scripts/draft_verdicts.py` at any OpenAI-compatible endpoint and
-     supply its key as the bearer token; everything downstream is unchanged.
+   - *AI verdicts*: **one secret away from working.** Chased to the bottom
+     Aug 15 evening: verdicts.yml reported success while every run ended
+     `HTTP Error 410: Gone` — **GitHub Models was retired 2026-07-30**,
+     two weeks before this layer was built, so not one verdict was ever
+     produced. Two bugs kept that invisible and are both fixed
+     (`/internal/sync` was deleting stored verdicts every run; a permanent
+     410 was handled like a rate limit, both exiting 0 under a green
+     check).
+     Now on **Google AI Studio** (owner's call), free tier, via its
+     OpenAI-compatible endpoint — `gemini-2.5-flash`, one request an hour
+     against a few-hundred-a-day limit. The hourly schedule is back on and
+     no-ops with a warning until the key exists.
+     **YOUR STEP:** create a key at <https://aistudio.google.com> → Get
+     API key, add it as the `GEMINI_API_KEY` repo secret. Verdicts start
+     on the next hourly run; no code change, no redeploy. The watchdog
+     logs `AI-drafted verdicts on the news tab: N` every 2 hours, so you
+     can confirm it took.
 3. **AI layer, free ("make it better but free")**: user asked for a
    zero-cost plan. Preferred route: **GitHub Models** — free LLM inference
    authenticated with the workflow's own `GITHUB_TOKEN` inside the existing
@@ -125,7 +127,7 @@ should work first time.
 
 ## Watchdog
 
-`verify-live.yml` asserts 25 production checks every 2 hours (data fresh,
+`verify-live.yml` asserts 26 production checks every 2 hours (data fresh,
 six sources not FAILED, overlays served, mobile injected, FFBets predict
 mode, Vegas/TD-lean/schedule/draft-board surfaces still live, decorator assets still
 serving). A failure emails the repo owner. Run it on demand from the

@@ -23,25 +23,33 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | Data health stamps | overlay-stamped per feed | every request |
 | Out & returning wire stamps | latest wire mention per player | every request |
 
-## Broken, not live — corrected Aug 15
+## Waiting on one secret — AI draft verdicts
 
-**AI draft verdicts.** This table listed them as live and hourly. They have
-never worked: the job targets **GitHub Models, retired 2026-07-30**, so
-every run got HTTP 410 Gone. Because a failed model call exited 0, the
-workflow reported success and nobody saw it. The page itself never lied —
-with no verdicts stored it renders the rule-based `Auto:` line — but this
-document did, which is the exact failure the no-false-positives rule
-exists to prevent.
+This table used to list verdicts as live and hourly. They had never
+worked: the job targeted **GitHub Models, retired 2026-07-30**, so every
+run got HTTP 410 Gone. A failed model call exited 0, so the workflow
+reported success and nobody saw it. The page itself never lied — with no
+verdicts stored it renders the rule-based `Auto:` line — but this document
+did, which is the exact failure the no-false-positives rule exists to
+prevent.
 
-Two separate bugs kept it invisible and are both fixed: the sync was also
+Both bugs that kept it invisible are fixed: the sync was separately
 deleting stored verdicts on every run, and a permanent endpoint failure
-was indistinguishable from a rate limit. The schedule is now off.
+was indistinguishable from a rate limit (it now exits non-zero and
+annotates).
 
-**Decision needed from the owner** before this can be live: pick a
-provider and add one secret. Groq and Google AI Studio both have free
-tiers; paid Claude is the quality option. The pipeline itself is
-provider-agnostic — any OpenAI-compatible chat-completions endpoint works
-by pointing `MODELS_URL`/`MODEL` at it.
+**Provider: Google AI Studio** (owner's call, Aug 15) — free tier, no
+card, through its OpenAI-compatible endpoint so the pipeline stays
+ordinary chat-completions. `gemini-2.5-flash` allows a few hundred
+requests a day; this job makes one an hour.
+
+**One step left, and it is the owner's:** create a key at
+<https://aistudio.google.com> → *Get API key*, and add it as the
+`GEMINI_API_KEY` repository secret (Settings → Secrets and variables →
+Actions). The hourly schedule is already on and no-ops with a warning
+until the key exists, so verdicts begin appearing on the next run after
+it is added — no code change, no redeploy. Until then this surface is
+honestly *not* live, and the news tab shows `Auto:` lines.
 
 ## Still curated — with the honest state and the plan
 

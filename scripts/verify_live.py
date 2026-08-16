@@ -11,6 +11,7 @@ stdlib only: the job should never fail because of its own dependencies.
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
@@ -86,11 +87,12 @@ def main() -> int:
     lagged = f"{datetime.now(UTC) - timedelta(hours=30):%Y-%m-%d}"
     check("Data health stamp updates", news_as_of[:10] >= lagged, news_as_of)
 
-    # Reported, not asserted. Verdicts are best-effort: the GitHub Models job
-    # exits 0 on a rate limit or model failure, so a zero hour is legitimate
-    # and failing here would cry wolf. But a permanent break used to be
-    # invisible -- and a sync bug silently deleted every verdict for a day
-    # before anyone noticed -- so the count belongs in the log either way.
+    # Reported, not asserted. Verdicts are best-effort: the model job exits
+    # 0 on a rate limit or a missing key, so a zero hour is legitimate and
+    # failing here would cry wolf. But a permanent break used to be
+    # invisible -- a retired provider returned 410 under a green check for a
+    # day -- so the count belongs in the log either way. Expect 0 until
+    # GEMINI_API_KEY is set.
     drafted = sum(1 for e in page_data.get("news", []) if str(e.get("impact", "")).startswith("AI"))
     print(f"  INFO  AI-drafted verdicts on the news tab: {drafted}")
 
@@ -109,6 +111,15 @@ def main() -> int:
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
     check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
+    # A player listed twice appears twice mid-draft, and marking one row
+    # taken leaves the other looking available.
+    rows = re.search(r"const RAW_BOARD = \[(.*?)\n\];", served, re.S)
+    board_names = re.findall(r'^\s*\[\d+,"([^"]+)"', rows.group(1), re.M) if rows else []
+    check(
+        "board has no duplicate players",
+        bool(board_names) and len(board_names) == len(set(board_names)),
+        f"{len(board_names)} rows, {len(set(board_names))} distinct",
+    )
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
 
     mobile_css = get("/app/mobile.css")

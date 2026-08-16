@@ -138,6 +138,12 @@ if _FRONTEND_READY:
         # yahoo-cache purge fail with "API client failed to load".
         html = html.replace('import("./frontend/lib/fbApi.js")', 'import("./lib/fbApi.js")')
         html = html.replace("vegas: VEGAS,", "vegas: (F.vegas || VEGAS),", 1)
+        # A player listed twice on the board shows up twice mid-draft, and
+        # marking one row taken leaves the other looking available. Not
+        # gated on the store: this is wrong with or without live ADP.
+        html, deduped = board.dedupe(html)
+        if deduped:
+            logging.getLogger(__name__).info("board: dropped duplicate rows for %s", deduped)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',

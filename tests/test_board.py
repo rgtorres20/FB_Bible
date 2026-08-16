@@ -181,3 +181,38 @@ def test_the_injected_page_is_still_valid_javascript():
         finally:
             Path(path).unlink()
         assert result.returncode == 0, result.stderr
+
+
+# --- duplicate rows --------------------------------------------------------
+
+
+def test_dedupe_keeps_the_first_higher_ranking_row():
+    """The board carried Jayden Reed at tier 7 (WR32) and again at tier 11
+    (WR38). The owner's call was to keep tier 7, which is the first row."""
+    served, dropped = board.dedupe(PAGE)
+
+    assert dropped == ["Jayden Reed"]
+    names = board.board_names(served)
+    assert len(names) == len(set(names))
+    block = re.search(r"const RAW_BOARD = \[(.*?)\n\];", served, re.S).group(1)
+    reed = [line for line in block.split("\n") if "Jayden Reed" in line]
+    assert len(reed) == 1
+    assert '[7,"Jayden Reed","WR · GB","WR32"' in reed[0]
+
+
+def test_dedupe_is_a_no_op_on_a_clean_board():
+    once, _ = board.dedupe(PAGE)
+    twice, dropped = board.dedupe(once)
+    assert dropped == []
+    assert twice == once
+
+
+def test_dedupe_leaves_a_page_without_a_board_alone():
+    assert board.dedupe("<html>no board here</html>") == ("<html>no board here</html>", [])
+
+
+def test_dedupe_renumbers_nothing_but_shortens_the_board():
+    """Ranks come from the row's index at render time, so dropping a row
+    closes the gap rather than leaving a hole."""
+    served, _ = board.dedupe(PAGE)
+    assert len(board.board_names(served)) == len(board.board_names(PAGE)) - 1

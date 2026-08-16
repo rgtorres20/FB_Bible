@@ -100,6 +100,47 @@ def board_names(html: str) -> list[str]:
     return _ROW_NAME.findall(block.group(1)) if block else []
 
 
+_ROW_LINE = re.compile(r'\s*\[\d+,"([^"]+)"')
+
+
+def dedupe(html: str) -> tuple[str, list[str]]:
+    """Drop repeat rows for a player already on the board, keeping the first.
+
+    The board carried Jayden Reed twice -- tier 7 as WR32 and tier 11 as
+    WR38 -- so he appeared twice mid-draft, and marking one row taken left
+    the other looking available. The owner's call (Aug 15) was to keep the
+    tier 7 ranking, which generalises cleanly: the earlier row is the higher
+    ranking, so first-wins is both what was asked for and the right default
+    if this ever happens again.
+
+    Only the row is dropped, never a ranking edited. Anything the dropped
+    row said about the player survives elsewhere -- STATS25 already renders
+    that line on the kept row, and the Sleepers tab carries the thesis.
+    """
+    block = _RAW_BOARD.search(html)
+    if not block:
+        return html, []
+
+    seen: set[str] = set()
+    dropped: list[str] = []
+    kept_lines: list[str] = []
+    for line in block.group(0).split("\n"):
+        match = _ROW_LINE.match(line)
+        if match is None:
+            kept_lines.append(line)  # the const's opening and closing lines
+            continue
+        name = match.group(1)
+        if name in seen:
+            dropped.append(name)
+            continue
+        seen.add(name)
+        kept_lines.append(line)
+
+    if not dropped:
+        return html, []
+    return html.replace(block.group(0), "\n".join(kept_lines), 1), dropped
+
+
 def live_adp(names: list[str], players: list[dict]) -> dict[str, dict]:
     """{page name: {a, a12, a10}} for board players the live ADP covers.
 

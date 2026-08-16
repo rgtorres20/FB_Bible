@@ -50,14 +50,20 @@ owner decision: one provider, one secret. Worth noting the compounding —
 two independent silent-failure bugs stacked on a dead upstream, and each
 one alone would have hidden the others.
 
-## Owner's call, not ours
+## Owner's calls, made
 
-**The board lists Jayden Reed twice** — tier 7 as WR32 (no read) and tier
-11 as WR38 (with the PFF slot-yards note). Found while joining ADP: 205
-board rows, 204 distinct players. During a draft he shows up twice, and
-marking one row taken leaves the other looking available. Which ranking is
-right is an editorial call, so nothing was changed; the join keys by name,
-so both rows correctly show the same live ADP.
+- **Duplicate board row** — the board listed Jayden Reed twice (tier 7 as
+  WR32, tier 11 as WR38 with the PFF slot-yards note): 205 rows, 204
+  distinct players, so he appeared twice mid-draft and marking one row
+  taken left the other looking available. **Owner chose tier 7.** Dropped
+  at serve time, generalised to first-wins (the earlier row is the higher
+  ranking), with a watchdog check so a future duplicate fails loudly.
+  Nothing was lost with the dropped row: STATS25 already renders its
+  slot-yards line on the kept row, and the Sleepers tab carries the
+  thesis.
+- **AI provider** — **Google AI Studio**, free tier, via its
+  OpenAI-compatible endpoint. Shipped; waiting only on the
+  `GEMINI_API_KEY` secret. See STALE_DATA.md.
 
 ## Backlog — high value, needs design or decisions
 
