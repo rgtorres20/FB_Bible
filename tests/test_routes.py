@@ -177,3 +177,26 @@ def test_an_explicit_stage_overrides_what_vercel_reports():
     assert Settings(vercel_env="production").stage == "production"
     assert Settings(vercel_env="preview").stage == "preview"
     assert Settings().stage == "local"
+
+
+# --- endpoint prober -------------------------------------------------------
+
+
+def test_probe_describes_structure_without_dumping_the_body():
+    """The point is the shape: these payloads run to megabytes, and a probe
+    that prints all of it is unreadable in a run log."""
+    from scripts.probe_endpoint import describe
+
+    payload = {str(i): {"pts": i, "tm": "DET"} for i in range(200)}
+    out = describe(payload)
+
+    assert "dict(200 keys)" in out
+    assert "keyed like:" in out  # named, not expanded 200 times
+    assert out.count("\n") < 40
+
+
+def test_probe_reports_list_and_scalar_shapes():
+    from scripts.probe_endpoint import describe
+
+    assert describe({"games": [{"a": 1}, {"a": 2}]}).count("list(2)") == 1
+    assert "..." in describe({"long": "x" * 200})

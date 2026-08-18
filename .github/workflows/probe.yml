@@ -1,0 +1,27 @@
+name: Probe endpoint
+
+# Answers "what does this API actually return?" from a machine that can
+# reach it. Exists because two features shipped against endpoints that had
+# been retired or renamed -- see the validation-gate rule in CLAUDE.md.
+# Read-only, no secrets, manual only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "HTTPS JSON endpoint to describe"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Describe the response
+        env:
+          PROBE_URL: ${{ inputs.url }}
+        run: python3 scripts/probe_endpoint.py
