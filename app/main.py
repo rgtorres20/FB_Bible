@@ -169,6 +169,9 @@ if _FRONTEND_READY:
                         vegas.curated_implied(),
                         vegas.implied_by_team(games),
                     )
+                    # The owner's leans, confidence tracking the live line,
+                    # and a labelled AI clause where one was drafted.
+                    adjusted = vegas.apply_reviews(adjusted, stored.get("pred_reviews"))
                     html = vegas.inject_predictions(html, adjusted)
                     html = vegas.inject_schedule(
                         html,
