@@ -84,11 +84,24 @@ def main() -> int:
 
     print(describe(payload))
 
-    # For a big id-keyed map, one real entry says more than the schema does.
+    # For a big id-keyed map, one real entry says more than the schema does
+    # -- but it has to be the RIGHT entry. The first key is arbitrary, and on
+    # a stats endpoint it is usually a player with no production, whose
+    # sparse record hides every field that matters. Show the fullest entry
+    # instead: that is the one that reveals what the payload can carry.
     if isinstance(payload, dict) and len(payload) > 50:
-        sample_key = next(iter(payload))
-        print(f"\nsample entry [{sample_key}]:")
-        print(json.dumps(payload[sample_key], indent=1)[:900])
+        dict_entries = [(k, v) for k, v in payload.items() if isinstance(v, dict)]
+        if dict_entries:
+            key, richest = max(dict_entries, key=lambda kv: len(kv[1]))
+            widths = sorted((len(v) for _, v in dict_entries), reverse=True)
+            median = widths[len(widths) // 2]
+            print(f"\nfield counts: max {widths[0]}, median {median}")
+            print(f"\nrichest entry [{key}] ({len(richest)} fields):")
+            print(json.dumps(richest, indent=1, sort_keys=True)[:2000])
+        else:
+            key = next(iter(payload))
+            print(f"\nsample entry [{key}]:")
+            print(json.dumps(payload[key], indent=1)[:900])
     return 0
 
 
