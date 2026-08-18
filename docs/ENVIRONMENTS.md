@@ -12,15 +12,25 @@ URL. So beta is not a second system — it is a branch.
 | | Prod | Beta |
 |---|---|---|
 | Branch | `main` | `beta` |
-| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible-torro2-git-beta-<team>.vercel.app` (stable per branch; exact slug shown in the Vercel dashboard the first time the branch deploys) |
-| `VERCEL_ENV` | `production` | `preview` |
+| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible.vercel.app` (verified live 2026-08-18: 35/35 checks pass, same Redis, same data) |
+| `VERCEL_ENV` | `production` | `production` — see below |
+| `FB_STAGE` | unset | **must be `preview`** |
 | Badge | none | **BETA**, bottom-right (server-injected; see `app_page`) |
 | CI | on every push | on every push |
 | Crons (sync, verdicts, watchdog) | write here | none — see below |
 
 `/health` reports which stage answered (`"stage": "production" | "preview" |
 "local"`), so there is never a question of which deployment you are looking
-at. The page itself wears a BETA badge on preview deploys for the same
+at.
+
+**The preprod deployment is a separate Vercel project, not a branch
+preview**, which breaks the obvious assumption: Vercel labels a project's
+own production deploy `production` regardless of which branch feeds it. So
+`fb-bible.vercel.app` reported `stage: production` and rendered **no BETA
+badge** — a preprod pixel-identical to the real thing, which is precisely
+the wrong-tab hazard the badge exists to prevent. The fix is one
+environment variable on that project: **`FB_STAGE=preview`**. It takes
+precedence over `VERCEL_ENV`; production sets nothing. The page itself wears a BETA badge on preview deploys for the same
 reason — a beta that looks identical to prod is how wrong-tab mistakes
 happen.
 

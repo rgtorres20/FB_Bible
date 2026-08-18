@@ -165,3 +165,15 @@ def test_served_page_fixes_the_client_import_path():
     served = client.get("/app/").text
     assert 'import("./lib/fbApi.js")' in served
     assert 'import("./frontend/lib/fbApi.js")' not in served
+
+
+def test_an_explicit_stage_overrides_what_vercel_reports():
+    """A second Vercel project on a pre-production branch reports
+    "production" for its own deploy, so without an override it serves with
+    no BETA badge and looks exactly like the real thing."""
+    from app.config import Settings
+
+    assert Settings(vercel_env="production", fb_stage="preview").stage == "preview"
+    assert Settings(vercel_env="production").stage == "production"
+    assert Settings(vercel_env="preview").stage == "preview"
+    assert Settings().stage == "local"
