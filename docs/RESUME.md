@@ -353,8 +353,13 @@ and the Vegas push was skipped whenever the unrelated sync call failed.
 
 ## Owner actions nobody else can do
 
-1. **Point the `fb-bible` Vercel project at the `beta` branch.**
-   Settings → Git → **Production Branch** → `beta`. One dropdown.
+1. **PARKED (owner, Aug 18): point the `fb-bible` Vercel project at the
+   `beta` branch.** The owner is deliberately deferring this — it only
+   matters once a real staging flow is wanted, and everything below works
+   without it. Do not re-raise it as a blocker; the detail stays here for
+   when it happens. Settings → Git → **Production Branch** → `beta`. One
+   dropdown. Verified still unflipped at 22:27 UTC Aug 18
+   (`stage: production  branch: main`, 40/40 checks otherwise green).
 
    This replaces the old "set `FB_STAGE=preview`" item, and the reason is a
    finding, not a preference. The watchdog was run against preprod at 05:41
