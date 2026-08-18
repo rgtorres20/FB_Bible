@@ -23,7 +23,7 @@ pick entry from that loop; it does not define it.
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
 | AI | Google AI Studio, free tier — wire verdicts hourly (live); TD-lean review shipped, first run pending |
-| Preprod | <https://fb-bible.vercel.app/app/> — 35/35; BETA badge now derives from the `beta` branch |
+| Preprod | <https://fb-bible.vercel.app/app/> — 35/35, but it builds `main`: a duplicate of prod, not a stage (see owner actions) |
 | Tests | 315 Python + 16 JS (331), CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
@@ -303,21 +303,37 @@ and the Vegas push was skipped whenever the unrelated sync call failed.
 
 ## Owner actions nobody else can do
 
-1. ~~**Set `FB_STAGE=preview` on the `fb-bible` Vercel project.**~~ — no
-   longer an owner action as of Aug 18. Preprod is a *separate project*, so
-   Vercel calls its own deploy "production" and it rendered **no BETA
-   badge** — pixel-identical to the real thing, which is the wrong-tab
-   hazard the badge exists to prevent. `Settings.stage` now falls back to
-   the git branch (`VERCEL_GIT_COMMIT_REF`): `beta` means preview,
-   regardless of what the host calls the deploy. `FB_STAGE` still overrides
-   if you ever want it to. **Verify on the next preprod deploy:** re-run
-   `verify-live.yml` with `base_url=https://fb-bible.vercel.app` and read
-   the log for `INFO stage: preview  branch: beta`, plus the
-   `preview wears the BETA badge` assertion that only arms when the stage
-   says preview. If the branch prints `(none reported)`, that project has
-   *Automatically expose System Environment Variables* switched off — flip
-   it under Settings → Environments, or set `FB_STAGE=preview` there by
-   hand. That is the one way this fallback can go quiet.
+1. **Point the `fb-bible` Vercel project at the `beta` branch.**
+   Settings → Git → **Production Branch** → `beta`. One dropdown.
+
+   This replaces the old "set `FB_STAGE=preview`" item, and the reason is a
+   finding, not a preference. The watchdog was run against preprod at 05:41
+   UTC on Aug 18 and its log read:
+
+       INFO  stage: production  branch: main
+
+   **Preprod builds `main`.** It is not a pre-production stage — it is a
+   second deployment of the exact commit prod serves, which is why it has
+   always reported 35/35 with identical data, and why pushing to `beta`
+   does nothing to it. Every earlier claim that it tracks `beta` was
+   assumed and never checked.
+
+   `Settings.stage` now falls back to the git branch
+   (`VERCEL_GIT_COMMIT_REF`): `beta` means preview whatever the host calls
+   the deploy. That code is live and working — the ref reached the function,
+   which also proves the project exposes system environment variables — it
+   simply has nothing to match while the branch is `main`. Flip the dropdown
+   and the badge appears with no environment variable at all.
+
+   Do **not** reach for `FB_STAGE=preview` as a shortcut here. It would
+   raise a BETA badge over a deployment still byte-identical to prod: an
+   honest-looking label on a stage that does not exist.
+
+   **Verify after flipping:** re-run `verify-live.yml` with
+   `base_url=https://fb-bible.vercel.app` and read the log for
+   `INFO stage: preview  branch: beta`, plus the
+   `preview wears the BETA badge` assertion, which only arms when the stage
+   says preview.
 2. **Submit the Yahoo access application** — paste from
    `docs/YAHOO_APPLICATION.md`. Starts their review clock.
 3. **Rotate the Upstash password** (pasted into chat on Aug 14), then

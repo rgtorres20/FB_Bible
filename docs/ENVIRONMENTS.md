@@ -14,16 +14,41 @@ The distinction that matters is not project-vs-branch, it is that a second
 project's own deploy calls itself `production` — so the stage has to be
 declared explicitly rather than inferred. Hence `FB_STAGE` below.
 
-| | Prod | Beta |
+| | Prod | Preprod |
 |---|---|---|
-| Branch | `main` | `beta` |
+| Branch it actually builds | `main` | **`main`** — see the finding below |
+| Branch it should build | `main` | `beta` |
 | URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible.vercel.app` (verified live 2026-08-18: 35/35 checks pass, same Redis, same data) |
 | `VERCEL_ENV` | `production` | `production` — see below |
-| `FB_STAGE` | unset | optional — the branch fallback covers it |
-| Stage resolved from | `VERCEL_ENV` | branch is `beta` → `preview` |
-| Badge | none | **BETA**, bottom-right (server-injected; see `app_page`) |
+| `FB_STAGE` | unset | unset; the branch fallback is meant to cover it |
+| Stage today | `production` | `production` — because it builds `main` |
+| Badge | none | **none today**; **BETA** once it builds `beta` |
 | CI | on every push | on every push |
 | Crons (sync, verdicts, watchdog) | write here | none — see below |
+
+### Finding, 2026-08-18 05:41 UTC: preprod builds `main`
+
+The watchdog was pointed at `fb-bible.vercel.app` and its log read:
+
+    INFO  stage: production  branch: main
+
+So the `fb-bible` project's Production Branch is **`main`**, the same commit
+prod serves. Preprod is not a pre-production stage at all today — it is a
+second deployment of production, which is why it has always reported 35/35
+with identical data. Pushing to `beta` changes nothing there.
+
+Two useful facts fall out of that one line. The branch fallback below is
+*working* — a ref reached the function, so this project does expose system
+environment variables, and the fallback simply had nothing to match. And
+every earlier claim in this file that preprod tracks `beta` was assumption,
+never verification.
+
+**The fix is one dropdown, and it is the owner's:** in the `fb-bible`
+project, Settings → Git → **Production Branch** → `beta`. That makes the
+beta hop mean something *and* raises the badge, with no environment
+variable at all. Setting `FB_STAGE=preview` instead would raise the badge
+over a deployment that is still byte-identical to prod — an honest label on
+a stage that does not exist, which is worse than no badge.
 
 `/health` reports which stage answered (`"stage": "production" | "preview" |
 "local"`), so there is never a question of which deployment you are looking
