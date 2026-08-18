@@ -70,6 +70,23 @@ def http_json(url: str, payload: dict | None = None, headers: dict | None = None
         return json.loads(response.read())
 
 
+def available_models(api_key: str) -> list[str]:
+    """Ask the provider what this key can actually reach.
+
+    A 404 from a chat-completions endpoint is almost always a model name
+    that no longer exists -- the exact shape of failure that let retired
+    GitHub Models look healthy for a day. Printing the real list turns a
+    dead run into a one-line fix instead of a guessing game.
+    """
+    base = MODELS_URL.rsplit("/chat/completions", 1)[0]
+    try:
+        payload = http_json(f"{base}/models", headers={"Authorization": f"Bearer {api_key}"})
+    except Exception as exc:  # noqa: BLE001 - a diagnostic must not raise
+        print(f"could not list models: {type(exc).__name__}: {exc}")
+        return []
+    return sorted(m.get("id", "") for m in payload.get("data", []) if m.get("id"))
+
+
 def newest_items() -> list[dict]:
     feed = http_json(f"{BASE}/api/feeds?tagged_only=true&limit={MAX_ITEMS}")
     return feed.get("items", [])
@@ -145,6 +162,15 @@ def main() -> int:
         # permanent and transient failures both exited 0 under a green check.
         if exc.code in (400, 401, 403, 404, 410):
             print(f"::error::Model call rejected permanently (HTTP {exc.code}) at {MODELS_URL}.")
+            if exc.code == 404:
+                names = available_models(api_key)
+                if names:
+                    print(f"This key can reach {len(names)} models. Chat-capable ones:")
+                    for name in names:
+                        print(f"  {name}")
+                    print("Set VERDICT_MODEL (repo variable) to one of the above.")
+                else:
+                    print("The key could not list models either -- check it is a Gemini API key.")
             print("Check AI_API_KEY and VERDICT_MODEL -- see docs/STALE_DATA.md.")
             return 1
         print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
