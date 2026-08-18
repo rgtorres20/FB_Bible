@@ -19,7 +19,8 @@ declared explicitly rather than inferred. Hence `FB_STAGE` below.
 | Branch | `main` | `beta` |
 | URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible.vercel.app` (verified live 2026-08-18: 35/35 checks pass, same Redis, same data) |
 | `VERCEL_ENV` | `production` | `production` — see below |
-| `FB_STAGE` | unset | **must be `preview`** |
+| `FB_STAGE` | unset | optional — the branch fallback covers it |
+| Stage resolved from | `VERCEL_ENV` | branch is `beta` → `preview` |
 | Badge | none | **BETA**, bottom-right (server-injected; see `app_page`) |
 | CI | on every push | on every push |
 | Crons (sync, verdicts, watchdog) | write here | none — see below |
@@ -33,9 +34,35 @@ preview**, which breaks the obvious assumption: Vercel labels a project's
 own production deploy `production` regardless of which branch feeds it. So
 `fb-bible.vercel.app` reported `stage: production` and rendered **no BETA
 badge** — a preprod pixel-identical to the real thing, which is precisely
-the wrong-tab hazard the badge exists to prevent. The fix is one
-environment variable on that project: **`FB_STAGE=preview`**. It takes
-precedence over `VERCEL_ENV`; production sets nothing.
+the wrong-tab hazard the badge exists to prevent.
+
+### How the stage is decided (Aug 18)
+
+`Settings.stage` resolves in this order:
+
+1. **`FB_STAGE`** if set — an explicit answer always wins, in either
+   direction.
+2. **The git branch**, via `VERCEL_GIT_COMMIT_REF`. Anything in
+   `PREVIEW_BRANCHES` (today: `beta`) is a preview no matter what the host
+   calls the deploy. Prod builds from `main` and is unaffected.
+3. **`VERCEL_ENV`**, then `"local"`.
+
+Step 2 is why no dashboard setting is required: preprod builds from `beta`,
+and a deploy already knows the branch it came from. The original fix here
+was "set `FB_STAGE=preview` on that project", which worked but depended on
+a human remembering a setting that nothing checks.
+
+**The one way step 2 goes quiet:** a Vercel project with *Automatically
+expose System Environment Variables* turned off hands the function no ref,
+so the fallback sees an empty string and does nothing. `/health` now
+reports `"branch"` for exactly this reason — an empty value there is the
+diagnosis, and the fix is either flipping that toggle (Settings →
+Environments) or setting `FB_STAGE=preview` by hand after all.
+
+Dashboard note: on the current Vercel UI the variables live under
+**Settings → Environments → Production** for the `fb-bible` project —
+Production, not Preview, because that project's own deploys report as
+production. There is no separate "Environment Variables" sidebar item.
 
 ## The flow
 

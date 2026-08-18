@@ -179,6 +179,25 @@ def test_an_explicit_stage_overrides_what_vercel_reports():
     assert Settings().stage == "local"
 
 
+def test_a_beta_branch_deploy_is_a_preview_without_any_dashboard_setting():
+    """The override above only helps if someone remembers to set it. The
+    branch is not something anyone has to remember: preprod builds from
+    `beta`, Vercel hands the function the ref, and that is enough."""
+    from app.config import Settings
+
+    beta = Settings(vercel_env="production", vercel_git_commit_ref="beta")
+    assert beta.stage == "preview"
+    # Case and stray whitespace in the ref must not silently un-badge it.
+    assert Settings(vercel_env="production", vercel_git_commit_ref=" Beta ").stage == "preview"
+    # Prod builds from main and stays production. This is the assertion that
+    # would catch a fallback broad enough to badge the real site.
+    assert Settings(vercel_env="production", vercel_git_commit_ref="main").stage == "production"
+    # An explicit stage still outranks the branch, in both directions.
+    assert Settings(vercel_git_commit_ref="beta", fb_stage="production").stage == "production"
+    # No Vercel at all: a local checkout of beta is still local.
+    assert Settings(vercel_git_commit_ref="").stage == "local"
+
+
 # --- endpoint prober -------------------------------------------------------
 
 

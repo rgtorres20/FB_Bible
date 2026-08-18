@@ -80,6 +80,11 @@ async def health() -> dict:
     return {
         "status": "ok",
         "stage": settings.stage,
+        # The input the stage fallback reads. Reported because the fallback
+        # can go quiet in exactly one way -- a Vercel project with system
+        # environment variables not exposed hands the function no ref -- and
+        # an empty string here says so in one request instead of a guess.
+        "branch": settings.vercel_git_commit_ref,
         "yahoo_configured": settings.configured,
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
