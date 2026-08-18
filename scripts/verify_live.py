@@ -58,7 +58,7 @@ def main() -> int:
     # badge, and a preprod indistinguishable from prod is how you edit the
     # wrong one during a draft.
     stage = health.get("stage", "?")
-    print(f"  INFO  stage: {stage}")
+    print(f"  INFO  stage: {stage}  branch: {health.get('branch') or '(none reported)'}")
     if stage == "preview":
         served_early = get("/app/").decode("utf-8", errors="replace")
         check("preview wears the BETA badge", 'id="fb-stage-badge"' in served_early)

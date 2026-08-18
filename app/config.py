@@ -11,6 +11,10 @@ YAHOO_AUTHORIZE_URL = "https://api.login.yahoo.com/oauth2/request_auth"
 YAHOO_TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 YAHOO_API_BASE = "https://fantasysports.yahooapis.com/fantasy/v2"
 
+# Branches whose deploys are pre-production regardless of what the host calls
+# them. See Settings.stage.
+PREVIEW_BRANCHES = frozenset({"beta"})
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -60,10 +64,27 @@ class Settings(BaseSettings):
     # fb-bible.vercel.app). Set FB_STAGE=preview there and it announces
     # itself. Prod sets nothing.
     fb_stage: str = ""
+    # Set by Vercel to the branch a deploy was built from. The fallback that
+    # makes the override above unnecessary: preprod builds from `beta`, and a
+    # branch name is something the deploy already knows about itself, so the
+    # badge does not depend on anyone remembering a dashboard setting.
+    vercel_git_commit_ref: str = ""
 
     @property
     def stage(self) -> str:
-        return self.fb_stage or self.vercel_env or "local"
+        """Which deployment is answering: "production", "preview" or "local".
+
+        Precedence is deliberate. An explicit FB_STAGE always wins. Failing
+        that, a deploy built from a pre-production branch is a preview no
+        matter what Vercel calls it -- which is the whole problem, since a
+        second project's own deploy reports "production". Only then do we
+        take Vercel's word for it.
+        """
+        if self.fb_stage:
+            return self.fb_stage
+        if self.vercel_git_commit_ref.strip().lower() in PREVIEW_BRANCHES:
+            return "preview"
+        return self.vercel_env or "local"
 
     @property
     def configured(self) -> bool:
