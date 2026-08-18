@@ -65,13 +65,19 @@ TOP_RANK = 300
 
 # Google's free tier returns 503 "model overloaded" under load, and the very
 # first live run hit one. A single attempt an hour means one busy moment
-# costs the whole hour, so transient codes get a short retry -- while the
+# costs the whole hour, so transient codes get a retry -- while the
 # permanent ones below fail fast, because retrying a retired model is just a
 # slower way to be wrong.
+#
+# The backoff is long on purpose. Measured on runs 50-51 (Aug 18): the
+# free tier's 429 window refills slowly -- each run's first call cleared
+# after one 4s retry, while every later call burned three attempts inside
+# 16s and lost its hour. The whole job has to outlast the window, and
+# runner minutes are free where quota is not.
 RETRY_CODES = frozenset({429, 500, 502, 503, 504})
 PERMANENT_CODES = frozenset({400, 401, 403, 404, 410})
 MAX_ATTEMPTS = 3
-BACKOFF_SECONDS = (4, 12)
+BACKOFF_SECONDS = (20, 45)
 
 SYSTEM_PROMPT = (
     "You write one-line fantasy football takeaways for a draft-prep app. "
