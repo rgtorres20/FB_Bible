@@ -53,10 +53,17 @@ class Settings(BaseSettings):
     # deploys. Empty means a local/container run. This is what makes a beta
     # deploy announce itself instead of impersonating prod.
     vercel_env: str = ""
+    # Explicit override, because VERCEL_ENV cannot express this: a second
+    # Vercel project pointed at a pre-production branch still reports
+    # "production" for its own deploy, so it renders with no BETA badge and
+    # is indistinguishable from the real thing (verified 2026-08-18 against
+    # fb-bible.vercel.app). Set FB_STAGE=preview there and it announces
+    # itself. Prod sets nothing.
+    fb_stage: str = ""
 
     @property
     def stage(self) -> str:
-        return self.vercel_env or "local"
+        return self.fb_stage or self.vercel_env or "local"
 
     @property
     def configured(self) -> bool:

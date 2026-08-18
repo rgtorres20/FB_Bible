@@ -1,35 +1,49 @@
 # Environments: beta and prod
 
-How to run a beta alongside production without a second project, a second
-bill, or a second copy of anything.
+Two deployments of one codebase, at no extra cost.
 
 ## The model
 
-Vercel gives this for free: **every branch push deploys**. `main` is
-production; any other branch gets its own preview deployment with its own
-URL. So beta is not a second system — it is a branch.
+This doc originally described beta as a branch preview under a single
+Vercel project. **That is not how it is actually set up** (found 2026-08-18
+by pointing the watchdog at it): preprod is its own Vercel project serving
+`fb-bible.vercel.app`, alongside the `fb-bible-torro2` project that serves
+production. Both build from this repo, both read the same Upstash store.
+
+The distinction that matters is not project-vs-branch, it is that a second
+project's own deploy calls itself `production` — so the stage has to be
+declared explicitly rather than inferred. Hence `FB_STAGE` below.
 
 | | Prod | Beta |
 |---|---|---|
 | Branch | `main` | `beta` |
-| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible-torro2-git-beta-<team>.vercel.app` (stable per branch; exact slug shown in the Vercel dashboard the first time the branch deploys) |
-| `VERCEL_ENV` | `production` | `preview` |
+| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible.vercel.app` (verified live 2026-08-18: 35/35 checks pass, same Redis, same data) |
+| `VERCEL_ENV` | `production` | `production` — see below |
+| `FB_STAGE` | unset | **must be `preview`** |
 | Badge | none | **BETA**, bottom-right (server-injected; see `app_page`) |
 | CI | on every push | on every push |
 | Crons (sync, verdicts, watchdog) | write here | none — see below |
 
 `/health` reports which stage answered (`"stage": "production" | "preview" |
 "local"`), so there is never a question of which deployment you are looking
-at. The page itself wears a BETA badge on preview deploys for the same
-reason — a beta that looks identical to prod is how wrong-tab mistakes
-happen.
+at.
+
+**The preprod deployment is a separate Vercel project, not a branch
+preview**, which breaks the obvious assumption: Vercel labels a project's
+own production deploy `production` regardless of which branch feeds it. So
+`fb-bible.vercel.app` reported `stage: production` and rendered **no BETA
+badge** — a preprod pixel-identical to the real thing, which is precisely
+the wrong-tab hazard the badge exists to prevent. The fix is one
+environment variable on that project: **`FB_STAGE=preview`**. It takes
+precedence over `VERCEL_ENV`; production sets nothing.
 
 ## The flow
 
 ```
-feature branch  ->  beta  ->  main
-   (preview URL      (stable beta      (production)
-    per branch)       URL, CI-gated)
+feature branch  ->  beta branch          ->  main
+   (branch preview    (fb-bible.vercel.app     (fb-bible-torro2
+    under either       -- its own project,      .vercel.app)
+    project)           CI-gated)
 ```
 
 1. Work lands on a feature branch. Vercel deploys a preview; CI runs on the
@@ -54,9 +68,14 @@ shared store — give that branch its own free Upstash database via a
 Preview-scoped `REDIS_URL` in Vercel (env vars are scoped Production /
 Preview / Development; a Preview value overrides for every branch deploy).
 
-**Not shared: writes.** `SYNC_TOKEN` is Production-scoped, so even a
-misconfigured cron cannot write through a preview deploy unless you
-deliberately scope a token to Preview.
+**Writes: not verified, do not assume.** The original claim here was that
+`SYNC_TOKEN` is Production-scoped so a preview cannot write. That reasoning
+assumed a branch preview under one project, and preprod is a separate
+project with its own fully-provisioned environment — it already has Redis
+and the encryption key. Whether it also carries `SYNC_TOKEN` has not been
+checked. In practice nothing writes through it, because all three crons
+POST to the production URL by name. Treat "preprod cannot write" as
+unverified until someone looks at that project's environment variables.
 
 **Not on beta: Yahoo login.** Yahoo matches the registered redirect URI
 character-for-character, and only the prod callback is registered. The
