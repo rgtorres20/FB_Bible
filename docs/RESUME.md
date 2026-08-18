@@ -40,10 +40,15 @@ the wiped-verdicts bug class), and the watchdog logs both counts as INFO
 lines ("AI player capsules on the top-300 board", "AI reads on the ADP
 mover cards") — best-effort surfaces report, they do not fail the run.
 
-**After merging to main:** dispatch the AI-verdicts workflow once (or
-wait for the hour) and the first capsules/reads appear; counts accumulate
-from there. Not yet observed live at the time of writing — this section
-describes code verified by 377 tests, not a watched deployment.
+**Observed live (run 50, 23:44 UTC):** the plumbing works end-to-end —
+prod's pending endpoints served real work (16 uncovered players, 4
+movers with stories) — but all three retry-less calls hit HTTP 429: the
+free tier throttles per *minute* too, and the job now makes four calls
+back-to-back. Fixed the same hour: `chat_with_retry` in
+draft_verdicts.py gives the capsule, mover-read and lean-review calls
+the same backoff the verdicts call already had. First stored
+capsules/reads were still unobserved at that commit — check a later run
+logs "posted:" for both steps, and the watchdog INFO counts climb.
 
 ## Aug 18 session — season stats, Team intel usage, top-300 alert board
 

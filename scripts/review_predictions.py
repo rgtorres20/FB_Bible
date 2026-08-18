@@ -34,6 +34,7 @@ from scripts.draft_verdicts import (  # noqa: E402
     MODEL,
     MODELS_URL,
     PERMANENT_CODES,
+    chat_with_retry,
     http_json,
 )
 
@@ -91,17 +92,12 @@ def main() -> int:
     print(f"reviewing {len(rows)} leans via {MODEL}")
 
     try:
-        response = http_json(
-            MODELS_URL,
-            payload={
-                "model": MODEL,
-                "temperature": 0.2,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": "\n".join(json.dumps(r) for r in rows)},
-                ],
-            },
-            headers={"Authorization": f"Bearer {api_key}"},
+        response = chat_with_retry(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": "\n".join(json.dumps(r) for r in rows)},
+            ],
+            api_key,
         )
     except urllib.error.HTTPError as exc:
         if exc.code in PERMANENT_CODES:

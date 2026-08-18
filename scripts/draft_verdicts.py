@@ -180,6 +180,33 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
     return {k: v for k, v in verdicts.items() if isinstance(v, str) and v.strip()}
 
 
+def chat_with_retry(messages: list[dict], api_key: str) -> dict:
+    """One chat-completions call, riding out transient provider codes.
+
+    Shared by the sibling scripts (capsules, mover reads, TD-lean review).
+    The job now makes four calls in quick succession each hour, and the
+    free tier throttles per minute as well as per day -- observed live on
+    run 50, where the verdicts step rode out a 429 and every retry-less
+    sibling skipped its hour on the same code. Same policy as
+    draft_with_retry: transient codes back off, permanent ones raise
+    immediately so a dead endpoint cannot pass as a busy one.
+    """
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return http_json(
+                MODELS_URL,
+                payload={"model": MODEL, "temperature": 0.2, "messages": messages},
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRY_CODES or attempt == MAX_ATTEMPTS:
+                raise
+            wait = BACKOFF_SECONDS[attempt - 1]
+            print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
+            time.sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def draft_with_retry(items: list[dict], api_key: str) -> dict[str, str]:
     """draft(), but riding out a busy provider rather than losing the hour."""
     for attempt in range(1, MAX_ATTEMPTS + 1):

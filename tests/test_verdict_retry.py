@@ -75,3 +75,37 @@ def test_the_two_code_sets_never_overlap():
 
 def test_backoff_covers_every_gap_between_attempts():
     assert len(dv.BACKOFF_SECONDS) == dv.MAX_ATTEMPTS - 1
+
+
+# --- the shared chat helper the sibling scripts ride on --------------------
+
+
+def test_chat_with_retry_rides_out_a_throttled_minute(monkeypatch):
+    """Run 50, observed live: four calls in one hour tripped the free
+    tier's per-minute throttle, and every retry-less sibling skipped its
+    hour on a 429 the verdicts step rode out. The shared helper gives the
+    capsule, mover-read and lean-review calls the same policy."""
+    calls = {"n": 0}
+
+    def flaky(url, payload=None, headers=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _http_error(429)
+        return {"choices": [{"message": {"content": "{}"}}]}
+
+    monkeypatch.setattr(dv, "http_json", flaky)
+    assert dv.chat_with_retry([], "k")["choices"]
+    assert calls["n"] == 3
+
+
+def test_chat_with_retry_fails_a_permanent_code_immediately(monkeypatch):
+    calls = {"n": 0}
+
+    def gone(url, payload=None, headers=None):
+        calls["n"] += 1
+        raise _http_error(404)
+
+    monkeypatch.setattr(dv, "http_json", gone)
+    with pytest.raises(urllib.error.HTTPError):
+        dv.chat_with_retry([], "k")
+    assert calls["n"] == 1
