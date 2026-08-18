@@ -22,7 +22,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 299 Python + 16 JS, CI green on every push |
+| Tests | 304 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -104,7 +104,7 @@ should work first time.
      410 was handled like a rate limit, both exiting 0 under a green
      check).
      Now on **Google AI Studio** (owner's call), free tier, via its
-     OpenAI-compatible endpoint — `gemini-2.5-flash`, one request an hour
+     OpenAI-compatible endpoint — `models/gemini-flash-latest`, one request an hour
      against a few-hundred-a-day limit. The hourly schedule is back on and
      no-ops with a warning until the key exists.
      **YOUR STEP:** create a key at <https://aistudio.google.com> → Get
