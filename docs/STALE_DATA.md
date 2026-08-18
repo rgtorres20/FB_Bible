@@ -22,8 +22,9 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | Trending adds/drops, injury flags | Sleeper API, fetched by the page | on page load |
 | Data health stamps | overlay-stamped per feed | every request |
 | Out & returning wire stamps | latest wire mention per player | every request |
+| AI draft verdicts (news tab) | Google AI Studio over the newest wire items | hourly (live since Aug 18) |
 
-## Waiting on one secret — AI draft verdicts
+## The AI layer — what is live and what is only shipped
 
 This table used to list verdicts as live and hourly. They had never
 worked: the job targeted **GitHub Models, retired 2026-07-30**, so every
@@ -40,17 +41,24 @@ annotates).
 
 **Provider: Google AI Studio** (owner's call, Aug 15) — free tier, no
 card, through its OpenAI-compatible endpoint so the pipeline stays
-ordinary chat-completions. The free tier allows a few hundred
-requests a day; this job makes one an hour.
+ordinary chat-completions. The key lives in the `AI_API_KEY` repository
+secret (`GEMINI_API_KEY` is read too). Model is the moving alias
+`models/gemini-flash-latest`, deliberately: pinned point versions get
+retired out from under the job, which is how the last provider broke.
 
-**One step left, and it is the owner's:** create a key at
-<https://aistudio.google.com> → *Get API key*, and add it as the
-`AI_API_KEY` repository secret — Settings → Secrets and variables →
-Actions. (`GEMINI_API_KEY` is accepted too, so either name works.)
-The hourly schedule is already on and no-ops with a warning
-until the key exists, so verdicts begin appearing on the next run after
-it is added — no code change, no redeploy. Until then this surface is
-honestly *not* live, and the news tab shows `Auto:` lines.
+**Wire verdicts: LIVE.** First real output Aug 18 — 18 items in, 13
+verdicts stored, 8 rendering on the news tab. The hourly schedule has run
+green since (latest observed: run 39, 2026-08-18 05:05 UTC).
+
+**TD-lean review: SHIPPED, NOT YET OBSERVED.** `scripts/review_predictions.py`
+checks each curated lean against that team's live implied total and posts
+an "AI check:" clause to `/internal/pred-reviews`; the lean and its
+confidence are never touched. The workflow step landed on `main` at 05:16
+UTC on Aug 18, *after* every AI-verdicts run to date — so no run has
+executed it. It is deliberately **not** in the live table above until a
+run shows the step exiting 0 and a Predictions row carries the clause.
+Code is tested and the endpoint validates against the curated lean names;
+what is missing is proof, and proof is what this table is for.
 
 ## Still curated — with the honest state and the plan
 
