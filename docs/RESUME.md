@@ -5,6 +5,46 @@ Last worked: **Tue Aug 18 2026.** The project started Aug 14 (first commit
 superseded. Two Aug 18 sessions merged here: the AI-layer/preprod work
 (PRs #10–#17) and the stats/intel/top-300 build below.
 
+## Aug 18 evening — the AI layer widens: player capsules and mover reads
+
+Owner picked these two from a ranked list ("let's start with 2 and 3").
+Both follow the verdicts pattern exactly: a server-assembled work list so
+the model can only cite numbers we fetched, a POST endpoint that rejects
+anything the store does not hold, hourly accumulation on the free tier
+(now four requests an hour against a few-hundred-a-day budget), and a
+labelled render that never reads as the owner's judgement.
+
+1. **Player capsules — "AI angle:" on the top-300 board**
+   (`app/feeds/capsules.py`). Per-*player* synthesis where the drafted
+   line was per-*item*: Sleeper rank, live ADP, '25 usage
+   (coverage-gated, present fields only), injury flag and newest wire
+   word in one sentence. `/api/capsules/pending` serves the uncovered
+   best-rank-first batch (16/hour → full 300 in ~a day);
+   `/internal/capsules` accepts only top-300 ids; each capsule remembers
+   its `wire_id` so a player re-queues when his news changes — a stale
+   synthesis cannot outlive the story it cites. Capsule outranks the
+   per-item line on the board; quiet players get a grounded line where
+   the column sat empty.
+2. **ADP mover reads — "AI read:" on the Scout cards**
+   (`adp.movers` / `adp.pending_reads` / `adp.accept_reads`). Each
+   riser/faller is paired server-side with the newest wire story tagging
+   that player; **movers with no story never reach the model** — an
+   explanation without a source is an invented cause. The clause uses
+   "follows / coincides with" framing (never asserted causation),
+   appends to the card's text, and is pruned the moment its mover drops
+   off the list. `/api/movers/pending`, `/internal/mover-reads`.
+
+Both ride the existing hourly `verdicts.yml` (two new stdlib-only steps),
+both survive `/internal/sync` (carried forward beside `pred_reviews` —
+the wiped-verdicts bug class), and the watchdog logs both counts as INFO
+lines ("AI player capsules on the top-300 board", "AI reads on the ADP
+mover cards") — best-effort surfaces report, they do not fail the run.
+
+**After merging to main:** dispatch the AI-verdicts workflow once (or
+wait for the hour) and the first capsules/reads appear; counts accumulate
+from there. Not yet observed live at the time of writing — this section
+describes code verified by 377 tests, not a watched deployment.
+
 ## Aug 18 session — season stats, Team intel usage, top-300 alert board
 
 Three pieces, built in order on `claude/stats-intel-alerts300`:

@@ -128,6 +128,7 @@ def merge_into_feeds(
     vegas_state: dict | None = None,
     injury_names: tuple[str, ...] | None = None,
     stats_state: dict | None = None,
+    mover_reads: dict[str, str] | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -191,7 +192,11 @@ def merge_into_feeds(
     live_scout = []
     if adp_data:
         live_scout = adp.build_scout(
-            adp_data.get("state") or {}, adp_data.get("history"), index, kept
+            adp_data.get("state") or {},
+            adp_data.get("history"),
+            index,
+            kept,
+            mover_reads=mover_reads,
         )
     if live_scout:
         merged["scout"] = live_scout

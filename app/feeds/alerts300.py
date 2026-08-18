@@ -100,6 +100,7 @@ def build_html(
     verdicts: dict[str, str],
     adp_state: dict | None,
     now: datetime,
+    capsules: dict[str, dict] | None = None,
 ) -> str:
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
     head = (
@@ -120,9 +121,10 @@ def build_html(
     ranks = {p["id"]: p["rank"] for p in players if p.get("id")}
     mentions = _latest_mentions(items)
     adp = _adp_lookup(adp_state)
+    capsules = capsules or {}
 
     rows = []
-    mentioned = drafted = 0
+    mentioned = drafted = angles = 0
     for player in players:
         pid = player.get("id") or ""
         name = player.get("name") or ""
@@ -143,6 +145,16 @@ def build_html(
             if link:
                 body = f"<a href='{html_mod.escape(link, quote=True)}'>{body}</a>"
             wire = f"<span class='wire'>{body}</span>"
+
+        # A capsule is the per-player synthesis (rank, ADP, '25 usage, the
+        # newest wire word in one line) and outranks the per-item line when
+        # both exist. It also gives quiet players a grounded line where the
+        # column would otherwise sit empty.
+        capsule = (capsules.get(pid) or {}).get("text")
+        if capsule:
+            angles += 1
+            line_cls, line = "ai", f"AI angle: {capsule}"
+        elif item is not None:
             line_cls, line = _line(item, verdicts, ranks)
             if line_cls == "ai":
                 drafted += 1
@@ -162,6 +174,7 @@ def build_html(
     return (
         head + f"<p class='sub'>{len(players)} players by Sleeper fantasy rank · "
         f"{mentioned} with a wire mention · {drafted} carrying an AI-drafted line · "
+        f"{angles} with an AI angle · "
         f"generated {html_mod.escape(stamp)} · "
         "ranks &amp; injury flags data: Sleeper · wire: ESPN, Yahoo, Rotowire, PFT, CBS · "
         "ADP: FantasyFootballCalculator (10+12tm PPR blend)<br>"

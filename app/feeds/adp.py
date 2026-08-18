@@ -165,11 +165,136 @@ def _meta(entry: dict) -> str:
     return f"{pos} · {team}"
 
 
+def movers(state: dict, history: list[dict] | None) -> list[dict]:
+    """The current risers and fallers, one dict each, in board order.
+
+    Extracted from build_scout so the AI mover-read plumbing (work list,
+    accept-validation, rendering) and the cards all agree on what counts
+    as a mover — a clause accepted for a player the cards no longer show
+    would be an orphan.
+    """
+    board = state.get("players") or []
+    date = state.get("date") or ""
+    base = _baseline(history or [], date)
+    if not board or not base:
+        return []
+
+    deltas = []
+    for entry in board:
+        old = base["adp"].get(entry["name"])
+        if old is None:
+            continue
+        deltas.append((old - entry["adp"], old, entry))
+    deltas.sort(key=lambda m: m[0], reverse=True)
+    days = (datetime.strptime(date, "%Y-%m-%d") - datetime.strptime(base["date"], "%Y-%m-%d")).days
+
+    out = []
+    for delta, old, entry in deltas[:MAX_RISERS]:
+        if delta < MOVER_MIN_DELTA:
+            break
+        out.append(
+            {
+                "direction": "riser",
+                "delta": round(delta, 1),
+                "old": old,
+                "new": entry["adp"],
+                "days": days,
+                "entry": entry,
+            }
+        )
+    for delta, old, entry in sorted(deltas, key=lambda m: m[0])[:MAX_FALLERS]:
+        if -delta < MOVER_MIN_DELTA:
+            break
+        out.append(
+            {
+                "direction": "faller",
+                "delta": round(-delta, 1),
+                "old": old,
+                "new": entry["adp"],
+                "days": days,
+                "entry": entry,
+            }
+        )
+    return out
+
+
+def pending_reads(
+    state: dict,
+    history: list[dict] | None,
+    items: list[dict],
+    reads: dict[str, str] | None,
+) -> list[dict]:
+    """Movers still needing an AI read, each beside the newest wire story
+    tagging that player. Movers with no story are skipped outright: an
+    explanation without a source would be an invented cause, which is the
+    no-false-positives rule broken at the root.
+    """
+    reads = reads or {}
+    work = []
+    for mover in movers(state, history):
+        entry = mover["entry"]
+        name = entry["name"]
+        if name in reads:
+            continue
+        story = _newest_story(items, name)
+        if story is None:
+            continue
+        work.append(
+            {
+                "name": name,
+                "position": entry.get("position") or "",
+                "team": entry.get("team") or "FA",
+                "direction": mover["direction"],
+                "adp_move": f"{mover['old']:.1f} -> {mover['new']:.1f} "
+                f"over {mover['days']}d ({mover['direction']})",
+                "story": story,
+            }
+        )
+    return work
+
+
+def _newest_story(items: list[dict], name: str) -> dict | None:
+    """The newest wire item tagging this player, matched the same way the
+    rank lookup matches names."""
+    key = " ".join(players_mod.normalize(name).split())
+    for item in sorted(items, key=lambda i: i.get("published") or "", reverse=True):
+        for tagged in item.get("players") or []:
+            tagged_key = " ".join(players_mod.normalize(tagged.get("name") or "").split())
+            if tagged_key == key:
+                return {
+                    "when": item.get("published") or "",
+                    "source": item.get("source_name") or "wire",
+                    "title": (item.get("title") or "").strip(),
+                    "summary": (item.get("summary") or "").strip()[:200],
+                }
+    return None
+
+
+def accept_reads(
+    payload: dict[str, str],
+    state: dict,
+    history: list[dict] | None,
+    existing: dict[str, str] | None,
+    max_chars: int,
+) -> dict[str, str]:
+    """Merge posted reads over the stored ones, keeping only names that are
+    movers right now — the model cannot annotate a player the cards do not
+    show — and pruning reads whose mover has since left the list."""
+    current = {m["entry"]["name"] for m in movers(state, history)}
+    merged = dict(existing or {})
+    for name, text in payload.items():
+        clean = str(text or "").strip()[:max_chars]
+        if name in current and clean:
+            merged[name] = clean
+    return {name: text for name, text in merged.items() if name in current}
+
+
 def build_scout(
     state: dict,
     history: list[dict] | None = None,
     index: dict | None = None,
     items: list[dict] | None = None,
+    mover_reads: dict[str, str] | None = None,
 ) -> list[dict]:
     """Live Scout-finds entries in the page's own card shape.
 
@@ -182,50 +307,32 @@ def build_scout(
         return []
     date = state.get("date") or ""
     src_movers = f"FFC live drafts (10+12tm PPR avg) · {date}"
+    reads = mover_reads or {}
 
     entries: list[dict] = []
 
-    base = _baseline(history or [], date)
-    if base:
-        movers = []
-        for entry in board:
-            old = base["adp"].get(entry["name"])
-            if old is None:
-                continue
-            movers.append((old - entry["adp"], old, entry))
-        movers.sort(key=lambda m: m[0], reverse=True)
-        days = (
-            datetime.strptime(date, "%Y-%m-%d") - datetime.strptime(base["date"], "%Y-%m-%d")
-        ).days
-
-        for delta, old, entry in movers[:MAX_RISERS]:
-            if delta < MOVER_MIN_DELTA:
-                break
-            entries.append(
-                {
-                    "kind": "ADP riser",
-                    "name": entry["name"],
-                    "meta": _meta(entry),
-                    "pos": entry.get("position") or "",
-                    "text": f"{old:.1f} → {entry['adp']:.1f} over {days}d of live drafts "
-                    f"— up {delta:.0f} spots.",
-                    "src": src_movers,
-                }
-            )
-        for delta, old, entry in sorted(movers, key=lambda m: m[0])[:MAX_FALLERS]:
-            if -delta < MOVER_MIN_DELTA:
-                break
-            entries.append(
-                {
-                    "kind": "ADP faller",
-                    "name": entry["name"],
-                    "meta": _meta(entry),
-                    "pos": entry.get("position") or "",
-                    "text": f"{old:.1f} → {entry['adp']:.1f} over {days}d "
-                    f"— down {-delta:.0f} spots.",
-                    "src": src_movers,
-                }
-            )
+    for mover in movers(state, history):
+        entry = mover["entry"]
+        up = mover["direction"] == "riser"
+        text = (
+            f"{mover['old']:.1f} → {mover['new']:.1f} over {mover['days']}d"
+            + (" of live drafts" if up else "")
+            + f" — {'up' if up else 'down'} {mover['delta']:.0f} spots."
+        )
+        read = reads.get(entry["name"])
+        if read:
+            # Machine-written and labelled so, same contract as "AI draft:".
+            text += f" AI read: {read}"
+        entries.append(
+            {
+                "kind": "ADP riser" if up else "ADP faller",
+                "name": entry["name"],
+                "meta": _meta(entry),
+                "pos": entry.get("position") or "",
+                "text": text,
+                "src": src_movers,
+            }
+        )
 
     ranks = _rank_lookup(index)
     if ranks:

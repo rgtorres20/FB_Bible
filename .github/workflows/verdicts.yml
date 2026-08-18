@@ -48,6 +48,32 @@ jobs:
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
 
+      # Second and third calls, same hour, same key. Both read a
+      # server-assembled work list, so every number in their prompts came
+      # out of our own store, and both run even if an earlier step failed
+      # -- one surface's bad hour says nothing about the others. Four
+      # requests an hour total stays far inside the free tier's
+      # few-hundred-a-day budget.
+      - name: Draft player capsules
+        if: ${{ !cancelled() }}
+        run: python3 scripts/player_capsules.py
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+
+      - name: Explain the ADP movers
+        if: ${{ !cancelled() }}
+        run: python3 scripts/adp_mover_reads.py
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+
       # The review script imports app.feeds.vegas, and the app.feeds
       # package pulls in httpx at import time -- same reason sync-feeds
       # installs it before push_vegas.py. Without this the step dies on

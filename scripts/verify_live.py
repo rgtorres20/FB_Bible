@@ -139,6 +139,14 @@ def main() -> int:
     check("top-300 board credits Sleeper", "data: Sleeper" in top300)
     drafted300 = top300.count("AI draft:")
     print(f"  INFO  AI-drafted lines on the top-300 board: {drafted300}")
+    # Same best-effort rule as verdicts: the capsule and mover-read jobs
+    # exit 0 on a rate limit or missing key, so zero is a legitimate hour --
+    # but a silent wipe or a permanently dead job shows up as a count stuck
+    # at zero, which is why the numbers belong in the log.
+    angles = top300.count("AI angle:")
+    print(f"  INFO  AI player capsules on the top-300 board: {angles}")
+    reads = sum(1 for e in scout if "AI read:" in str(e.get("text", "")))
+    print(f"  INFO  AI reads on the ADP mover cards: {reads}")
 
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")

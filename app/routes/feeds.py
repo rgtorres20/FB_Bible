@@ -26,6 +26,7 @@ from ..feeds import (
     adp,
     alerts300,
     build_feed_store,
+    capsules,
     cheatsheet,
     injury,
     players,
@@ -100,6 +101,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         vegas_state=stored.get("vegas"),
         injury_names=injury.watched_names(),
         stats_state=stored.get("stats"),
+        mover_reads=stored.get("mover_reads"),
     )
 
 
@@ -135,6 +137,7 @@ async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLRespo
             stored.get("verdicts") or {},
             (stored.get("adp") or {}).get("state"),
             datetime.now(UTC),
+            capsules=stored.get("capsules") or {},
         )
     )
 
@@ -302,6 +305,110 @@ async def save_pred_reviews(
     return {"stored": len(accepted)}
 
 
+class CapsulesIn(BaseModel):
+    capsules: dict[str, dict]
+
+
+class MoverReadsIn(BaseModel):
+    reads: dict[str, str]
+
+
+# Same shape as a pred-review: one clause appended to an existing card.
+MAX_MOVER_READ_CHARS = 110
+
+
+@router.get("/api/capsules/pending", summary="Top-300 players still needing an AI capsule")
+async def capsules_pending(
+    limit: int = Query(default=capsules.BATCH, ge=1, le=40),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """The hourly capsule job's work list: uncovered top-300 players, best
+    rank first, each row carrying every number the model is allowed to use
+    (Sleeper rank, live ADP, '25 usage, injury flag, newest wire word).
+    Assembled server-side so the prompt can only cite figures we fetched.
+    """
+    data = await store.load()
+    index = await store.load_players()
+    covered = data.get("capsules") or {}
+    work = capsules.pending(
+        index,
+        (data.get("adp") or {}).get("state"),
+        data.get("stats"),
+        data.get("items", []),
+        covered,
+        limit=limit,
+    )
+    return {"players": work, "covered": len(covered)}
+
+
+@router.post("/internal/capsules", summary="Store AI player capsules for the top-300 board")
+async def save_capsules(
+    payload: CapsulesIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """One synthesis line per player, rendered "AI angle:" on the top-300
+    board. Only ids the player index ranks in the top 300 are accepted --
+    the model cannot add a row by inventing a player -- and each capsule
+    remembers the wire item it saw, so the pending list re-drafts a player
+    when his news changes instead of letting a stale line sit forever.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    data = await store.load()
+    index = await store.load_players()
+    accepted = capsules.accept(payload.capsules, index, data.get("capsules"))
+    if payload.capsules and not any(pid in accepted for pid in payload.capsules):
+        raise HTTPException(status_code=422, detail="No capsules matched a top-300 player.")
+
+    data["capsules"] = accepted
+    await store.save(data)
+    return {"stored": len(accepted)}
+
+
+@router.get("/api/movers/pending", summary="ADP movers still needing an AI read")
+async def movers_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
+    """The mover-reads job's work list: each current riser/faller beside the
+    newest wire story tagging that player. Movers with no story are absent
+    by design -- an explanation without a source would be an invented cause.
+    """
+    data = await store.load()
+    state = (data.get("adp") or {}).get("state") or {}
+    history = (data.get("adp") or {}).get("history")
+    work = adp.pending_reads(state, history, data.get("items", []), data.get("mover_reads"))
+    return {"movers": work}
+
+
+@router.post("/internal/mover-reads", summary="Store AI reads on the ADP movers")
+async def save_mover_reads(
+    payload: MoverReadsIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """One clause per mover tying the move to its wire story, appended to
+    the Scout card prefixed "AI read:". Only names that are movers right
+    now are kept, and reads are pruned as their movers drop off the list --
+    the model cannot annotate a card the page does not show.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    data = await store.load()
+    state = (data.get("adp") or {}).get("state") or {}
+    history = (data.get("adp") or {}).get("history")
+    current = {m["entry"]["name"] for m in adp.movers(state, history)}
+    if payload.reads and not (set(payload.reads) & current):
+        raise HTTPException(status_code=422, detail="No reads matched a current mover.")
+    accepted = adp.accept_reads(
+        payload.reads, state, history, data.get("mover_reads"), MAX_MOVER_READ_CHARS
+    )
+
+    data["mover_reads"] = accepted
+    await store.save(data)
+    return {"stored": len(accepted)}
+
+
 MAX_VERDICT_CHARS = 200
 
 
@@ -397,9 +504,13 @@ async def sync(
     # store on every sync -- the hourly AI job's output lived for minutes.
     surviving = {item.get("id") for item in merged["items"]}
     verdicts = {k: v for k, v in (existing.get("verdicts") or {}).items() if k in surviving}
-    # Not keyed to wire items, so nothing prunes them -- but they must
-    # survive the save, which is exactly what the verdicts bug was.
+    # Not keyed to wire items, so nothing prunes them here -- but they must
+    # survive the save, which is exactly what the verdicts bug was. Capsules
+    # and mover reads are pruned where they are validated (their accept
+    # functions), not on sync.
     pred_reviews = existing.get("pred_reviews") or {}
+    capsule_state = existing.get("capsules") or {}
+    mover_reads = existing.get("mover_reads") or {}
 
     # Season stats are final numbers, not a feed: refetch weekly (or when the
     # store lost them), keep the previous state on any failure. Same rule as
@@ -422,6 +533,8 @@ async def sync(
             "verdicts": verdicts,
             "stats": stats_state,
             "pred_reviews": pred_reviews,
+            "capsules": capsule_state,
+            "mover_reads": mover_reads,
         }
     )
 
