@@ -156,13 +156,19 @@ them.
   are never touched** — a disagreeing model gets its own labelled space,
   not the pen. Leans with no posted line are dropped rather than sent,
   because asking without a number invites invention.
-  **Not yet observed running.** The step landed on `main` at 05:16 UTC on
-  Aug 18; every AI-verdicts run up to that point (latest: run 39, 05:05
-  UTC) shows only the "Draft and post verdicts" step. Code, tests and the
-  endpoint are green, but the first live proof is the next hourly run —
-  check that run 40+ has a **"Review the TD leans"** step that exits 0,
-  and that a Predictions row carries an "AI check:" clause. Until then
-  this bullet describes intent, not an observed surface.
+  **First runs failed; fix pushed, first green run still unobserved.**
+  Runs 42–47 (Aug 18, hourly) all died the same way: the review step
+  imports `app.feeds.vegas`, the `app.feeds` package pulls in `httpx` at
+  import time, and the verdicts workflow — stdlib-only by design —
+  never installed it. `ModuleNotFoundError: No module named 'httpx'`,
+  exit 1, before any lean was reviewed. (The verdicts step kept working
+  throughout: run 47 posted 11 accepted / 41 stored.) The fix mirrors
+  sync-feeds, which hit the identical wall with `push_vegas.py`: a
+  `pip install --quiet httpx` step ahead of the review. Reproduced and
+  verified in a bare venv before pushing. Still to observe: a run with
+  a green **"Review the TD leans"** step and a Predictions row carrying
+  an "AI check:" clause — until then this describes a fix, not a
+  working surface.
 
 ## Yahoo is BLOCKED on Yahoo, not on us
 

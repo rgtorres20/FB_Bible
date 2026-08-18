@@ -33,8 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # stdlib only, on purpose: the job must not fail because of its own
-      # dependencies.
+      # stdlib only, on purpose: this step must not fail because of its
+      # own dependencies. (The review step below is the one that needs an
+      # install.)
       - name: Draft and post verdicts
         run: python3 scripts/draft_verdicts.py
         env:
@@ -46,6 +47,14 @@ jobs:
           # Optional: point at any other OpenAI-compatible provider.
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+
+      # The review script imports app.feeds.vegas, and the app.feeds
+      # package pulls in httpx at import time -- same reason sync-feeds
+      # installs it before push_vegas.py. Without this the step dies on
+      # ModuleNotFoundError before reviewing anything (runs 42-47 did).
+      - name: Install the one dependency the review needs
+        if: ${{ !cancelled() }}
+        run: python3 -m pip install --quiet httpx
 
       # Second call, same hour, same key: checks the owner's TD leans
       # against the live line. Runs even if the verdicts step failed --
