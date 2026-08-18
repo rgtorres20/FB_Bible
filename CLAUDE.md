@@ -74,10 +74,40 @@ from Sleeper. Neither blocks personal single-user use.
 
 ## Working rules
 
-- Run `pytest` and `ruff check .` before calling anything done.
 - Tests must pass with no network and no Yahoo credentials.
 - Keep this file updated: when a decision is made or the phase state changes
   materially, update the relevant section here.
+
+## The validation gate — run this BEFORE starting new work
+
+Not after. Every rule below was bought with a real failure on Aug 15-18;
+none of them are hygiene for its own sake.
+
+```bash
+git fetch origin main && git log --oneline HEAD..origin/main   # 1
+ruff check . && ruff format --check .                          # 2
+pytest -q                                                      # 3
+(cd frontend/lib && node --test)                               # 4
+python3 -c "import glob,yaml;[yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"  # 5
+```
+
+1. **Sync with `main` first.** Two sessions work this repo in parallel and
+   have twice built the same feature simultaneously (Vegas lines, then the
+   AI provider), each costing a real reconciliation. Check what landed
+   before writing anything, and merge it in before starting.
+2-5. Lint, format, both test suites, and workflow YAML. A workflow that
+   fails to parse does not run at all, and nothing else in CI catches it.
+
+**Then, after deploying:** run `verify-live.yml` and *read the log*, do not
+just check the badge. Three separate bugs this week were green-and-broken:
+a retired model endpoint returning 410, a sync silently deleting every
+stored verdict, and two watchdog checks running twice. A green check means
+the script exited 0, which is not the same as the thing working.
+
+**Corollary — never trust a name you did not verify against the live API.**
+The AI layer was built against a provider retired two weeks earlier, then
+pointed at a model that no longer existed. Both were "known" facts. Ask the
+endpoint what it actually offers; the model list is one HTTP call.
 
 ## State
 
