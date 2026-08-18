@@ -22,7 +22,7 @@ pick entry from that loop; it does not define it.
 | News | 5 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 299 Python + 16 JS, CI green on every push |
+| Tests | 304 Python + 16 JS, CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged

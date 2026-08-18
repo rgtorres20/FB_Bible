@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -56,6 +57,16 @@ MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
 # matters more than surviving the next rename.
 MODEL = os.environ.get("VERDICT_MODEL") or "models/gemini-flash-latest"
 MAX_ITEMS = 18
+
+# Google's free tier returns 503 "model overloaded" under load, and the very
+# first live run hit one. A single attempt an hour means one busy moment
+# costs the whole hour, so transient codes get a short retry -- while the
+# permanent ones below fail fast, because retrying a retired model is just a
+# slower way to be wrong.
+RETRY_CODES = frozenset({429, 500, 502, 503, 504})
+PERMANENT_CODES = frozenset({400, 401, 403, 404, 410})
+MAX_ATTEMPTS = 3
+BACKOFF_SECONDS = (4, 12)
 
 SYSTEM_PROMPT = (
     "You write one-line fantasy football takeaways for a draft-prep app. "
@@ -141,6 +152,20 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
     return {k: v for k, v in verdicts.items() if isinstance(v, str) and v.strip()}
 
 
+def draft_with_retry(items: list[dict], api_key: str) -> dict[str, str]:
+    """draft(), but riding out a busy provider rather than losing the hour."""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return draft(items, api_key)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRY_CODES or attempt == MAX_ATTEMPTS:
+                raise
+            wait = BACKOFF_SECONDS[attempt - 1]
+            print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
+            time.sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def main() -> int:
     # Either name works, so whichever the owner creates the secret under
     # takes effect. GITHUB_TOKEN is gone: that provider is retired.
@@ -164,12 +189,12 @@ def main() -> int:
     print(f"drafting verdicts for {len(items)} items via {MODEL}")
 
     try:
-        verdicts = draft(items, api_key)
+        verdicts = draft_with_retry(items, api_key)
     except urllib.error.HTTPError as exc:
         # A dead endpoint or a rejected key must not look like a busy one.
         # That is exactly what hid the GitHub Models retirement for a day:
         # permanent and transient failures both exited 0 under a green check.
-        if exc.code in (400, 401, 403, 404, 410):
+        if exc.code in PERMANENT_CODES:
             print(f"::error::Model call rejected permanently (HTTP {exc.code}) at {MODELS_URL}.")
             if exc.code == 404:
                 names = available_models(api_key)
@@ -182,7 +207,10 @@ def main() -> int:
                     print("The key could not list models either -- check it is a Gemini API key.")
             print("Check AI_API_KEY and VERDICT_MODEL -- see docs/STALE_DATA.md.")
             return 1
-        print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
+        print(
+            f"::warning::model call failed after {MAX_ATTEMPTS} attempts, "
+            f"skipping this run: HTTP {exc.code}"
+        )
         return 0
     except (KeyError, json.JSONDecodeError, IndexError) as exc:
         # A malformed reply: skip this hour, the next run tries again. The
