@@ -11,11 +11,15 @@ stdlib only: the job should never fail because of its own dependencies.
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-BASE = "https://fb-bible-torro2.vercel.app"
+# Overridable so the same 35 checks can be pointed at a preview deployment.
+# `or` rather than a get() default: an unset workflow input arrives as an
+# empty string, which must not silently blank the URL.
+BASE = os.environ.get("FBBIBLE_BASE") or "https://fb-bible-torro2.vercel.app"
 
 # The cron is configured every 15 minutes but GitHub delivers roughly hourly
 # on free public repos; three hours means "genuinely broken", not "jittery".
@@ -49,6 +53,15 @@ def main() -> int:
     check("health.token_store is redis", health.get("token_store") == "redis")
     check("health.encryption configured", health.get("encryption_configured") is True)
     check("health.frontend ready", health.get("frontend_ready") is True)
+    # Reported, not asserted -- the same run has to serve both stages. What
+    # matters is that a preview says "preview": that is what raises the BETA
+    # badge, and a preprod indistinguishable from prod is how you edit the
+    # wrong one during a draft.
+    stage = health.get("stage", "?")
+    print(f"  INFO  stage: {stage}  branch: {health.get('branch') or '(none reported)'}")
+    if stage == "preview":
+        served_early = get("/app/").decode("utf-8", errors="replace")
+        check("preview wears the BETA badge", 'id="fb-stage-badge"' in served_early)
 
     # --- the news pipeline actually updates -------------------------------
     feeds = get_json("/api/feeds?limit=1")

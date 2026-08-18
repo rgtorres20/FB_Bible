@@ -165,3 +165,57 @@ def test_served_page_fixes_the_client_import_path():
     served = client.get("/app/").text
     assert 'import("./lib/fbApi.js")' in served
     assert 'import("./frontend/lib/fbApi.js")' not in served
+
+
+def test_an_explicit_stage_overrides_what_vercel_reports():
+    """A second Vercel project on a pre-production branch reports
+    "production" for its own deploy, so without an override it serves with
+    no BETA badge and looks exactly like the real thing."""
+    from app.config import Settings
+
+    assert Settings(vercel_env="production", fb_stage="preview").stage == "preview"
+    assert Settings(vercel_env="production").stage == "production"
+    assert Settings(vercel_env="preview").stage == "preview"
+    assert Settings().stage == "local"
+
+
+def test_a_beta_branch_deploy_is_a_preview_without_any_dashboard_setting():
+    """The override above only helps if someone remembers to set it. The
+    branch is not something anyone has to remember: preprod builds from
+    `beta`, Vercel hands the function the ref, and that is enough."""
+    from app.config import Settings
+
+    beta = Settings(vercel_env="production", vercel_git_commit_ref="beta")
+    assert beta.stage == "preview"
+    # Case and stray whitespace in the ref must not silently un-badge it.
+    assert Settings(vercel_env="production", vercel_git_commit_ref=" Beta ").stage == "preview"
+    # Prod builds from main and stays production. This is the assertion that
+    # would catch a fallback broad enough to badge the real site.
+    assert Settings(vercel_env="production", vercel_git_commit_ref="main").stage == "production"
+    # An explicit stage still outranks the branch, in both directions.
+    assert Settings(vercel_git_commit_ref="beta", fb_stage="production").stage == "production"
+    # No Vercel at all: a local checkout of beta is still local.
+    assert Settings(vercel_git_commit_ref="").stage == "local"
+
+
+# --- endpoint prober -------------------------------------------------------
+
+
+def test_probe_describes_structure_without_dumping_the_body():
+    """The point is the shape: these payloads run to megabytes, and a probe
+    that prints all of it is unreadable in a run log."""
+    from scripts.probe_endpoint import describe
+
+    payload = {str(i): {"pts": i, "tm": "DET"} for i in range(200)}
+    out = describe(payload)
+
+    assert "dict(200 keys)" in out
+    assert "keyed like:" in out  # named, not expanded 200 times
+    assert out.count("\n") < 40
+
+
+def test_probe_reports_list_and_scalar_shapes():
+    from scripts.probe_endpoint import describe
+
+    assert describe({"games": [{"a": 1}, {"a": 2}]}).count("list(2)") == 1
+    assert "..." in describe({"long": "x" * 200})

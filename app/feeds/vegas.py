@@ -343,6 +343,26 @@ def adjust_predictions(
     return adjusted
 
 
+def apply_reviews(preds: list[dict], reviews: dict[str, str] | None) -> list[dict]:
+    """Append an AI sanity-check clause to a row's why, and nothing else.
+
+    The lean and the confidence stay exactly as computed. A model that
+    disagrees with the owner says so in its own labelled clause -- it does
+    not get to quietly rewrite the call, which is the whole reason the
+    leans were never handed to it in the first place.
+    """
+    if not reviews:
+        return preds
+    out = []
+    for pred in preds:
+        note = (reviews.get(pred["name"]) or "").strip()
+        row = dict(pred)
+        if note:
+            row["why"] = f"{pred['why']} AI check: {note}"
+        out.append(row)
+    return out
+
+
 def inject_predictions(html: str, adjusted: list[dict]) -> str:
     """Swap the curated PREDICTIONS const for the live-adjusted rows."""
     if not adjusted:

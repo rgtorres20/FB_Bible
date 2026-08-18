@@ -46,3 +46,19 @@ jobs:
           # Optional: point at any other OpenAI-compatible provider.
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+
+      # Second call, same hour, same key: checks the owner's TD leans
+      # against the live line. Runs even if the verdicts step failed --
+      # that failure says nothing about whether the leans can be reviewed.
+      - name: Review the TD leans
+        if: ${{ !cancelled() }}
+        run: python3 scripts/review_predictions.py
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # The one secret this needs. GEMINI_API_KEY is accepted too, so
+          # whichever name the key is stored under works.
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional: point at any other OpenAI-compatible provider.
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}

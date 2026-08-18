@@ -2,7 +2,7 @@
 
 PROVIDER: **Google AI Studio** (owner's call, Aug 15) -- free tier, no
 card, through its OpenAI-compatible endpoint, so this stays plain
-chat-completions. gemini-2.5-flash allows a few hundred requests a day and
+chat-completions. The free tier allows a few hundred requests a day and
 this job makes one an hour. Any other OpenAI-compatible provider is a
 config change, not a code change: set VERDICT_API_URL / VERDICT_MODEL as
 repo variables (Groq's llama-3.3-70b-versatile is the documented
@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -45,13 +46,32 @@ BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
 # strings, which must not silently blank the URL.
 GOOGLE_AI_STUDIO = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
-MODEL = os.environ.get("VERDICT_MODEL") or "gemini-2.5-flash"
+# The floating alias, not a pinned version, and deliberately so. This job
+# has now been broken twice by a name disappearing underneath it -- GitHub
+# Models retired outright, then gemini-2.5-flash aged out (verified against
+# the live model list 2026-08-18, which is on 3.x). The alias is the one
+# name Google keeps pointing at a current flash model. The trade is real:
+# output can drift without notice. Acceptable here, because a verdict is an
+# advisory one-liner rendered "AI draft:", never a number anything depends
+# on. Pin to a version -- models/gemini-3.7-flash -- if reproducibility ever
+# matters more than surviving the next rename.
+MODEL = os.environ.get("VERDICT_MODEL") or "models/gemini-flash-latest"
 MAX_ITEMS = 18
 # The window the drafting job looks across, and the rank scope it favors:
 # items about top-300 players (the top-300 alert board's population) are
 # drafted first, so that surface fills in ahead of tail-rank chatter.
 FETCH_LIMIT = 200
 TOP_RANK = 300
+
+# Google's free tier returns 503 "model overloaded" under load, and the very
+# first live run hit one. A single attempt an hour means one busy moment
+# costs the whole hour, so transient codes get a short retry -- while the
+# permanent ones below fail fast, because retrying a retired model is just a
+# slower way to be wrong.
+RETRY_CODES = frozenset({429, 500, 502, 503, 504})
+PERMANENT_CODES = frozenset({400, 401, 403, 404, 410})
+MAX_ATTEMPTS = 3
+BACKOFF_SECONDS = (4, 12)
 
 SYSTEM_PROMPT = (
     "You write one-line fantasy football takeaways for a draft-prep app. "
@@ -73,6 +93,23 @@ def http_json(url: str, payload: dict | None = None, headers: dict | None = None
     )
     with urllib.request.urlopen(request, timeout=120) as response:
         return json.loads(response.read())
+
+
+def available_models(api_key: str) -> list[str]:
+    """Ask the provider what this key can actually reach.
+
+    A 404 from a chat-completions endpoint is almost always a model name
+    that no longer exists -- the exact shape of failure that let retired
+    GitHub Models look healthy for a day. Printing the real list turns a
+    dead run into a one-line fix instead of a guessing game.
+    """
+    base = MODELS_URL.rsplit("/chat/completions", 1)[0]
+    try:
+        payload = http_json(f"{base}/models", headers={"Authorization": f"Bearer {api_key}"})
+    except Exception as exc:  # noqa: BLE001 - a diagnostic must not raise
+        print(f"could not list models: {type(exc).__name__}: {exc}")
+        return []
+    return sorted(m.get("id", "") for m in payload.get("data", []) if m.get("id"))
 
 
 def newest_items() -> list[dict]:
@@ -143,6 +180,20 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
     return {k: v for k, v in verdicts.items() if isinstance(v, str) and v.strip()}
 
 
+def draft_with_retry(items: list[dict], api_key: str) -> dict[str, str]:
+    """draft(), but riding out a busy provider rather than losing the hour."""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return draft(items, api_key)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in RETRY_CODES or attempt == MAX_ATTEMPTS:
+                raise
+            wait = BACKOFF_SECONDS[attempt - 1]
+            print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
+            time.sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def main() -> int:
     # Either name works, so whichever the owner creates the secret under
     # takes effect. GITHUB_TOKEN is gone: that provider is retired.
@@ -166,16 +217,28 @@ def main() -> int:
     print(f"drafting verdicts for {len(items)} items via {MODEL}")
 
     try:
-        verdicts = draft(items, api_key)
+        verdicts = draft_with_retry(items, api_key)
     except urllib.error.HTTPError as exc:
         # A dead endpoint or a rejected key must not look like a busy one.
         # That is exactly what hid the GitHub Models retirement for a day:
         # permanent and transient failures both exited 0 under a green check.
-        if exc.code in (400, 401, 403, 404, 410):
+        if exc.code in PERMANENT_CODES:
             print(f"::error::Model call rejected permanently (HTTP {exc.code}) at {MODELS_URL}.")
+            if exc.code == 404:
+                names = available_models(api_key)
+                if names:
+                    print(f"This key can reach {len(names)} models. Chat-capable ones:")
+                    for name in names:
+                        print(f"  {name}")
+                    print("Set VERDICT_MODEL (repo variable) to one of the above.")
+                else:
+                    print("The key could not list models either -- check it is a Gemini API key.")
             print("Check AI_API_KEY and VERDICT_MODEL -- see docs/STALE_DATA.md.")
             return 1
-        print(f"::warning::model call failed, skipping this run: HTTP {exc.code}")
+        print(
+            f"::warning::model call failed after {MAX_ATTEMPTS} attempts, "
+            f"skipping this run: HTTP {exc.code}"
+        )
         return 0
     except (KeyError, json.JSONDecodeError, IndexError) as exc:
         # A malformed reply: skip this hour, the next run tries again. The

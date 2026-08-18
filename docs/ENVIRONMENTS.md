@@ -1,35 +1,101 @@
 # Environments: beta and prod
 
-How to run a beta alongside production without a second project, a second
-bill, or a second copy of anything.
+Two deployments of one codebase, at no extra cost.
 
 ## The model
 
-Vercel gives this for free: **every branch push deploys**. `main` is
-production; any other branch gets its own preview deployment with its own
-URL. So beta is not a second system — it is a branch.
+This doc originally described beta as a branch preview under a single
+Vercel project. **That is not how it is actually set up** (found 2026-08-18
+by pointing the watchdog at it): preprod is its own Vercel project serving
+`fb-bible.vercel.app`, alongside the `fb-bible-torro2` project that serves
+production. Both build from this repo, both read the same Upstash store.
 
-| | Prod | Beta |
+The distinction that matters is not project-vs-branch, it is that a second
+project's own deploy calls itself `production` — so the stage has to be
+declared explicitly rather than inferred. Hence `FB_STAGE` below.
+
+| | Prod | Preprod |
 |---|---|---|
-| Branch | `main` | `beta` |
-| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible-torro2-git-beta-<team>.vercel.app` (stable per branch; exact slug shown in the Vercel dashboard the first time the branch deploys) |
-| `VERCEL_ENV` | `production` | `preview` |
-| Badge | none | **BETA**, bottom-right (server-injected; see `app_page`) |
+| Branch it actually builds | `main` | **`main`** — see the finding below |
+| Branch it should build | `main` | `beta` |
+| URL | `https://fb-bible-torro2.vercel.app` | `https://fb-bible.vercel.app` (verified live 2026-08-18: 35/35 checks pass, same Redis, same data) |
+| `VERCEL_ENV` | `production` | `production` — see below |
+| `FB_STAGE` | unset | unset; the branch fallback is meant to cover it |
+| Stage today | `production` | `production` — because it builds `main` |
+| Badge | none | **none today**; **BETA** once it builds `beta` |
 | CI | on every push | on every push |
 | Crons (sync, verdicts, watchdog) | write here | none — see below |
 
+### Finding, 2026-08-18 05:41 UTC: preprod builds `main`
+
+The watchdog was pointed at `fb-bible.vercel.app` and its log read:
+
+    INFO  stage: production  branch: main
+
+So the `fb-bible` project's Production Branch is **`main`**, the same commit
+prod serves. Preprod is not a pre-production stage at all today — it is a
+second deployment of production, which is why it has always reported 35/35
+with identical data. Pushing to `beta` changes nothing there.
+
+Two useful facts fall out of that one line. The branch fallback below is
+*working* — a ref reached the function, so this project does expose system
+environment variables, and the fallback simply had nothing to match. And
+every earlier claim in this file that preprod tracks `beta` was assumption,
+never verification.
+
+**The fix is one dropdown, and it is the owner's:** in the `fb-bible`
+project, Settings → Git → **Production Branch** → `beta`. That makes the
+beta hop mean something *and* raises the badge, with no environment
+variable at all. Setting `FB_STAGE=preview` instead would raise the badge
+over a deployment that is still byte-identical to prod — an honest label on
+a stage that does not exist, which is worse than no badge.
+
 `/health` reports which stage answered (`"stage": "production" | "preview" |
 "local"`), so there is never a question of which deployment you are looking
-at. The page itself wears a BETA badge on preview deploys for the same
-reason — a beta that looks identical to prod is how wrong-tab mistakes
-happen.
+at.
+
+**The preprod deployment is a separate Vercel project, not a branch
+preview**, which breaks the obvious assumption: Vercel labels a project's
+own production deploy `production` regardless of which branch feeds it. So
+`fb-bible.vercel.app` reported `stage: production` and rendered **no BETA
+badge** — a preprod pixel-identical to the real thing, which is precisely
+the wrong-tab hazard the badge exists to prevent.
+
+### How the stage is decided (Aug 18)
+
+`Settings.stage` resolves in this order:
+
+1. **`FB_STAGE`** if set — an explicit answer always wins, in either
+   direction.
+2. **The git branch**, via `VERCEL_GIT_COMMIT_REF`. Anything in
+   `PREVIEW_BRANCHES` (today: `beta`) is a preview no matter what the host
+   calls the deploy. Prod builds from `main` and is unaffected.
+3. **`VERCEL_ENV`**, then `"local"`.
+
+Step 2 is why no dashboard setting is required: preprod builds from `beta`,
+and a deploy already knows the branch it came from. The original fix here
+was "set `FB_STAGE=preview` on that project", which worked but depended on
+a human remembering a setting that nothing checks.
+
+**The one way step 2 goes quiet:** a Vercel project with *Automatically
+expose System Environment Variables* turned off hands the function no ref,
+so the fallback sees an empty string and does nothing. `/health` now
+reports `"branch"` for exactly this reason — an empty value there is the
+diagnosis, and the fix is either flipping that toggle (Settings →
+Environments) or setting `FB_STAGE=preview` by hand after all.
+
+Dashboard note: on the current Vercel UI the variables live under
+**Settings → Environments → Production** for the `fb-bible` project —
+Production, not Preview, because that project's own deploys report as
+production. There is no separate "Environment Variables" sidebar item.
 
 ## The flow
 
 ```
-feature branch  ->  beta  ->  main
-   (preview URL      (stable beta      (production)
-    per branch)       URL, CI-gated)
+feature branch  ->  beta branch          ->  main
+   (branch preview    (fb-bible.vercel.app     (fb-bible-torro2
+    under either       -- its own project,      .vercel.app)
+    project)           CI-gated)
 ```
 
 1. Work lands on a feature branch. Vercel deploys a preview; CI runs on the
@@ -54,9 +120,14 @@ shared store — give that branch its own free Upstash database via a
 Preview-scoped `REDIS_URL` in Vercel (env vars are scoped Production /
 Preview / Development; a Preview value overrides for every branch deploy).
 
-**Not shared: writes.** `SYNC_TOKEN` is Production-scoped, so even a
-misconfigured cron cannot write through a preview deploy unless you
-deliberately scope a token to Preview.
+**Writes: not verified, do not assume.** The original claim here was that
+`SYNC_TOKEN` is Production-scoped so a preview cannot write. That reasoning
+assumed a branch preview under one project, and preprod is a separate
+project with its own fully-provisioned environment — it already has Redis
+and the encryption key. Whether it also carries `SYNC_TOKEN` has not been
+checked. In practice nothing writes through it, because all three crons
+POST to the production URL by name. Treat "preprod cannot write" as
+unverified until someone looks at that project's environment variables.
 
 **Not on beta: Yahoo login.** Yahoo matches the registered redirect URI
 character-for-character, and only the prod callback is registered. The

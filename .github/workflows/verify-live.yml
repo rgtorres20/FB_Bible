@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: "23 */2 * * *" # every 2 hours, offset to dodge top-of-hour load
   workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployment to verify (blank = production)"
+        required: false
+        default: ""
 
 concurrency:
   group: verify-live
@@ -22,5 +27,8 @@ jobs:
 
       # stdlib only, on purpose: the watchdog must not fail because of its
       # own dependencies.
-      - name: Verify production
+      - name: Verify deployment
+        env:
+          # Blank input falls through to production inside the script.
+          FBBIBLE_BASE: ${{ inputs.base_url }}
         run: python3 scripts/verify_live.py

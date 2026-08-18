@@ -2,7 +2,8 @@
 
 Last worked: **Tue Aug 18 2026.** The project started Aug 14 (first commit
 8:23 PM); treat anything dated earlier than the newest section as already
-superseded.
+superseded. Two Aug 18 sessions merged here: the AI-layer/preprod work
+(PRs #10–#17) and the stats/intel/top-300 build below.
 
 ## Aug 18 session — season stats, Team intel usage, top-300 alert board
 
@@ -59,10 +60,12 @@ pick entry from that loop; it does not define it.
 | App | <https://fb-bible-torro2.vercel.app/app> — installable to a phone home screen |
 | API | <https://fb-bible-torro2.vercel.app/docs> — 15 endpoints |
 | Store | Upstash Redis, encrypted token store |
-| News | 5 publishers polled automatically, player-tagged, in Redis |
+| News | 6 publishers polled automatically, player-tagged, in Redis |
 | Scheduler | GitHub Actions, running green |
 | Cost | $0 |
-| Tests | 299 Python + 16 JS, CI green on every push |
+| AI | Google AI Studio, free tier — wire verdicts hourly (live); TD-lean review shipped, first run pending |
+| Preprod | <https://fb-bible.vercel.app/app/> — 35/35, but it builds `main`: a duplicate of prod, not a stage (see owner actions) |
+| Tests | 340 Python + 16 JS (356), CI green on every push |
 
 **The stale-data problem is solved server-side.** ESPN, Yahoo, Rotowire,
 ProFootballTalk and CBS are polled without anyone asking, items are tagged
@@ -71,6 +74,95 @@ honest LIVE / STALE / FAILED state per source.
 
 Note the real cadence: the cron says every 15 minutes, but GitHub drops
 scheduled runs under load on free public repos. Observed: roughly hourly.
+
+## START HERE — the AI layer, three pieces left
+
+The owner asked (Aug 18) for three Gemini-driven surfaces. **One shipped,
+three remain**, and they build in this order because each needs the one
+before it.
+
+### 1. `app/feeds/stats.py` — the foundation, do this first
+
+Everything below reasons over it. The rule that shapes it: **Gemini never
+recalls a number, it only reads ones we fetched.** Asking a model to
+"project usage from last year" makes it invent snap counts that read as
+fact, which is the no-false-positives rule broken at the root.
+
+Endpoint **verified live 2026-08-18** (probe run #2, not assumed):
+
+    https://api.sleeper.app/v1/stats/nfl/regular/2025
+    HTTP 200 · 1.9 MB · dict of 8,243 keys
+
+- **Keyed by Sleeper player_id — the same ids as our player index**, so the
+  join to the board is free. No new key, no new rate budget, and the
+  Sleeper attribution already on the page covers it.
+- Usage fields confirmed present: `rec_tgt`, `rush_att`, **`rush_rz_att`**
+  (red-zone carries), `rz_att`, `rz_conv`, `rush_td`, `rec_yd`, `rush_yd`,
+  `rush_ypa`, `rec_ypt`, `rec_ypr`.
+- **Caveat, do not skip:** the richest entry the probe printed is a *team*
+  aggregate (455 targets, 507 carries), not a player. The field *names* are
+  confirmed; per-player coverage is **not**. Build the extractor to report
+  coverage per field on first run rather than trusting it — the same
+  self-verifying trick that finally cracked the model problem.
+- 1.9 MB, so cache it like the player index (TTL in the store), never fetch
+  per request.
+
+### 2. Top-100 AI alerts
+
+A new alerts surface, Gemini-drafted, **filtered to players ranked ≤100**.
+Ranks are already in the player index (`search_rank`). The `alerts` array
+in feeds.json is what the tab renders, so it overlays like everything else
+— no page fork. Label them so they never read as the owner's judgement,
+the same way verdicts carry "AI draft:".
+
+Note the tension to resolve deliberately: CLAUDE.md says the Alerts tab is
+curated judgement and "should never be auto-generated". The owner asked for
+an AI version anyway, so it belongs *alongside* the curated entries, plainly
+labelled — not replacing them.
+
+### 3. Team intel usage reads
+
+Join the stats feed to the `INTEL` depth charts already in the page (starters
+by position per team). Gemini writes prose about expected usage — who is
+ahead of whom, what the red-zone split looked like — with every claim
+traceable to a number we supplied. **Prose only, never figures.**
+
+Roster question settled (owner, Aug 18): this means **NFL team depth
+charts**, not the owner's fantasy roster. Yahoo is still blocked, and the
+owner's own picks live in browser localStorage where the server cannot see
+them.
+
+## Decisions locked this session, do not relitigate
+
+- **AI provider: Google AI Studio**, free tier, OpenAI-compatible endpoint.
+- **Model: `models/gemini-flash-latest`** — the floating alias, chosen
+  deliberately over a pinned version. This job died twice to a name
+  vanishing (GitHub Models retired; then `gemini-2.5-flash` aged out — it is
+  Aug 2026 and Gemini is on 3.x). Drift is the accepted cost; verdicts are
+  advisory prose, never numbers. Pin `models/gemini-3.7-flash` if
+  reproducibility ever outranks surviving the next rename.
+- **Secret: `AI_API_KEY`** (or `GEMINI_API_KEY` — both are read).
+- **Board duplicate:** Jayden Reed kept at **tier 7 / WR32**; the tier 11
+  row is dropped at serve time, generalised to first-wins.
+
+## What the AI layer already does
+
+- **Wire verdicts** (`scripts/draft_verdicts.py`) — one batched call an
+  hour over the 18 newest tagged items; renders "AI draft:" on the news
+  tab. First real output Aug 18: 18 in, 13 stored, 8 on the tab.
+- **TD-lean review** (`scripts/review_predictions.py`) — checks each
+  curated lean against that team's live implied total; renders as an
+  "AI check:" clause appended to the row's why. **The lean and confidence
+  are never touched** — a disagreeing model gets its own labelled space,
+  not the pen. Leans with no posted line are dropped rather than sent,
+  because asking without a number invites invention.
+  **Not yet observed running.** The step landed on `main` at 05:16 UTC on
+  Aug 18; every AI-verdicts run up to that point (latest: run 39, 05:05
+  UTC) shows only the "Draft and post verdicts" step. Code, tests and the
+  endpoint are green, but the first live proof is the next hourly run —
+  check that run 40+ has a **"Review the TD leans"** step that exits 0,
+  and that a Predictions row carries an "AI check:" clause. Until then
+  this bullet describes intent, not an observed surface.
 
 ## Yahoo is BLOCKED on Yahoo, not on us
 
@@ -135,7 +227,7 @@ should work first time.
    - *Week 1 schedule*: DONE (Aug 15 evening) — same payload, kickoff
      day/time in Central, teams and network; owner's per-game notes ride
      along by matchup.
-   - *AI verdicts*: **one secret away from working.** Chased to the bottom
+   - *AI verdicts*: **WORKING as of Aug 18.** Chased to the bottom
      Aug 15 evening: verdicts.yml reported success while every run ended
      `HTTP Error 410: Gone` — **GitHub Models was retired 2026-07-30**,
      two weeks before this layer was built, so not one verdict was ever
@@ -144,7 +236,7 @@ should work first time.
      410 was handled like a rate limit, both exiting 0 under a green
      check).
      Now on **Google AI Studio** (owner's call), free tier, via its
-     OpenAI-compatible endpoint — `gemini-2.5-flash`, one request an hour
+     OpenAI-compatible endpoint — `models/gemini-flash-latest`, one request an hour
      against a few-hundred-a-day limit. The hourly schedule is back on and
      no-ops with a warning until the key exists.
      **YOUR STEP:** create a key at <https://aistudio.google.com> → Get
@@ -250,27 +342,43 @@ competitor invented a phantom team; a corrupt `fb_visit` froze NEW badges
 forever; sync burned 30s on an ESPN fetch that always 403s from Vercel;
 and the Vegas push was skipped whenever the unrelated sync call failed.
 
-## Next work, no dependencies — highest value first
+## Owner actions nobody else can do
 
-A three-angle review of the whole app ran Aug 15 evening; twelve verified
-defects were fixed the same day and the rest is a ranked backlog in
-[docs/GAP_REVIEW.md](GAP_REVIEW.md). Start there. The top three:
+1. **Point the `fb-bible` Vercel project at the `beta` branch.**
+   Settings → Git → **Production Branch** → `beta`. One dropdown.
 
-1. **Draft analyzer is not live** — the live ADP blend only feeds Scout
-   finds; the board you actually draft from is the in-page const, and its
-   "ADP" column is the row's own rank restated. Data health currently
-   stamps it live anyway. Highest-value fix before the drafts.
-2. **Draft-day pick math** — no draft slot, no snake, no "gone before my
-   next pick". Live ADP + pick count is all it needs.
-3. **QBs-per-league and IDP** — the Trenches QB adjustment classifies 12
-   of 24 QBs (and its board sort floats kickers above RBs); the player
-   index excludes DB/LB, so 8 of 18 starting slots can never be tagged.
+   This replaces the old "set `FB_STAGE=preview`" item, and the reason is a
+   finding, not a preference. The watchdog was run against preprod at 05:41
+   UTC on Aug 18 and its log read:
 
-Also still user actions: **submit the Yahoo access application**
-(`docs/YAHOO_APPLICATION.md`) and **rotate the Upstash password**.
+       INFO  stage: production  branch: main
 
-(TD leans and the Week 1 schedule went live Aug 15 with the Vegas board —
-see STALE_DATA.md #1–2.)
+   **Preprod builds `main`.** It is not a pre-production stage — it is a
+   second deployment of the exact commit prod serves, which is why it has
+   always reported 35/35 with identical data, and why pushing to `beta`
+   does nothing to it. Every earlier claim that it tracks `beta` was
+   assumed and never checked.
+
+   `Settings.stage` now falls back to the git branch
+   (`VERCEL_GIT_COMMIT_REF`): `beta` means preview whatever the host calls
+   the deploy. That code is live and working — the ref reached the function,
+   which also proves the project exposes system environment variables — it
+   simply has nothing to match while the branch is `main`. Flip the dropdown
+   and the badge appears with no environment variable at all.
+
+   Do **not** reach for `FB_STAGE=preview` as a shortcut here. It would
+   raise a BETA badge over a deployment still byte-identical to prod: an
+   honest-looking label on a stage that does not exist.
+
+   **Verify after flipping:** re-run `verify-live.yml` with
+   `base_url=https://fb-bible.vercel.app` and read the log for
+   `INFO stage: preview  branch: beta`, plus the
+   `preview wears the BETA badge` assertion, which only arms when the stage
+   says preview.
+2. **Submit the Yahoo access application** — paste from
+   `docs/YAHOO_APPLICATION.md`. Starts their review clock.
+3. **Rotate the Upstash password** (pasted into chat on Aug 14), then
+   re-run `scripts/setup_redis.py`.
 
 ## Housekeeping worth doing when fresh
 

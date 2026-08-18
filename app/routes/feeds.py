@@ -210,6 +210,15 @@ class VegasIn(BaseModel):
     state: dict
 
 
+class PredReviewsIn(BaseModel):
+    reviews: dict[str, str]
+
+
+# One short clause appended to an existing "why" cell, not a paragraph.
+MAX_REVIEW_CHARS = 110
+MAX_REVIEWS = 24
+
+
 # The odds table renders the first five; the last four feed the Week 1
 # schedule tab (kickoff ISO, full team names, network).
 _VEGAS_ROW_FIELDS = (
@@ -259,6 +268,38 @@ async def save_vegas(
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
+@router.post("/internal/pred-reviews", summary="Store AI checks of the TD leans")
+async def save_pred_reviews(
+    payload: PredReviewsIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """A one-line sanity check per TD lean, drafted against the live line.
+
+    Keyed by the player name as the page spells it, and only kept for names
+    the committed PREDICTIONS table actually carries -- the model cannot
+    introduce a row by inventing a player. The lean itself is never touched:
+    these render as a separate "AI check:" clause so a disagreement is
+    visible without the owner's call being quietly rewritten.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    known = {p["name"] for p in vegas.curated_predictions()}
+    accepted = {
+        name: text.strip()[:MAX_REVIEW_CHARS]
+        for name, text in list(payload.reviews.items())[:MAX_REVIEWS]
+        if name in known and text.strip()
+    }
+    if not accepted:
+        raise HTTPException(status_code=422, detail="No reviews matched a known prediction.")
+
+    data = await store.load()
+    data["pred_reviews"] = accepted
+    await store.save(data)
+    return {"stored": len(accepted)}
 
 
 MAX_VERDICT_CHARS = 200
@@ -356,6 +397,9 @@ async def sync(
     # store on every sync -- the hourly AI job's output lived for minutes.
     surviving = {item.get("id") for item in merged["items"]}
     verdicts = {k: v for k, v in (existing.get("verdicts") or {}).items() if k in surviving}
+    # Not keyed to wire items, so nothing prunes them -- but they must
+    # survive the save, which is exactly what the verdicts bug was.
+    pred_reviews = existing.get("pred_reviews") or {}
 
     # Season stats are final numbers, not a feed: refetch weekly (or when the
     # store lost them), keep the previous state on any failure. Same rule as
@@ -377,6 +421,7 @@ async def sync(
             "vegas": vegas_state,
             "verdicts": verdicts,
             "stats": stats_state,
+            "pred_reviews": pred_reviews,
         }
     )
 

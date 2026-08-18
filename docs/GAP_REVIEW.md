@@ -38,7 +38,11 @@ checked at review time and may drift.
 
 ## Found by chasing the review's leads, same evening
 
-**The AI verdict layer has never worked.** The review flagged that
+**The AI verdict layer has never worked.** *(RESOLVED Aug 18 — it works
+now; the account below is the post-mortem, kept because the failure mode
+is the interesting part. Provider is Google AI Studio, the key is in
+`AI_API_KEY`, and the first real output was 18 items in / 13 verdicts
+stored / 8 on the news tab.)* The review flagged that
 `draft_verdicts.py` exits 0 on model failure, so a permanent break would
 look green forever. Running the job and reading its log confirmed exactly
 that: `HTTP Error 410: Gone` on every run, because **GitHub Models was
@@ -124,8 +128,9 @@ Ordered by draft-day value.
 11. **verify-live false-alarms on a single transient publisher error** —
     FAILED should only be fatal when the data is also stale; needs a
     `last_ok_at` carried per source through the sync.
-12. **Quiet degraders**: verdicts job returns green on permanent model
-    failure; ADP/vegas fetch failures never annotate the workflow; ESPN
+12. **Quiet degraders**: ~~verdicts job returns green on permanent model
+    failure~~ (fixed — permanent codes exit non-zero, transient ones retry
+    with backoff); ADP/vegas fetch failures never annotate the workflow; ESPN
     extending its block to GitHub runners would age out silently. Add
     freshness assertions on `adp.state.date` / `vegas.fetched_at`.
 13. **Smaller product debt**: per-request Redis client (make the feed
