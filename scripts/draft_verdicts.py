@@ -2,7 +2,7 @@
 
 PROVIDER: **Google AI Studio** (owner's call, Aug 15) -- free tier, no
 card, through its OpenAI-compatible endpoint, so this stays plain
-chat-completions. gemini-2.5-flash allows a few hundred requests a day and
+chat-completions. The free tier allows a few hundred requests a day and
 this job makes one an hour. Any other OpenAI-compatible provider is a
 config change, not a code change: set VERDICT_API_URL / VERDICT_MODEL as
 repo variables (Groq's llama-3.3-70b-versatile is the documented
@@ -45,7 +45,16 @@ BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
 # strings, which must not silently blank the URL.
 GOOGLE_AI_STUDIO = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
-MODEL = os.environ.get("VERDICT_MODEL") or "gemini-2.5-flash"
+# The floating alias, not a pinned version, and deliberately so. This job
+# has now been broken twice by a name disappearing underneath it -- GitHub
+# Models retired outright, then gemini-2.5-flash aged out (verified against
+# the live model list 2026-08-18, which is on 3.x). The alias is the one
+# name Google keeps pointing at a current flash model. The trade is real:
+# output can drift without notice. Acceptable here, because a verdict is an
+# advisory one-liner rendered "AI draft:", never a number anything depends
+# on. Pin to a version -- models/gemini-3.7-flash -- if reproducibility ever
+# matters more than surviving the next rename.
+MODEL = os.environ.get("VERDICT_MODEL") or "models/gemini-flash-latest"
 MAX_ITEMS = 18
 
 SYSTEM_PROMPT = (

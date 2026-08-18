@@ -104,7 +104,7 @@ should work first time.
      410 was handled like a rate limit, both exiting 0 under a green
      check).
      Now on **Google AI Studio** (owner's call), free tier, via its
-     OpenAI-compatible endpoint — `gemini-2.5-flash`, one request an hour
+     OpenAI-compatible endpoint — `models/gemini-flash-latest`, one request an hour
      against a few-hundred-a-day limit. The hourly schedule is back on and
      no-ops with a warning until the key exists.
      **YOUR STEP:** create a key at <https://aistudio.google.com> → Get

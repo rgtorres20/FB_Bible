@@ -40,7 +40,7 @@ annotates).
 
 **Provider: Google AI Studio** (owner's call, Aug 15) — free tier, no
 card, through its OpenAI-compatible endpoint so the pipeline stays
-ordinary chat-completions. `gemini-2.5-flash` allows a few hundred
+ordinary chat-completions. The free tier allows a few hundred
 requests a day; this job makes one an hour.
 
 **One step left, and it is the owner's:** create a key at
