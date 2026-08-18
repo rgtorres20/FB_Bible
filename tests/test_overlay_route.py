@@ -32,6 +32,7 @@ def offline_adp(monkeypatch):
 
     monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
     monkeypatch.setattr(feeds_route.vegas, "fetch", _offline)
+    monkeypatch.setattr(feeds_route.stats, "fetch", _offline)
 
 
 @pytest.fixture

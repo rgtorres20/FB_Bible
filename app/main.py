@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .feeds import board, vegas
+from .feeds import board, stats, vegas
 from .feeds.store import FeedStore
 from .routes import auth, feeds, league
 
@@ -181,6 +181,14 @@ if _FRONTEND_READY:
                 html, covered = board.inject(html, (stored.get("adp") or {}).get("state"))
                 if covered:
                     logging.getLogger(__name__).info("board: %d rows carry live ADP", covered)
+                # Team-intel usage reads: the measured '25 pass rate and
+                # red-zone run share replace the curated estimates, labelled
+                # as such -- all 32 teams or nothing (see stats.usage_reads).
+                html, intel_live = stats.inject(html, stored.get("stats"))
+                if intel_live:
+                    logging.getLogger(__name__).info(
+                        "team intel: usage reads live from Sleeper '25 aggregates"
+                    )
             except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
                 logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
         # A beta deploy announces itself (styles in mobile.css). Prod and

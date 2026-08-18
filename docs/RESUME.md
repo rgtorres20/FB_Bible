@@ -1,9 +1,49 @@
 # Resume here
 
-Last worked: **Sat Aug 15 2026, evening.** The whole project is 24 hours
-old (first commit 8:23 PM Aug 14); 63 commits across two parallel sessions
-landed in that window, so treat anything dated earlier than today as
-already superseded.
+Last worked: **Tue Aug 18 2026.** The project started Aug 14 (first commit
+8:23 PM); treat anything dated earlier than the newest section as already
+superseded.
+
+## Aug 18 session — season stats, Team intel usage, top-300 alert board
+
+Three pieces, built in order on `claude/stats-intel-alerts300`:
+
+1. **`app/feeds/stats.py`** — Sleeper `/v1/stats/nfl/regular/2025`
+   extractor. The earlier probe caveat ("richest entry was a team
+   aggregate; per-player coverage unconfirmed") is now settled by
+   measurement: the endpoint's 8,243 keys are 8,179 player ids + 32 bare
+   team codes (team **defense** fantasy aggregates) + 32 `TEAM_XXX` keys
+   (team **offense** aggregates: pass/rush attempts, red-zone and
+   goal-to-go splits). Per-player coverage is real but sparse (pass_att:
+   128 players, rush_att: 367, rec_tgt: 534, off_snp: 947), so `reduce()`
+   **counts holders per field into `coverage`** and consumers gate on the
+   counts — nothing assumes a field exists. Stored state is ~80KB (603
+   players with offensive usage + 32 team offenses), rides the hourly sync
+   with a weekly refetch policy (the season is final; the numbers never
+   change).
+2. **Top-300 alert board** — `/app/alerts300` (owner asked for top-300,
+   up from top-100). Server-rendered zero-script page, cheat-sheet
+   pattern: one row per top-300 Sleeper-ranked player with live injury
+   flag, blended ADP, newest wire mention, and the machine line for that
+   item — "AI draft:" when the hourly job has one, "Auto:" fallback
+   otherwise, an explicit "No wire mention in the last 21 days" when the
+   archive is empty. The hourly verdicts job now reads `verdict_ids` from
+   `/api/feeds` and spends its one request on **uncovered** items,
+   top-300-player items first, so coverage accumulates instead of
+   re-drafting the newest 18 forever. Reachable by URL only (same
+   discoverability debt as the cheat sheet, GAP_REVIEW #6).
+3. **Team intel usage reads** — the curated `PASSRATE` / `GLRUN` /
+   `TEAM_SPLIT` consts are replaced at serve time from the '25 team
+   offense aggregates, all 32 teams or nothing. "GL x% run" became
+   **"RZ x% run share ('25)"** because Sleeper has no run/pass split
+   inside goal-to-go — the label names the stat that is actually shown.
+   Win projections on the tab stay curated; the Data health row says so.
+
+**After merging to main:** the two new watchdog check groups (top-300
+board, Team intel live marker) stay red until Vercel deploys **and** the
+next sync stores the stats state — trigger `sync-feeds` from the Actions
+tab (or POST `/internal/sync`) right after the deploy to close that
+window.
 
 ## Scope check, so this file is not misread
 
