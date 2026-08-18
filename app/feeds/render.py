@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import adp, impact, injury, vegas
+from . import adp, impact, injury, stats, vegas
 
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
@@ -127,6 +127,7 @@ def merge_into_feeds(
     verdicts: dict[str, str] | None = None,
     vegas_state: dict | None = None,
     injury_names: tuple[str, ...] | None = None,
+    stats_state: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -219,7 +220,7 @@ def merge_into_feeds(
     merged["note"] = (
         "News is polled live from ESPN, Yahoo, Rotowire, ProFootballTalk and CBS. "
         "Other feeds are chat-synced. Data provided by the named sources; "
-        "injury and trending data provided by Sleeper."
+        "injury, trending and season stats data provided by Sleeper."
     )
 
     # Data health reads `meta` for its as-of stamps. Without this, that tab
@@ -262,6 +263,19 @@ def merge_into_feeds(
                 **entry,
                 "asOf": vegas.central_stamp((vegas_state or {}).get("fetched_at")) or stamp,
                 "source": vegas.SCHED_LIVE_SOURCE,
+            }
+        # Only the usage numbers went live; the '26 win projections on the
+        # same tab stay curated, and the label says which is which. Gated on
+        # the same all-32-teams check as the serve-time injection, so this
+        # row can never claim numbers the page is not actually showing.
+        elif feed == "Team intel / projections" and stats.usage_reads(stats_state) is not None:
+            entry = {
+                **entry,
+                "asOf": stamp,
+                "source": (
+                    "Pass rate + red-zone run share: Sleeper '25 season "
+                    "(measured, all 32 teams) · projections still curated"
+                ),
             }
         meta_rows.append(entry)
     merged["meta"] = meta_rows

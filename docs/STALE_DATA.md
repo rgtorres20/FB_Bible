@@ -20,6 +20,8 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | TD-lean confidence (FFBets) | implied-total movement vs openers | every request (Aug 15) |
 | Week 1 schedule (kickoff/teams/TV) | ESPN scoreboard | ~hourly sync (Aug 15) |
 | Trending adds/drops, injury flags | Sleeper API, fetched by the page | on page load |
+| Team intel usage reads (pass rate + RZ run share) | Sleeper '25 season team aggregates | weekly refetch, injected per request (Aug 18) |
+| Top-300 alert board (`/app/alerts300`) | Sleeper ranks + stored wire + labelled AI/Auto lines | every request (Aug 18) |
 | Data health stamps | overlay-stamped per feed | every request |
 | Out & returning wire stamps | latest wire mention per player | every request |
 
@@ -87,6 +89,14 @@ Ordered by how much staleness actually costs.
    labelled "estimates / no live sheet" in Data health. Plan: revisit when
    the season starts (weekrev is a September feature); salaries have no
    free live source — the honest label stays.
+   *Partially resolved Aug 18:* Team intel's **usage numbers** (pass rate
+   and what was "GL % run") are now measured from Sleeper's '25 season team
+   aggregates and injected at serve time, relabelled **"RZ x% run share
+   ('25)"** because Sleeper carries no run/pass split inside goal-to-go —
+   red-zone run share is the closest number that is real. All 32 teams or
+   the page keeps its curated consts (no partial maps). The **'26 win
+   projections on the same tab stay curated**, and the Data health row says
+   which half is which.
 
 ## The enforcement loop
 

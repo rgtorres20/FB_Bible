@@ -27,6 +27,7 @@ def offline_adp(monkeypatch):
 
     monkeypatch.setattr(feeds_route.adp, "fetch", _offline)
     monkeypatch.setattr(feeds_route.vegas, "fetch", _offline)
+    monkeypatch.setattr(feeds_route.stats, "fetch", _offline)
 
 
 @pytest.fixture
@@ -70,6 +71,21 @@ async def test_verdicts_only_attach_to_held_items(client):
     assert body == {"accepted": 1, "stored": 1}
     saved = await store.load()
     assert "invented" not in saved["verdicts"]
+
+
+async def test_api_feeds_reports_which_items_carry_verdicts(client):
+    """The hourly drafting job reads verdict_ids to spend its one request on
+    uncovered items instead of re-drafting the newest handful forever."""
+    c, store = client
+    await store.save(
+        {
+            "items": [_item("covered", "t"), _item("bare", "t2")],
+            "sources": {},
+            "verdicts": {"covered": "a line"},
+        }
+    )
+    body = c.get("/api/feeds").json()
+    assert body["verdict_ids"] == ["covered"]
 
 
 async def test_verdicts_are_pruned_with_their_items_and_capped(client):

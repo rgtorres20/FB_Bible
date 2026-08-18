@@ -47,6 +47,11 @@ GOOGLE_AI_STUDIO = "https://generativelanguage.googleapis.com/v1beta/openai/chat
 MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
 MODEL = os.environ.get("VERDICT_MODEL") or "gemini-2.5-flash"
 MAX_ITEMS = 18
+# The window the drafting job looks across, and the rank scope it favors:
+# items about top-300 players (the top-300 alert board's population) are
+# drafted first, so that surface fills in ahead of tail-rank chatter.
+FETCH_LIMIT = 200
+TOP_RANK = 300
 
 SYSTEM_PROMPT = (
     "You write one-line fantasy football takeaways for a draft-prep app. "
@@ -71,8 +76,31 @@ def http_json(url: str, payload: dict | None = None, headers: dict | None = None
 
 
 def newest_items() -> list[dict]:
-    feed = http_json(f"{BASE}/api/feeds?tagged_only=true&limit={MAX_ITEMS}")
-    return feed.get("items", [])
+    """Uncovered tagged items, top-300 players first, capped at MAX_ITEMS.
+
+    The old selection was simply the newest 18 tagged items, re-drafted
+    every hour whether or not they already had verdicts -- so coverage never
+    accumulated past the top of the wire. verdict_ids (served by /api/feeds)
+    lets the hour's one request go to items that still need a line, and the
+    rank split points it at the players the top-300 board tracks.
+    """
+    feed = http_json(f"{BASE}/api/feeds?tagged_only=true&limit={FETCH_LIMIT}")
+    return select_items(feed.get("items", []), set(feed.get("verdict_ids") or []))
+
+
+def _best_rank(item: dict) -> int | None:
+    ranks = [p.get("rank") for p in item.get("players") or [] if isinstance(p.get("rank"), int)]
+    return min(ranks) if ranks else None
+
+
+def select_items(items: list[dict], covered: set[str], max_items: int = MAX_ITEMS) -> list[dict]:
+    """Items still needing a verdict; top-300-player items ahead of the rest,
+    wire order (newest first) preserved within each group."""
+    pending = [i for i in items if i.get("id") and i["id"] not in covered]
+    top = [i for i in pending if (_best_rank(i) or 10**6) <= TOP_RANK]
+    top_ids = {i["id"] for i in top}
+    rest = [i for i in pending if i["id"] not in top_ids]
+    return (top + rest)[:max_items]
 
 
 def draft(items: list[dict], api_key: str) -> dict[str, str]:
@@ -133,7 +161,7 @@ def main() -> int:
 
     items = newest_items()
     if not items:
-        print("no tagged items to draft verdicts for")
+        print("nothing to draft: every tagged item in the window already has a verdict")
         return 0
     print(f"drafting verdicts for {len(items)} items via {MODEL}")
 

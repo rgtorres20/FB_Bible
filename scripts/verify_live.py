@@ -112,6 +112,21 @@ def main() -> int:
     cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
     check("cheat sheet serves the live board", "rushing league" in cheat and "Blend" in cheat)
 
+    # The top-300 alert board: one row per ranked player, wire-checked, with
+    # machine lines labelled by author. Population needs the player index,
+    # which the hourly sync keeps warm -- fewer than 250 rows means the
+    # surface has degraded to its honest empty state.
+    top300 = get("/app/alerts300").decode("utf-8", errors="replace")
+    check("top-300 alert board serves", "Top-300 alert board" in top300)
+    check(
+        "top-300 board is populated",
+        top300.count("<tr>") >= 250,
+        f"{top300.count('<tr>')} rows",
+    )
+    check("top-300 board credits Sleeper", "data: Sleeper" in top300)
+    drafted300 = top300.count("AI draft:")
+    print(f"  INFO  AI-drafted lines on the top-300 board: {drafted300}")
+
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)
@@ -127,6 +142,11 @@ def main() -> int:
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
     check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
+    # Team-intel usage reads: measured '25 pass rate and red-zone run share
+    # replace the curated estimates, and the label names the stat -- a
+    # revert to "GL x% run" over estimates is the stale-data failure mode.
+    check("Team intel usage reads are live", "FB live usage: Sleeper '25 season" in served)
+    check("red-zone run share is labelled", "% run share ('25)" in served)
     # A player listed twice appears twice mid-draft, and marking one row
     # taken leaves the other looking available.
     rows = re.search(r"const RAW_BOARD = \[(.*?)\n\];", served, re.S)

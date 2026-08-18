@@ -22,7 +22,18 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from ..config import Settings, get_settings
-from ..feeds import adp, build_feed_store, cheatsheet, injury, players, poller, render, vegas
+from ..feeds import (
+    adp,
+    alerts300,
+    build_feed_store,
+    cheatsheet,
+    injury,
+    players,
+    poller,
+    render,
+    stats,
+    vegas,
+)
 from ..feeds.store import FeedStore
 
 log = logging.getLogger(__name__)
@@ -88,6 +99,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         verdicts=stored.get("verdicts"),
         vegas_state=stored.get("vegas"),
         injury_names=injury.watched_names(),
+        stats_state=stored.get("stats"),
     )
 
 
@@ -103,6 +115,28 @@ async def draft_cheatsheet(store: FeedStore = Depends(get_feed_store)) -> HTMLRe
         stored, index = {}, None
     state = (stored.get("adp") or {}).get("state") or {}
     return HTMLResponse(cheatsheet.build_html(state, index, datetime.now(UTC)))
+
+
+@router.get("/app/alerts300", include_in_schema=False, response_class=HTMLResponse)
+async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """The top-300 alert board: every ranked player's latest wire word and
+    its labelled machine-drafted line. Declared before the /app static mount
+    so it wins; zero scripts, same as the cheat sheet."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("alerts300: store unavailable: %s", exc)
+        stored, index = {}, None
+    return HTMLResponse(
+        alerts300.build_html(
+            index,
+            stored.get("items", []),
+            stored.get("verdicts") or {},
+            (stored.get("adp") or {}).get("state"),
+            datetime.now(UTC),
+        )
+    )
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")
@@ -149,6 +183,10 @@ async def read_feeds(
         "total": len(items),
         "sources": sources,
         "polled_at": data.get("polled_at"),
+        # Which items already carry an AI-drafted verdict. The hourly drafting
+        # job reads this to spend its request on uncovered items instead of
+        # re-drafting the same newest handful every run.
+        "verdict_ids": sorted(data.get("verdicts") or {}),
     }
 
 
@@ -319,6 +357,17 @@ async def sync(
     surviving = {item.get("id") for item in merged["items"]}
     verdicts = {k: v for k, v in (existing.get("verdicts") or {}).items() if k in surviving}
 
+    # Season stats are final numbers, not a feed: refetch weekly (or when the
+    # store lost them), keep the previous state on any failure. Same rule as
+    # ADP -- last week's final-season stats are identical to this week's,
+    # while an empty state would revert Team intel to its curated estimates.
+    stats_state = existing.get("stats") or {}
+    if stats.stale(stats_state, datetime.now(UTC)):
+        try:
+            stats_state = await stats.fetch()
+        except Exception as exc:  # noqa: BLE001 - stats must never sink the news sync
+            log.warning("season stats fetch failed, keeping previous state: %s", exc)
+
     await store.save(
         {
             "items": merged["items"],
@@ -327,6 +376,7 @@ async def sync(
             "adp": {"state": adp_state, "history": adp_history},
             "vegas": vegas_state,
             "verdicts": verdicts,
+            "stats": stats_state,
         }
     )
 
@@ -347,5 +397,7 @@ async def sync(
         "adp_players": len(adp_state.get("players", [])),
         "vegas_games": len(vegas_state.get("games", [])),
         "vegas_error": vegas_error,
+        "stats_teams": len(stats_state.get("teams", {})),
+        "stats_usage_complete": stats.usage_reads(stats_state) is not None,
         "polled_at": polled["polled_at"],
     }
