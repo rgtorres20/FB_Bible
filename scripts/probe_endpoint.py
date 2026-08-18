@@ -34,12 +34,15 @@ def describe(value: object, depth: int = 0) -> str:
         head = f"dict({len(keys)} keys)"
         if depth >= 2:
             return head
-        shown = keys[:MAX_SAMPLE_KEYS]
+        # A big id-keyed map repeats one shape thousands of times. Expanding
+        # a sample of them is noise -- name a few ids and let the sample
+        # entry printed below carry the actual structure.
+        if len(keys) > MAX_SAMPLE_KEYS:
+            preview = ", ".join(str(k) for k in keys[:5])
+            return f"{head} keyed like: {preview}, ..."
         lines = [head]
-        for key in shown:
+        for key in keys:
             lines.append(f"{pad}  {key}: {describe(value[key], depth + 1)}")
-        if len(keys) > len(shown):
-            lines.append(f"{pad}  ... {len(keys) - len(shown)} more keys")
         return "\n".join(lines)
     if isinstance(value, list):
         head = f"list({len(value)})"

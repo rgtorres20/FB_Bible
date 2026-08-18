@@ -191,7 +191,7 @@ def test_probe_describes_structure_without_dumping_the_body():
     out = describe(payload)
 
     assert "dict(200 keys)" in out
-    assert "more keys" in out  # truncated, not dumped
+    assert "keyed like:" in out  # named, not expanded 200 times
     assert out.count("\n") < 40
 
 
