@@ -165,10 +165,13 @@ them.
   throughout: run 47 posted 11 accepted / 41 stored.) The fix mirrors
   sync-feeds, which hit the identical wall with `push_vegas.py`: a
   `pip install --quiet httpx` step ahead of the review. Reproduced and
-  verified in a bare venv before pushing. Still to observe: a run with
-  a green **"Review the TD leans"** step and a Predictions row carrying
-  an "AI check:" clause — until then this describes a fix, not a
-  working surface.
+  verified in a bare venv before pushing. **Observed working:** run 48
+  (dispatched 22:27 UTC Aug 18 on the fixed commit) ran the review step
+  green — "reviewing 12 leans via models/gemini-flash-latest", posted
+  `{'stored': 12}`. What has not been eyeballed yet: an actual
+  Predictions row rendering its "AI check:" clause on the page — the
+  clauses are stored, the render is asserted only by the generic
+  TD-lean checks.
 
 ## Yahoo is BLOCKED on Yahoo, not on us
 
