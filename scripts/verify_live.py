@@ -158,6 +158,10 @@ def main() -> int:
         "Titans mode offered beside Cowboys mode",
         "★ Titans mode" in served and "★ Cowboys mode" in served,
     )
+    check(
+        "Titans watermark rides the CSS var",
+        "background-image:var(--fb-watermark" in served,
+    )
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
     # Strict on purpose: once the live board has shipped, a revert to the

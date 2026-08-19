@@ -239,6 +239,11 @@ aside > div:nth-child(2) {
   --color-accent-400: oklch(0.62 0.12 248);
   --color-accent-700: oklch(0.45 0.13 252);
   --color-accent-800: oklch(0.36 0.11 254);
+  /* The page ships one fixed watermark layer; app_page reroutes its
+   * background-image through var(--fb-watermark, <shipped url>), so this
+   * swaps in the circle-T (owner's art, redrawn in assets/titans-logo.svg)
+   * whenever the titans skin is on. Inherits into the themed variants. */
+  --fb-watermark: url("assets/titans-logo.svg");
 }
 
 /* Titans mode goes full Titans navy (#0C2340 neighborhood), the way

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Tennessee Titans circle-T, redrawn from the owner's reference image
+       (Aug 19) for the titans-mode watermark. Official palette: red ring
+       #C8102E, white ring, Titans-blue field #4B92DB, white sword-T and
+       three white stars. Served at 12% opacity behind the page. -->
+  <circle cx="100" cy="100" r="97" fill="#c8102e"/>
+  <circle cx="100" cy="100" r="89" fill="#ffffff"/>
+  <circle cx="100" cy="100" r="81" fill="#4b92db"/>
+  <defs>
+    <path id="star" fill="#ffffff" d="M0 -1 L0.2245 -0.309 L0.951 -0.309 L0.3633 0.118 L0.5878 0.809 L0 0.382 L-0.5878 0.809 L-0.3633 0.118 L-0.951 -0.309 L-0.2245 -0.309 Z"/>
+  </defs>
+  <use href="#star" transform="translate(100 40) scale(13)"/>
+  <use href="#star" transform="translate(57 121) scale(13)"/>
+  <use href="#star" transform="translate(143 121) scale(13)"/>
+  <path fill="#ffffff" d="M38 62 H162 L150 92 H113 L100 174 L87 92 H50 Z"/>
+</svg>

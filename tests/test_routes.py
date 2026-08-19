@@ -242,3 +242,14 @@ def test_titans_mode_joins_cowboys_mode():
     assert '[data-skin="titans"]' in css
     assert '[data-skin="titans"][data-theme="titans"]' in css
     assert '[data-skin="titans"][data-theme="dark"]' in css
+
+    # The watermark layer rides a CSS var so the titans skin swaps in the
+    # circle-T, and titans mode lights the layer the way cowboys mode does.
+    # On disk the page keeps its single fixed cowboys watermark.
+    assert "background-image:var(--fb-watermark, url('assets/logo.png'))" in served
+    assert 'wmOpacity: s.theme === "cowboys" || s.theme === "titans" ? "0.12" : "0",' in served
+    assert "--fb-watermark: url" in css
+    assert "background-image:url('assets/logo.png')" in on_disk
+    logo = client.get("/app/assets/titans-logo.svg")
+    assert logo.status_code == 200
+    assert "#4b92db" in logo.text  # Titans blue, not a stray placeholder

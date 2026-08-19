@@ -180,6 +180,20 @@ if _FRONTEND_READY:
             'if (th === "dark" || th === "light" || th === "cowboys" || th === "titans")',
             1,
         )
+        # The Titans watermark (owner's art, Aug 19): the page ships one
+        # fixed logo layer, lit only in cowboys mode. Route its image
+        # through a CSS var so the titans skin swaps in the circle-T from
+        # mobile.css, and let titans mode light the layer the same way.
+        html = html.replace(
+            "background-image:url('assets/logo.png')",
+            "background-image:var(--fb-watermark, url('assets/logo.png'))",
+            1,
+        )
+        html = html.replace(
+            'wmOpacity: s.theme === "cowboys" ? "0.12" : "0",',
+            'wmOpacity: s.theme === "cowboys" || s.theme === "titans" ? "0.12" : "0",',
+            1,
+        )
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
             '[{ id: "predict", label: "Predictions" }]',
