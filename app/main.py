@@ -150,15 +150,36 @@ if _FRONTEND_READY:
         if deduped:
             logging.getLogger(__name__).info("board: dropped duplicate rows for %s", deduped)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
-        # The Tennessee Titans skin (owner request, Aug 19). The page
-        # hardcodes its cowboys skin at render time; the swap happens here
-        # and the titans token blocks live in mobile.css, so a design
-        # resync that changes either literal misses cleanly -- the page
-        # then simply stays cowboys rather than breaking. The stored theme
-        # value remains "cowboys" (only the label changes), so a saved
-        # preference keeps working.
-        html = html.replace('skin: "cowboys",', 'skin: "titans",', 1)
-        html = html.replace("★ Cowboys mode", "★ Titans mode")
+        # Two team modes, owner's call (Aug 19): Cowboys stays exactly as
+        # shipped, Titans joins beside it. The picker gains a fourth
+        # option, the skin follows whichever starred mode is active, and
+        # the titans token blocks live in mobile.css -- so a design resync
+        # that changes any of these literals misses cleanly and the page
+        # simply stays all-cowboys rather than breaking.
+        html = html.replace(
+            'skin: "cowboys",',
+            'skin: s.theme === "titans" ? "titans" : "cowboys",',
+            1,
+        )
+        html = html.replace(
+            '<option value="cowboys">★ Cowboys mode</option>',
+            '<option value="cowboys">★ Cowboys mode</option>'
+            '<option value="titans">★ Titans mode</option>',
+            1,
+        )
+        html = html.replace(
+            'themeLabel: s.theme === "cowboys" ? "★ Cowboys mode"',
+            'themeLabel: s.theme === "titans" ? "★ Titans mode" : '
+            's.theme === "cowboys" ? "★ Cowboys mode"',
+            1,
+        )
+        # The restore guard whitelists stored themes; let "titans" survive
+        # a reload like the others do.
+        html = html.replace(
+            'if (th === "dark" || th === "light" || th === "cowboys")',
+            'if (th === "dark" || th === "light" || th === "cowboys" || th === "titans")',
+            1,
+        )
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
             '[{ id: "predict", label: "Predictions" }]',

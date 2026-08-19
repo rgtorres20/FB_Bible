@@ -219,11 +219,9 @@ aside > div:nth-child(2) {
 /* --- Titans skin (owner request, Aug 19) ---------------------------------
  * The page ships its team skins as [data-skin] token blocks inside its own
  * <style>; the Tennessee Titans set lives HERE because this sheet is
- * injected at serve time and survives design-project resyncs. Same token
- * contract and the same three states as the cowboys original: light, the
- * starred two-tone mode, and dark. app/main.py swaps the page's hardcoded
- * default skin to "titans" and relabels the starred mode; the stored theme
- * value stays "cowboys" so saved preferences keep working.
+ * injected at serve time and survives design-project resyncs. Cowboys mode
+ * stays exactly as shipped; app/main.py adds a "★ Titans mode" option
+ * beside it and points data-skin at "titans" while that mode is active.
  * Palette: navy #0C2340 · Titans blue #4B92DB · silver #8A8D8F · red kept
  * out -- one accent family, the two-tone navy/blue that reads "Titans". */
 [data-skin="titans"] {
@@ -243,11 +241,8 @@ aside > div:nth-child(2) {
   --color-accent-800: oklch(0.36 0.11 254);
 }
 
-/* The starred mode goes full Titans navy (#0C2340 neighborhood), the way
- * cowboys mode went two-tone. Selected as data-theme="cowboys" because
- * that is the value the page stores and restores; "titans" is also
- * honored should the page ever emit it. */
-[data-skin="titans"][data-theme="cowboys"],
+/* Titans mode goes full Titans navy (#0C2340 neighborhood), the way
+ * cowboys mode goes two-tone. */
 [data-skin="titans"][data-theme="titans"] {
   --color-bg: oklch(0.17 0.04 255);
   --color-text: oklch(0.94 0.008 240);

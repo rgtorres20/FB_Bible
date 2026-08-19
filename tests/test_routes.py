@@ -221,21 +221,24 @@ def test_probe_reports_list_and_scalar_shapes():
     assert "..." in describe({"long": "x" * 200})
 
 
-def test_titans_skin_is_the_served_default():
-    """Serve-time edits only: the page on disk keeps its cowboys default,
-    the response wears the Titans skin, and the token blocks ride the
-    injected stylesheet (docs/LEAGUES-era owner request, Aug 19)."""
+def test_titans_mode_joins_cowboys_mode():
+    """Two team modes, owner's call: Cowboys exactly as shipped, Titans
+    beside it. Serve-time edits only -- the file on disk keeps a single
+    cowboys mode -- and the skin follows whichever starred mode is active.
+    Token blocks ride the injected stylesheet."""
     from pathlib import Path
 
     served = client.get("/app/").text
-    assert 'skin: "titans",' in served
-    assert "★ Titans mode" in served
-    assert "★ Cowboys mode" not in served
+    assert '<option value="titans">★ Titans mode</option>' in served
+    assert '<option value="cowboys">★ Cowboys mode</option>' in served
+    assert 'skin: s.theme === "titans" ? "titans" : "cowboys",' in served
+    assert 'th === "titans"' in served  # stored choice survives reload
 
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert "titans" not in on_disk
     assert 'skin: "cowboys",' in on_disk
-    assert "★ Cowboys mode" in on_disk
 
     css = client.get("/app/mobile.css").text
     assert '[data-skin="titans"]' in css
+    assert '[data-skin="titans"][data-theme="titans"]' in css
     assert '[data-skin="titans"][data-theme="dark"]' in css
