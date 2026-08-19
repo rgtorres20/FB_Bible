@@ -154,6 +154,7 @@ def main() -> int:
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)
+    check("Titans skin is the served default", 'skin: "titans",' in served)
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
     # Strict on purpose: once the live board has shipped, a revert to the

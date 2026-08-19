@@ -219,3 +219,23 @@ def test_probe_reports_list_and_scalar_shapes():
 
     assert describe({"games": [{"a": 1}, {"a": 2}]}).count("list(2)") == 1
     assert "..." in describe({"long": "x" * 200})
+
+
+def test_titans_skin_is_the_served_default():
+    """Serve-time edits only: the page on disk keeps its cowboys default,
+    the response wears the Titans skin, and the token blocks ride the
+    injected stylesheet (docs/LEAGUES-era owner request, Aug 19)."""
+    from pathlib import Path
+
+    served = client.get("/app/").text
+    assert 'skin: "titans",' in served
+    assert "★ Titans mode" in served
+    assert "★ Cowboys mode" not in served
+
+    on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert 'skin: "cowboys",' in on_disk
+    assert "★ Cowboys mode" in on_disk
+
+    css = client.get("/app/mobile.css").text
+    assert '[data-skin="titans"]' in css
+    assert '[data-skin="titans"][data-theme="dark"]' in css

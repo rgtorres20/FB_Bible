@@ -150,6 +150,15 @@ if _FRONTEND_READY:
         if deduped:
             logging.getLogger(__name__).info("board: dropped duplicate rows for %s", deduped)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
+        # The Tennessee Titans skin (owner request, Aug 19). The page
+        # hardcodes its cowboys skin at render time; the swap happens here
+        # and the titans token blocks live in mobile.css, so a design
+        # resync that changes either literal misses cleanly -- the page
+        # then simply stays cowboys rather than breaking. The stored theme
+        # value remains "cowboys" (only the label changes), so a saved
+        # preference keeps working.
+        html = html.replace('skin: "cowboys",', 'skin: "titans",', 1)
+        html = html.replace("★ Cowboys mode", "★ Titans mode")
         html = html.replace(
             '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
             '[{ id: "predict", label: "Predictions" }]',

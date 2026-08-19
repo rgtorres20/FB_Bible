@@ -215,3 +215,69 @@ aside > div:nth-child(2) {
   color: var(--color-accent-700, #b00);
   pointer-events: none;
 }
+
+/* --- Titans skin (owner request, Aug 19) ---------------------------------
+ * The page ships its team skins as [data-skin] token blocks inside its own
+ * <style>; the Tennessee Titans set lives HERE because this sheet is
+ * injected at serve time and survives design-project resyncs. Same token
+ * contract and the same three states as the cowboys original: light, the
+ * starred two-tone mode, and dark. app/main.py swaps the page's hardcoded
+ * default skin to "titans" and relabels the starred mode; the stored theme
+ * value stays "cowboys" so saved preferences keep working.
+ * Palette: navy #0C2340 · Titans blue #4B92DB · silver #8A8D8F · red kept
+ * out -- one accent family, the two-tone navy/blue that reads "Titans". */
+[data-skin="titans"] {
+  --color-bg: oklch(0.965 0.006 240);
+  --color-text: oklch(0.26 0.055 255);
+  --color-neutral-200: oklch(0.93 0.012 240);
+  --color-neutral-300: oklch(0.87 0.016 240);
+  --color-neutral-400: oklch(0.72 0.02 245);
+  --color-neutral-600: oklch(0.5 0.05 250);
+  --color-neutral-700: oklch(0.42 0.06 252);
+  --color-neutral-800: oklch(0.31 0.06 255);
+  --color-accent: #4b92db;
+  --color-accent-100: oklch(0.93 0.025 245);
+  --color-accent-200: oklch(0.86 0.05 245);
+  --color-accent-400: oklch(0.62 0.12 248);
+  --color-accent-700: oklch(0.45 0.13 252);
+  --color-accent-800: oklch(0.36 0.11 254);
+}
+
+/* The starred mode goes full Titans navy (#0C2340 neighborhood), the way
+ * cowboys mode went two-tone. Selected as data-theme="cowboys" because
+ * that is the value the page stores and restores; "titans" is also
+ * honored should the page ever emit it. */
+[data-skin="titans"][data-theme="cowboys"],
+[data-skin="titans"][data-theme="titans"] {
+  --color-bg: oklch(0.17 0.04 255);
+  --color-text: oklch(0.94 0.008 240);
+  --color-neutral-200: oklch(0.21 0.035 255);
+  --color-neutral-300: oklch(0.26 0.04 255);
+  --color-neutral-400: oklch(0.42 0.045 252);
+  --color-neutral-600: oklch(0.66 0.04 248);
+  --color-neutral-700: oklch(0.75 0.035 245);
+  --color-neutral-800: oklch(0.86 0.02 240);
+  --color-accent: oklch(0.68 0.12 245);
+  --color-accent-100: oklch(0.27 0.06 250);
+  --color-accent-200: oklch(0.34 0.08 248);
+  --color-accent-400: oklch(0.56 0.11 246);
+  --color-accent-700: oklch(0.76 0.11 242);
+  --color-accent-800: oklch(0.85 0.08 240);
+}
+
+[data-skin="titans"][data-theme="dark"] {
+  --color-bg: oklch(0.13 0.02 255);
+  --color-text: oklch(0.94 0.008 240);
+  --color-neutral-200: oklch(0.18 0.025 255);
+  --color-neutral-300: oklch(0.24 0.03 255);
+  --color-neutral-400: oklch(0.4 0.04 252);
+  --color-neutral-600: oklch(0.66 0.04 248);
+  --color-neutral-700: oklch(0.75 0.035 245);
+  --color-neutral-800: oklch(0.86 0.02 240);
+  --color-accent: oklch(0.68 0.12 245);
+  --color-accent-100: oklch(0.27 0.06 250);
+  --color-accent-200: oklch(0.34 0.08 248);
+  --color-accent-400: oklch(0.56 0.11 246);
+  --color-accent-700: oklch(0.76 0.11 242);
+  --color-accent-800: oklch(0.85 0.08 240);
+}
