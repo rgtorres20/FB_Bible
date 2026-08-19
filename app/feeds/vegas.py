@@ -343,6 +343,34 @@ def adjust_predictions(
     return adjusted
 
 
+def lean_review_rows(games: list[dict]) -> list[dict]:
+    """Each curated TD lean beside the live implied total for its team --
+    what the hourly annotate job sends the model. Leans with no posted line
+    are dropped rather than sent: without a live number there is nothing to
+    check the lean against, and asking anyway invites the model to supply
+    one from memory. (Moved here from scripts/review_predictions.py when
+    the annotation calls were consolidated -- the work list is assembled
+    server-side like every other AI surface's.)"""
+    implied = implied_by_team(games)
+    out = []
+    for pred in curated_predictions():
+        team = pred["meta"].split(DOT)[-1].strip()
+        live = implied.get(team)
+        if live is None:
+            continue  # no posted line: nothing to check it against
+        out.append(
+            {
+                "player": pred["name"],
+                "team": team,
+                "prop": pred["prop"],
+                "line": pred["line"],
+                "lean": pred["lean"],
+                "implied_team_total_now": live,
+            }
+        )
+    return out
+
+
 def apply_reviews(preds: list[dict], reviews: dict[str, str] | None) -> list[dict]:
     """Append an AI sanity-check clause to a row's why, and nothing else.
 

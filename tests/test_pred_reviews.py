@@ -110,12 +110,10 @@ def test_rows_without_a_review_are_returned_unchanged():
 def test_only_leans_with_a_posted_line_are_sent_for_review():
     """Without a live number there is nothing to check the lean against,
     and asking anyway invites the model to supply one from memory."""
-    from scripts.review_predictions import rows_for_review
-
     # BUF carries a curated lean (Josh Allen); no other game is posted, so
     # every other lean must drop out for want of a number to check.
     games = [{"game": "CAR @ BUF", "fav": "BUF -3", "total": "44.5"}]
-    rows = rows_for_review(games)
+    rows = vegas.lean_review_rows(games)
 
     assert rows, "expected the BUF lean to survive"
     assert {r["team"] for r in rows} <= {"CAR", "BUF"}

@@ -49,11 +49,22 @@ labelled render that never reads as the owner's judgement.
    cites a line the table no longer shows. Usually a no-op call-wise:
    16 games drafted once.
 
-All three ride the existing hourly `verdicts.yml` (stdlib-only steps),
-both survive `/internal/sync` (carried forward beside `pred_reviews` —
-the wiped-verdicts bug class), and the watchdog logs both counts as INFO
-lines ("AI player capsules on the top-300 board", "AI reads on the ADP
-mover cards") — best-effort surfaces report, they do not fail the run.
+All three ride the hourly `verdicts.yml`, all survive `/internal/sync`
+(carried forward beside `pred_reviews` — the wiped-verdicts bug class),
+and the watchdog logs each count as an INFO line — best-effort surfaces
+report, they do not fail the run.
+
+**Consolidated to two calls an hour (late evening).** Five separate
+hourly calls plus retries tripped Google's free-tier throttles all
+evening (runs 50–52 below), so the four annotation jobs (capsules,
+mover reads, TD-lean review, previews) now travel as sections of ONE
+batched request in `scripts/annotate.py` — verdicts keeps its own call.
+The four per-surface scripts are deleted; their POST endpoints and all
+validation are unchanged, and the lean work list moved server-side
+(`vegas.lean_review_rows`, `/api/leans/pending`) like the others, which
+also removed the workflow's httpx install step. Trade accepted
+knowingly: one malformed reply now costs all four sections for an hour,
+where the extra calls were costing whole evenings.
 
 **Observed live (run 50, 23:44 UTC):** the plumbing works end-to-end —
 prod's pending endpoints served real work (16 uncovered players, 4
@@ -61,9 +72,15 @@ movers with stories) — but all three retry-less calls hit HTTP 429: the
 free tier throttles per *minute* too, and the job now makes four calls
 back-to-back. Fixed the same hour: `chat_with_retry` in
 draft_verdicts.py gives the capsule, mover-read and lean-review calls
-the same backoff the verdicts call already had. First stored
-capsules/reads were still unobserved at that commit — check a later run
-logs "posted:" for both steps, and the watchdog INFO counts climb.
+the same backoff the verdicts call already had. Run 51 sharpened it —
+each run's first call cleared after one retry while later calls burned
+three attempts inside 16s — so the backoff stretched to 20s/45s. Run 52
+(00:53 UTC, after an hour of zero calls) then failed **all four** calls
+with mixed 429/503: that is daily quota or provider evening overload,
+not our pacing — it resolves at the 07:00 UTC reset without us. First
+stored capsules/reads were still unobserved at that point — check a
+later run logs "posted:" per section, and the watchdog INFO counts
+climb. The consolidation above is the structural answer.
 
 ## Aug 18 session — season stats, Team intel usage, top-300 alert board
 
@@ -210,7 +227,7 @@ them.
 - **Wire verdicts** (`scripts/draft_verdicts.py`) — one batched call an
   hour over the 18 newest tagged items; renders "AI draft:" on the news
   tab. First real output Aug 18: 18 in, 13 stored, 8 on the tab.
-- **TD-lean review** (`scripts/review_predictions.py`) — checks each
+- **TD-lean review** (now a section of `scripts/annotate.py`) — checks each
   curated lean against that team's live implied total; renders as an
   "AI check:" clause appended to the row's why. **The lean and confidence
   are never touched** — a disagreeing model gets its own labelled space,

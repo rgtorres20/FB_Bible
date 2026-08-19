@@ -52,7 +52,7 @@ retired out from under the job, which is how the last provider broke.
 verdicts stored, 8 rendering on the news tab. The hourly schedule has run
 green since (latest observed: run 39, 2026-08-18 05:05 UTC).
 
-**TD-lean review: SHIPPED, NOT YET OBSERVED.** `scripts/review_predictions.py`
+**TD-lean review: SHIPPED, NOT YET OBSERVED.** `scripts/annotate.py` (consolidated)
 checks each curated lean against that team's live implied total and posts
 an "AI check:" clause to `/internal/pred-reviews`; the lean and its
 confidence are never touched. The workflow step landed on `main` at 05:16

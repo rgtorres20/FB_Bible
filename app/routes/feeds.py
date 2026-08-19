@@ -407,6 +407,17 @@ async def save_previews(
     return {"stored": len(data["previews"])}
 
 
+@router.get("/api/leans/pending", summary="TD leans beside their live implied totals")
+async def leans_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
+    """The annotate job's lean-review work list: each curated TD lean with
+    the live implied total for its team. Unlike the other pending lists this
+    one is re-reviewed every hour by design -- the check tracks a moving
+    line, not a one-time fact."""
+    data = await store.load()
+    games = (data.get("vegas") or {}).get("games") or []
+    return {"leans": vegas.lean_review_rows(games)}
+
+
 @router.get("/api/movers/pending", summary="ADP movers still needing an AI read")
 async def movers_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
     """The mover-reads job's work list: each current riser/faller beside the

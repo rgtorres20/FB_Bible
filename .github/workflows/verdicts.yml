@@ -33,9 +33,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # stdlib only, on purpose: this step must not fail because of its
-      # own dependencies. (The review step below is the one that needs an
-      # install.)
+      # Two model calls an hour, deliberately. This job briefly made five
+      # -- verdicts plus one per annotation surface -- and Google's
+      # free-tier throttles ate whole evenings (runs 50-52, Aug 18): the
+      # calls were fighting each other for the same quota. Everything but
+      # verdicts now travels as sections of one batched request. All
+      # stdlib-only: work lists are assembled server-side, so no installs
+      # and every number in the prompts is one the app fetched.
       - name: Draft and post verdicts
         run: python3 scripts/draft_verdicts.py
         env:
@@ -48,64 +52,15 @@ jobs:
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
 
-      # Second and third calls, same hour, same key. Both read a
-      # server-assembled work list, so every number in their prompts came
-      # out of our own store, and both run even if an earlier step failed
-      # -- one surface's bad hour says nothing about the others. Four
-      # requests an hour total stays far inside the free tier's
-      # few-hundred-a-day budget.
-      - name: Draft player capsules
+      # Player capsules, ADP mover reads, the TD-lean review and the
+      # Week 1 previews, one call. Runs even if the verdicts step failed
+      # -- one surface's bad hour says nothing about the others.
+      - name: Annotate the surfaces
         if: ${{ !cancelled() }}
-        run: python3 scripts/player_capsules.py
+        run: python3 scripts/annotate.py
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
-          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
-
-      - name: Explain the ADP movers
-        if: ${{ !cancelled() }}
-        run: python3 scripts/adp_mover_reads.py
-        env:
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
-          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
-
-      # Usually a no-op call-wise: 16 games drafted once, re-queued only
-      # when a line genuinely moves.
-      - name: Preview the Week 1 slate
-        if: ${{ !cancelled() }}
-        run: python3 scripts/game_previews.py
-        env:
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
-          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
-
-      # The review script imports app.feeds.vegas, and the app.feeds
-      # package pulls in httpx at import time -- same reason sync-feeds
-      # installs it before push_vegas.py. Without this the step dies on
-      # ModuleNotFoundError before reviewing anything (runs 42-47 did).
-      - name: Install the one dependency the review needs
-        if: ${{ !cancelled() }}
-        run: python3 -m pip install --quiet httpx
-
-      # Second call, same hour, same key: checks the owner's TD leans
-      # against the live line. Runs even if the verdicts step failed --
-      # that failure says nothing about whether the leans can be reviewed.
-      - name: Review the TD leans
-        if: ${{ !cancelled() }}
-        run: python3 scripts/review_predictions.py
-        env:
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          # The one secret this needs. GEMINI_API_KEY is accepted too, so
-          # whichever name the key is stored under works.
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Optional: point at any other OpenAI-compatible provider.
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
