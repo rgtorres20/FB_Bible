@@ -56,6 +56,14 @@ MODELS_URL = os.environ.get("VERDICT_API_URL") or GOOGLE_AI_STUDIO
 # on. Pin to a version -- models/gemini-3.7-flash -- if reproducibility ever
 # matters more than surviving the next rename.
 MODEL = os.environ.get("VERDICT_MODEL") or "models/gemini-flash-latest"
+# Where a call goes when the primary model is down or gone. Bought with a
+# real outage: on Aug 19 gemini-flash-latest refused every chat call for
+# 10+ hours (503/429, spanning the daily quota reset) while this lite
+# sibling answered instantly -- run 58 filled all four annotation
+# surfaces through it on the first try. The models share a key but not a
+# fate, so the chain rides out a one-model crunch AND the next rename
+# (fallback also fires on 404) without losing the hour.
+FALLBACK_MODEL = os.environ.get("VERDICT_FALLBACK_MODEL") or "models/gemini-flash-lite-latest"
 MAX_ITEMS = 18
 # The window the drafting job looks across, and the rank scope it favors:
 # items about top-300 players (the top-300 alert board's population) are
@@ -164,17 +172,12 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
             )
         )
 
-    response = http_json(
-        MODELS_URL,
-        payload={
-            "model": MODEL,
-            "temperature": 0.2,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": "\n".join(lines)},
-            ],
-        },
-        headers={"Authorization": f"Bearer {api_key}"},
+    response = chat_with_retry(
+        [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": "\n".join(lines)},
+        ],
+        api_key,
     )
     content = response["choices"][0]["message"]["content"].strip()
     # Models love to wrap JSON in a code fence; strip it rather than fail.
@@ -187,43 +190,43 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
 
 
 def chat_with_retry(messages: list[dict], api_key: str) -> dict:
-    """One chat-completions call, riding out transient provider codes.
+    """One chat-completions call: ride out transient codes on the primary
+    model, then walk the same ladder on the fallback.
 
-    Shared by the sibling scripts (capsules, mover reads, TD-lean review).
-    The job now makes four calls in quick succession each hour, and the
-    free tier throttles per minute as well as per day -- observed live on
-    run 50, where the verdicts step rode out a 429 and every retry-less
-    sibling skipped its hour on the same code. Same policy as
-    draft_with_retry: transient codes back off, permanent ones raise
-    immediately so a dead endpoint cannot pass as a busy one.
+    Every model call in the repo goes through here (verdicts and the
+    annotate sections alike). Transient codes back off; a busy or vanished
+    primary hands off to FALLBACK_MODEL rather than losing the hour; the
+    permanent codes that would fail on any model -- bad key, bad request
+    -- raise immediately so a dead setup cannot pass as a busy one.
     """
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            return http_json(
-                MODELS_URL,
-                payload={"model": MODEL, "temperature": 0.2, "messages": messages},
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-        except urllib.error.HTTPError as exc:
-            if exc.code not in RETRY_CODES or attempt == MAX_ATTEMPTS:
-                raise
-            wait = BACKOFF_SECONDS[attempt - 1]
-            print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
-            time.sleep(wait)
-    raise AssertionError("unreachable")  # pragma: no cover
-
-
-def draft_with_retry(items: list[dict], api_key: str) -> dict[str, str]:
-    """draft(), but riding out a busy provider rather than losing the hour."""
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            return draft(items, api_key)
-        except urllib.error.HTTPError as exc:
-            if exc.code not in RETRY_CODES or attempt == MAX_ATTEMPTS:
-                raise
-            wait = BACKOFF_SECONDS[attempt - 1]
-            print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
-            time.sleep(wait)
+    chain = list(dict.fromkeys((MODEL, FALLBACK_MODEL)))
+    for position, model in enumerate(chain):
+        last = position == len(chain) - 1
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                return http_json(
+                    MODELS_URL,
+                    payload={"model": model, "temperature": 0.2, "messages": messages},
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+            except urllib.error.HTTPError as exc:
+                # A 404 on the primary is the name-vanished failure this job
+                # has died to twice -- exactly when the fallback earns its
+                # keep. Other permanent codes would fail on the fallback too.
+                if exc.code == 404 and not last:
+                    print(f"{model} not found; falling back to {chain[position + 1]}")
+                    break
+                if exc.code not in RETRY_CODES or (attempt == MAX_ATTEMPTS and last):
+                    raise
+                if attempt == MAX_ATTEMPTS:
+                    print(
+                        f"{model} still failing (HTTP {exc.code}); "
+                        f"falling back to {chain[position + 1]}"
+                    )
+                    break
+                wait = BACKOFF_SECONDS[attempt - 1]
+                print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
+                time.sleep(wait)
     raise AssertionError("unreachable")  # pragma: no cover
 
 
@@ -250,7 +253,7 @@ def main() -> int:
     print(f"drafting verdicts for {len(items)} items via {MODEL}")
 
     try:
-        verdicts = draft_with_retry(items, api_key)
+        verdicts = draft(items, api_key)
     except urllib.error.HTTPError as exc:
         # A dead endpoint or a rejected key must not look like a busy one.
         # That is exactly what hid the GitHub Models retirement for a day:

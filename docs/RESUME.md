@@ -72,15 +72,23 @@ movers with stories) — but all three retry-less calls hit HTTP 429: the
 free tier throttles per *minute* too, and the job now makes four calls
 back-to-back. Fixed the same hour: `chat_with_retry` in
 draft_verdicts.py gives the capsule, mover-read and lean-review calls
-the same backoff the verdicts call already had. Run 51 sharpened it —
-each run's first call cleared after one retry while later calls burned
-three attempts inside 16s — so the backoff stretched to 20s/45s. Run 52
-(00:53 UTC, after an hour of zero calls) then failed **all four** calls
-with mixed 429/503: that is daily quota or provider evening overload,
-not our pacing — it resolves at the 07:00 UTC reset without us. First
-stored capsules/reads were still unobserved at that point — check a
-later run logs "posted:" per section, and the watchdog INFO counts
-climb. The consolidation above is the structural answer.
+the same backoff the verdicts call already had. Runs 51–57 then mapped
+the real problem: **`gemini-flash-latest` refused every chat call for
+10+ hours** (503/429, spanning the daily quota reset — so neither our
+pacing nor the quota), while the key stayed healthy (the authed probe
+listed 51 models, HTTP 200). Run 58 (13:34 UTC Aug 19), dispatched with
+the new one-run model override pointing at
+`models/gemini-flash-lite-latest`, **filled every surface on the first
+try**: verdicts 8 accepted, capsules 16, mover reads 5, lean checks 12,
+game previews 16 — all "posted". The watchdog then read 40/40 against
+prod with the new INFO counts: 16 capsules and 11 drafted lines on the
+top-300 board, 5 mover reads, 16 schedule previews, 10 verdicts on the
+news tab. **Durable fix:** `chat_with_retry` now walks a model chain —
+primary `MODEL`, then `FALLBACK_MODEL`
+(`models/gemini-flash-lite-latest`, overridable via
+`VERDICT_FALLBACK_MODEL`) — falling back when the primary exhausts its
+transient retries **or 404s** (the name-vanished death this job has had
+twice). Codes that fail on any model (401/400) still raise immediately.
 
 ## Aug 18 session — season stats, Team intel usage, top-300 alert board
 
