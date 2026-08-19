@@ -14,11 +14,19 @@ These come from the app's own CLAUDE.md and still bind here:
   response outside of `tests/`.
 - The user's leagues have **no waivers and no player cost** — no FAAB, no bids,
   no waiver-clear times. Adds are free, first-come. Never surface FAAB/bid
-  fields from the transactions endpoint.
-- Leagues: **Sunday Gravy** `nfl.l.192426` (12-team full PPR) and
-  **The Trenches** `nfl.l.811739` (10-team full PPR).
-- The Trenches is a rushing league: QBs get **no** points from
-  completions/passing. Rank QBs per league.
+  fields from the transactions endpoint. (Verified against the real Yahoo
+  settings, Aug 19.)
+- Leagues — corrected Aug 19 from the owner's actual Yahoo settings pages,
+  which override every earlier chat-era description
+  ([docs/LEAGUES.md](docs/LEAGUES.md) is the ground truth):
+  **NDDPL** `nfl.l.192426` and **RED_EYE** `nfl.l.811739`, **both 10-team
+  full PPR, both IDP** (8 defensive starters each).
+- **QBs score above market in both leagues** — 6-pt passing TDs and
+  20 pass yds/pt in both; RED_EYE adds **1 pt per completion**. The old
+  "rushing league, QBs score nothing for passing" rule had it backwards
+  and is dead. Rank QBs per league, in the premium direction.
+- Receiving yardage is **halved** (20 yds/pt) in both leagues while
+  receptions stay 1.0 — weigh targets over air yards.
 - All timestamps render in the user's Houston timezone (`America/Chicago`).
 - Trusted news sources: NBC Sports, @AdamSchefter, Rotowire, ESPN, CBS,
   Yahoo's wire.

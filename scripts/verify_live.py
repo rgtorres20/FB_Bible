@@ -123,7 +123,10 @@ def main() -> int:
         "live" in meta.get("Vegas lines", {}).get("source", ""),
     )
     cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
-    check("cheat sheet serves the live board", "rushing league" in cheat and "Blend" in cheat)
+    check(
+        "cheat sheet serves the live board",
+        "QBs above this market" in cheat and "Blend" in cheat,
+    )
 
     # The top-300 alert board: one row per ranked player, wire-checked, with
     # machine lines labelled by author. Population needs the player index,

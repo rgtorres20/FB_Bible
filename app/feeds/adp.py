@@ -1,9 +1,11 @@
 """Live draft-room ADP, blended for the owner's two leagues.
 
 FantasyFootballCalculator publishes real mock-draft ADP as free JSON, keyed
-by league size and scoring. Both of the owner's leagues are full PPR but at
-different sizes -- Sunday Gravy is 12-team, The Trenches is 10-team -- so the
-board the app shows is the average of the two, not either one alone.
+by league size and scoring. The owner's leagues (NDDPL and RED_EYE -- see
+docs/LEAGUES.md) are BOTH 10-team full PPR; the 12+10 blend below predates
+the verified settings (Aug 19), which found the old "one 12-team league"
+fact wrong. Kept for now as a market-depth signal -- moving to 10-team-only
+ADP is an open owner decision recorded in docs/LEAGUES.md.
 
 Movement needs memory: FFC reports where the market is today, not where it
 was last week. Each sync stores one snapshot per calendar day in the feed
@@ -30,7 +32,7 @@ from . import players as players_mod
 log = logging.getLogger(__name__)
 
 ADP_URL = "https://fantasyfootballcalculator.com/api/v1/adp/ppr"
-# Sunday Gravy (12-team PPR) and The Trenches (10-team PPR).
+# Both leagues are 10-team; 12-team rides along as market depth (see module docstring).
 LEAGUE_SIZES = (12, 10)
 
 MAX_BOARD = 220  # deep enough for a 15-round 12-teamer with margin

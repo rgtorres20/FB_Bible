@@ -69,6 +69,18 @@ FEED_SOURCES: tuple[Source, ...] = (
         budget_hours=24,
         attribution="CBS Sports",
     ),
+    # Yahoo's *fantasy* vertical -- sleepers-by-position, rankings, draft
+    # strategy -- which the NFL news feed above does not carry. Added after
+    # the owner pointed at a Boone sleepers article that lived only here.
+    # Verified live 2026-08-19 (probe run 4): HTTP 200, RSS 2.0, 583KB.
+    Source(
+        key="yahoo_fantasy",
+        name="Yahoo Fantasy",
+        url="https://sports.yahoo.com/fantasy/rss.xml",
+        tier=2,
+        budget_hours=24,
+        attribution="Yahoo Sports",
+    ),
 )
 
 FEED_SOURCES = (

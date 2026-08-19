@@ -161,7 +161,9 @@ async def test_cheatsheet_renders_live_board(client):
     page = response.text
     assert "Bijan Robinson" in page
     assert "12tm" in page and "10tm" in page
-    assert "rushing league" in page  # the Trenches QB caveat must always print
+    # The league caveat must always print -- corrected Aug 19 to the verified
+    # settings direction (QB-premium leagues), see docs/LEAGUES.md.
+    assert "QBs above this market" in page
 
 
 async def test_cheatsheet_without_board_says_so(client):

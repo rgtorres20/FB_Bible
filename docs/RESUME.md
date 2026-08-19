@@ -1,5 +1,33 @@
 # Resume here
 
+## Aug 19 — the real league settings arrived, and they change the product
+
+The owner provided both leagues' actual Yahoo Scoring & Settings pages as
+PDFs. **[docs/LEAGUES.md](LEAGUES.md) is now the ground truth** and it
+overturned chat-era facts the repo was built on:
+
+- The leagues are **NDDPL** (`192426`) and **RED_EYE** (`811739`) — both
+  **10-team** (not 12), both **IDP** (8 defensive starters each).
+- **"The Trenches rushing league / QBs score nothing" was backwards.**
+  Both leagues pay QBs above market: 6-pt passing TDs, 20 pass yds/pt,
+  and RED_EYE adds **1 pt per completion**. The cheat sheet's QB note
+  said "draft QBs later" — the actively dangerous kind of wrong — and now
+  says the opposite, with the watchdog check updated to match.
+- Receiving yards halved (20 yds/pt) in both; returns score in both.
+- Confirmed: no waivers, first-come adds, in both.
+
+Fixed same-day: cheat-sheet note + title, CLAUDE.md domain rules, stale
+comments in adp/board. **Opened, not yet decided** (see LEAGUES.md §what
+this means): IDP support (the player index excludes DB/LB — now a
+first-order gap, both leagues start 8), and whether ADP should drop the
+12-team half of the blend.
+
+Also added: **`yahoo_fantasy` feed** (sports.yahoo.com/fantasy/rss.xml,
+verified live via probe run 4) — the fantasy vertical that carries
+sleepers/rankings/draft-strategy articles the NFL news feed never did;
+the owner pointed at a Boone sleepers piece that lived only there. Seventh
+source; all count assertions were already dynamic.
+
 Last worked: **Tue Aug 18 2026.** The project started Aug 14 (first commit
 8:23 PM); treat anything dated earlier than the newest section as already
 superseded. Two Aug 18 sessions merged here: the AI-layer/preprod work

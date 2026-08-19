@@ -18,7 +18,9 @@ Two rules carried from the rest of the project:
   one column and quietly resurrect the bug. The row still sorts (on rank)
   and still shows the owner's own value; only the market number is absent,
   which is the truth.
-- **Per league, not blended.** Sunday Gravy is 12-team and The Trenches is
+- **Per league, not blended.** The page still names its rooms by the old
+  chat-era labels; per verified settings both leagues are 10-team, so the
+  adp12 side is market depth, not a league fit (docs/LEAGUES.md). It was
   10-team, and a 20% depth difference moves real picks. Both numbers are
   already stored per player; the column follows the league selector. The
   blended average stays the fallback when a player appears in only one

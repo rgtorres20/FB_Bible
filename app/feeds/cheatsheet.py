@@ -5,9 +5,14 @@ both league sizes with the blend, Sleeper's rank beside it, round dividers,
 and a star on the position-adjusted sleeper finds. Server-rendered plain
 HTML on purpose -- it must print cleanly and load with zero scripts.
 
-The Trenches caveat is structural, not stylistic: it is a rushing league
-where QBs score nothing for passing, so market QB ADP always overprices
-them there. The sheet says so instead of assuming the reader remembers.
+The league caveat is structural, not stylistic. The owner's verified Yahoo
+settings (docs/LEAGUES.md, from the settings pages themselves, Aug 19) say
+both leagues score QBs well above the market the ADP reflects -- 6-point
+passing TDs and 20 yards/point in both, plus a full point per completion
+in RED_EYE -- and both start 8 IDP players this sheet does not carry. The
+sheet says so instead of assuming the reader remembers. (The original
+"rushing league, QBs score nothing" note had it exactly backwards; it came
+from chat-era memory and died on contact with the real settings page.)
 """
 
 from __future__ import annotations
@@ -89,13 +94,16 @@ def build_html(state: dict, index: dict | None, now: datetime) -> str:
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>FB Bible cheat sheet</title>"
         f"<style>{_STYLE}</style>"
-        "<h1>Draft cheat sheet — Sunday Gravy (12tm) &amp; The Trenches (10tm)</h1>"
+        "<h1>Draft cheat sheet — NDDPL &amp; RED_EYE (both 10tm)</h1>"
         f"<p class='sub'>Live ADP from real PPR mock drafts, blended across both "
         f"league sizes · ★ = position-adjusted sleeper find · generated {html.escape(stamp)} · "
         "data: FantasyFootballCalculator + Sleeper</p>"
-        "<p class='note'><b>The Trenches is a rushing league:</b> QBs score nothing "
-        "for passing, so market QB ADP overprices every QB there. Treat the QB "
-        "columns as a ceiling in that room and draft QBs later than listed.</p>"
+        "<p class='note'><b>Both leagues score QBs above this market</b> (verified "
+        "Yahoo settings, Aug 19): 6-pt passing TDs and 20 pass yds/pt in both, plus "
+        "1 pt per completion in RED_EYE — so market ADP underprices QBs here; take "
+        "them earlier than listed. Receiving yards are halved (20 yds/pt) in both, "
+        "favoring high-catch receivers. Each league also starts 8 IDP players this "
+        "sheet does not carry.</p>"
         "<table><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Team</th>"
         "<th>Bye</th><th>12tm</th><th>10tm</th><th>Blend</th><th>Slpr</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
