@@ -7,8 +7,9 @@ superseded. Two Aug 18 sessions merged here: the AI-layer/preprod work
 
 ## Aug 18 evening — the AI layer widens: player capsules and mover reads
 
-Owner picked these two from a ranked list ("let's start with 2 and 3").
-Both follow the verdicts pattern exactly: a server-assembled work list so
+Owner picked these from a ranked list ("let's start with 2 and 3", then
+the Week 1 previews as a follow-up).
+All follow the verdicts pattern exactly: a server-assembled work list so
 the model can only cite numbers we fetched, a POST endpoint that rejects
 anything the store does not hold, hourly accumulation on the free tier
 (now four requests an hour against a few-hundred-a-day budget), and a
@@ -34,7 +35,21 @@ labelled render that never reads as the owner's judgement.
    appends to the card's text, and is pruned the moment its mover drops
    off the list. `/api/movers/pending`, `/internal/mover-reads`.
 
-Both ride the existing hourly `verdicts.yml` (two new stdlib-only steps),
+3. **Week 1 matchup previews — "AI preview:" on the schedule tab**
+   (`app/feeds/previews.py`; owner picked it as the next one). Two short
+   sentences per slate game from the pushed line (favorite, total,
+   per-side implied points) and the '25 team-offense profiles (pass
+   rate, red-zone run share, red-zone TD rate) — a team whose season
+   aggregates are incomplete sends no profile at all. Renders appended
+   to the schedule row's note beside the owner's own note.
+   `/api/previews/pending`, `/internal/previews`. Freshness is
+   snapshot-based like capsule wire_ids: each preview remembers the
+   total and favorite it was drafted against and re-queues when the
+   total moves a full point or the favorite flips — the prose never
+   cites a line the table no longer shows. Usually a no-op call-wise:
+   16 games drafted once.
+
+All three ride the existing hourly `verdicts.yml` (stdlib-only steps),
 both survive `/internal/sync` (carried forward beside `pred_reviews` —
 the wiped-verdicts bug class), and the watchdog logs both counts as INFO
 lines ("AI player capsules on the top-300 board", "AI reads on the ADP

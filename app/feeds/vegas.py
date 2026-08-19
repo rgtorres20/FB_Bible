@@ -416,11 +416,21 @@ def curated_week1() -> dict[str, dict]:
     }
 
 
-def schedule_rows(state: dict, curated: dict[str, dict] | None = None) -> list[dict]:
+def schedule_rows(
+    state: dict,
+    curated: dict[str, dict] | None = None,
+    previews: dict[str, str] | None = None,
+) -> list[dict]:
     """Live games in the page's WEEK1 shape. Games without a kickoff or team
     names are skipped -- a half-known row would render as a broken line, and
-    the curated const remains the fallback whenever this returns empty."""
+    the curated const remains the fallback whenever this returns empty.
+
+    `previews` is AI matchup prose keyed 'Away Name @ Home Name' (see
+    app/feeds/previews.py). It appends to the note prefixed "AI preview:" --
+    a labelled clause beside the owner's note, same contract as "AI check:".
+    """
     curated = curated if curated is not None else curated_week1()
+    previews = previews or {}
     rows_out: list[dict] = []
     for game in state.get("games") or []:
         day, time = _kickoff_central(game.get("kickoff", ""))
@@ -428,6 +438,10 @@ def schedule_rows(state: dict, curated: dict[str, dict] | None = None) -> list[d
         if not (day and away and home):
             continue
         known = curated.get(f"{away} @ {home}", {})
+        note = known.get("note", "")
+        ai = previews.get(f"{away} @ {home}")
+        if ai:
+            note = f"{note} AI preview: {ai}" if note else f"AI preview: {ai}"
         rows_out.append(
             {
                 "day": day,
@@ -437,7 +451,7 @@ def schedule_rows(state: dict, curated: dict[str, dict] | None = None) -> list[d
                 # ESPN's broadcast field when present, the curated network
                 # otherwise -- never invented.
                 "tv": game.get("tv") or known.get("tv", ""),
-                "note": known.get("note", ""),
+                "note": note,
             }
         )
     return rows_out

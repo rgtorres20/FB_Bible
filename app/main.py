@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .feeds import board, stats, vegas
+from .feeds import board, previews, stats, vegas
 from .feeds.store import FeedStore
 from .routes import auth, feeds, league
 
@@ -180,7 +180,10 @@ if _FRONTEND_READY:
                     html = vegas.inject_predictions(html, adjusted)
                     html = vegas.inject_schedule(
                         html,
-                        vegas.schedule_rows(state),
+                        vegas.schedule_rows(
+                            state,
+                            previews=previews.by_matchup(state, stored.get("previews")),
+                        ),
                         vegas.central_stamp(state.get("fetched_at")),
                     )
                 # The Draft analyzer's ADP column, joined from the live

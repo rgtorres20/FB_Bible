@@ -31,6 +31,7 @@ from ..feeds import (
     injury,
     players,
     poller,
+    previews,
     render,
     stats,
     vegas,
@@ -367,6 +368,45 @@ async def save_capsules(
     return {"stored": len(accepted)}
 
 
+class PreviewsIn(BaseModel):
+    previews: dict[str, str]
+
+
+@router.get("/api/previews/pending", summary="Slate games still needing an AI matchup preview")
+async def previews_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
+    """The preview job's work list: each slate game without a current
+    preview, carrying the line (favorite, total, per-side implied points)
+    and the '25 offense profiles for both teams. A stored preview re-queues
+    when its game's line has genuinely moved, so the prose never cites a
+    number the table no longer shows."""
+    data = await store.load()
+    work = previews.pending(data.get("vegas"), data.get("stats"), data.get("previews"))
+    return {"games": work}
+
+
+@router.post("/internal/previews", summary="Store AI matchup previews for the schedule tab")
+async def save_previews(
+    payload: PreviewsIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """One short read per game, rendered on the schedule tab appended to the
+    row's note prefixed "AI preview:". Only games the stored slate holds are
+    accepted -- the model cannot invent a matchup -- and each preview
+    snapshots the line it was drafted against for the freshness check."""
+    _require_sync_token(settings, x_sync_token)
+
+    data = await store.load()
+    slate_keys = {r.get("game") for r in (data.get("vegas") or {}).get("games") or []}
+    if payload.previews and not (set(payload.previews) & slate_keys):
+        raise HTTPException(status_code=422, detail="No previews matched a slate game.")
+
+    data["previews"] = previews.accept(payload.previews, data.get("vegas"), data.get("previews"))
+    await store.save(data)
+    return {"stored": len(data["previews"])}
+
+
 @router.get("/api/movers/pending", summary="ADP movers still needing an AI read")
 async def movers_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
     """The mover-reads job's work list: each current riser/faller beside the
@@ -511,6 +551,7 @@ async def sync(
     pred_reviews = existing.get("pred_reviews") or {}
     capsule_state = existing.get("capsules") or {}
     mover_reads = existing.get("mover_reads") or {}
+    preview_state = existing.get("previews") or {}
 
     # Season stats are final numbers, not a feed: refetch weekly (or when the
     # store lost them), keep the previous state on any failure. Same rule as
@@ -535,6 +576,7 @@ async def sync(
             "pred_reviews": pred_reviews,
             "capsules": capsule_state,
             "mover_reads": mover_reads,
+            "previews": preview_state,
         }
     )
 

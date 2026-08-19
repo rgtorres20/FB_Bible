@@ -159,6 +159,10 @@ def main() -> int:
     check("Vegas lines are live", "Live via ESPN" in served)
     check("TD leans track live lines", "confidence adjusted" in served)
     check("Week 1 schedule is live", "live kickoff times" in served)
+    # Best-effort like every AI count: zero is a legitimate hour, a count
+    # stuck at zero is the signal worth having in the log.
+    game_previews = served.count("AI preview:")
+    print(f"  INFO  AI matchup previews on the schedule tab: {game_previews}")
     # The draft board's ADP column: real numbers, and no consumer left
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)

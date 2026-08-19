@@ -74,6 +74,18 @@ jobs:
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
           VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
 
+      # Usually a no-op call-wise: 16 games drafted once, re-queued only
+      # when a line genuinely moves.
+      - name: Preview the Week 1 slate
+        if: ${{ !cancelled() }}
+        run: python3 scripts/game_previews.py
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+
       # The review script imports app.feeds.vegas, and the app.feeds
       # package pulls in httpx at import time -- same reason sync-feeds
       # installs it before push_vegas.py. Without this the step dies on
