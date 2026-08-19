@@ -3,7 +3,9 @@ name: Probe endpoint
 # Answers "what does this API actually return?" from a machine that can
 # reach it. Exists because two features shipped against endpoints that had
 # been retired or renamed -- see the validation-gate rule in CLAUDE.md.
-# Read-only, no secrets, manual only.
+# Read-only, manual only. The one secret it can touch is the AI key, sent
+# as a bearer header when auth=ai-key -- needed to list the provider's
+# models -- and never printed.
 
 on:
   workflow_dispatch:
@@ -11,6 +13,10 @@ on:
       url:
         description: "HTTPS JSON endpoint to describe"
         required: true
+      auth:
+        description: "Set to 'ai-key' to send the AI_API_KEY secret as a bearer token"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -24,4 +30,7 @@ jobs:
       - name: Describe the response
         env:
           PROBE_URL: ${{ inputs.url }}
+          PROBE_AUTH: ${{ inputs.auth }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python3 scripts/probe_endpoint.py

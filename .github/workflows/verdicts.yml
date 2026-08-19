@@ -19,6 +19,11 @@ on:
   schedule:
     - cron: "41 * * * *" # hourly, after the :26-ish sync delivery window
   workflow_dispatch:
+    inputs:
+      model:
+        description: "One-run model override (e.g. models/gemini-flash-lite-latest); blank uses the configured model"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -50,7 +55,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # Optional: point at any other OpenAI-compatible provider.
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
-          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+          VERDICT_MODEL: ${{ inputs.model || vars.VERDICT_MODEL }}
 
       # Player capsules, ADP mover reads, the TD-lean review and the
       # Week 1 previews, one call. Runs even if the verdicts step failed
@@ -63,4 +68,4 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
-          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+          VERDICT_MODEL: ${{ inputs.model || vars.VERDICT_MODEL }}

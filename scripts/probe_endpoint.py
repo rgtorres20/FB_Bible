@@ -62,10 +62,21 @@ def main() -> int:
         print("::error::PROBE_URL must be https")
         return 2
 
+    headers = {"User-Agent": "FBBible/1.0 (personal draft tool, shape probe)"}
+    # Opt-in bearer auth for the AI provider's endpoints (the model list
+    # needs it). The key rides in from the workflow's secret env and is
+    # never echoed -- a key pasted into the URL input would land in the
+    # workflow log, which is the never-log-a-token rule broken.
+    if os.environ.get("PROBE_AUTH") == "ai-key":
+        api_key = os.environ.get("AI_API_KEY") or os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            print("::error::PROBE_AUTH=ai-key but no AI_API_KEY secret is set")
+            return 2
+        headers["Authorization"] = f"Bearer {api_key}"
+        print("(authorized with the AI key)")
+
     print(f"probing {url}\n")
-    request = urllib.request.Request(
-        url, headers={"User-Agent": "FBBible/1.0 (personal draft tool, shape probe)"}
-    )
+    request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             status = response.status
