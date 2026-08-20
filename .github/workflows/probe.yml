@@ -17,6 +17,10 @@ on:
         description: "Set to 'ai-key' to send the AI_API_KEY secret as a bearer token"
         required: false
         default: ""
+      mode:
+        description: "Set to 'fields' for a field census across a big id-keyed map"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -31,6 +35,7 @@ jobs:
         env:
           PROBE_URL: ${{ inputs.url }}
           PROBE_AUTH: ${{ inputs.auth }}
+          PROBE_MODE: ${{ inputs.mode }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python3 scripts/probe_endpoint.py

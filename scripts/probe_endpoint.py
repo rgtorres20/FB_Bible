@@ -93,6 +93,24 @@ def main() -> int:
         print(raw[:300].decode("utf-8", errors="replace"))
         return 0
 
+    # Field census: every field name across a big id-keyed map, with holder
+    # counts. The shape view below shows ONE entry; this mode answers "which
+    # fields exist at all, and how many entries carry each" -- what you need
+    # before building an extractor against sparse per-entry coverage (the
+    # IDP stats question, and the same trap the offense stats hit).
+    if os.environ.get("PROBE_MODE") == "fields" and isinstance(payload, dict):
+        counts: dict[str, int] = {}
+        entries = 0
+        for value in payload.values():
+            if isinstance(value, dict):
+                entries += 1
+                for field in value:
+                    counts[field] = counts.get(field, 0) + 1
+        print(f"field census across {entries} dict entries ({len(counts)} distinct fields):")
+        for field, n in sorted(counts.items()):
+            print(f"  {field}: {n}")
+        return 0
+
     print(describe(payload))
 
     # For a big id-keyed map, one real entry says more than the schema does
