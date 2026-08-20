@@ -85,6 +85,20 @@ def main() -> int:
     # --- what the page actually receives ----------------------------------
     page_data = get_json("/app/data/feeds.json")
     check("page news is the live overlay", len(page_data.get("news", [])) > 25)
+    # Newest first (owner request Aug 20): the wire entries' rendered times
+    # must be non-increasing. Times carry no year, so pairs that cross a
+    # month boundary are skipped rather than misjudged.
+    wire_times = []
+    for entry in page_data.get("news", []):
+        if entry.get("kind") == "Wire" and entry.get("link") and entry.get("time"):
+            try:
+                wire_times.append(datetime.strptime(entry["time"], "%a %b %d · %I:%M %p"))
+            except ValueError:
+                pass
+    in_order = all(
+        a >= b for a, b in zip(wire_times, wire_times[1:], strict=False) if a.month == b.month
+    )
+    check("news reads newest first", bool(wire_times) and in_order, f"{len(wire_times)} stamps")
     check(
         "NBC tab carries live rows",
         any(

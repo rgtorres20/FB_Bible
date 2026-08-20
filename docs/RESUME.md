@@ -24,6 +24,32 @@ matches NDDPL's *scoring* but claims 5 LB/DL + 5 DB/S and 28 rounds, which
 contradicts the verified settings PDF (4 LB + 4 DB, 26 rounds). The
 verified PDF stays ground truth; flagged to the owner.
 
+Second round, same day (four owner messages):
+
+- **The room wears the app's skin.** /app/mock now runs on the page's own
+  design tokens (Archivo, brutalist borders) with all four modes — Light /
+  ★ Cowboys / ★ Titans / Dark — reading and writing the page's `ww_theme`
+  localStorage, so the room opens in whatever mode the app is in and its
+  picker keeps them in step.
+- **RED_EYE is 12-team** — owner correction, supersedes the PDF's 10.
+  LEAGUES.md is updated (with the supersession noted), the room drafts
+  RED_EYE at 12 seats against the FFC **12-team** ADP column (NDDPL keeps
+  10-team), the cheat sheet says which column belongs to which league.
+  The engine gained a scarcity guard the 12-team smoke run flushed out:
+  rooms hoarded QB2s/TE2s until a team's starter well went dry; now a
+  position whose supply no longer covers league-wide starter demand can't
+  be benched and gets prioritized ("the QB well is running dry room-wide"
+  becomes part of the pick's stated reason).
+- **Clickable draft board** — a "Draft board ⧉" button opens the full
+  snake grid in its own tab (rounds down, seats across, YOU column
+  marked), each cell hover-showing its details: AI capsule, autopilot
+  reason, market number. Same skin, print-ready.
+- **News reads newest-first** (owner: "i dont want to see updates from
+  8am next to 8pm"). Impact still decides *what* makes the page — the
+  dedupe, the negative filter, the item cut — but chronology now decides
+  the reading order. The old impact-ordered-display test was rewritten to
+  pin the new contract.
+
 ## Aug 20 — IDP support lands; the page speaks the real league names
 
 - **IDP (was GAP_REVIEW #4, the biggest post-settings gap).** Defenders

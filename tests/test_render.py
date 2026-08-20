@@ -263,9 +263,11 @@ def test_news_entry_carries_first_seen_for_the_new_badge():
     assert render.to_news_entry(ITEM)["first_seen"] == ""
 
 
-def test_merge_orders_news_by_decayed_impact_not_raw_time():
-    """A two-day-old ACL still matters more to a draft board than this
-    morning's routine note. Chronological order buried it."""
+def test_merge_shows_news_newest_first_while_impact_still_picks():
+    """Owner request Aug 20: times go in order — no 8am update beside an
+    8pm one. Impact still decides WHAT makes the page (the cut, the
+    dedupe, the negative filter); chronology decides the reading order,
+    so the freshest item leads even when an older one scores higher."""
     severe_old = {
         **ITEM,
         "title": "Torn ACL ends the year for the starting back",
@@ -275,15 +277,17 @@ def test_merge_orders_news_by_decayed_impact_not_raw_time():
     }
     routine_fresh = {
         **ITEM,
-        "title": "Backup lineman moved around during drills",
+        "title": "Backup tight end drawing first-team snaps",
         "summary": "",
         "published": "2026-08-15T05:00:00+00:00",
-        "players": [{"id": "p2", "name": "Player Two", "position": "G", "team": "NYJ"}],
+        "players": [{"id": "p2", "name": "Player Two", "position": "TE", "team": "NYJ"}],
     }
-    merged = render.merge_into_feeds(BUNDLED, [routine_fresh, severe_old], NOW)
+    merged = render.merge_into_feeds(BUNDLED, [severe_old, routine_fresh], NOW)
 
     wire = [n["text"] for n in merged["news"] if n.get("kind") == "Wire" and n.get("link")]
-    assert wire[0].startswith("Torn ACL")
+    # Both survive the impact cut; the newer one reads first.
+    assert any(t.startswith("Torn ACL") for t in wire)
+    assert wire[0].startswith("Backup tight end")
 
 
 def test_merge_attaches_wire_stamps_for_watched_injury_names():

@@ -19,8 +19,9 @@ These come from the app's own CLAUDE.md and still bind here:
 - Leagues — corrected Aug 19 from the owner's actual Yahoo settings pages,
   which override every earlier chat-era description
   ([docs/LEAGUES.md](docs/LEAGUES.md) is the ground truth):
-  **NDDPL** `nfl.l.192426` and **RED_EYE** `nfl.l.811739`, **both 10-team
-  full PPR, both IDP** (8 defensive starters each).
+  **NDDPL** `nfl.l.192426` (10-team) and **RED_EYE** `nfl.l.811739`
+  (**12-team** — owner correction Aug 20, superseding the PDF's 10),
+  **both full PPR, both IDP** (8 defensive starters each).
 - **QBs score above market in both leagues** — 6-pt passing TDs and
   20 pass yds/pt in both; RED_EYE adds **1 pt per completion**. The old
   "rushing league, QBs score nothing for passing" rule had it backwards
@@ -140,7 +141,11 @@ each league's verified scoring leaned on it, defenders by their /app/idp
 league-scored totals — or Autopilot drafts the owner's picks too, each with a
 stated reason, rendered as a round-by-round plan. All simulation is labelled;
 the engine has a headless smoke test (see app/feeds/mock.py). The Draft
-analyzer links to it via mobile.js.
+analyzer links to it via mobile.js. The room wears the app's own modes
+(Light/Cowboys/Titans/Dark via `ww_theme`), drafts RED_EYE at its real 12
+seats, and its "Draft board ⧉" button opens the snake grid with hover
+details in a new tab. The page's news overlay reads newest-first — impact
+selects what shows, chronology orders it (owner call, Aug 20).
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.

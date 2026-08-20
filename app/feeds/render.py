@@ -168,12 +168,17 @@ def merge_into_feeds(
     scored = impact.cluster([impact.score(item, ranks) for item in items])
     kept = [item for item in scored if item["impact_score"] >= 0]
     hidden = len(scored) - len(kept)
-    # Reading order is impact on the board, decayed by age -- not raw
-    # chronology. The unranked full wire stays on /api/feeds.
+    # Impact decides WHAT makes the page: the dedupe, the negative-impact
+    # filter, and which MAX_LIVE_ITEMS survive the cut. But the reading
+    # order is chronological, newest first -- owner request Aug 20: "i
+    # dont want to see updates from 8am next to 8pm". The unranked full
+    # wire stays on /api/feeds.
     kept = impact.order(kept, now)
+    shown = kept[:MAX_LIVE_ITEMS]
+    shown.sort(key=lambda i: i.get("published") or "", reverse=True)
 
     live = []
-    for item in kept[:MAX_LIVE_ITEMS]:
+    for item in shown:
         entry = to_news_entry(item)
         # {{ a.impact }} renders as the pool feed's WHAT IT MEANS column.
         # Preference order: an AI-drafted verdict (prefixed "AI draft:" --

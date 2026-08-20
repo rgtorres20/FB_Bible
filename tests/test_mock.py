@@ -126,13 +126,15 @@ def _capsules() -> dict:
 # --- the pool ----------------------------------------------------------------
 
 
-def test_offense_joins_the_ten_team_adp_and_excludes_team_defense():
+def test_offense_joins_both_adp_sizes_and_excludes_team_defense():
     pool = mock.offense_pool(_index(), _adp(), _capsules())
     by_name = {p["name"]: p for p in pool}
-    # Both leagues are 10-team: the 10-team column is the market number.
-    assert by_name["Puka Nacua"]["adp"] == 4.5
+    # Both FFC size columns travel: NDDPL drafts against the 10-team
+    # market, RED_EYE against the 12-team one (owner correction Aug 20).
+    assert by_name["Puka Nacua"]["a10"] == 4.5
+    assert by_name["Puka Nacua"]["a12"] == 5.2
     # A player FFC has not seen gets null, never a fake number.
-    assert by_name["Josh Allen"]["adp"] is None
+    assert by_name["Josh Allen"]["a10"] is None
     # Team defenses are not rosterable in either league.
     assert "Ravens D/ST" not in by_name
     # Defenders live in their own pool.
@@ -168,6 +170,14 @@ def test_page_embeds_the_pool_and_states_what_the_simulation_is():
     # A "</script>" inside a capsule must not close the data script tag.
     assert "leaves</script>" not in page
     assert "leaves<\\/script>" in page
+    # The room wears the app's skin: token blocks for every mode, and it
+    # follows (and writes back) the page's own stored theme.
+    assert 'data-theme="titans"' in page and 'data-theme="cowboys"' in page
+    assert "ww_theme" in page
+    # RED_EYE drafts as a 12-team room (owner correction Aug 20).
+    assert "teams: 12," in page
+    # The clickable board print-out with hover details.
+    assert "Draft board" in page and "openBoard" in page
 
 
 def test_page_is_honest_without_an_index():

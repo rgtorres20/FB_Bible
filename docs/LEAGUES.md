@@ -1,7 +1,9 @@
 # The owner's leagues — verified settings
 
 Source: the leagues' own Yahoo **Scoring & Settings** pages, provided by the
-owner as PDFs on **Aug 19, 2026**. This file is the ground truth; anything
+owner as PDFs on **Aug 19, 2026**, plus later corrections straight from the
+owner (which supersede the PDFs — so far one: RED_EYE is **12-team**, said
+Aug 20, where the PDF read 10). This file is the ground truth; anything
 elsewhere in the repo that disagrees is wrong and should be corrected to
 match. (The chat-era league facts — "Sunday Gravy, 12-team" and "The
 Trenches, a rushing league where QBs score nothing for passing" — were both
@@ -37,7 +39,7 @@ FF 2 · FR 2 · TD 6 · safety 2 · PD 1 · block 2 · turnover return 20 yds/pt
 
 | | |
 |---|---|
-| Teams | **10** |
+| Teams | **12** — owner correction Aug 20 ("Redeye is a 12 man" league), superseding the settings PDF's 10 |
 | Scoring | Head-to-head, fractional, negative points allowed |
 | Draft | Offline draft |
 | Waivers | **None** — adds are free, first-come |
@@ -75,10 +77,14 @@ FF 2 · FR 2 · TD 6 · safety 2 · PD 1 · block 2 · turnover return 10 yds/pt
 3. **Receiving yardage is halved in both** (20 yds/pt) while receptions
    stay a full point — target-hog possession receivers gain relative to
    deep threats.
-4. **Both leagues are 10-team**, so the 12+10 ADP blend and the page's
-   per-league ADP toggle (`adp12` for league 192426) rest on a wrong
-   size. Open decision: move to 10-team ADP alone, or keep 12-team as a
-   market-depth signal with honest labeling.
+4. **NDDPL is 10-team; RED_EYE is 12-team** (owner correction Aug 20,
+   superseding the PDF's 10 — the sizes note below). So both FFC ADP
+   size columns are load-bearing: 10-team for NDDPL, 12-team for
+   RED_EYE. The cheat sheet says which column belongs to which league
+   and the mock room drafts each league at its own size. Leftover: the
+   page's own `adp12` toggle is wired to league 192426 (NDDPL) — it
+   should be 811739's; design-project logic, recorded so it isn't
+   relearned.
 5. **Returns score** in both — return-role players carry hidden value no
    standard ADP reflects.
 6. Confirmed as already assumed: **no waivers, no FAAB, adds first-come**

@@ -36,7 +36,7 @@ from . import board, idp
 CENTRAL = ZoneInfo("America/Chicago")
 
 OFFENSE_TOP = 300
-MIN_KICKERS = 12  # ten rooms need ten starters plus margin
+MIN_KICKERS = 14  # a 12-team room needs twelve starters plus margin
 
 # Positions that are neither startable offense nor IDP in these leagues.
 _EXCLUDED_POSITIONS = {"DEF", "DST", "P", "OL", "LS"}
@@ -51,11 +51,12 @@ def offense_pool(
     adp_state: dict | None,
     capsules: dict | None,
 ) -> list[dict]:
-    """Ranked offense joined to the live 10-team ADP, best rank first.
+    """Ranked offense joined to the live ADP, best rank first.
 
-    Both leagues are 10-team (docs/LEAGUES.md), so the 10-team ADP column
-    is the market number; a player FFC has not seen gets null, never a
-    fake number -- the client falls back to rank order for those.
+    Both FFC size columns travel: NDDPL drafts against the 10-team market
+    and RED_EYE against the 12-team one (owner correction, Aug 20 -- see
+    docs/LEAGUES.md). A player FFC has not seen gets null, never a fake
+    number -- the client falls back to rank order for those.
     """
     players = (index or {}).get("players") or {}
     ranked = [
@@ -80,10 +81,13 @@ def offense_pool(
         if not isinstance(blended, int | float):
             continue
         sizes = entry.get("sizes") or {}
-        ten = sizes.get("10", blended)
         by_key.setdefault(
             board.match_key(entry.get("name", "")),
-            {"adp": round(float(ten), 1), "bye": entry.get("bye")},
+            {
+                "a10": round(float(sizes.get("10", blended)), 1),
+                "a12": round(float(sizes.get("12", blended)), 1),
+                "bye": entry.get("bye"),
+            },
         )
 
     out = []
@@ -98,7 +102,8 @@ def offense_pool(
                 "team": p.get("team") or "FA",
                 "rank": p.get("rank"),
                 "inj": (p.get("injury_status") or "").strip(),
-                "adp": hit["adp"] if hit else None,
+                "a10": hit["a10"] if hit else None,
+                "a12": hit["a12"] if hit else None,
                 "bye": (hit or {}).get("bye"),
                 "cap": _capsule_text(capsules, pid),
             }
@@ -106,11 +111,15 @@ def offense_pool(
     return out
 
 
+DEF_POOL = 400  # deep enough that 12 teams x 4 DBs never runs the well dry
+
+
 def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | None) -> list[dict]:
-    """The IDP board's rows, trimmed to what the room needs. Same scoring,
+    """The IDP board's rows, cut deeper than the board's page (the room
+    must seat every group for a 12-team RED_EYE draft). Same scoring,
     same source, so /app/mock and /app/idp can never disagree."""
     out = []
-    for r in idp.rows(index, stats_state):
+    for r in idp.rows(index, stats_state, top=DEF_POOL):
         out.append(
             {
                 "id": r["id"],
@@ -129,47 +138,113 @@ def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | 
     return out
 
 
+# The room wears the app's own skin (owner request): the same design
+# tokens as the served page -- Light is the cowboys-skin light palette,
+# Cowboys/Dark are the page's own [data-theme] blocks, Titans is the
+# mobile.css skin -- keyed off the page's ww_theme localStorage so the
+# room opens in whatever mode the app is in. Archivo is the app's font.
 _STYLE = """
-body { font-family: Georgia, 'Times New Roman', serif; margin: 18px;
-       color: #16234A; background: #F5F1E6; }
-h1 { font-size: 22px; margin: 0 0 2px; }
-.sub { font-size: 12px; color: #5a5a4f; margin-bottom: 10px; max-width: 780px; }
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800;900&display=swap');
+:root {
+  --color-bg: oklch(0.955 0.025 90); --color-text: oklch(0.25 0.06 260);
+  --color-neutral-200: oklch(0.92 0.025 90); --color-neutral-300: oklch(0.86 0.025 90);
+  --color-neutral-400: oklch(0.72 0.03 95); --color-neutral-600: oklch(0.5 0.05 255);
+  --color-neutral-700: oklch(0.42 0.06 258); --color-neutral-800: oklch(0.32 0.06 260);
+  --color-accent: #b22234; --color-accent-100: oklch(0.92 0.03 20);
+  --color-accent-200: oklch(0.85 0.06 20); --color-accent-400: oklch(0.55 0.15 20);
+  --color-accent-700: oklch(0.44 0.15 18); --color-accent-800: oklch(0.35 0.12 18);
+}
+:root[data-theme="cowboys"] {
+  --color-bg: oklch(0.14 0.015 260); --color-text: oklch(0.95 0.01 90);
+  --color-neutral-200: oklch(0.18 0.008 260); --color-neutral-300: oklch(0.24 0.01 260);
+  --color-neutral-400: oklch(0.4 0.015 260); --color-neutral-600: oklch(0.66 0.015 255);
+  --color-neutral-700: oklch(0.75 0.012 250); --color-neutral-800: oklch(0.86 0.008 220);
+  --color-accent: oklch(0.62 0.16 20); --color-accent-100: oklch(0.26 0.06 20);
+  --color-accent-200: oklch(0.33 0.09 20); --color-accent-400: oklch(0.55 0.14 20);
+  --color-accent-700: oklch(0.74 0.14 20); --color-accent-800: oklch(0.84 0.1 22);
+}
+:root[data-theme="titans"] {
+  --color-bg: oklch(0.17 0.04 255); --color-text: oklch(0.94 0.008 240);
+  --color-neutral-200: oklch(0.21 0.035 255); --color-neutral-300: oklch(0.26 0.04 255);
+  --color-neutral-400: oklch(0.42 0.045 252); --color-neutral-600: oklch(0.66 0.04 248);
+  --color-neutral-700: oklch(0.75 0.035 245); --color-neutral-800: oklch(0.86 0.02 240);
+  --color-accent: oklch(0.68 0.12 245); --color-accent-100: oklch(0.27 0.06 250);
+  --color-accent-200: oklch(0.34 0.08 248); --color-accent-400: oklch(0.56 0.11 246);
+  --color-accent-700: oklch(0.76 0.11 242); --color-accent-800: oklch(0.85 0.08 240);
+}
+:root[data-theme="dark"] {
+  --color-bg: #000; --color-text: oklch(0.95 0.01 90);
+  --color-neutral-200: oklch(0.18 0.008 260); --color-neutral-300: oklch(0.24 0.01 260);
+  --color-neutral-400: oklch(0.4 0.015 260); --color-neutral-600: oklch(0.66 0.015 255);
+  --color-neutral-700: oklch(0.75 0.012 250); --color-neutral-800: oklch(0.86 0.008 220);
+  --color-accent: oklch(0.62 0.16 20); --color-accent-100: oklch(0.26 0.06 20);
+  --color-accent-200: oklch(0.33 0.09 20); --color-accent-400: oklch(0.55 0.14 20);
+  --color-accent-700: oklch(0.74 0.14 20); --color-accent-800: oklch(0.84 0.1 22);
+}
+* { box-sizing: border-box; }
+body { font-family: 'Archivo', system-ui, sans-serif; margin: 18px;
+       color: var(--color-text); background: var(--color-bg);
+       font-size: 14px; line-height: 1.45; }
+h1 { font-weight: 900; font-size: 26px; letter-spacing: -0.02em;
+     margin: 0 0 2px; text-transform: uppercase; }
+.sub { font-size: 12px; color: var(--color-neutral-600); margin-bottom: 10px;
+       max-width: 780px; }
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
        margin: 10px 0; font-size: 13px; }
 select, button, input { font-family: inherit; font-size: 13px; padding: 4px 8px;
-       color: #16234A; background: #fff; border: 1px solid #16234A; }
-button { cursor: pointer; }
-button.primary { background: #16234A; color: #F5F1E6; font-weight: bold; }
-button:disabled { opacity: 0.45; cursor: default; }
+       color: var(--color-text); background: var(--color-bg);
+       border: 2px solid var(--color-text); border-radius: 0; }
+button { cursor: pointer; font-weight: 600;
+         box-shadow: 2px 2px 0 var(--color-text); }
+button.primary { background: var(--color-accent); color: var(--color-bg);
+                 font-weight: 800; }
+button:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
 .room { display: grid; grid-template-columns: minmax(300px, 3fr) minmax(240px, 2fr);
         gap: 16px; align-items: start; }
 @media (max-width: 700px) { .room { grid-template-columns: 1fr; } }
-.clock { font-size: 14px; padding: 8px 10px; background: #fff;
-         border-left: 4px solid #E3311D; margin-bottom: 8px; }
-.clock b { font-size: 15px; }
+.clock { font-size: 14px; padding: 8px 10px; background: var(--color-neutral-200);
+         border: 2px solid var(--color-text);
+         border-left: 6px solid var(--color-accent); margin-bottom: 8px; }
+.clock b { font-size: 15px; font-weight: 800; }
 table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
-th { text-align: left; border-bottom: 2px solid #16234A; padding: 3px 5px;
-     font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
-td { padding: 3px 5px; border-bottom: 1px solid #ddd6c4; vertical-align: top; }
+th { text-align: left; border-bottom: 2px solid var(--color-text); padding: 3px 5px;
+     font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+     color: var(--color-neutral-700); }
+td { padding: 3px 5px; border-bottom: 1px solid var(--color-neutral-300);
+     vertical-align: top; }
 td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 tr.pickable { cursor: pointer; }
-tr.pickable:hover { background: #ece5d2; }
-.flag { color: #E3311D; font-weight: bold; font-size: 10px; text-transform: uppercase; }
-.ai { color: #16234A; font-size: 10.5px; }
-.ai b { letter-spacing: 0.04em; }
-.quiet { color: #8a8a7c; font-style: italic; }
-.panel { background: #fff; border: 1px solid #ddd6c4; padding: 10px 12px;
-         margin-bottom: 12px; }
-.panel h2 { font-size: 13px; margin: 0 0 6px; letter-spacing: 0.05em;
-            text-transform: uppercase; }
-.slotlab { display: inline-block; width: 34px; font-weight: bold; font-size: 10.5px; }
+tr.pickable:hover { background: var(--color-neutral-200); }
+.flag { color: var(--color-accent-700); font-weight: 800; font-size: 10px;
+        text-transform: uppercase; letter-spacing: 0.04em; }
+.ai { color: var(--color-neutral-700); font-size: 10.5px; }
+.ai b { letter-spacing: 0.04em; color: var(--color-accent-700); }
+.quiet { color: var(--color-neutral-600); font-style: italic; }
+.panel { background: var(--color-bg); border: 2px solid var(--color-text);
+         box-shadow: 2px 2px 0 var(--color-text); padding: 10px 12px;
+         margin-bottom: 14px; }
+.panel h2 { font-weight: 800; font-size: 12px; margin: 0 0 6px;
+            letter-spacing: 0.14em; text-transform: uppercase;
+            color: var(--color-neutral-600); }
+.slotlab { display: inline-block; width: 36px; font-weight: 800; font-size: 10.5px;
+           color: var(--color-accent-700); }
 .log { max-height: 320px; overflow-y: auto; font-size: 11.5px; }
-.log div { padding: 1px 0; border-bottom: 1px dotted #ddd6c4; }
-.log .me { font-weight: bold; background: #f3edd9; }
+.log div { padding: 1px 0; border-bottom: 1px dotted var(--color-neutral-300); }
+.log .me { font-weight: 700; background: var(--color-neutral-200); }
 .postab { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
-.postab button { font-size: 11px; padding: 2px 8px; }
-.postab button.on { background: #16234A; color: #F5F1E6; }
+.postab button { font-size: 11px; padding: 2px 8px; box-shadow: none; }
+.postab button.on { background: var(--color-text); color: var(--color-bg); }
+a { color: inherit; }
 """
+
+# Applied before first paint so the room never flashes the wrong mode;
+# same key and same accepted values as the served page (plus titans,
+# which the serve-time patch adds there).
+_THEME_BOOT = (
+    "<script>try{var t=localStorage.getItem('ww_theme');"
+    "if(['dark','cowboys','titans'].indexOf(t)>=0)"
+    "document.documentElement.dataset.theme=t;}catch(e){}</script>"
+)
 
 
 def build_html(
@@ -185,6 +260,7 @@ def build_html(
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>FB Bible — mock draft room</title>"
         f"<style>{_STYLE}</style>"
+        f"{_THEME_BOOT}"
         "<h1>Mock draft room</h1>"
     )
 
@@ -196,7 +272,7 @@ def build_html(
             f"refreshes it; try again shortly. Checked {html_mod.escape(stamp)}.</p>"
         )
 
-    with_adp = sum(1 for p in offense if p["adp"] is not None)
+    with_adp = sum(1 for p in offense if p["a10"] is not None)
     with_cap = sum(1 for p in offense + defense if p["cap"])
     data = {
         "offense": offense,
@@ -211,10 +287,11 @@ def build_html(
         "round — the other nine teams autopick, or hit Autopilot and the room "
         "drafts your picks too, turning the result into a round-by-round plan "
         "from your slot, each pick with its stated reason. <b>Simulated "
-        "picks are labelled</b>: live market ADP (FantasyFootballCalculator, "
-        "10-team PPR — both leagues are 10-team) with each league's verified "
-        "scoring leaned on it — QBs move up because both leagues pay QBs above "
-        "market (docs/LEAGUES.md), defenders slot in by their league-scored "
+        "picks are labelled</b>: live market ADP (FantasyFootballCalculator "
+        "PPR — the 10-team column for NDDPL, the 12-team column for RED_EYE's "
+        "12-team room) with each league's verified scoring leaned on it — QBs "
+        "move up because both leagues pay QBs above market (docs/LEAGUES.md), "
+        "defenders slot in by their league-scored "
         "'25 totals from /app/idp — plus seeded randomness. It is not a "
         "prediction of what your actual leaguemates will do. AI capsule lines "
         f"render labelled, same as the top-300 board · {with_adp} of "
@@ -230,6 +307,12 @@ def build_html(
         "<button id='auto' disabled>Pick for me</button>"
         "<button id='pilot' disabled>Autopilot my picks</button>"
         "<button id='resim' disabled>Restart (new randomness)</button>"
+        "<button id='board' disabled>Draft board &#x29c9;</button>"
+        "<select id='mode' title='Mode'>"
+        "<option value='light'>&#9675; Light mode</option>"
+        "<option value='cowboys'>&#9733; Cowboys mode</option>"
+        "<option value='titans'>&#9733; Titans mode</option>"
+        "<option value='dark'>&#9681; Dark mode</option></select>"
         "<span id='status' class='quiet'></span>"
         "</div>"
         "<div class='room'><div>"
@@ -260,23 +343,27 @@ _ENGINE = r"""
 (function () {
   var LEAGUES = {
     NDDPL: {
+      teams: 10,
       slots: ['QB','RB','RB','RB','WR','WR','WR','WR','TE','K',
               'DB','DB','DB','DB','LB','LB','LB','LB',
               'BN','BN','BN','BN','BN','BN','BN','BN'],
       defGroups: {DB:1, LB:1},        // no DL slot at all
       qbBoost: 10,                     // 6-pt pass TD + 20 yds/pt vs market
-      defKey: 'nddpl', defRankKey: 'nddpl_rank'
+      defKey: 'nddpl', defRankKey: 'nddpl_rank',
+      adpKey: 'a10', adpLabel: 'ADP 10tm'
     },
     RED_EYE: {
+      teams: 12,                       // owner correction Aug 20: 12-team room
       slots: ['QB','RB','RB','WR','WR','WR','TE','FLX','K',
               'D','D','D','D','DB','DB','DB','DB',
               'BN','BN','BN','BN','BN','BN','BN','BN'],
       defGroups: {DB:1, LB:1, DL:1},
       qbBoost: 18,                     // adds 1 pt per completion on top
-      defKey: 'red_eye', defRankKey: 'red_eye_rank'
+      defKey: 'red_eye', defRankKey: 'red_eye_rank',
+      adpKey: 'a12', adpLabel: 'ADP 12tm'
     }
   };
-  var TEAMS = 10;
+  var TEAMS = 10;  // reassigned from the league config on every start()
   // Where simulated rooms start spending defender picks: the best
   // league-scored defender prices like a round-5/6 offense pick in an
   // 8-IDP-starter room, each next one a couple of spots later. A stated
@@ -300,13 +387,15 @@ _ENGINE = r"""
     var L = LEAGUES[lg];
     var pool = [];
     FB_MOCK.offense.forEach(function (p, i) {
+      var mkt = p[L.adpKey];
       pool.push({
         id: p.id, name: p.name, pos: p.pos, team: p.team, inj: p.inj,
-        cap: p.cap, adp: p.adp, bye: p.bye, grp: null,
-        // Market price: live 10-team ADP when FFC has one; otherwise the
-        // player falls in behind the priced pool in Sleeper-rank order.
-        price: p.adp !== null ? p.adp : 170 + i * 0.6,
-        live: p.adp !== null
+        cap: p.cap, adp: mkt, bye: p.bye, grp: null,
+        // Market price: the league's own FFC size column when FFC has
+        // one; otherwise the player falls in behind the priced pool in
+        // Sleeper-rank order.
+        price: mkt !== null ? mkt : 170 + i * 0.6,
+        live: mkt !== null
       });
     });
     var d = FB_MOCK.defense
@@ -372,7 +461,26 @@ _ENGINE = r"""
     return team.roster.filter(function (p) { return p.pos === pos; }).length;
   }
 
-  function candidates(team, L, picksLeft, avail) {
+  // Scarcity map: starter-slot kinds whose league-wide supply no longer
+  // exceeds the league-wide count of unfilled starter slots. Without it,
+  // rooms hoard QB2s and TE2s on benches until some team's starter well
+  // is dry -- the headless smoke test caught exactly that in the
+  // 12-team room.
+  function scarceKinds(L, avail) {
+    var demand = {};
+    S.teams.forEach(function (t) {
+      starterNeeds(t, L).forEach(function (s) { demand[s] = (demand[s] || 0) + 1; });
+    });
+    var out = {};
+    Object.keys(demand).forEach(function (s) {
+      var supply = 0;
+      avail.forEach(function (p) { if (fitsSlot(p, s, L)) supply++; });
+      if (supply <= demand[s]) out[s] = true;
+    });
+    return out;
+  }
+
+  function candidates(team, L, picksLeft, avail, scarce) {
     var needs = starterNeeds(team, L);
     var forced = picksLeft <= needs.length;
     return avail.filter(function (p) {
@@ -380,24 +488,35 @@ _ENGINE = r"""
       if (forced) return fillsStarter;
       if (fillsStarter) return true;
       // Bench depth: offense only, inside the caps -- a simulated room
-      // hoarding third kickers would misprice everything else.
+      // hoarding third kickers would misprice everything else -- and
+      // never a position another room still starts and is running out of.
       if (p.grp) return false;
       var cap = CAPS[p.pos];
-      return !(cap && countPos(team, p.pos) >= cap);
+      if (cap && countPos(team, p.pos) >= cap) return false;
+      for (var k in scarce) { if (fitsSlot(p, k, L)) return false; }
+      return true;
     });
   }
 
   function cpuPick(team, L, picksLeft, avail, rand) {
     var needs = starterNeeds(team, L);
     var forced = picksLeft <= needs.length;
-    var pool = candidates(team, L, picksLeft, avail);
+    var scarce = scarceKinds(L, avail);
+    var pool = candidates(team, L, picksLeft, avail, scarce);
     if (!pool.length) pool = avail;
+    var mine = needs.filter(function (s) { return scarce[s]; });
+    if (!forced && mine.length) {
+      var minePool = pool.filter(function (p) {
+        return mine.some(function (s) { return fitsSlot(p, s, L); });
+      });
+      if (minePool.length) pool = minePool;
+    }
     var best = null, bestV = Infinity;
     pool.forEach(function (p) {
       var v = price(p, L) + (rand() - 0.5) * 9;
       if (v < bestV) { bestV = v; best = p; }
     });
-    return best && {p: best, forced: forced, needs: needs};
+    return best && {p: best, forced: forced, needs: needs, scarce: mine};
   }
 
   // The stated reason for a simulated pick: the engine's actual inputs --
@@ -416,6 +535,9 @@ _ENGINE = r"""
     bits.push(slot ? 'fills your open ' + slot + ' slot' : 'bench depth');
     if (pick.forced) {
       bits.push('had to: ' + pick.needs.length + ' starter holes in your last picks');
+    } else if (pick.scarce && pick.scarce.length && slot &&
+               pick.scarce.indexOf(slot) >= 0) {
+      bits.push('the ' + slot + ' well is running dry room-wide');
     }
     if (p.grp) {
       bits.push(p.posRank + ' by ' + S.lg + " '25 scoring, " + p.pts.toFixed(1) + ' pts');
@@ -441,6 +563,8 @@ _ENGINE = r"""
     var lg = document.getElementById('lg').value;
     var slot = parseInt(document.getElementById('slot').value, 10);
     var L = LEAGUES[lg];
+    TEAMS = L.teams;
+    if (slot > TEAMS) slot = TEAMS;
     S = {
       lg: lg, L: L, seed: seed, rand: rng(seed),
       mySlot: slot - 1,
@@ -450,6 +574,7 @@ _ENGINE = r"""
     for (var i = 0; i < TEAMS; i++) S.teams.push({roster: []});
     S.avail = buildPool(lg);
     document.getElementById('resim').disabled = false;
+    document.getElementById('board').disabled = false;
     runToMe();
   }
 
@@ -639,7 +764,7 @@ _ENGINE = r"""
     document.getElementById('avail').innerHTML =
       "<table><thead><tr><th>Best available</th><th>Pos</th><th>Team</th>" +
       "<th>" + (f === 'LB' || f === 'DB' || f === 'DL'
-        ? esc(S.lg) + " '25</th>" : 'ADP 10tm</th>') +
+        ? esc(S.lg) + " '25</th>" : esc(S.L.adpLabel) + '</th>') +
       '</tr></thead><tbody>' + rows + '</tbody></table>';
     Array.prototype.forEach.call(
       document.querySelectorAll('#avail tr.pickable'),
@@ -689,15 +814,119 @@ _ENGINE = r"""
     }).join('') || 'No picks yet.';
   }
 
+  // ---- the draft board window ----------------------------------------------
+  // A clickable board (owner request): rounds down, teams across, snake
+  // order, every filled cell hover-carrying its details -- the AI capsule
+  // when one exists, the autopilot reason for the owner's machine picks,
+  // and the market number. Opens in its own tab wearing the same skin
+  // (the style block and active mode are copied over), print-ready.
+
+  function cellTip(e) {
+    var p = e.p, bits = [];
+    if (p.inj) bits.push('<b>' + esc(p.inj) + '</b>');
+    if (p.grp) bits.push(esc(S.lg) + " '25: " + p.pts.toFixed(1) + ' pts (' +
+                         esc(p.posRank || '') + ')');
+    else if (p.live) bits.push(esc(S.L.adpLabel) + ': ' + p.adp.toFixed(1));
+    if (e.me && e.why) bits.push('<b>Auto:</b> ' + esc(e.why));
+    if (p.cap) bits.push("<b>AI angle:</b> " + esc(p.cap));
+    if (!bits.length) bits.push("<span class='quiet'>No AI capsule for this " +
+                                'player yet — the hourly job drafts more.</span>');
+    return bits.join('<br>');
+  }
+
+  function boardHtml() {
+    var head = '<tr><th></th>';
+    for (var c = 0; c < TEAMS; c++) {
+      head += '<th>' + (c === S.mySlot ? 'YOU' : 'T' + (c + 1)) + '</th>';
+    }
+    head += '</tr>';
+    var rows = '';
+    for (var r = 0; r < S.rounds; r++) {
+      var cells = '';
+      for (c = 0; c < TEAMS; c++) {
+        var e = S.log[r * TEAMS + (r % 2 === 0 ? c : TEAMS - 1 - c)];
+        if (!e) { cells += "<td class='cell empty'></td>"; continue; }
+        cells += "<td class='cell" + (e.me ? ' mine' : '') + "'>" +
+          "<span class='pk'>" + e.round + '.' +
+          (e.pir < 10 ? '0' + e.pir : e.pir) + '</span> ' + esc(e.p.name) +
+          "<br><span class='pos'>" + esc(e.p.grp || e.p.pos) + ' · ' +
+          esc(e.p.team) + '</span>' +
+          "<span class='tip'>" + cellTip(e) + '</span></td>';
+      }
+      rows += "<tr><td class='rnd'>" + (r + 1) + '</td>' + cells + '</tr>';
+    }
+    return '<table>' + head + rows + '</table>';
+  }
+
+  var BOARD_CSS =
+    'body{margin:14px}table{font-size:10.5px}' +
+    'td.cell{min-width:86px;position:relative;vertical-align:top;' +
+    'border:1px solid var(--color-neutral-300);padding:3px 5px}' +
+    'td.cell.mine{background:var(--color-neutral-200);font-weight:700}' +
+    'td.rnd{font-weight:800;color:var(--color-neutral-600)}' +
+    '.pk{font-size:9px;color:var(--color-neutral-600)}' +
+    '.pos{font-size:9.5px;color:var(--color-neutral-600)}' +
+    '.tip{display:none;position:absolute;z-index:5;left:0;top:100%;' +
+    'width:270px;background:var(--color-bg);border:2px solid var(--color-text);' +
+    'box-shadow:2px 2px 0 var(--color-text);padding:6px 8px;font-size:11px;' +
+    'font-weight:400;line-height:1.4}' +
+    'td.cell:hover .tip{display:block}td.cell:hover{outline:2px solid var(--color-accent)}' +
+    '@media print{.tip{display:none !important}body{-webkit-print-color-adjust:exact}}';
+
+  function openBoard() {
+    if (!S || !S.log.length) return;
+    var w = window.open('', '_blank');
+    if (!w) return;
+    var styleEl = document.querySelector('style');
+    var theme = document.documentElement.dataset.theme || '';
+    w.document.write(
+      '<!doctype html><html' + (theme ? " data-theme='" + theme + "'" : '') +
+      "><head><meta charset='utf-8'>" +
+      "<meta name='viewport' content='width=device-width, initial-scale=1'>" +
+      '<title>FB Bible — draft board (' + esc(S.lg) + ')</title>' +
+      '<style>' + (styleEl ? styleEl.textContent : '') + BOARD_CSS +
+      '</style></head><body>' +
+      '<h1>Draft board — ' + esc(S.lg) + '</h1>' +
+      "<p class='sub'>" + TEAMS + ' teams · ' + S.rounds + ' rounds · your seat is ' +
+      'pick ' + (S.mySlot + 1) + ' · ' + S.log.length + ' of ' +
+      (S.rounds * TEAMS) + ' picks in · hover a pick for its details ' +
+      '(AI lines labelled; simulated picks are a simulation, not a ' +
+      'prediction) · generated from the room at ' +
+      esc(FB_MOCK.generated) + '</p>' + boardHtml() + '</body></html>');
+    w.document.close();
+  }
+
   // ---- boot ----------------------------------------------------------------
 
-  var slotSel = document.getElementById('slot');
-  for (var i = 1; i <= TEAMS; i++) {
-    var o = document.createElement('option');
-    o.value = i; o.textContent = 'Pick ' + i;
-    slotSel.appendChild(o);
+  // Slot choices follow the league's room size (NDDPL 10, RED_EYE 12).
+  function fillSlots() {
+    var L = LEAGUES[document.getElementById('lg').value] || LEAGUES.NDDPL;
+    var slotSel = document.getElementById('slot');
+    var keep = parseInt(slotSel.value, 10) || 1;
+    slotSel.innerHTML = '';
+    for (var i = 1; i <= L.teams; i++) {
+      var o = document.createElement('option');
+      o.value = i; o.textContent = 'Pick ' + i;
+      slotSel.appendChild(o);
+    }
+    slotSel.value = String(Math.min(keep, L.teams));
   }
+  fillSlots();
+  document.getElementById('lg').onchange = fillSlots;
+
+  // Mode picker: same key, same modes as the app itself, so the room and
+  // the page stay in step.
+  var modeSel = document.getElementById('mode');
+  modeSel.value = document.documentElement.dataset.theme || 'light';
+  modeSel.onchange = function () {
+    var t = modeSel.value;
+    if (t === 'light') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+    try { localStorage.setItem('ww_theme', t); } catch (e) {}
+  };
+
   document.getElementById('start').onclick = function () { start(1); };
+  document.getElementById('board').onclick = openBoard;
   document.getElementById('resim').onclick = function () {
     start((S ? S.seed : 0) + 1);
   };

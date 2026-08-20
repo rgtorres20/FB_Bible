@@ -81,12 +81,15 @@ def has_idp_stats(stats_state: dict | None) -> bool:
     return bool(coverage.get("idp_tkl_solo"))
 
 
-def rows(index: dict | None, stats_state: dict | None) -> list[dict]:
+def rows(index: dict | None, stats_state: dict | None, top: int = TOP) -> list[dict]:
     """Defenders the index knows, scored per league, best first.
 
     Ordered by the better of the two league scores; position ranks are
     computed within each league's startable groups only, so a DL shows a
     RED_EYE rank and an explicit dash for NDDPL rather than a fake number.
+    `top` widens the cut for consumers that need per-group depth the
+    board's page cut cannot promise (the mock draft room must seat
+    12 teams x 4 DBs).
     """
     players = (index or {}).get("players") or {}
     stats = ((stats_state or {}).get("players") or {}) if stats_state else {}
@@ -134,7 +137,7 @@ def rows(index: dict | None, stats_state: dict | None) -> list[dict]:
             counters[row["group"]] = counters.get(row["group"], 0) + 1
             row[f"{league}_rank"] = f"{row['group']}{counters[row['group']]}"
 
-    return out[:TOP]
+    return out[:top]
 
 
 def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> str:
