@@ -276,3 +276,15 @@ aside > div:nth-child(2) {
   --color-accent-700: oklch(0.76 0.11 242);
   --color-accent-800: oklch(0.85 0.08 240);
 }
+
+/* Titans mode watermark (owner request): the cowboys-mode star gives way
+ * to a sword emblem drawn for this app -- deliberately NOT the club's
+ * trademarked mark; the commercial posture in docs/LICENSING.md steers
+ * around team IP. The page's watermark div is opacity 0 outside cowboys
+ * mode, so both the image and the opacity are overridden; the selector
+ * keys on the asset filename, robust to inline-style re-serialization. */
+[data-skin="titans"][data-theme="titans"] div[style*="logo.png"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 150'%3E%3Cpolygon points='50,4 60,24 56,90 44,90 40,24' fill='%234B92DB'/%3E%3Cpolygon points='50,12 54,24 52,86 48,86 46,24' fill='%236FB0E8'/%3E%3Crect x='22' y='90' width='56' height='9' rx='3' fill='%238A8D8F'/%3E%3Crect x='44' y='99' width='12' height='28' rx='3' fill='%232A4E7E'/%3E%3Ccircle cx='50' cy='135' r='8' fill='%238A8D8F'/%3E%3C/svg%3E") !important;
+  opacity: 0.14 !important;
+  background-size: 40vmin !important;
+}

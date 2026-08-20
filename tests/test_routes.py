@@ -242,6 +242,9 @@ def test_titans_mode_joins_cowboys_mode():
     assert '[data-skin="titans"]' in css
     assert '[data-skin="titans"][data-theme="titans"]' in css
     assert '[data-skin="titans"][data-theme="dark"]' in css
+    # Titans mode carries its own watermark -- an emblem drawn for this
+    # app (data URI), never the club's trademarked mark.
+    assert "data:image/svg+xml" in css and 'div[style*="logo.png"]' in css
 
 
 def test_league_names_are_the_real_ones():

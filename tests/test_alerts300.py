@@ -137,3 +137,24 @@ async def test_route_without_index_says_so(client):
     response = c.get("/app/alerts300")
     assert response.status_code == 200
     assert "Player index unavailable" in response.text
+
+
+def test_offense_and_defense_render_as_separate_sections():
+    """Owner request: offense scans clean, defense is one tap away. A
+    defender never appears in the offense table and vice versa."""
+    index = _index(120)
+    index["players"]["9001"] = {
+        "id": "9001",
+        "name": "Roquan Smith",
+        "position": "LB",
+        "team": "BAL",
+        "injury_status": None,
+        "rank": 5,
+        "idp": "LB",
+    }
+    page = alerts300.build_html(index, [], {}, None, NOW)
+    assert "<h2 id='offense'>" in page and "<h2 id='defense'>" in page
+    offense_part, defense_part = page.split("<h2 id='defense'>")
+    assert "Roquan Smith" in defense_part
+    assert "Roquan Smith" not in offense_part
+    assert "Player 1" in offense_part
