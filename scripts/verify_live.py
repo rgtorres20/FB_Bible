@@ -165,6 +165,14 @@ def main() -> int:
     reads = sum(1 for e in scout if "AI read:" in str(e.get("text", "")))
     print(f"  INFO  AI reads on the ADP mover cards: {reads}")
 
+    # The mock draft room: the page must serve with its embedded pool and
+    # its honesty framing -- simulated picks are labelled, never sold as a
+    # prediction of the real room.
+    mock_page = get("/app/mock").decode("utf-8", errors="replace")
+    check("mock draft room serves", "Mock draft room" in mock_page)
+    check("mock room carries the live pool", "FB_MOCK" in mock_page)
+    check("mock room labels its simulation", "Simulated picks are labelled" in mock_page)
+
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)

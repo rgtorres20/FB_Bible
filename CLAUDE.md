@@ -124,7 +124,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-405 tests green — 389 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+412 tests green — 396 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -133,6 +133,14 @@ The served page reads live data: the `/app/data/feeds.json` overlay merges the
 polled wire (impact-ranked, deduped, `first_seen`-stamped) into the page's own
 startup fetch, and `mobile.js` decorates NEW badges and Out & returning wire
 stamps onto the rendered rows. See docs/RESUME.md for the live-state detail.
+
+`/app/mock` is the mock draft room (owner request, Aug 20): pick a league and
+a slot, the other nine teams autopick from the live pool — market ADP with
+each league's verified scoring leaned on it, defenders by their /app/idp
+league-scored totals — or Autopilot drafts the owner's picks too, each with a
+stated reason, rendered as a round-by-round plan. All simulation is labelled;
+the engine has a headless smoke test (see app/feeds/mock.py). The Draft
+analyzer links to it via mobile.js.
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.

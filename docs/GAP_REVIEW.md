@@ -113,6 +113,9 @@ Ordered by draft-day value.
 6. **Cheat sheet is unreachable and its round dividers are 12-team-only** —
    no link anywhere; `/app/cheatsheet` needs a Draft analyzer link, a
    `?teams=10` param for The Trenches, and a sw.js precache entry.
+   (Partial pattern landed Aug 20: mobile.js injects a Draft-analyzer link
+   to `/app/mock` — the same anchor can carry the cheat-sheet and IDP
+   links.)
 7. **Pickup queue triggers ignore the server wire** — they only check the
    browser's own Sleeper injuries; RESUME's "trigger-on-wire-news works
    today" is not wired. Evaluate against `F.news`/`injury_wire` too.

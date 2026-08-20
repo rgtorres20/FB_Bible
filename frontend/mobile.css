@@ -189,6 +189,23 @@ aside > div:nth-child(2) {
   color: var(--color-bg, #fff);
 }
 
+/* The Draft analyzer's link into the mock draft room (mobile.js). */
+#fb-mock-link {
+  display: block;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 2px solid var(--color-text);
+  box-shadow: 2px 2px 0 var(--color-text);
+  color: var(--color-text);
+  background: var(--color-bg, #fff);
+  text-decoration: none;
+  width: fit-content;
+}
+
 .fb-wire-stamp {
   margin-top: 6px;
   font-size: 11px;

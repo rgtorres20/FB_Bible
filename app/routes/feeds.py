@@ -30,6 +30,7 @@ from ..feeds import (
     cheatsheet,
     idp,
     injury,
+    mock,
     players,
     poller,
     previews,
@@ -158,6 +159,28 @@ async def idp_board(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
         log.warning("idp board: store unavailable: %s", exc)
         stored, index = {}, None
     return HTMLResponse(idp.build_html(index, stored.get("stats"), datetime.now(UTC)))
+
+
+@router.get("/app/mock", include_in_schema=False, response_class=HTMLResponse)
+async def mock_draft_room(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """The mock draft room: the owner picks a league and a slot, the other
+    nine teams autopick from the live pool (see app/feeds/mock.py for the
+    honesty rules). Declared before the /app static mount so it wins."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("mock room: store unavailable: %s", exc)
+        stored, index = {}, None
+    return HTMLResponse(
+        mock.build_html(
+            index,
+            (stored.get("adp") or {}).get("state"),
+            stored.get("stats"),
+            stored.get("capsules") or {},
+            datetime.now(UTC),
+        )
+    )
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")

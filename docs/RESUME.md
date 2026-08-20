@@ -1,5 +1,29 @@
 # Resume here
 
+## Aug 20 (latest) — the mock draft room
+
+Owner request, three messages in one arc: simulate a draft "from my exact
+spot", "autopick for myself ... with a read out of why", and "similar to
+this" (an uploaded per-slot draft-kit PDF). **`/app/mock`** does all three:
+pick a league and slot, the other nine teams autopick round by round from
+the live pool (offense = top-300 joined to the 10-team FFC ADP; defenders =
+/app/idp's league-scored rows; capsules attached), Autopilot drafts the
+owner's picks too with a stated reason per pick, and the finished sim
+renders as a kit-style round-by-round plan table. Honesty: every simulated
+pick is labelled (market ADP + stated league adjustments + seeded
+randomness, "not a prediction of your actual leaguemates"); manual picks
+carry no machine reason; AI capsules render labelled "AI angle". The engine
+is exercised headless (node smoke test drove full drafts in both leagues
+from five slots — and caught a real slot-assignment bug: a DB parked in
+RED_EYE's generic D slot starved the DB slots; assign is specific-first
+now). mobile.js links the room from the Draft analyzer screen. Watchdog:
+three new checks (serves / pool embedded / simulation labelled).
+
+Note for later: the uploaded kit ("Don Kolkhorst … 10-Team Yahoo PPR+IDP")
+matches NDDPL's *scoring* but claims 5 LB/DL + 5 DB/S and 28 rounds, which
+contradicts the verified settings PDF (4 LB + 4 DB, 26 rounds). The
+verified PDF stays ground truth; flagged to the owner.
+
 ## Aug 20 — IDP support lands; the page speaks the real league names
 
 - **IDP (was GAP_REVIEW #4, the biggest post-settings gap).** Defenders
