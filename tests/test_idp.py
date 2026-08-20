@@ -141,6 +141,10 @@ def test_page_renders_both_league_columns_and_the_dl_dash():
     assert "NDDPL '25" in page and "RED_EYE '25" in page
     assert "no DL slot" in page
     assert "not a projection" in page
+    # The interpretation edges print on the page itself, never silently
+    # assumed: the D-slot reading and the Sleeper-vs-Yahoo classification.
+    assert "interpretation edges" in page
+    assert "Sleeper" in page and "edge rushers" in page
 
 
 def test_page_is_honest_when_stats_predate_the_idp_fields():

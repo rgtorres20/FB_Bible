@@ -197,4 +197,12 @@ def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> s
         "<th>Team</th><th>GP</th><th>Solo/Ast</th><th>Sk</th><th>Int</th>"
         "<th>PD</th><th>NDDPL '25</th><th>RED_EYE '25</th></tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody></table>"
+        "<p class='sub' style='margin-top:12px'>Two interpretation edges, stated "
+        "rather than papered over: RED_EYE's <b>D</b> slot is read as Yahoo's "
+        "any-defender slot (DL/LB/DB) — confirm once on the league's own roster "
+        "page; and positions here are <b>Sleeper's</b> classification, which can "
+        "disagree with Yahoo's for edge rushers (a Sleeper DE that Yahoo lists "
+        "as LB <i>is</i> NDDPL-startable despite the dash — check the player's "
+        "page in your league before passing). Exact per-league eligibility "
+        "arrives with Yahoo API access.</p>"
     )

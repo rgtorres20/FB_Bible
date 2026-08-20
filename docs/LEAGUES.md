@@ -83,3 +83,15 @@ FF 2 · FR 2 · TD 6 · safety 2 · PD 1 · block 2 · turnover return 10 yds/pt
    standard ADP reflects.
 6. Confirmed as already assumed: **no waivers, no FAAB, adds first-come**
    in both leagues.
+
+### Interpretation edges (stated on the IDP board too)
+
+- **RED_EYE's `D` slot** is read as Yahoo's any-defender slot (DL/LB/DB
+  all eligible) — Yahoo's standard meaning, but the settings page prints
+  only "D". Confirm once on the league's roster page; if narrower, the
+  board's RED_EYE ranks need re-slicing.
+- **Position classification is Sleeper's**, which can disagree with
+  Yahoo's for edge rushers: a Sleeper DE that Yahoo lists as LB *is*
+  NDDPL-startable despite the board's dash (Micah Parsons is the classic
+  case). Definitive eligibility is the player's page inside the league;
+  exact per-league eligibility arrives with Yahoo API access.
