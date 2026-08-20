@@ -44,6 +44,33 @@ nothing by itself.
 
 Then sign in at `/login` and add people at `/app/access`.
 
+## Emailing invites automatically (optional)
+
+Adding an email can also send the invite for you — the message carries
+the one-time link, a short intro to the app, and both league links
+(`app/mailer.py` is the template). Configure any SMTP in Vercel env;
+the free path with a Gmail account:
+
+1. Google Account → Security → 2-Step Verification (must be on) → App
+   passwords → create one for "Mail".
+2. Vercel env: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
+   `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the app password>`
+   (optional `SMTP_FROM` if different).
+
+Unset, the access page simply shows you the link to send yourself; a
+failed send falls back to the same, honestly labelled. Nothing about a
+link is ever logged either way.
+
+## Each user's own data — /app/mine ("My stuff")
+
+The base app is shared; `/app/mine` is each signed-in person's own
+layer: up to 12 named documents (notes, target lists, rankings, pasted
+or uploaded text/CSV, 200KB each), stored under their email's own Redis
+key (`fbbible:user:{email}`) and shown to nobody else — the owner has
+no browse-others view, deliberately. Not Yahoo-sourced data, so the
+24-hour deletion rule does not apply. Real file/blob uploads (PDFs,
+images) would need Vercel Blob — a Phase 3 decision.
+
 ## What is and isn't gated
 
 Gated: everything under `/app` — the page, its data overlay, the cheat

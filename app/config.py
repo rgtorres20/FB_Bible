@@ -61,6 +61,21 @@ class Settings(BaseSettings):
     owner_email: str = ""
     app_owner_code: str = ""
 
+    # --- Invite email (optional) --------------------------------------------
+    # When set, adding an email on /app/access sends the invite by mail;
+    # unset, the page shows the link for the owner to send themselves.
+    # Any SMTP works; a Gmail app password is the documented free path
+    # (docs/ACCESS.md). smtp_from defaults to smtp_user.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = ""
+
+    @property
+    def email_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_user and self.smtp_pass)
+
     @property
     def auth_state(self) -> str:
         """ "off", "on", or "misconfigured" -- reported by /health so a bad

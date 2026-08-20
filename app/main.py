@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import get_settings
 from .feeds import board, previews, stats, vegas
 from .feeds.store import FeedStore
-from .routes import access, auth, feeds, league
+from .routes import access, auth, feeds, league, userdata
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 _FRONTEND_INDEX = _FRONTEND_DIR / "index.html"
@@ -61,6 +61,7 @@ app.include_router(auth.router)
 app.include_router(league.router)
 app.include_router(feeds.router)
 app.include_router(access.router)
+app.include_router(userdata.router)
 
 
 @app.middleware("http")

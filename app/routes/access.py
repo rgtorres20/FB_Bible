@@ -25,8 +25,9 @@ import time
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
-from .. import authn
+from .. import authn, mailer
 from ..config import Settings, get_settings
 from ..feeds import skin
 from ..feeds.store import FeedStore, build_feed_store
@@ -224,7 +225,10 @@ async def logout() -> RedirectResponse:
 
 
 def _access_page(
-    auth: dict, settings: Settings, minted: tuple[str, str] | None = None
+    auth: dict,
+    settings: Settings,
+    minted: tuple[str, str] | None = None,
+    mail_note: str = "",
 ) -> HTMLResponse:
     allow = auth.get("allow") or {}
     invites = auth.get("invites") or {}
@@ -235,8 +239,9 @@ def _access_page(
         email, link = minted
         minted_html = (
             "<div class='ok'><b>Invite minted for "
-            f"{html_mod.escape(email)}.</b> Send them this link — it is shown "
-            "only this once, works once, and expires in "
+            f"{html_mod.escape(email)}.</b> "
+            + (html_mod.escape(mail_note) + " " if mail_note else "")
+            + "The link — shown only this once, works once, expires in "
             f"{authn.INVITE_DAYS} days:<br><br><code>{html_mod.escape(link)}"
             "</code></div>"
         )
@@ -315,7 +320,23 @@ async def access_add(
     link = f"{request.base_url}login/invite/{token}"
     # The link itself is never logged (repo rule) -- count only.
     log.info("access: invite minted, %d pending", len(updated.get("invites") or {}))
-    return _access_page(updated, settings, minted=(email, link))
+
+    # Owner request: adding someone emails them the invite plus the app
+    # intro and league links. Best-effort -- any failure falls back to the
+    # link on this page, honestly labelled, so delivery trouble never
+    # strands an invite.
+    mail_note = "Email isn't configured (docs/ACCESS.md), so send it yourself:"
+    if settings.email_configured:
+        try:
+            await run_in_threadpool(
+                mailer.send_invite, email, link, str(request.base_url), settings
+            )
+            mail_note = "Invite emailed to them — the same link, as a backup:"
+            log.info("access: invite emailed")
+        except Exception as exc:  # noqa: BLE001 - the page reports it; the link still works
+            mail_note = f"Emailing failed ({type(exc).__name__}) — send it yourself:"
+            log.warning("access: invite email failed: %s", type(exc).__name__)
+    return _access_page(updated, settings, minted=(email, link), mail_note=mail_note)
 
 
 @router.post("/app/access/remove", include_in_schema=False)

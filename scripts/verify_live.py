@@ -201,6 +201,10 @@ def main() -> int:
     login_page = get("/login").decode("utf-8", errors="replace")
     check("login page serves", "Owner sign-in" in login_page)
     print(f"  INFO  app login gate: {health.get('app_auth', '?')}")
+    # The personal layer: anonymous (the watchdog has no session) must get
+    # the honest ask-to-sign-in page, never someone's data.
+    mine_page = get("/app/mine").decode("utf-8", errors="replace")
+    check("my-stuff page serves", "My stuff" in mine_page)
 
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")

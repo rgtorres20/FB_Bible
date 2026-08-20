@@ -7,12 +7,14 @@ rule does not apply here -- none of this is Yahoo user data.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from pathlib import Path
 from typing import Protocol
 
 _KEY = "fbbible:feeds"
+_USER_KEY_PREFIX = "fbbible:user:"
 
 
 def _current_version(index: dict) -> bool:
@@ -41,6 +43,10 @@ class FeedStore(Protocol):
     async def load_auth(self) -> dict: ...
 
     async def save_auth(self, payload: dict) -> None: ...
+
+    async def load_user(self, email: str) -> dict: ...
+
+    async def save_user(self, email: str, payload: dict) -> None: ...
 
 
 class FileFeedStore:
@@ -106,6 +112,28 @@ class FileFeedStore:
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         tmp.replace(self._auth_path)
 
+    # Per-user data ("My stuff"): each signed-in email gets its own slot,
+    # so the base app stays shared while personal additions stay personal.
+    def _user_path(self, email: str) -> Path:
+        digest = hashlib.sha256(email.encode()).hexdigest()[:24]
+        return self._path.with_name(f"user.{digest}.json")
+
+    async def load_user(self, email: str) -> dict:
+        path = self._user_path(email)
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    async def save_user(self, email: str, payload: dict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        path = self._user_path(email)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(path)
+
 
 class RedisFeedStore:
     def __init__(self, url: str) -> None:
@@ -152,6 +180,20 @@ class RedisFeedStore:
         # Own key, no TTL: the allowlist must survive every sync rebuild
         # of the feeds blob (see the FileFeedStore note).
         await self._redis.set(_AUTH_KEY, json.dumps(payload))
+
+    async def load_user(self, email: str) -> dict:
+        raw = await self._redis.get(_USER_KEY_PREFIX + email)
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    async def save_user(self, email: str, payload: dict) -> None:
+        # No TTL: personal data is the user's own, not Yahoo-sourced --
+        # the 24h deletion rule does not apply (docs/LICENSING.md).
+        await self._redis.set(_USER_KEY_PREFIX + email, json.dumps(payload))
 
 
 def build_feed_store(settings) -> FeedStore:

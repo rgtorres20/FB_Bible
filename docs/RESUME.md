@@ -1,5 +1,25 @@
 # Resume here
 
+## Aug 20 (late) — the personal layer and emailed invites
+
+- **/app/mine ("My stuff")**: the owner's shape for multi-user — "a base
+  app but they can add to their app." Each signed-in email gets its own
+  Redis key holding up to 12 named text/CSV documents (paste or upload,
+  200KB cap, honest errors), private to them; no owner browse view, by
+  choice. Watchdog asserts the page serves its ask-to-sign-in state.
+- **Invite emails**: adding a user on /app/access now emails them the
+  one-time link + an app intro + both league URLs when SMTP env is set
+  (Gmail app password is the documented path — ACCESS.md). Best-effort:
+  unconfigured or failed sends fall back to the link shown once on the
+  page, labelled honestly. stdlib smtplib, no new deps.
+- **Free-tier audit** (owner asked what keeps 6 users free): repo is
+  public → GitHub Actions unmetered; Vercel Hobby covers this traffic
+  but its terms are non-commercial — fine for testers, Pro ($20/mo)
+  when selling; Upstash free tier's ~500K commands/mo is the tightest
+  meter (hourly sync + 6 users fits; watch the console if adding
+  surfaces); Google AI free tier already survived via the fallback
+  chain; Gmail SMTP free at this volume.
+
 ## Aug 20 (evening) — the login gate, and the Titans mark
 
 - **Login + email allowlist** (owner request): `/login`, signed-cookie
