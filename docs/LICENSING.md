@@ -77,7 +77,13 @@ same treatment before any sale:
   different (not automatically safer) posture.
 - DraftKings salary data — planned for Phase 4 FFBets.
 - NFL team names, logos and marks — factual stats are one thing; trademarks in
-  a sold product are another.
+  a sold product are another. **Live instance of this today:** Titans mode's
+  watermark is the club's sword mark, supplied by the owner Aug 20 for their
+  own personal build (`frontend/assets/titans-sword.png`, wired in
+  `frontend/mobile.css`). Fine for personal use; before any distribution or
+  sale it must be swapped back to an original emblem — the stand-in this
+  repo shipped first is preserved in git history (mobile.css prior to the
+  Aug 20 swap) and can be restored in one commit.
 
 ## Practical order of operations
 
