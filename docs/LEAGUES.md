@@ -84,14 +84,23 @@ FF 2 · FR 2 · TD 6 · safety 2 · PD 1 · block 2 · turnover return 10 yds/pt
 6. Confirmed as already assumed: **no waivers, no FAAB, adds first-come**
    in both leagues.
 
-### Interpretation edges (stated on the IDP board too)
+### Owner's IDP read (Aug 20) — how the slots are actually played
 
-- **RED_EYE's `D` slot** is read as Yahoo's any-defender slot (DL/LB/DB
-  all eligible) — Yahoo's standard meaning, but the settings page prints
-  only "D". Confirm once on the league's roster page; if narrower, the
-  board's RED_EYE ranks need re-slicing.
+Straight from the owner, superseding the earlier D-slot open question:
+
+- **RED_EYE's D slots go to LBs in practice**; DBs fill the DB slots. So
+  both leagues draft to the same shape: **4 LB + 4 DB**.
+- **Tackles rule this scoring** — every-down **MIKE linebackers are among
+  the best picks**. The '25 point totals on /app/idp agree: solo+assist
+  volume dominates them.
+- DL is therefore situational in both rooms (no NDDPL slot at all; a
+  RED_EYE D slot an elite sack artist would have to out-point a
+  tackle-machine LB to claim).
+
+### Interpretation edge (stated on the IDP board too)
+
 - **Position classification is Sleeper's**, which can disagree with
   Yahoo's for edge rushers: a Sleeper DE that Yahoo lists as LB *is*
-  NDDPL-startable despite the board's dash (Micah Parsons is the classic
-  case). Definitive eligibility is the player's page inside the league;
-  exact per-league eligibility arrives with Yahoo API access.
+  startable in an LB slot despite the board's dash (Micah Parsons is the
+  classic case). Definitive eligibility is the player's page inside the
+  league; exact per-league eligibility arrives with Yahoo API access.
