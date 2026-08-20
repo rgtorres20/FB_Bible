@@ -148,6 +148,14 @@ def main() -> int:
     # at zero, which is why the numbers belong in the log.
     angles = top300.count("AI angle:")
     print(f"  INFO  AI player capsules on the top-300 board: {angles}")
+
+    # The IDP draft board: serving is asserted; population is reported --
+    # it needs the index and stats refetches that follow a deploy, and its
+    # empty states are honest about which piece is still missing.
+    idp_page = get("/app/idp").decode("utf-8", errors="replace")
+    check("IDP draft board serves", "IDP draft board" in idp_page)
+    idp_rows = max(idp_page.count("<tr>") - 1, 0)
+    print(f"  INFO  IDP board rows: {idp_rows}")
     reads = sum(1 for e in scout if "AI read:" in str(e.get("text", "")))
     print(f"  INFO  AI reads on the ADP mover cards: {reads}")
 

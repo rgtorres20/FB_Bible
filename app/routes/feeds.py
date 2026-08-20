@@ -28,6 +28,7 @@ from ..feeds import (
     build_feed_store,
     capsules,
     cheatsheet,
+    idp,
     injury,
     players,
     poller,
@@ -141,6 +142,20 @@ async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLRespo
             capsules=stored.get("capsules") or {},
         )
     )
+
+
+@router.get("/app/idp", include_in_schema=False, response_class=HTMLResponse)
+async def idp_board(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """The IDP draft board: every indexed defender scored with each league's
+    own verified settings (docs/LEAGUES.md). Declared before the /app static
+    mount so it wins; zero scripts, same as the cheat sheet."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("idp board: store unavailable: %s", exc)
+        stored, index = {}, None
+    return HTMLResponse(idp.build_html(index, stored.get("stats"), datetime.now(UTC)))
 
 
 @router.get("/api/feeds", summary="Polled news items, newest first")

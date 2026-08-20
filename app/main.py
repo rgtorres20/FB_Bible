@@ -232,6 +232,20 @@ if _FRONTEND_READY:
                     )
             except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
                 logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
+        # The real league names (docs/LEAGUES.md, owner request): the design
+        # document still says "Sunday Gravy" / "The Trenches" everywhere --
+        # picker values, curated alert rows, helper copy, and the board's
+        # injected ADP toggle. One late pass renames every occurrence, page
+        # and injected snippets alike, so the picker values and the code
+        # comparing against them move together. Full names first, then the
+        # bare shorthands the curated copy uses.
+        for old, new in (
+            ("Sunday Gravy", "NDDPL"),
+            ("The Trenches", "RED_EYE"),
+            ("Gravy", "NDDPL"),
+            ("Trenches", "RED_EYE"),
+        ):
+            html = html.replace(old, new)
         # A beta deploy announces itself (styles in mobile.css). Prod and
         # local runs serve no badge at all.
         if settings.stage == "preview":

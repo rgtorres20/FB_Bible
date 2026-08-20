@@ -11,6 +11,7 @@ import os
 import time
 
 from app.config import Settings
+from app.feeds import players
 from app.feeds.store import (
     PLAYER_TTL_SECONDS,
     FileFeedStore,
@@ -19,7 +20,7 @@ from app.feeds.store import (
 )
 
 INDEX = {
-    "v": 2,
+    "v": players.INDEX_VERSION,
     "players": {"1": {"name": "Puka Nacua"}},
     "by_name": {"puka nacua": "1"},
     "surnames": {},

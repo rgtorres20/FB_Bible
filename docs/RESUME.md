@@ -1,5 +1,29 @@
 # Resume here
 
+## Aug 20 — IDP support lands; the page speaks the real league names
+
+- **IDP (was GAP_REVIEW #4, the biggest post-settings gap).** Defenders
+  are indexed (index v3: coarse DB/LB/DL group via Sleeper's
+  fantasy_positions with a position-map fallback), so the wire tags them,
+  capsules can cover them, and the top-300 board shows them as Sleeper
+  ranks them. The '25 stats now carry the idp_* fields — every name
+  verified first via the probe's new field-census mode (idp_tkl_solo:
+  1124 holders, idp_sack: 440, idp_int: 221...) — behind a stats-state
+  version (v2) so the weekly refresh refetches on deploy instead of
+  waiting a week. **`/app/idp`** scores every defender with each league's
+  verified settings: NDDPL 3/sack 2/INT starting 4 DB + 4 LB (no DL slot
+  — DL rows show an honest dash), RED_EYE 2/sack 3/INT starting 4 D +
+  4 DB, turnover-return yards at 20 and 10 yds/pt. '25 finals wearing
+  that label, a draft-prep ranking, not a projection. Watchdog asserts
+  the board serves and reports its row count.
+- **League names**: the served page now says NDDPL and RED_EYE everywhere
+  (owner request) — picker values, curated alert rows, helper copy, and
+  the board's injected ADP toggle rename together in one late serve-time
+  pass; the design document on disk is untouched. Known leftover: the
+  page's own "rush-only QB projection" toggle for RED_EYE is design-project
+  logic built on the dead rushing-league rule — a design-project fix,
+  recorded here so it isn't relearned.
+
 ## Aug 19 — the real league settings arrived, and they change the product
 
 The owner provided both leagues' actual Yahoo Scoring & Settings pages as

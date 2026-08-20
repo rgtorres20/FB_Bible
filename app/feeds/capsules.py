@@ -41,6 +41,13 @@ _USAGE_FIELDS = (
     "rec",
     "rec_td",
     "pass_att",
+    # Defenders are indexed now (docs/LEAGUES.md); their capsules cite the
+    # same usage the IDP board scores.
+    "idp_tkl_solo",
+    "idp_tkl_ast",
+    "idp_sack",
+    "idp_int",
+    "idp_pass_def",
 )
 
 

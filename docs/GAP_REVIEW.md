@@ -100,11 +100,13 @@ Ordered by draft-day value.
    RB/WR picks. Fix: classify all 24 (default 1.0 + "unclassified" tag),
    sort by ADP and adjust QBs only, emit a Trenches QB column server-side
    so board and cheat sheet agree.
-4. **IDP is invisible to the live pipeline** — `FANTASY_POSITIONS` excludes
-   DB/LB, so 8 of 18 starting slots can never be tagged, stamped, scored,
-   or alerted (Branch/Joseph/Emmanwori/Parsons rows show "no wire mention"
-   forever). Fix: extend the index positions; surname ambiguity is already
-   handled globally.
+4. ~~**IDP is invisible to the live pipeline**~~ — FIXED Aug 20: defenders
+   joined the index (v3) with a coarse DB/LB/DL group, the '25 stats carry
+   the idp_* fields (names verified via the probe's field census), and
+   `/app/idp` scores every defender with each league's verified settings
+   (docs/LEAGUES.md). Wire tagging, capsules and the top-300 board see
+   them now. Remaining: the page's own tabs still have no IDP surface —
+   the board is URL-only, same discoverability debt as the cheat sheet.
 5. **Yahoo draft sync is unwired client-side** — `fb.draft()` etc. exist
    with zero callers; opponent picks stay manual taps even after Yahoo
    approval. (The import-path fix above at least makes the client load.)

@@ -57,6 +57,10 @@ TEAM_FIELDS = (
 
 # Per-player usage: snap share (off_snp / tm_off_snp), carries, targets and
 # their red-zone cuts -- what handcuff splits and role reads are made of.
+# The idp_* block is what the owner's leagues score defenders on
+# (docs/LEAGUES.md); every name verified against the live dump's field
+# census 2026-08-20 (probe run 5: idp_tkl_solo 1124 holders, idp_sack 440,
+# idp_int 221, idp_pass_def 578, ...). Coverage counts still gate consumers.
 PLAYER_FIELDS = (
     "gp",
     "off_snp",
@@ -72,7 +76,29 @@ PLAYER_FIELDS = (
     "rec_td",
     "pass_att",
     "pass_rz_att",
+    "def_snp",
+    "tm_def_snp",
+    "idp_tkl_solo",
+    "idp_tkl_ast",
+    "idp_tkl",
+    "idp_tkl_loss",
+    "idp_qb_hit",
+    "idp_sack",
+    "idp_int",
+    "idp_int_ret_yd",
+    "idp_pass_def",
+    "idp_ff",
+    "idp_fum_rec",
+    "idp_fum_ret_yd",
+    "idp_def_td",
+    "idp_safe",
+    "idp_blk_kick",
 )
+
+# Bump when PLAYER_FIELDS / TEAM_FIELDS change shape: stale() then refetches
+# even inside the weekly window, so a deploy that adds fields does not wait
+# a week for the store to carry them. v2: the idp_* block.
+STATS_VERSION = 2
 
 # Sleeper says WAS; every const in the page says WSH.
 _PAGE_CODES = {"WAS": "WSH"}
@@ -129,7 +155,8 @@ def reduce(raw: dict) -> dict:
             for f in PLAYER_FIELDS:
                 if isinstance(entry.get(f), int | float):
                     coverage_players[f] += 1
-            if any(entry.get(f) for f in ("rush_att", "rec_tgt", "pass_att")):
+            usage_gate = ("rush_att", "rec_tgt", "pass_att", "idp_tkl", "idp_tkl_solo")
+            if any(entry.get(f) for f in usage_gate):
                 players[key] = {
                     f: entry[f] for f in PLAYER_FIELDS if isinstance(entry.get(f), int | float)
                 }
@@ -138,6 +165,7 @@ def reduce(raw: dict) -> dict:
 
     return {
         "fetched_at": datetime.now(UTC).isoformat(),
+        "v": STATS_VERSION,
         "season": SEASON,
         "teams": teams,
         "players": players,
@@ -154,8 +182,11 @@ def reduce(raw: dict) -> dict:
 
 
 def stale(state: dict | None, now: datetime) -> bool:
-    """Whether the sync should refetch: absent, unparseable, or a week old."""
+    """Whether the sync should refetch: absent, unparseable, a week old, or
+    reduced by an older extractor (missing fields this code expects)."""
     if not state or not state.get("teams"):
+        return True
+    if state.get("v") != STATS_VERSION:
         return True
     try:
         fetched = datetime.fromisoformat(state.get("fetched_at") or "")

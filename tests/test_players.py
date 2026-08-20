@@ -98,11 +98,17 @@ RAW = {
 INDEX = players.build_index(RAW)
 
 
-def test_index_keeps_only_active_fantasy_positions():
+def test_index_keeps_active_fantasy_and_idp_positions():
     names = {p["name"] for p in INDEX["players"].values()}
     assert "Retired Guy" not in names  # inactive
-    assert "Roquan Smith" not in names  # LB is not a fantasy position here
     assert "Puka Nacua" in names
+    # Defenders joined the index (docs/LEAGUES.md: both leagues start 8),
+    # carrying their coarse IDP group.
+    roquan = next(p for p in INDEX["players"].values() if p["name"] == "Roquan Smith")
+    assert roquan["idp"] == "LB"
+    # Offense carries no idp key at all -- absent, not null.
+    puka = next(p for p in INDEX["players"].values() if p["name"] == "Puka Nacua")
+    assert "idp" not in puka
 
 
 def test_matches_a_full_name():

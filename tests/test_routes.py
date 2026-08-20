@@ -242,3 +242,18 @@ def test_titans_mode_joins_cowboys_mode():
     assert '[data-skin="titans"]' in css
     assert '[data-skin="titans"][data-theme="titans"]' in css
     assert '[data-skin="titans"][data-theme="dark"]' in css
+
+
+def test_league_names_are_the_real_ones():
+    """The design document still says Sunday Gravy / The Trenches; the
+    served page renames every occurrence to the verified league names
+    (docs/LEAGUES.md) -- picker values and the injected ADP toggle move
+    together because the rename runs after all injections."""
+    from pathlib import Path
+
+    served = client.get("/app/").text
+    assert "NDDPL" in served and "RED_EYE" in served
+    assert "Gravy" not in served and "Trenches" not in served
+
+    on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
+    assert "Sunday Gravy" in on_disk  # disk stays pristine

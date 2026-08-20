@@ -31,8 +31,41 @@ PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl"
 FANTASY_POSITIONS = {"QB", "RB", "WR", "TE", "K"}
 SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
 
+# IDP: both of the owner's leagues start 8 defensive players
+# (docs/LEAGUES.md), so defenders belong in the index -- tagged in the
+# wire, visible to the boards -- grouped the way the leagues group them.
+# Sleeper's coarse `fantasy_positions` (DB/LB/DL) is preferred; the
+# specific-position map is the fallback when it is absent.
+IDP_GROUPS = {"DB", "LB", "DL"}
+_IDP_BY_POSITION = {
+    "CB": "DB",
+    "S": "DB",
+    "FS": "DB",
+    "SS": "DB",
+    "DB": "DB",
+    "LB": "LB",
+    "ILB": "LB",
+    "OLB": "LB",
+    "MLB": "LB",
+    "DE": "DL",
+    "DT": "DL",
+    "NT": "DL",
+    "DL": "DL",
+    "EDGE": "DL",
+}
+
+
+def idp_group(rec: dict) -> str | None:
+    """The DB/LB/DL group for a raw Sleeper record, or None for offense."""
+    for fp in rec.get("fantasy_positions") or []:
+        if fp in IDP_GROUPS:
+            return fp
+    return _IDP_BY_POSITION.get(rec.get("position") or "")
+
+
 # Bump when the index shape changes; stale cached indexes are refetched.
-INDEX_VERSION = 2
+# v3: defenders join the index with an `idp` group field.
+INDEX_VERSION = 3
 
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 
@@ -62,9 +95,12 @@ class Player:
     # Sleeper's fantasy search rank: 1 = most relevant. Popularity leaks in
     # (retired stars rank well), so it is a weight, never a filter by itself.
     rank: int | None = None
+    # DB/LB/DL for defenders, absent for offense -- how the owner's leagues
+    # slot them (docs/LEAGUES.md).
+    idp: str | None = None
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "id": self.id,
             "name": self.name,
             "position": self.position,
@@ -72,6 +108,9 @@ class Player:
             "injury_status": self.injury_status,
             "rank": self.rank,
         }
+        if self.idp:
+            out["idp"] = self.idp
+        return out
 
 
 def normalize(text: str) -> str:
@@ -114,11 +153,15 @@ def build_index(raw: dict) -> dict:
         if not name:
             continue
 
-        # Ambiguity is judged across EVERY active player, not just fantasy
+        # Defenders are indexed too -- both leagues start 8 of them
+        # (docs/LEAGUES.md) -- carrying their coarse DB/LB/DL group.
+        group = idp_group(rec) if position not in FANTASY_POSITIONS else None
+
+        # Ambiguity is judged across EVERY active player, not just indexed
         # positions -- otherwise "adding Arnold" resolves to Dan Arnold (TE)
-        # when the story is about Terrion Arnold, a cornerback the index would
-        # never have seen. Non-fantasy players poison the surname, by design.
-        if position not in FANTASY_POSITIONS:
+        # when the story is about a punter the index never saw. Non-indexed
+        # players poison the surname, by design.
+        if position not in FANTASY_POSITIONS and group is None:
             surname = [p for p in _tokens(name) if p not in SUFFIXES]
             if surname:
                 surname_hits.setdefault(surname[-1], set()).add(pid)
@@ -133,6 +176,7 @@ def build_index(raw: dict) -> dict:
             injury_status=rec.get("injury_status"),
             # Sleeper uses 9999999 for "effectively unranked".
             rank=raw_rank if isinstance(raw_rank, int) and raw_rank < 9999999 else None,
+            idp=group,
         ).to_dict()
         players[pid] = player
 
