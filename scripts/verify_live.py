@@ -118,6 +118,12 @@ def main() -> int:
     )
     vegas_rows = page_data.get("vegas", [])
     check("Vegas slate present", len(vegas_rows) >= 8, f"{len(vegas_rows)} games")
+    wk = page_data.get("weekrev") or {}
+    check(
+        "Week review carries live scores",
+        len(wk.get("games") or []) >= 4 and bool(wk.get("stars")),
+        wk.get("week_label") or wk.get("week") or "absent",
+    )
     check(
         "Vegas slate marked live in Data health",
         "live" in meta.get("Vegas lines", {}).get("source", ""),

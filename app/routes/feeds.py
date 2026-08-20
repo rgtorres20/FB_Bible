@@ -92,7 +92,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         for pid, p in (index or {}).get("players", {}).items()
         if p.get("rank") is not None
     }
-    return render.merge_into_feeds(
+    merged = render.merge_into_feeds(
         bundled,
         stored.get("items", []),
         datetime.now(UTC),
@@ -104,7 +104,9 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         injury_names=injury.watched_names(),
         stats_state=stored.get("stats"),
         mover_reads=stored.get("mover_reads"),
+        scores_state=stored.get("scores"),
     )
+    return render.rename_leagues(merged)
 
 
 @router.get("/app/cheatsheet", include_in_schema=False, response_class=HTMLResponse)
@@ -287,6 +289,43 @@ async def save_vegas(
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
+# The Week review tab's game rows: four known string columns, same
+# sanitize-per-field rule as the Vegas slate.
+_SCORE_ROW_FIELDS = ("day", "score", "status", "note")
+MAX_SCORE_ROWS = 32
+
+
+@router.post("/internal/scores", summary="Store the current week's scoreboard")
+async def save_scores(
+    payload: VegasIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """Pushed by the sync-feeds runner beside the Vegas slate (ESPN 403s
+    Vercel's IPs). Rows are rebuilt field-by-field: this renders into the
+    page's Week review tab, so only the known string columns pass."""
+    _require_sync_token(settings, x_sync_token)
+
+    games = []
+    for row in (payload.state.get("games") or [])[:MAX_SCORE_ROWS]:
+        if not isinstance(row, dict) or not row.get("score"):
+            continue
+        games.append({field: str(row.get(field) or "") for field in _SCORE_ROW_FIELDS})
+    if not games:
+        raise HTTPException(status_code=422, detail="No usable rows in state.games.")
+
+    data = await store.load()
+    data["scores"] = {
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "week_label": str(payload.state.get("week_label") or "")[:40],
+        "range": str(payload.state.get("range") or "")[:60],
+        "games": games,
+    }
+    await store.save(data)
+    return {"stored": len(games), "week_label": data["scores"]["week_label"]}
 
 
 @router.post("/internal/pred-reviews", summary="Store AI checks of the TD leans")
@@ -578,6 +617,7 @@ async def sync(
     capsule_state = existing.get("capsules") or {}
     mover_reads = existing.get("mover_reads") or {}
     preview_state = existing.get("previews") or {}
+    scores_state = existing.get("scores") or {}
 
     # Season stats are final numbers, not a feed: refetch weekly (or when the
     # store lost them), keep the previous state on any failure. Same rule as
@@ -603,6 +643,7 @@ async def sync(
             "capsules": capsule_state,
             "mover_reads": mover_reads,
             "previews": preview_state,
+            "scores": scores_state,
         }
     )
 

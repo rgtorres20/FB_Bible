@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.feeds import vegas  # noqa: E402
+from app.feeds import vegas, weekrev  # noqa: E402
 
 BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
 
@@ -46,6 +46,23 @@ def main() -> int:
     )
     with urllib.request.urlopen(request, timeout=60) as response:
         print(f"posted: {json.loads(response.read())}")
+
+    # The Week review tab's scores ride the same trip: the CURRENT week's
+    # scoreboard (no week pin), for /internal/scores. Its own try -- a bad
+    # scores fetch must not read as a failed slate push.
+    try:
+        scores = asyncio.run(weekrev.fetch_scores())
+    except Exception as exc:  # noqa: BLE001 - the tab keeps its last scores
+        print(f"scores fetch failed, skipping this run: {type(exc).__name__}: {exc}")
+        return 0
+    request = urllib.request.Request(
+        f"{BASE}/internal/scores",
+        data=json.dumps({"state": scores}).encode(),
+        headers={"Content-Type": "application/json", "X-Sync-Token": sync_token},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        print(f"scores posted: {json.loads(response.read())}")
     return 0
 
 

@@ -97,6 +97,12 @@ Ordered by how much staleness actually costs.
    labelled "estimates / no live sheet" in Data health. Plan: revisit when
    the season starts (weekrev is a September feature); salaries have no
    free live source — the honest label stays.
+   *Partially resolved Aug 20:* weekrev's **games** are live — the
+   sync-feeds runner pushes ESPN's current-week scoreboard (scores,
+   FINAL/clock/kickoff status, broadcast as the only note) to
+   /internal/scores and the overlay serves F.weekrev. The high-performer
+   column stays the curated seed, passed through, until per-player box
+   scores exist to rank honestly (September, Sleeper weekly stats).
    *Partially resolved Aug 18:* Team intel's **usage numbers** (pass rate
    and what was "GL % run") are now measured from Sleeper's '25 season team
    aggregates and injected at serve time, relabelled **"RZ x% run share

@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import adp, impact, injury, stats, vegas
+from . import adp, impact, injury, stats, vegas, weekrev
 
 # The blueprint is explicit that every timestamp renders in the user's zone.
 CENTRAL = ZoneInfo("America/Chicago")
@@ -117,6 +117,25 @@ def to_nbc_entry(item: dict) -> dict:
     }
 
 
+def rename_leagues(feeds: dict) -> dict:
+    """The real league names (docs/LEAGUES.md) in the data file, matching
+    the same serve-time pass app/main.py runs on the page: curated alerts,
+    scout cards and weekrev star reads still say Sunday Gravy / The
+    Trenches on disk. Applied to the whole JSON document at once -- names
+    never appear as keys, only inside display strings."""
+    import json as _json
+
+    text = _json.dumps(feeds)
+    for old, new in (
+        ("Sunday Gravy", "NDDPL"),
+        ("The Trenches", "RED_EYE"),
+        ("Gravy", "NDDPL"),
+        ("Trenches", "RED_EYE"),
+    ):
+        text = text.replace(old, new)
+    return _json.loads(text)
+
+
 def merge_into_feeds(
     bundled: dict,
     items: list[dict],
@@ -129,6 +148,7 @@ def merge_into_feeds(
     injury_names: tuple[str, ...] | None = None,
     stats_state: dict | None = None,
     mover_reads: dict[str, str] | None = None,
+    scores_state: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -207,6 +227,14 @@ def merge_into_feeds(
     live_vegas = (vegas_state or {}).get("games") or []
     if live_vegas:
         merged["vegas"] = live_vegas
+
+    # The Week review tab: live scores from the runner-pushed current-week
+    # scoreboard, beside the page's own curated high-performer reads. None
+    # (no scores yet, or the seed's stars could not be parsed) leaves the
+    # committed seed standing whole -- see app/feeds/weekrev.py.
+    live_weekrev = weekrev.build(scores_state)
+    if live_weekrev:
+        merged["weekrev"] = live_weekrev
 
     # Out & returning is curated in the page and has no timestamps of its
     # own; the freshest wire mention of each listed player is one the server

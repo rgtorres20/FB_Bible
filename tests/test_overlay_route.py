@@ -93,8 +93,12 @@ async def test_overlay_serves_live_wire_on_top_of_bundled(client):
     # The overlay stamps freshness so Data health tells the truth.
     stamped = {m["feed"]: m["asOf"] for m in body["meta"]}
     assert stamped["News & posts"].startswith("2026-")
-    # Everything the wire cannot know survives from the committed file.
-    assert body["alerts"] == BUNDLED["alerts"]
+    # Everything the wire cannot know survives from the committed file --
+    # modulo the league-name pass, which speaks NDDPL/RED_EYE everywhere
+    # (docs/LEAGUES.md; the disk file still says the chat-era names).
+    from app.feeds import render as render_mod
+
+    assert body["alerts"] == render_mod.rename_leagues(BUNDLED)["alerts"]
     # Nacua is on the page's Out & returning tab, so his wire mention becomes
     # that row's timestamp (rendered by mobile.js).
     assert body["injury_wire"]["Puka Nacua"]["head"].startswith("Puka Nacua carted off")

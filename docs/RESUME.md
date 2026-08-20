@@ -24,6 +24,23 @@
   logic built on the dead rushing-league rule — a design-project fix,
   recorded here so it isn't relearned.
 
+## Aug 20 (later) — the Week review tab goes live
+
+The page was wired for it all along (`F.weekrev || WEEKREV_SEED`; the
+seed's own footer promised "results land here on the next sync") — nothing
+ever served the key. Now `push_vegas.py` also fetches ESPN's
+**current-week** scoreboard (no week pin — preseason now, real weeks in
+September, same runner route because ESPN 403s Vercel) and POSTs it to
+`/internal/scores`; the overlay builds `weekrev` from it. Honesty split:
+**games are fully live** (scores, FINAL/clock/kickoff in Central, the
+broadcast as the only note); **the high-performer column stays the
+owner's curated seed**, parsed from the page and passed through — a real
+performer ranking needs per-player box scores (September: Sleeper weekly
+stats). If either half is missing, no weekrev is served and the page
+keeps its complete seed. The league-name pass now also covers feeds.json
+(`render.rename_leagues`) so curated alerts/scout/star text says
+NDDPL/RED_EYE too. Watchdog asserts live scores + stars present.
+
 ## Aug 19 — the real league settings arrived, and they change the product
 
 The owner provided both leagues' actual Yahoo Scoring & Settings pages as
