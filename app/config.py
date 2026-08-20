@@ -53,6 +53,35 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     log_level: str = "INFO"
 
+    # --- App login (owner-managed email allowlist) --------------------------
+    # Off by default: nothing changes until the owner sets APP_AUTH=on with
+    # the two values below (and a real SESSION_SECRET) in Vercel env. See
+    # docs/ACCESS.md for the enable steps.
+    app_auth: bool = False
+    owner_email: str = ""
+    app_owner_code: str = ""
+
+    @property
+    def auth_state(self) -> str:
+        """ "off", "on", or "misconfigured" -- reported by /health so a bad
+        enable is visible in one request instead of a lockout guess."""
+        if not self.app_auth:
+            return "off"
+        ready = (
+            self.owner_email
+            and self.app_owner_code
+            and self.session_secret
+            and self.session_secret != "dev-only-change-me"
+        )
+        return "on" if ready else "misconfigured"
+
+    @property
+    def app_auth_enabled(self) -> bool:
+        """The gate only ever engages fully configured: a half-set enable
+        (no owner email, no code, or the dev signing secret) stays open
+        rather than locking everyone -- including the owner -- out."""
+        return self.auth_state == "on"
+
     # Vercel sets VERCEL_ENV to "production" on main, "preview" on branch
     # deploys. Empty means a local/container run. This is what makes a beta
     # deploy announce itself instead of impersonating prod.

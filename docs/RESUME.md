@@ -1,5 +1,21 @@
 # Resume here
 
+## Aug 20 (evening) — the login gate, and the Titans mark
+
+- **Login + email allowlist** (owner request): `/login`, signed-cookie
+  sessions, `/app/access` where the owner stores emails and mints
+  one-time invite links (plaintext shown once, hash stored), per-request
+  allowlist checks so removal revokes instantly, sync-token bypass so
+  the runner and watchdog keep working. **Off by default** — the owner
+  flips it on with four Vercel env vars; docs/ACCESS.md is the runbook,
+  including the lockout escape hatch (`APP_AUTH=off` + redeploy).
+  Deliberate scope cut recorded as GAP_REVIEW #11: `/api/*` stays open.
+  OWNER ACTION when ready: follow docs/ACCESS.md §Turning it on.
+- **Titans watermark** is now the club's sword mark, supplied by the
+  owner (white flood-filled to alpha, 16KB asset). Personal-use call;
+  LICENSING.md records that it must swap back to an original emblem
+  before any sale (the stand-in is one commit away in git history).
+
 ## Aug 20 (latest) — the mock draft room
 
 Owner request, three messages in one arc: simulate a draft "from my exact

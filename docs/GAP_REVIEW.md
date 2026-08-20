@@ -130,6 +130,11 @@ Ordered by draft-day value.
 10. **No Redis backup** — a flush loses the 21-day item archive,
     first_seen stamps (next merge would badge everything NEW), ADP
     history (~a week of movers), verdicts. Nightly artifact dump.
+11. **`/api/*` stays outside the login gate** (docs/ACCESS.md) — it
+    carries the same feed data the gated page shows, left open because
+    the annotate runner GETs its work lists bare. Fine for a
+    friends-only app; before any wider audience, move the runner GETs
+    behind X-Sync-Token and gate /api too.
 11. **verify-live false-alarms on a single transient publisher error** —
     FAILED should only be fatal when the data is also stale; needs a
     `last_ok_at` carried per source through the sync.

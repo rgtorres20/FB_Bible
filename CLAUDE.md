@@ -147,6 +147,15 @@ seats, and its "Draft board ⧉" button opens the snake grid with hover
 details in a new tab. The page's news overlay reads newest-first — impact
 selects what shows, chronology orders it (owner call, Aug 20).
 
+The login gate (owner request, Aug 20): `/login` + an owner-managed email
+allowlist at `/app/access` with one-time invite links — built, tested, and
+**off by default**; the owner enables it with four Vercel env vars
+([docs/ACCESS.md](docs/ACCESS.md) has the steps and the lockout escape
+hatch). Sessions are signed cookies, invites are stored hashed, the
+allowlist lives in its own Redis key so no sync can clobber it, and the
+runner/watchdog pass with X-Sync-Token. `/api/*` deliberately stays open
+(GAP_REVIEW #11).
+
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.
 

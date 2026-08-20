@@ -34,8 +34,16 @@ def check(label: str, ok: bool, detail: str = "") -> None:
     print(f"  {'PASS' if ok else 'FAIL'}  {label}{': ' + detail if detail else ''}")
 
 
+# Passes the /app login gate once the owner enables it; blank means the
+# watchdog checks the open app exactly as before. Never printed.
+_SYNC_TOKEN = os.environ.get("FBBIBLE_SYNC_TOKEN", "")
+
+
 def get(path: str) -> bytes:
-    req = urllib.request.Request(BASE + path, headers={"User-Agent": "FBBible-verify/1.0"})
+    headers = {"User-Agent": "FBBible-verify/1.0"}
+    if _SYNC_TOKEN:
+        headers["X-Sync-Token"] = _SYNC_TOKEN
+    req = urllib.request.Request(BASE + path, headers=headers)
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 
@@ -186,6 +194,13 @@ def main() -> int:
     check("mock draft room serves", "Mock draft room" in mock_page)
     check("mock room carries the live pool", "FB_MOCK" in mock_page)
     check("mock room labels its simulation", "Simulated picks are labelled" in mock_page)
+
+    # The login gate: the page must serve, and /health must name the gate's
+    # state -- "off" until the owner enables it, then "on"; a lingering
+    # "misconfigured" is a half-enable worth seeing in the log.
+    login_page = get("/login").decode("utf-8", errors="replace")
+    check("login page serves", "Owner sign-in" in login_page)
+    print(f"  INFO  app login gate: {health.get('app_auth', '?')}")
 
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")

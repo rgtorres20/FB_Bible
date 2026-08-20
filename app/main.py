@@ -10,15 +10,15 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .feeds import board, previews, stats, vegas
 from .feeds.store import FeedStore
-from .routes import auth, feeds, league
+from .routes import access, auth, feeds, league
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 _FRONTEND_INDEX = _FRONTEND_DIR / "index.html"
@@ -60,6 +60,28 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(league.router)
 app.include_router(feeds.router)
+app.include_router(access.router)
+
+
+@app.middleware("http")
+async def app_access_gate(request: Request, call_next):
+    """The login gate for everything under /app (owner request, Aug 20).
+
+    Inert until the owner enables it fully in Vercel env (APP_AUTH=on +
+    OWNER_EMAIL + APP_OWNER_CODE + a real SESSION_SECRET — docs/ACCESS.md);
+    a partial enable stays open rather than locking the owner out, and
+    /health says which state it's in. /login, /health, the API and the
+    Yahoo OAuth callbacks stay outside the gate; the sync runner and the
+    watchdog pass with the X-Sync-Token they already hold.
+    """
+    s = get_settings()
+    path = request.url.path
+    if s.app_auth_enabled and (path == "/app" or path.startswith("/app/")):
+        if not await access.request_allowed(request, s):
+            if "text/html" in request.headers.get("accept", ""):
+                return RedirectResponse("/login", status_code=303)
+            return JSONResponse({"detail": "sign-in required"}, status_code=401)
+    return await call_next(request)
 
 
 @app.get("/", include_in_schema=False)
@@ -86,6 +108,7 @@ async def health() -> dict:
         # an empty string here says so in one request instead of a guess.
         "branch": settings.vercel_git_commit_ref,
         "yahoo_configured": settings.configured,
+        "app_auth": settings.auth_state,
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
         "league_keys": settings.league_keys,

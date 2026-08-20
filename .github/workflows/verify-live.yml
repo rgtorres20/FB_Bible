@@ -31,4 +31,7 @@ jobs:
         env:
           # Blank input falls through to production inside the script.
           FBBIBLE_BASE: ${{ inputs.base_url }}
+          # Lets the watchdog through the /app login gate once the owner
+          # enables it -- the same secret the sync runner already holds.
+          FBBIBLE_SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: python3 scripts/verify_live.py
