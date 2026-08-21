@@ -85,3 +85,38 @@ So for anything with behaviour, the design side needs to hand over:
 Point 3 is the one worth insisting on. Without it there is no expected
 result, so there is no test, so nobody can tell a working control from a
 dead one.
+
+## Resync log
+
+**Aug 21 — Fable's Trusted-sources regroup.** Base matched the committed
+`index.html` byte-for-byte (same md5), so it replayed cleanly. Result:
++9,086 bytes, 340 changed lines, **789 tests still green**.
+
+What it changed: every `SOURCES` entry gained a `group` field — `board`,
+`wire`, `usage` — and the panel now renders a slider **only** for the
+board group (`showSlider: board && on`), tagging the others *"not wired"*
+and *"on/off only"*. That closes the false-positive defect on the client
+half: the five sliders that moved a bar and changed no output are gone.
+
+Two things the resync taught this document:
+
+- **One anchor legitimately stopped matching.** `league shorthand Gravy`
+  found nothing, because the rewrite left zero bare "Gravy" — all 22 are
+  inside "Sunday Gravy" now. The outcome is identical, so that edit and
+  its sibling are marked `optional` in `page.py`: a cleanup pass that
+  finds nothing to clean is success, and reporting it as a miss would
+  train us to ignore the miss report.
+- **The bundle's `manifest.webmanifest` would have regressed the app.**
+  It reverts the name to "Fantasy Bible", restores "Sunday Gravy" and
+  "The Trenches", and sets `start_url` to `./Fantasy%20Bible.dc.html` — a
+  path that does not exist under `/app/`, which would break the installed
+  PWA's launch. **Only `index.html` was taken.** `support.js`,
+  `data/feeds.json` and `_ds/` were byte-identical, so copying them was a
+  no-op either way.
+
+The export's `README.txt` says to commit all five paths. Do not follow it
+blindly — diff each file against the repo first. The design project does
+not know what the server has changed since the last export.
+
+New storage key this resync: `ww_draft_slot`. Client-side only, follows
+the `ww_*` convention.

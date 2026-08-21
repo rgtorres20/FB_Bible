@@ -180,6 +180,23 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
           </div>
         </sc-if>
 
+        <sc-if value="{{ wireHas }}" hint-placeholder-val="{{ false }}">
+          <div style="border-bottom:2px solid var(--color-text);">
+            <div style="padding:var(--space-4) var(--space-8) 0; display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-4);">
+              <div style="font-size:11px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-accent-700);">Server wire · news poller</div>
+              <div style="font-size:11px; color:var(--color-neutral-600);">{{ wireStamp }}</div>
+            </div>
+            <div style="padding:var(--space-3) var(--space-8) var(--space-5);">
+              <sc-for list="{{ wireItems }}" as="w" hint-placeholder-count="4">
+                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--color-neutral-200);">
+                  <span style="font-size:12px; min-width:0;"><a href="{{ w.link }}" target="_blank" style="font-weight:700; color:var(--color-text); text-decoration:none;">{{ w.title }}</a> <span style="color:var(--color-accent-700); font-size:11px; font-weight:600;">{{ w.players }}</span></span>
+                  <span style="font-size:10px; color:var(--color-neutral-600); white-space:nowrap;">{{ w.src }} · {{ w.time }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
         <div style="padding:var(--space-6) var(--space-8) 0; display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-4);">
           <div style="font-size:11px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;">Player pool status feed</div>
           <div style="display:flex; align-items:center; gap:var(--space-4);">
@@ -405,7 +422,13 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
               <span style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Source influence</span>
               <input type="range" min="0" max="100" step="10" value="{{ srcWeight }}" onChange="{{ onSrcWeight }}" style="width:180px; accent-color:var(--color-accent);">
               <span style="font-size:11px; font-weight:700; color:var(--color-neutral-700);">{{ srcWeightLabel }}</span>
-              <span style="font-size:11px; color:var(--color-neutral-600);">0 = your tier order · 100 = pure ESPN/Yahoo ADP blend (Trenches sorts by rush-only projection)</span>
+              <span style="font-size:11px; color:var(--color-neutral-600);">0 = your tier order · 100 = pure ESPN/Yahoo ADP blend</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; padding:0 0 var(--space-3); flex-wrap:wrap;">
+              <span style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Draft slot</span>
+              <input type="number" min="1" max="{{ slotMax }}" value="{{ draftSlot }}" onChange="{{ onDraftSlot }}" style="width:56px; padding:5px 8px; font-size:12px; font-family:var(--font-body); border:1px solid var(--color-neutral-400); background:var(--color-bg); color:var(--color-text); border-radius:0;">
+              <span style="font-size:11px; font-weight:700; color:var(--color-neutral-700);">{{ pickMathLabel }}</span>
+              <span style="font-size:11px; font-weight:700; color:var(--color-accent-700);">{{ goneRiskCount }}</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; padding:0 0 var(--space-3); flex-wrap:wrap;">
               <span style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600); margin-right:4px;">Position</span>
@@ -441,7 +464,7 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
                   </sc-for>
                 </div>
               </sc-if>
-              <div style="font-size:11px; color:var(--color-neutral-600); margin-top:var(--space-3);">Saved automatically per league — survives reload. + Draft adds to your team; Gone strikes a player another manager took (Hide taken collapses them). Reset team clears both after the draft. Proj column is league-scored: in The Trenches, QB projections drop to rushing-only value and the board re-sorts.</div>
+              <div style="font-size:11px; color:var(--color-neutral-600); margin-top:var(--space-3);">Saved automatically per league — survives reload. + Draft adds to your team; Gone strikes a player another manager took (Hide taken collapses them). Reset team clears both after the draft. Set your draft slot above for snake math: a GONE BY tag means that player's ADP falls inside the wait before your next turn.</div>
             </div>
             <div style="display:grid; grid-template-columns:70px 34px 34px minmax(150px,1.2fr) 48px 40px 52px 58px 64px minmax(150px,1fr); gap:var(--space-4); padding:var(--space-3) 0; border-bottom:2px solid var(--color-text); font-size:10px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:var(--color-neutral-600);">
               <div></div><div>#</div><div>Tier</div><div>Player</div><div>Pos</div><div>Bye</div><div>ADP</div><div>Blend</div><div>Proj</div><div>Latest read</div>
@@ -459,6 +482,7 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
                   <span style="font-family:var(--font-heading); font-weight:800; font-size:16px; letter-spacing:-0.02em; text-decoration:{{ b.rowStrike }};">{{ b.name }}</span>
                   <span style="font-size:11px; color:var(--color-neutral-600); margin-left:9px; letter-spacing:0.05em; text-transform:uppercase; font-weight:600;">{{ b.meta }}</span>
                   <span style="display:inline-block; margin-left:9px; padding:2px 8px; font-size:9px; font-weight:800; letter-spacing:0.1em; background:{{ b.injBg }}; color:{{ b.injFg }}; border:1px solid {{ b.injBd }};">{{ b.injLabel }}</span>
+                  <span style="display:{{ b.riskDisplay }}; margin-left:9px; padding:2px 8px; font-size:9px; font-weight:800; letter-spacing:0.1em; color:var(--color-accent-700); border:1px solid var(--color-accent-700);">{{ b.riskLabel }}</span>
                   <div style="font-size:11px; font-weight:700; color:var(--color-accent-700); margin-top:2px;">{{ b.fit }}</div>
                   <div style="font-size:11px; color:var(--color-neutral-700); margin-top:2px; text-wrap:pretty;">{{ b.stat25 }}</div>
                 </div>
@@ -1027,34 +1051,46 @@ try { if ("serviceWorker" in navigator && location.protocol === "https:") naviga
             <div style="font-size:10px; color:var(--color-neutral-600); margin-top:6px; text-wrap:pretty;">Read-only Yahoo scope. Anything pulled from Yahoo is kept at most 24 hours in this browser, then deleted automatically.</div>
           </div>
           <div style="margin-bottom:var(--space-6);">
-                <div>
-                  <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Trusted sources</div>
-                  <div style="font-size:12px; color:var(--color-neutral-700); margin-top:6px; text-wrap:pretty;">Toggle a source to pull its board in or out of the blend. Weight sets how hard it pulls.</div>
-                  <div style="margin-top:var(--space-3);">
-                    <sc-for list="{{ sources }}" as="src" hint-placeholder-count="5">
-                      <div style="padding:10px 0; border-bottom:1px solid var(--color-neutral-300);">
-                        <button onClick="{{ src.onClick }}" style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; border:0; background:none; padding:0; cursor:pointer; text-align:left;">
-                          <span>
-                            <span style="display:block; font-weight:700; font-size:13px; color:{{ src.nameColor }};">{{ src.name }}</span>
-                            <span style="display:block; font-size:11px; color:var(--color-neutral-600); margin-top:2px;">{{ src.kind }}</span>
-                          </span>
-                          <span style="flex:0 0 auto; width:40px; height:20px; border:1px solid var(--color-text); display:flex; align-items:center; padding:2px; justify-content:{{ src.knobJustify }}; background:{{ src.trackBg }};">
-                            <span style="width:14px; height:14px; background:{{ src.knobBg }};"></span>
-                          </span>
-                        </button>
-                        <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                          <div style="flex:1; height:5px; background:var(--color-neutral-300);">
-                            <div style="height:5px; background:{{ src.barColor }}; width:{{ src.weightW }};"></div>
-                          </div>
-                          <span style="font-size:11px; font-weight:700; color:var(--color-neutral-700); width:34px;">{{ src.weight }}</span>
-                        </div>
-                        <sc-if value="{{ src.showSlider }}" hint-placeholder-val="{{ false }}">
-                          <input type="range" min="0" max="40" step="1" value="{{ src.rawW }}" onChange="{{ src.onWeight }}" style="width:100%; margin-top:6px; accent-color:var(--color-accent);">
-                        </sc-if>
-                      </div>
-                    </sc-for>
-                  </div>
+            <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Source weights</div>
+            <div style="font-size:12px; color:var(--color-neutral-700); margin-top:6px; text-wrap:pretty;">Three kinds of source, three different jobs. Only the rank lists carry a working weight today.</div>
+            <sc-for list="{{ sourceGroups }}" as="grp" hint-placeholder-count="3">
+              <div style="margin-top:var(--space-5);">
+                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding-bottom:6px; border-bottom:2px solid var(--color-text);">
+                  <span style="font-size:10px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase;">{{ grp.title }}</span>
+                  <span style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:{{ grp.tagColor }};">{{ grp.tag }}</span>
                 </div>
+                <div style="font-size:11.5px; color:var(--color-neutral-700); margin-top:6px; text-wrap:pretty;">{{ grp.note }}</div>
+                <sc-for list="{{ grp.rows }}" as="src" hint-placeholder-count="3">
+                  <div style="padding:10px 0; border-bottom:1px solid var(--color-neutral-300);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                      <span>
+                        <span style="display:block; font-weight:700; font-size:13px; color:{{ src.nameColor }};">{{ src.name }}</span>
+                        <span style="display:block; font-size:11px; color:var(--color-neutral-600); margin-top:2px;">{{ src.kind }}</span>
+                      </span>
+                      <sc-if value="{{ src.interactive }}" hint-placeholder-val="{{ true }}">
+                        <button onClick="{{ src.onClick }}" style="flex:0 0 auto; width:40px; height:20px; border:1px solid var(--color-text); display:flex; align-items:center; padding:2px; justify-content:{{ src.knobJustify }}; background:{{ src.trackBg }}; cursor:pointer;">
+                          <span style="width:14px; height:14px; background:{{ src.knobBg }};"></span>
+                        </button>
+                      </sc-if>
+                      <sc-if value="{{ src.inert }}" hint-placeholder-val="{{ false }}">
+                        <span style="flex:0 0 auto; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--color-neutral-600);">no effect</span>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ src.showBar }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <div style="flex:1; height:5px; background:var(--color-neutral-300);">
+                          <div style="height:5px; background:{{ src.barColor }}; width:{{ src.weightW }};"></div>
+                        </div>
+                        <span style="font-size:11px; font-weight:700; color:var(--color-neutral-700); width:34px;">{{ src.weight }}</span>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ src.showSlider }}" hint-placeholder-val="{{ false }}">
+                      <input type="range" min="0" max="40" step="1" value="{{ src.rawW }}" onChange="{{ src.onWeight }}" style="width:100%; margin-top:6px; accent-color:var(--color-accent);">
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
           </div>
           <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Connected leagues</div>
           <sc-for list="{{ leagueSettings }}" as="ls" hint-placeholder-count="2">
@@ -1103,11 +1139,11 @@ const N2 = "var(--color-neutral-200)", N3 = "var(--color-neutral-300)", N6 = "va
 const ALERTS_SEED = [
   { pos: "LB", team: "ATL", name: "James Pearce Jr.", status: "SUSPENDED · 8 GAMES", slot: "Draft board · LB", note: "Suspended eight games by the NFL, per ESPN's Jeremy Fowler — the headline ban in Friday's batch. Titans CB Nazeeh Johnson also got six games (PED policy).", source: "Yahoo Sports wire · Fri Aug 14 · 2:30 PM", impact: "Pull him from LB consideration in both leagues — half the season gone before he plays a snap.", time: "Today", league: "Both leagues" },
   { pos: "WR", team: "SF", name: "De'Zhaun Stribling", status: "PRESEASON · 7-63", slot: "Sleeper list · #4", note: "Caught 7 of 7 for 63 yards in one half vs Tennessee — best offensive player on the field with most SF starters benched, per CBS.", source: "CBS preseason winners · Fri Aug 14 · 11:00 AM", impact: "Sleeper thesis confirmed on film. Still undrafted in most leagues — bump him up your late-round queue before his ADP moves.", time: "Today", league: "Both leagues" },
-  { pos: "QB", team: "LV", name: "Kirk Cousins", status: "JOB SAFE — FOR NOW", slot: "Watch list", note: "Rookie Fernando Mendoza led a TD drive in the preseason opener, but Kubiak says the starting job is still Cousins' to lose.", source: "CBS + Yahoo live wire · Fri Aug 14 · 10:15 AM", impact: "No action — but a Mendoza takeover would zero out Cousins' late-QB value in Gravy.", time: "Today", league: "Sunday Gravy" },
+  { pos: "QB", team: "LV", name: "Kirk Cousins", status: "JOB SAFE — FOR NOW", slot: "Watch list", note: "Rookie Fernando Mendoza led a TD drive in the preseason opener, but Kubiak says the starting job is still Cousins' to lose.", source: "CBS + Yahoo live wire · Fri Aug 14 · 10:15 AM", impact: "No action — but a Mendoza takeover would zero out Cousins' late-QB value in Sunday Gravy.", time: "Today", league: "Sunday Gravy" },
   { pos: "WR", team: "GB", name: "Jayden Reed", status: "BOOT · FOOT", slot: "Sleeper list", note: "Seen in a walking boot after the preseason opener; LaFleur says it's unrelated to the camp toe issue. No timetable given yet.", source: "SI preseason injury report · Thu Aug 13 · 8:15 AM", impact: "He's on your sleeper list — hold, but if the boot lingers into next week, move him down.", time: "Today", league: "Both leagues" },
   { pos: "RB", team: "TB", name: "Rachaad White", status: "GROIN · DAY-TO-DAY", slot: "Sleeper list", note: "Groin injury in the preseason opener vs Tennessee; Bowles calls him day-to-day.", source: "SI preseason injury report · Thu Aug 13 · 8:15 AM", impact: "Second flag this week (ADP also fading). Thesis weakening — watch Friday's practice.", time: "Today", league: "Both leagues" },
   { pos: "TE", team: "GB", name: "Tucker Kraft", status: "OFF PUP · KNEE", slot: "Watch list", note: "Removed from the PUP list and back at practice for the first time since the mid-season ACL tear. Has a shot at Week 1.", source: "Yahoo camp tracker · Thu Aug 13 · 4:30 PM", impact: "Late-round TE upside if the knee holds — cheaper than every startable TE.", time: "1 day", league: "Both leagues" },
-  { pos: "QB", team: "MIN", name: "Kyler Murray", status: "NAMED STARTER", slot: "Draft board", note: "Named the Vikings starter over J.J. McCarthy, per NBC's fantasy crew.", source: "NBC player news · Thu Aug 13 · 7:45 PM", impact: "Rushing QB with a job — a Trenches riser at a 163 ADP. Jefferson's floor stabilizes too.", time: "1 day", league: "The Trenches" },
+  { pos: "QB", team: "MIN", name: "Kyler Murray", status: "NAMED STARTER", slot: "Draft board", note: "Named the Vikings starter over J.J. McCarthy, per NBC's fantasy crew.", source: "NBC player news · Thu Aug 13 · 7:45 PM", impact: "Rushing QB with a job — a The Trenches riser at a 163 ADP. Jefferson's floor stabilizes too.", time: "1 day", league: "The Trenches" },
   { pos: "WR", team: "NO", name: "Jordyn Tyson", status: "HAMSTRING · MRI", slot: "Sleeper list", note: "Left Thursday's practice early with a trainer — hamstring, per beat reports. Reaggravation risk is real: Grade 2 strain in the same situation last fall. MRI results pending.", source: "@SleeperNFL via beat feeds · Thu Aug 13 · 11:40 AM", impact: "Pause him on the sleeper list until the MRI comes back — same hamstring cost him three games last fall.", time: "Thu Aug 13 · 11:40 AM", league: "Both leagues" },
   { pos: "WR", team: "LAR", name: "Puka Nacua", status: "PSOAS · SHORT", slot: "Draft board · WR1 tier", note: "Left Tuesday's practice; McVay says it's psoas soreness, not the groin, and expects him ready to go when he returns next week. Outlook unchanged.", source: "Rotowire news · Thu Aug 13 · 4:04 PM", impact: "No draft-board move — short absence, McVay expects him ready to go next week.", time: "Thu Aug 13 · 4:04 PM", league: "Both leagues" },
   { pos: "WR", team: "TB", name: "Emeka Egbuka", status: "LOWER BODY", slot: "Draft board", note: "Limped off with trainers Wednesday, then watched the rest of practice from the sideline, per Garafolo. Initially called a minor toe issue.", source: "Rotowire news · Thu Aug 13 · 6:50 PM", impact: "Downgrade from 'no action' — hold off drafting until Tampa clarifies.", time: "Thu Aug 13 · 6:50 PM", league: "Both leagues" },
@@ -1159,7 +1195,7 @@ const SCOUT_SEED = [
   { kind: "Sleeper find", name: "Ja'Kobi Lane", meta: "WR · BAL · rookie", text: "NFL.com's favorite last-round dart: 80th overall pick, immediate camp hit per Ravens beat (Hensley).", src: "NFL.com sleepers · Thu Aug 13", pos: "WR" },
   { kind: "Sleeper find", name: "Denzel Boston", meta: "WR · CLE · rookie", text: "Contested-catch and red-zone skill set with a shot at the Browns' No. 1 perimeter role; camp reports positive.", src: "NFL.com + SI · Thu Aug 13", pos: "WR" },
   { kind: "Sleeper find", name: "Caleb Douglas", meta: "WR · MIA · rookie", text: "ADP #316 — free. Miami's WR room is wide open behind Waddle's departure.", src: "SI late-round rookies · Wed Aug 12", pos: "WR" },
-  { kind: "Sleeper find", name: "Malik Willis", meta: "QB · MIA", text: "Yahoo: non-zero chance he breaks the QB rush-attempt record (176). NFFC riser -8.5 to 187.7. Trenches cheat code.", src: "Yahoo sleepers + NFFC · Tue Aug 11", pos: "QB" },
+  { kind: "Sleeper find", name: "Malik Willis", meta: "QB · MIA", text: "Yahoo: non-zero chance he breaks the QB rush-attempt record (176). NFFC riser -8.5 to 187.7. Rushing stacks on QB-friendly scoring in both leagues.", src: "Yahoo sleepers + NFFC · Tue Aug 11", pos: "QB" },
   { kind: "Sleeper find", name: "Tank Bigsby", meta: "RB · PHI", text: "Backup in an elite offense; NFFC riser -10.3 to 149.2.", src: "Yahoo sleepers + NFFC · Tue Aug 11", pos: "RB" },
   { kind: "Sleeper find", name: "Tyler Allgeier", meta: "RB · ARI", text: "Rotowire's Cardinals pick: no worse than RB2 to Love and projects for the goal-line work.", src: "Rotowire 32 sleepers · Thu Aug 13", pos: "RB" },
   { kind: "Sleeper find", name: "Jacoby Brissett", meta: "QB · ARI", text: "3,300 yards and 23 TD in 12 starts last year; first full offseason as the starter with McBride, Harrison and Love.", src: "Yahoo sleepers · Thu Aug 6", pos: "QB" },
@@ -1288,7 +1324,7 @@ const RAW_BOARD = [
   [9,"Justin Herbert","QB · LAC","QB9","",0],
   [9,"Caleb Williams","QB · CHI","QB10","",0],
   [10,"Drake Maye","QB · NE","QB11","Popular year-three breakout call.",0],
-  [10,"Dak Prescott","QB · DAL","QB12","Good offense, but no rushing floor — all passing-TD dependent. Fine in Gravy, near-undraftable in Trenches.",1],
+  [10,"Dak Prescott","QB · DAL","QB12","Good offense, but no rushing floor — all passing-TD dependent. 6-pt pass TDs pay him in both; +1/completion adds more in Trenches.",1],
   [10,"Kareem Hunt","RB · KC","RB29","",0],
   [10,"Nick Chubb","RB · HOU","RB30","",0],
   [10,"Cam Skattebo","RB · NYG","RB31","",0],
@@ -1318,7 +1354,7 @@ const RAW_BOARD = [
   [11,"Jonathon Brooks","RB · CAR","RB39","PFF sleeper: healthy with a path to lead the backfield.",1],
   [11,"Kyler Murray","QB · ARI","QB13","Mobile — plays in both leagues.",0],
   [11,"Jordan Love","QB · GB","QB14","",0],
-  [11,"C.J. Stroud","QB · HOU","QB15","Pocket passer — Gravy only.",0],
+  [11,"C.J. Stroud","QB · HOU","QB15","Volume passer — +1/completion boosts him in Trenches.",0],
   [11,"Jayden Reed","WR · GB","WR38","PFF sleeper: sixth in slot yards since 2023, 13 slot TDs.",1],
   [12,"Jayden Higgins","WR · HOU","WR39","B/R sleeper: WR55 ADP, finished WR47 as a rookie.",1],
   [12,"Wan'Dale Robinson","WR · TEN","WR40","Back-to-back 140-target seasons at pick 91.",1],
@@ -1329,7 +1365,7 @@ const RAW_BOARD = [
   [12,"Keon Coleman","WR · BUF","WR45","",0],
   [12,"Matthew Golden","WR · GB","WR46","",0],
   [12,"Trevor Lawrence","QB · JAX","QB16","",0],
-  [12,"Jared Goff","QB · DET","QB17","Pocket passer — Gravy only.",0],
+  [12,"Jared Goff","QB · DET","QB17","Volume passer — +1/completion boosts him in Trenches.",0],
   [12,"Kyle Pitts","TE · ATL","TE10","",0],
   [12,"David Njoku","TE · CLE","TE11","",0],
   [13,"Evan Engram","TE · DEN","TE12","",0],
@@ -1351,7 +1387,7 @@ const RAW_BOARD = [
   [14,"Tank Bigsby","RB · PHI","RB50","",0],
   [14,"Brian Robinson Jr.","RB · ATL","RB51","",0],
   [14,"Michael Penix Jr.","QB · ATL","QB18","",0],
-  [14,"Matthew Stafford","QB · LAR","QB19","Pocket passer — Gravy only.",0],
+  [14,"Matthew Stafford","QB · LAR","QB19","Volume passer — +1/completion boosts him in Trenches.",0],
   [14,"J.J. McCarthy","QB · MIN","QB20","",0],
   [14,"Cam Ward","QB · TEN","QB21","Year-two jump is the league-wide breakout call.",0],
   [14,"Marvin Mims","WR · DEN","WR47","",0],
@@ -1407,16 +1443,16 @@ const BOARD = RAW_BOARD.map((r, i) => {
 });
 
 const SOURCES = [
-  { id: "s1", name: "NBC Sports player news", kind: "nbcsports.com/fantasy/football · live wire", weight: 28 },
-  { id: "s2", name: "@AdamSchefter", kind: "X · breaking status and transactions", weight: 24 },
-  { id: "s3", name: "Team beat writers", kind: "X list · 18 accounts, usage and practice", weight: 16 },
-  { id: "s8", name: "Rotowire news", kind: "rotowire.com/football/news · live wire", weight: 16 },
-  { id: "s9", name: "ESPN draft kit", kind: "Top-300 PPR cheat sheet · imported PDF", weight: 14 },
-  { id: "s10", name: "Yahoo consensus top-300", kind: "Boone, Harmon, Norris, Pianowski, Smyth, Winks", weight: 10 },
-  { id: "s4", name: "Aggregate ADP", kind: "Yahoo + industry consensus", weight: 6 },
-  { id: "s5", name: "Route and snap analytics", kind: "Usage model · imported CSV", weight: 9 },
-  { id: "s6", name: "My own tiers", kind: "Manual overrides", weight: 5 },
-  { id: "s7", name: "National takes", kind: "Muted by default", weight: 0 }
+  { id: "s4", name: "Aggregate ADP", kind: "Yahoo + industry consensus", weight: 6, group: "board" },
+  { id: "s9", name: "ESPN draft kit", kind: "Top-300 PPR cheat sheet · imported PDF", weight: 14, group: "board" },
+  { id: "s10", name: "Yahoo consensus top-300", kind: "Boone, Harmon, Norris, Pianowski, Smyth, Winks", weight: 10, group: "board" },
+  { id: "s6", name: "My own tiers", kind: "Manual overrides", weight: 5, group: "board" },
+  { id: "s1", name: "NBC Sports player news", kind: "nbcsports.com/fantasy/football · live wire", weight: 28, group: "wire" },
+  { id: "s2", name: "@AdamSchefter", kind: "X · breaking status and transactions", weight: 24, group: "wire" },
+  { id: "s8", name: "Rotowire news", kind: "rotowire.com/football/news · live wire", weight: 16, group: "wire" },
+  { id: "s7", name: "National takes", kind: "Muted by default", weight: 0, group: "wire" },
+  { id: "s3", name: "Team beat writers", kind: "X list · 18 accounts, usage and practice", weight: 16, group: "usage" },
+  { id: "s5", name: "Route and snap analytics", kind: "Usage model · imported CSV", weight: 9, group: "usage" }
 ];
 
 const INTEL = [
@@ -1526,8 +1562,8 @@ const WEEKREV_SEED = {
   ],
   stars: [
     { name: "De'Zhaun Stribling", meta: "WR · SF · rookie", line: "7 rec · 63 yds · one half", read: "Sleeper #4 confirmed on film — best offensive player on the field vs TEN. Still undrafted in most leagues.", src: "CBS winners · Fri Aug 14" },
-    { name: "Drew Allar", meta: "QB · PIT · rookie", line: "2 pass TD · 1 rush TD", read: "Ran the 28-9 rout of Green Bay. Rushing production makes him a Trenches name to watch if he ever starts.", src: "CBS + ESPN takeaways · Fri Aug 14" },
-    { name: "Anthony Richardson", meta: "QB · IND", line: "11/14 · 145 yds · INT (off hands)", read: "Outplayed Leonard in the backup battle behind Daniel Jones (Achilles). Rushing floor keeps him Trenches-relevant.", src: "CBS winners · Fri Aug 14" },
+    { name: "Drew Allar", meta: "QB · PIT · rookie", line: "2 pass TD · 1 rush TD", read: "Ran the 28-9 rout of Green Bay. Rushing production stacks on 6-pt pass TDs — a name to watch if he ever starts.", src: "CBS + ESPN takeaways · Fri Aug 14" },
+    { name: "Anthony Richardson", meta: "QB · IND", line: "11/14 · 145 yds · INT (off hands)", read: "Outplayed Leonard in the backup battle behind Daniel Jones (Achilles). Rushing floor keeps him The Trenches-relevant.", src: "CBS winners · Fri Aug 14" },
     { name: "Dohnte Meyers", meta: "WR · CIN · camp battle", line: "3-29 rec · 13-yd rush · 11-yd PR", read: "Swiss-army usage incl. punt returns — the return role is the one path that would make him sleeper-eligible here.", src: "CBS winners · Fri Aug 14" },
     { name: "Luke Altmyer", meta: "QB · DET · UDFA", line: "13/21 · 130 yds · TD · 2 INT", read: "Started after Bridgewater's retirement; Dobbs signed as the veteran backup. No fantasy action.", src: "ESPN takeaways · Fri Aug 14" },
     { name: "Evan McPherson", meta: "K · CIN", line: "3/3 FG", read: "You start a K in both leagues — quietly a fine late K target with the Bengals offense behind him.", src: "ESPN recap · Thu Aug 13" },
@@ -1616,16 +1652,16 @@ const GLRUN = { BUF: 74, MIA: 52, NE: 66, NYJ: 70, BAL: 78, CIN: 48, PIT: 64, CL
 const QBFIT = {
   "Josh Allen": "Dual threat · elite in both leagues",
   "Lamar Jackson": "Dual threat · elite in both leagues",
-  "Jayden Daniels": "Rush-first · Trenches gold",
-  "Jalen Hurts": "Rush-first · Trenches gold",
-  "Joe Burrow": "Pocket passer · Sunday Gravy only",
-  "Patrick Mahomes": "Pocket lean · better in Gravy",
-  "Baker Mayfield": "Pocket passer · Gravy only",
-  "Bo Nix": "Mobile · plays in both",
-  "Justin Herbert": "Pocket lean · Gravy",
+  "Jayden Daniels": "Dual threat · elite in both leagues",
+  "Jalen Hurts": "Dual threat · rush TDs stack on 6-pt pass TDs",
+  "Joe Burrow": "Volume passer · +1/completion boosts him in Trenches",
+  "Patrick Mahomes": "Volume passer · +1/completion boosts him in Trenches",
+  "Baker Mayfield": "Volume passer · +1/completion boosts him in Trenches",
+  "Bo Nix": "Dual threat · plays in both",
+  "Justin Herbert": "Volume passer · +1/completion boosts him in Trenches",
   "Caleb Williams": "Mobile · plays in both",
   "Drake Maye": "Mobile · plays in both",
-  "Dak Prescott": "Pocket passer · Gravy only"
+  "Dak Prescott": "Volume passer · +1/completion boosts him in Trenches"
 };
 const STATS25 = {
   "Ja'Marr Chase": "117 rec · 1,594 yds · 14 TD — back-to-back WR1 seasons",
@@ -1733,8 +1769,8 @@ const GD_VARIANTS = [
     TE: { slot: "TE", name: "Brock Bowers", meta: "LV", sal: 3450, proj: "14.6", flag: "TE-friendliest defense on the slate." },
     RB3: { slot: "RB3", name: "David Montgomery", meta: "HOU", sal: 2700, proj: "13.3", flag: "Softest run front on the slate." }
   }},
-  { label: "#3 Trenches build", note: "Rush-only QB scoring: pays up for rushing QBs; full PPR keeps target-hog WRs valuable.", overrides: {
-    QB: { slot: "QB", name: "Jalen Hurts", meta: "PHI", sal: 4000, proj: "23.6", flag: "Rush TDs and short-yardage carries count in full under Trenches scoring." },
+  { label: "#3 Trenches build", note: "Trenches pays QBs hardest: 6-pt pass TDs plus 1 pt per completion; full PPR keeps target-hog WRs valuable.", overrides: {
+    QB: { slot: "QB", name: "Jalen Hurts", meta: "PHI", sal: 4000, proj: "23.6", flag: "Rush TDs stack on top of Trenches' completion and passing points." },
     WR2: { slot: "WR2", name: "Zay Flowers", meta: "BAL", sal: 2950, proj: "14.6", flag: "" }
   }}
 ];
@@ -1859,6 +1895,7 @@ class Component extends DCLogic {
     cuffHidden: [],
     alertPage: 0,
     draftLeague: "Sunday Gravy",
+    draftSlot: { "Sunday Gravy": 1, "The Trenches": 1 },
     myTeams: { "Sunday Gravy": [], "The Trenches": [] },
     taken: { "Sunday Gravy": [], "The Trenches": [] },
     hideTaken: false,
@@ -1953,6 +1990,7 @@ class Component extends DCLogic {
   doLiveSync() {
     if (this.state.syncing) return;
     this.setState({ syncing: true, syncErr: null });
+    this.fetchServerWire();
     (async () => {
       const j = u => fetch(u).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
       const [players, tAdd, tDrop] = await Promise.all([
@@ -1984,6 +2022,14 @@ class Component extends DCLogic {
       try { localStorage.setItem("ww_live", JSON.stringify(live)); } catch (e) {}
       this.setState({ syncing: false, live, syncedLabel: "Synced " + FMT_CT(live.ts) + " CT · live" });
     })().catch(e => this.setState({ syncing: false, syncErr: "Wire unreachable — " + ((e && e.message) || "network") }));
+  }
+
+  fetchServerWire(base) {
+    const b = (base || this.state.yahooApi || "").replace(/\/$/, "");
+    if (!b) return;
+    fetch(b + "/api/feeds?limit=40").then(r => (r.ok ? r.json() : null)).then(w => {
+      if (w && w.items && w.items.length) this.setState({ wire: w });
+    }).catch(() => {});
   }
 
   fbClient() {
@@ -2026,9 +2072,11 @@ class Component extends DCLogic {
       const lv = localStorage.getItem("ww_live");
       if (lv) try { const lp = JSON.parse(lv); this.setState({ live: lp, syncedLabel: "Synced " + FMT_CT(lp.ts) + " CT · live" }); } catch (e) {}
       fetch("data/feeds.json").then(r => (r.ok ? r.json() : null)).then(f => { if (f) this.setState({ feeds: f }); }).catch(() => {});
-      const ab = localStorage.getItem("ww_api_base");
-      import("./frontend/lib/fbApi.js").then(m => { m.createYahooCache().purgeExpired(); if (ab) this.checkYahoo(ab); }).catch(() => {});
-      if (ab) this.setState({ yahooApi: ab });
+      const ab = localStorage.getItem("ww_api_base") || "https://fb-bible-torro2.vercel.app";
+      try { localStorage.setItem("ww_api_base", ab); } catch (e) {}
+      import("./frontend/lib/fbApi.js").then(m => { m.createYahooCache().purgeExpired(); this.checkYahoo(ab); }).catch(() => {});
+      this.setState({ yahooApi: ab });
+      this.fetchServerWire(ab);
       setTimeout(() => { const cur = this.state.live; if (!cur || Date.now() - cur.ts > 3600000) this.doLiveSync(); }, 500);
       const th = localStorage.getItem("ww_theme");
       if (th === "dark" || th === "light" || th === "cowboys") this.setState({ theme: th });
@@ -2036,6 +2084,8 @@ class Component extends DCLogic {
       if (sk) this.setState({ skin: sk });
       const srcW = JSON.parse(localStorage.getItem("ww_src_w") || "null");
       if (srcW && typeof srcW === "object") this.setState({ srcW });
+      const ds = JSON.parse(localStorage.getItem("ww_draft_slot") || "null");
+      if (ds && typeof ds === "object") this.setState({ draftSlot: ds });
     } catch (e) {}
     try {
       const saved = JSON.parse(localStorage.getItem("ww_cuff_order") || "[]");
@@ -2066,8 +2116,8 @@ class Component extends DCLogic {
 
     const leagueDefs = [
       { id: "all", name: "All leagues", meta: "2 connected" },
-      { id: "Sunday Gravy", name: "Sunday Gravy", meta: "12-team full PPR · completions count" },
-      { id: "The Trenches", name: "The Trenches", meta: "10-team full PPR · rush-only QBs" }
+      { id: "Sunday Gravy", name: "Sunday Gravy", meta: "10-team full PPR · IDP · 6-pt pass TDs" },
+      { id: "The Trenches", name: "The Trenches", meta: "12-team full PPR · IDP · +1 per completion" }
     ];
     const leagues = leagueDefs.filter(l => l.id !== "all").map(l => ({
       name: l.name, meta: l.meta,
@@ -2174,28 +2224,42 @@ class Component extends DCLogic {
       onClick: () => this.setState({ screen: "player", player: x.name })
     }));
 
-    const activeSources = SOURCES.filter(x => s.srcOn[x.id]);
+    const activeSources = SOURCES.filter(x => x.group === "board" && s.srcOn[x.id]);
     const totalW = activeSources.reduce((a, b) => a + this.weightOf(b.id), 0) || 1;
     const beatOn = s.srcOn.s3, analyticsOn = s.srcOn.s5;
 
-    const sources = SOURCES.map(x => {
+    const srcRow = x => {
       const on = s.srcOn[x.id];
       const wv = this.weightOf(x.id);
+      const board = x.group === "board", wire = x.group === "wire";
       return {
         name: x.name, kind: x.kind,
-        nameColor: on ? T : N6,
-        weight: on ? Math.round(wv / totalW * 100) + "%" : "off",
-        weightW: on ? Math.round(wv / totalW * 100) + "%" : "0%",
-        barColor: on ? A : N3,
+        nameColor: wire ? N6 : (on ? T : N6),
+        interactive: !wire, inert: wire,
         knobJustify: on ? "flex-end" : "flex-start",
         trackBg: on ? T : "transparent",
         knobBg: on ? A : "var(--color-neutral-400)",
+        showBar: board,
+        weight: board ? (on ? Math.round(wv / totalW * 100) + "%" : "off") : "",
+        weightW: board && on ? Math.round(wv / totalW * 100) + "%" : "0%",
+        barColor: on ? A : N3,
         rawW: wv,
-        showSlider: on,
+        showSlider: board && on,
         onWeight: e => this.setSrcWeight(x.id, parseInt(e.target.value, 10)),
         onClick: () => this.toggleSrc(x.id)
       };
-    });
+    };
+    const sourceGroups = [
+      { title: "Rank lists — draft board", tag: activeSources.length + " in blend", tagColor: "var(--color-accent-700)",
+        note: "The only weights that work. Each list's share blends into Draft analyzer order, alongside the rank-vs-ADP slider on the board.",
+        rows: SOURCES.filter(x => x.group === "board").map(srcRow) },
+      { title: "News wires", tag: "not wired", tagColor: "var(--color-accent-700)",
+        note: "These sliders never changed anything. Alerts order is scored server-side from story severity, player rank and recency; wire-trust weighting is designed (WEIGHTS.md) but not built.",
+        rows: SOURCES.filter(x => x.group === "wire").map(srcRow) },
+      { title: "Usage signals", tag: "on/off only", tagColor: "var(--color-neutral-600)",
+        note: "The toggle shows or hides beat-writer and analytics notes on board rows. A weight would change nothing, so there is no slider.",
+        rows: SOURCES.filter(x => x.group === "usage").map(srcRow) }
+    ];
 
     const isDef = m => m.indexOf("LB") === 0 || m.indexOf("DB") === 0 || m.indexOf("WR/DB") === 0;
     const sideFilters = ["All", "Offense", "Defense"].map(p => ({
@@ -2225,13 +2289,7 @@ class Component extends DCLogic {
       if (INJ_YELLOW.indexOf(name) !== -1) return { injLabel: "INJ REPORT", injBg: "oklch(0.93 0.09 90)", injFg: "oklch(0.42 0.11 75)", injBd: "oklch(0.65 0.13 80)" };
       return { injLabel: "", injBg: "transparent", injFg: "transparent", injBd: "transparent" };
     };
-    const trenchFactor = b => {
-      if (b.meta.indexOf("QB") !== 0) return 1;
-      const fit = QBFIT[b.name] || "";
-      if (fit.indexOf("Dual threat") === 0 || fit.indexOf("Rush-first") === 0) return 0.72;
-      if (fit.indexOf("Mobile") === 0) return 0.55;
-      return 0.32; // pocket passers keep only rushing production
-    };
+    // Both leagues pay QBs above market (6-pt pass TDs, 20 pass yds/pt; The Trenches +1/completion) — the old rush-only rule was wrong. docs/LEAGUES.md is ground truth.
     const projFor = b => {
       if (b.posRank === "FLEX") return "16.2";
       const n = parseInt(b.posRank.replace(/[^0-9]/g, ""), 10) || 20;
@@ -2239,10 +2297,22 @@ class Component extends DCLogic {
       const bases = { QB: 24.5, RB: 21.0, WR: 20.0, TE: 15.5, LB: 14.5, DB: 12.5 };
       const slopes = { QB: 0.85, RB: 0.42, WR: 0.32, TE: 0.65, LB: 0.45, DB: 0.35 };
       const raw = Math.max(4, (bases[p] || 12) - n * (slopes[p] || 0.4));
-      return (s.draftLeague === "The Trenches" ? raw * trenchFactor(b) : raw).toFixed(1);
+      return raw.toFixed(1);
     };
     const myList = s.myTeams[s.draftLeague] || [];
     const takenList = s.taken[s.draftLeague] || [];
+    const leagueTeams = { "Sunday Gravy": 10, "The Trenches": 12 };
+    const seatCount = leagueTeams[s.draftLeague] || 10;
+    const mySlot = Math.min(seatCount, Math.max(1, (s.draftSlot || {})[s.draftLeague] || 1));
+    const picksMade = myList.length + takenList.length;
+    const curPick = picksMade + 1;
+    const myPickAt = r => (r - 1) * seatCount + (r % 2 === 1 ? mySlot : seatCount + 1 - mySlot);
+    let nextPick = 0, pickAfter = 0;
+    for (let r = 1; r <= 40 && !pickAfter; r++) { const p = myPickAt(r); if (p >= curPick) { if (!nextPick) nextPick = p; else pickAfter = p; } }
+    const riskHorizon = nextPick === curPick ? pickAfter : nextPick;
+    // ADP column is Yahoo round.pick notation ("2.05") in the committed page; live board.py injects overall numbers — handle both
+    const adpOverall = a => { const m = String(a).match(/^(\d{1,2})\.(\d{2})$/); const pk = m ? parseInt(m[2], 10) : 0; return (m && pk >= 1 && pk <= 12) ? (parseInt(m[1], 10) - 1) * 12 + pk : parseFloat(a); };
+    const goneRisk = b => takenList.indexOf(b.name) === -1 && myList.indexOf(b.name) === -1 && !isNaN(adpOverall(b.adp)) && adpOverall(b.adp) <= riskHorizon;
     const posOf = meta => meta.indexOf("WR/DB") === 0 ? "WR" : meta.split(" · ")[0];
     const shape = { QB: 1, RB: 3, WR: 4, TE: 1, K: 1, DB: 4, LB: 4 };
     const counts = {};
@@ -2252,9 +2322,7 @@ class Component extends DCLogic {
       const adp = parseFloat(b.adp);
       return (1 - w) * b.rank + w * (isNaN(adp) ? b.rank : adp);
     };
-    const boardOrdered = (s.draftLeague === "The Trenches"
-      ? boardSrc.slice().sort((a, b) => parseFloat(projFor(b)) - parseFloat(projFor(a)))
-      : boardSrc.slice().sort((a, b) => blendScore(a) - blendScore(b))).filter(b => !s.hideTaken || takenList.indexOf(b.name) === -1).filter(b => !s.sleepersOnly || (s.mySleepers || []).indexOf(b.name) !== -1).filter(b => !s.draftQuery || b.name.toLowerCase().indexOf(s.draftQuery.toLowerCase()) !== -1 || b.meta.toLowerCase().indexOf(s.draftQuery.toLowerCase()) !== -1);
+    const boardOrdered = boardSrc.slice().sort((a, b) => blendScore(a) - blendScore(b)).filter(b => !s.hideTaken || takenList.indexOf(b.name) === -1).filter(b => !s.sleepersOnly || (s.mySleepers || []).indexOf(b.name) !== -1).filter(b => !s.draftQuery || b.name.toLowerCase().indexOf(s.draftQuery.toLowerCase()) !== -1 || b.meta.toLowerCase().indexOf(s.draftQuery.toLowerCase()) !== -1);
     const board = boardOrdered.map(b => {
       let v = b.base;
       if (b.split && !beatOn) v = (v + parseFloat(b.adp)) / 2;
@@ -2280,6 +2348,8 @@ class Component extends DCLogic {
         starFg: mySleepers.indexOf(b.name) !== -1 ? A : "var(--color-neutral-600)",
         onStar: () => toggleSleeper(b.name),
         read: b.read,
+        riskLabel: goneRisk(b) ? "GONE BY #" + riskHorizon : "",
+        riskDisplay: goneRisk(b) ? "inline-block" : "none",
         deltaColor: earlier ? A : "var(--color-neutral-700)"
       };
     });
@@ -2369,6 +2439,16 @@ class Component extends DCLogic {
         try { localStorage.setItem("ww_src_weight", String(v)); } catch (err) {}
       },
       draftQuery: s.draftQuery || "",
+      draftSlot: mySlot,
+      slotMax: seatCount,
+      onDraftSlot: e => {
+        const v = Math.min(seatCount, Math.max(1, parseInt(e.target.value, 10) || 1));
+        const ds = Object.assign({}, this.state.draftSlot, { [this.state.draftLeague]: v });
+        this.setState({ draftSlot: ds });
+        try { localStorage.setItem("ww_draft_slot", JSON.stringify(ds)); } catch (err) {}
+      },
+      pickMathLabel: "Pick " + curPick + " overall · your next #" + nextPick + " (R" + Math.ceil(nextPick / seatCount) + ") · then #" + pickAfter,
+      goneRiskCount: (() => { const n = boardOrdered.filter(goneRisk).length; return n ? n + " available likely gone before your next turn" : ""; })(),
       onDraftQuery: (e) => this.setState({ draftQuery: e.target.value }),
       clearDraftQuery: () => this.setState({ draftQuery: "" }),
       hasDraftQuery: !!s.draftQuery,
@@ -2427,7 +2507,7 @@ class Component extends DCLogic {
       sleepersOnlyLabel: s.sleepersOnly ? "★ Sleepers only (" + (s.mySleepers || []).length + ")" : "☆ Sleepers only",
       sleepersOnlyBd: s.sleepersOnly ? A : "var(--color-neutral-400)",
       toggleSleepersOnly: () => this.setState({ sleepersOnly: !s.sleepersOnly }),
-      leagues, navItems, posFilters, targets, sources, board, rules, player, sideFilters, draftPosFilters,
+      leagues, navItems, posFilters, targets, sourceGroups, board, rules, player, sideFilters, draftPosFilters,
       boardCount: board.length + " of " + BOARD.length + " ranked",
       syncLabel: s.syncing ? "Pulling live wire…" : (s.syncErr ? s.syncErr : s.syncedLabel),
       syncBtnLabel: s.syncing ? "…" : "Sync now",
@@ -2536,7 +2616,19 @@ class Component extends DCLogic {
         try { localStorage.setItem("ww_theme", t); } catch (e2) {}
       },
       healthSyncLabel: (s.syncedLabel || "").replace("Synced ", "Last sync: ") + " " + (new Date().toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ").pop()),
-      healthRows: DATA_META.map(d => {
+      wireHas: !!(s.wire && s.wire.items && s.wire.items.length),
+      wireStamp: s.wire && s.wire.polled_at ? "Polled " + FMT_CT(new Date(s.wire.polled_at).getTime()) + " CT" : "",
+      wireItems: ((s.wire && s.wire.items) || []).slice(0, 8).map(i => ({
+        title: i.title || i.text || "",
+        src: (i.source || i.source_key || "") + (i.tier ? " · T" + i.tier : ""),
+        time: (i.published || i.published_at) ? FMT_CT(new Date(i.published || i.published_at).getTime()) + " CT" : "",
+        players: (i.players || []).map(p => p.name || p).slice(0, 3).join(", "),
+        link: i.link || i.url || "#"
+      })),
+      healthRows: (s.wire && s.wire.polled_at ? (() => {
+        const ms = new Date(s.wire.polled_at).getTime(); const ageH = (Date.now() - ms) / 3600000; const stale = ageH > 6;
+        return [{ feed: "Server wire", tab: "Alerts", source: "fb-bible /api/feeds · 5 publishers", asOf: new Date(ms).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).replace(",", "").replace(",", " ·"), age: ageH < 1 ? Math.round(ageH * 60) + " min" : ageH.toFixed(1) + " h", budget: "6 h", verdict: stale ? "STALE" : "PASS", vBg: stale ? "var(--color-accent-200)" : "transparent", vFg: stale ? "var(--color-accent-800)" : "var(--color-neutral-700)", vBd: stale ? "var(--color-accent-700)" : "var(--color-neutral-400)" }];
+      })() : []).concat(DATA_META.map(d => {
         const liveMs = s.live && s.live.ts && d.maxAgeH <= 24 ? s.live.ts : null;
         const asMs = liveMs || new Date(d.asOf).getTime();
         const ageH = (Date.now() - asMs) / 3600000;
@@ -2552,7 +2644,7 @@ class Component extends DCLogic {
           vFg: stale ? "var(--color-accent-800)" : "var(--color-neutral-700)",
           vBd: stale ? "var(--color-accent-700)" : "var(--color-neutral-400)"
         };
-      }),
+      })),
       staleCount: (() => { const n = DATA_META.filter(d => (Date.now() - ((s.live && s.live.ts && d.maxAgeH <= 24) ? s.live.ts : new Date(d.asOf).getTime())) / 3600000 > d.maxAgeH).length; return n ? n + " feed(s) need a sync" : "All feeds within budget"; })(),
       isSchedule: s.screen === "schedule", isWeekrev: s.screen === "weekrev",
       isRotowire: s.screen === "rotowire",
@@ -2678,7 +2770,7 @@ class Component extends DCLogic {
       })),
 
       blendLabel: activeSources.length ? "Weighted, " + activeSources.length + " sources" : "No sources on",
-      sourceCount: activeSources.length + " of " + SOURCES.length,
+      sourceCount: activeSources.length + " of " + SOURCES.filter(x => x.group === "board").length + " rank lists",
       flagCount: BOARD.filter(b => b.split).length + " players",
 
       gdModes: [{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }].map(m => ({
@@ -2739,8 +2831,8 @@ class Component extends DCLogic {
       ],
 
       leagueSettings: [
-        { name: "Sunday Gravy", url: "football.fantasysports.yahoo.com/f1/192426", facts: [{ k: "Format", v: "12-team full PPR" }, { k: "Roster", v: "1QB 3RB 4WR 1TE 1K" }, { k: "IDP", v: "4 DB · 4 LB" }, { k: "Bench", v: "8" }] },
-        { name: "The Trenches", url: "football.fantasysports.yahoo.com/f1/811739", facts: [{ k: "Format", v: "10-team full PPR" }, { k: "QB scoring", v: "Rush only" }, { k: "IDP", v: "4 DB · 4 LB" }, { k: "Bench", v: "8" }] }
+        { name: "Sunday Gravy", url: "football.fantasysports.yahoo.com/f1/192426", facts: [{ k: "Format", v: "10-team full PPR" }, { k: "Roster", v: "1QB 3RB 4WR 1TE 1K" }, { k: "IDP", v: "4 DB · 4 LB" }, { k: "Bench", v: "8" }] },
+        { name: "The Trenches", url: "football.fantasysports.yahoo.com/f1/811739", facts: [{ k: "Format", v: "12-team full PPR" }, { k: "QB scoring", v: "+1 per completion" }, { k: "IDP", v: "4 DB · 4 LB" }, { k: "Bench", v: "8" }] }
       ]
     };
   }

@@ -109,3 +109,39 @@ def test_beta_badge_is_not_applied_by_default(index_html):
     runs must serve no badge at all (docs/ENVIRONMENTS.md)."""
     html, _ = page.apply(index_html, page.PRE + page.POST)
     assert "fb-stage-badge" not in html
+
+
+# --- the Trusted-sources panel's honesty (design resync, Aug 21) --------
+# Fable's redesign closed the false-positive defect on the client: the
+# sliders that fed nothing are gone, and each group states what it does.
+# These assertions are against the design document rather than a
+# transform, because the property is the panel's honesty and a resync is
+# exactly what would silently undo it.
+
+
+def test_only_the_rank_lists_get_a_slider(index_html):
+    """Five of nine sliders used to move a bar and change no output. The
+    board group is the only one whose weights reach the draft blend, so
+    it is the only group that may render a slider."""
+    assert "showSlider: board && on" in index_html
+
+
+def test_each_source_group_states_what_it_actually_does(index_html):
+    """A grouped panel that still implied influence would be a more
+    convincing version of the original bug, not a fix."""
+    assert '"not wired"' in index_html, "the news wires group must say it is not wired"
+    assert '"on/off only"' in index_html, "the usage group must say it is a toggle"
+    assert '" in blend"' in index_html, "the board group must say how many lists count"
+
+
+def test_every_source_declares_its_group(index_html):
+    """An ungrouped source would render outside all three headings and
+    inherit no honesty label at all."""
+    import re
+
+    block = re.search(r"const SOURCES = \[(.*?)\n\];", index_html, re.S)
+    assert block, "SOURCES array not found — the panel was restructured"
+    rows = [r for r in block.group(1).splitlines() if r.strip().startswith("{")]
+    assert rows, "no sources parsed"
+    ungrouped = [r.strip()[:60] for r in rows if "group:" not in r]
+    assert not ungrouped, f"sources with no group: {ungrouped}"

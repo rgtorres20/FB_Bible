@@ -447,6 +447,16 @@ def main() -> int:
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
+    # The Trusted-sources panel, after the Aug 21 design resync. Five of
+    # nine sliders used to move a bar and change no output; the panel now
+    # renders a slider only for the rank lists and labels the other two
+    # groups for what they are. A revert would not error -- it would just
+    # start claiming influence again, which is why this is checked live.
+    check("only the rank lists get a slider", "showSlider: board && on" in served)
+    check(
+        "source groups say what they do",
+        '"not wired"' in served and '"on/off only"' in served,
+    )
 
     # The one-time club ask. Owner, Aug 21: "choose your team should be in
     # middle of page so I can see it" -- it was a 12px strip on the bottom

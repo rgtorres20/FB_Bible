@@ -30,8 +30,14 @@ from __future__ import annotations
 from . import skin
 
 # One edit: a label for the miss report, the anchor to find, its
-# replacement, and how many occurrences to replace (0 = all of them).
-Edit = tuple[str, str, str, int]
+# replacement, how many occurrences to replace (0 = all of them), and
+# whether finding nothing is acceptable.
+#
+# `optional` exists for cleanup passes -- an edit whose job is "make sure
+# none of this survives". Finding nothing to clean is success, not a
+# missing feature, so reporting it as a miss would train us to ignore
+# the miss report. Everything else defaults to required.
+Edit = tuple[str, str, str, int] | tuple[str, str, str, int, bool]
 
 
 def _apply(html: str, edits: tuple[Edit, ...]) -> tuple[str, list[str]]:
@@ -41,9 +47,12 @@ def _apply(html: str, edits: tuple[Edit, ...]) -> tuple[str, list[str]]:
     and the whole point of this module is that it stops being invisible.
     """
     misses: list[str] = []
-    for label, old, new, count in edits:
+    for edit in edits:
+        label, old, new, count = edit[:4]
+        optional = edit[4] if len(edit) > 4 else False
         if old not in html:
-            misses.append(label)
+            if not optional:
+                misses.append(label)
             continue
         html = html.replace(old, new, count) if count else html.replace(old, new)
     return html, misses
@@ -201,8 +210,14 @@ def league_names(html: str) -> tuple[str, list[str]]:
         (
             ("league name Sunday Gravy", "Sunday Gravy", "NDDPL", 0),
             ("league name The Trenches", "The Trenches", "RED_EYE", 0),
-            ("league shorthand Gravy", "Gravy", "NDDPL", 0),
-            ("league shorthand Trenches", "Trenches", "RED_EYE", 0),
+            # Optional: cleanup passes for the bare shorthands the
+            # curated copy used to use. The Aug 21 design resync removed
+            # every bare "Gravy" -- all 22 occurrences are now inside
+            # "Sunday Gravy", so this finds nothing and that is correct.
+            # The postcondition is what matters and it has its own test:
+            # no design-document league name survives.
+            ("league shorthand Gravy", "Gravy", "NDDPL", 0, True),
+            ("league shorthand Trenches", "Trenches", "RED_EYE", 0, True),
         ),
     )
 
