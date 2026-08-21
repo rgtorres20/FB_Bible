@@ -32,11 +32,13 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from .. import config
+
 URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
 # Regular season week 1 -- the draft-prep slate the tab claims to show.
 SEASON_TYPE = 2
 WEEK = 1
-YEAR = 2026
+YEAR = config.SEASON_YEAR
 
 CENTRAL = ZoneInfo("America/Chicago")
 DOT = "·"
@@ -282,6 +284,17 @@ def curated_implied() -> dict[str, float]:
         for team, points in _IMP_TEAM.findall(imp):
             teams[team] = float(points)
     return teams
+
+
+def matchup_teams(game: str | None) -> tuple[str, str] | None:
+    """('NE @ SEA') -> ('NE', 'SEA'), or None when the row is not a game.
+
+    Public because `previews` needs it and was reaching into the private
+    regex to get it -- coupling itself to a name this module never
+    promised to keep (tests/test_boundaries.py, Aug 21).
+    """
+    match = _GAME_TEAMS.match(game or "")
+    return (match.group(1), match.group(2)) if match else None
 
 
 def implied_by_team(games: list[dict]) -> dict[str, float]:

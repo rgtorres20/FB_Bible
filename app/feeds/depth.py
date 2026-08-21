@@ -141,6 +141,17 @@ def next_man_up(index: dict | None, stats_state: dict | None) -> list[dict]:
 
     Ordered by how much work is actually coming loose: a lead back's
     carries are a pickup, a fourth receiver's are not.
+
+    **A room where everyone is hurt still reports.** Until Aug 21 this
+    skipped any room with no healthy body behind the starter -- which is
+    exactly the room worth knowing about, and the silence was
+    indistinguishable from "nobody is injured here". It now names the
+    next man whatever his own flag says and marks the row `room_all_out`,
+    so the surface can show the flags instead of showing nothing.
+
+    The one room still skipped is the one with literally nobody behind
+    the starter: there is no pickup to name, and a row naming no player
+    would be a row about nothing.
     """
     out = []
     for (team, position), players in chart(index, stats_state).items():
@@ -149,15 +160,22 @@ def next_man_up(index: dict | None, stats_state: dict | None) -> list[dict]:
         starter = players[0]
         if not is_out(starter):
             continue
-        replacement = next((p for p in players[1:] if not is_out(p)), None)
-        if replacement is None:
+        behind = players[1:]
+        if not behind:
             continue
+        healthy = next((p for p in behind if not is_out(p)), None)
+        replacement = healthy if healthy is not None else behind[0]
         out.append(
             {
                 "team": team,
                 "position": position,
                 "starter": starter,
                 "replacement": replacement,
+                # Every body behind the starter is flagged too. The row is
+                # still worth showing -- more so, not less -- but it is a
+                # vacancy rather than a pickup, and the caller has to be
+                # able to say which.
+                "room_all_out": healthy is None,
                 # What is on the table: the starter's own '25 workload,
                 # which is the honest measure of the vacancy rather than
                 # a projection of what the backup will do with it.
@@ -196,6 +214,11 @@ def backups(
                 "injury": backup["injury"],
                 "rank": backup["rank"],
                 "usage": backup["usage"],
+                # The position-aware workload `chart` already measured:
+                # carries plus targets at RB, targets at WR and TE, pass
+                # attempts at QB. Carried through so the sort below does
+                # not have to pick a field and get it wrong.
+                "opportunity": backup["opportunity"],
                 "starter": starter["name"],
                 "starter_out": is_out(starter),
                 "starter_usage": starter["usage"],
@@ -208,7 +231,12 @@ def backups(
                 ),
             }
         )
-    rows.sort(key=lambda r: r["usage"].get("rush_att", 0) or 0, reverse=True)
+    # Ordered by the backup's own opportunity at his own position. This
+    # sorted on rush_att until Aug 21, which is right at RB and silently
+    # wrong everywhere else: every receiver's key was 0, so the WR board
+    # came back in index order and read as a ranking. Rank breaks ties,
+    # including the all-zero case of a room where nobody played last year.
+    rows.sort(key=lambda r: (-r["opportunity"], r["rank"] if r["rank"] is not None else 10**6))
     return rows[:limit]
 
 

@@ -46,8 +46,7 @@ def _team_profile(teams: dict, code: str) -> dict | None:
 
 
 def _codes(row: dict) -> tuple[str, str] | None:
-    match = vegas._GAME_TEAMS.match(row.get("game") or "")
-    return (match.group(1), match.group(2)) if match else None
+    return vegas.matchup_teams(row.get("game"))
 
 
 def is_covered(preview: dict | None, row: dict) -> bool:
@@ -65,14 +64,25 @@ def is_covered(preview: dict | None, row: dict) -> bool:
 
 
 def pending(
-    vegas_state: dict | None, stats_state: dict | None, previews: dict | None
+    vegas_state: dict | None,
+    stats_state: dict | None,
+    previews: dict | None,
+    implied: dict[str, float] | None = None,
 ) -> list[dict]:
     """Games still needing a preview, each carrying every number the model
-    is allowed to use. One batched call covers the whole slate."""
+    is allowed to use. One batched call covers the whole slate.
+
+    `implied` is passed in by the composer rather than derived here: this
+    module is an AI unit and the odds unit is its sideways neighbour, so
+    reaching for it directly was a boundary breach
+    (tests/test_boundaries.py, Aug 21). Omitted, it falls back to the odds
+    unit so nothing that already calls this two-argument breaks.
+    """
     games = (vegas_state or {}).get("games") or []
     previews = previews or {}
     teams = (stats_state or {}).get("teams") or {}
-    implied = vegas.implied_by_team(games)
+    if implied is None:
+        implied = vegas.implied_by_team(games)
 
     work = []
     for row in games:

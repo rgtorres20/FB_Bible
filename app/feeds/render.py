@@ -18,33 +18,13 @@ no zero padding. Both matter: the page renders them verbatim.
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from . import adp, impact, injury, stats, vegas, weekrev
-
-# The blueprint is explicit that every timestamp renders in the user's zone.
-CENTRAL = ZoneInfo("America/Chicago")
-DOT = "·"
+from .clock import CENTRAL, DOT, format_time  # noqa: F401 - re-exported
 
 # The News tab is a reading surface, not an archive. The full set stays at
 # /api/feeds for anything that wants it.
 MAX_LIVE_ITEMS = 40
-
-
-def format_time(iso: str | None) -> str:
-    """'2026-08-14T16:00:00+00:00' -> 'Fri Aug 14 · 11:00 AM' (Central).
-
-    Built by hand rather than with %-d/%-I, which are not portable to Windows.
-    """
-    if not iso:
-        return ""
-    try:
-        stamp = datetime.fromisoformat(iso).astimezone(CENTRAL)
-    except ValueError:
-        return ""
-    hour = stamp.hour % 12 or 12
-    meridiem = "AM" if stamp.hour < 12 else "PM"
-    return f"{stamp:%a} {stamp:%b} {stamp.day} {DOT} {hour}:{stamp:%M} {meridiem}"
 
 
 def format_players(players: list[dict]) -> str:

@@ -159,7 +159,20 @@ def build_html(
             + "</div>"
             f"<p class='because'>Behind <b>{html_mod.escape(starter['name'])}</b>, "
             f"who is <b>{html_mod.escape(starter['injury'] or 'out')}</b>.</p>"
-            f"<div class='nums'><span>{_nums('Him', backup['usage'])}</span></div>"
+            # The whole room is hurt. Naming the next man without saying
+            # so would read as a recommendation to add an injured player;
+            # dropping the row entirely (which this page did until Aug 21)
+            # reads as "nobody on this team is hurt". Both are wrong, and
+            # the second is worse -- this is the biggest vacancy on the
+            # board precisely when it happens.
+            + (
+                "<p class='because'><b>Everyone behind him is flagged too</b> — this "
+                "is a vacancy, not a pickup. Whoever the team signs or activates "
+                "inherits the work below.</p>"
+                if r.get("room_all_out")
+                else ""
+            )
+            + f"<div class='nums'><span>{_nums('Him', backup['usage'])}</span></div>"
             f"<div class='nums'><span>{_nums('The vacancy', starter['usage'])}</span></div>"
             + wire
             + "<div class='depth'>'25 order at "

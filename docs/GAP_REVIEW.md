@@ -6,6 +6,45 @@ checked at review time and may drift.
 
 ## Fixed Aug 21
 
+- **`rss._clean` could be made to emit a live script tag.** It stripped
+  tags once and then unescaped twice, so anything that *became* a tag on
+  the way out survived: `&amp;lt;script&amp;gt;` is not a tag when the
+  strip runs and very much is one afterwards. A feed could put markup
+  into a stored headline, and headlines reach the page. Now strips and
+  unescapes alternately until the text stops changing, bounded at three
+  rounds with a final strip — unbounded unescaping is its own denial of
+  service. Ordinary double-escaped text ("Jets&amp;#39; Geno Smith")
+  still decodes as before.
+
+- **`backups()` ranked every position by rushing attempts.** Right at
+  RB, silently wrong everywhere else: every receiver's sort key was 0, so
+  the WR board came back in index order and read as a ranking it was not.
+  It now sorts on the same position-aware opportunity `chart` already
+  measures, with Sleeper rank breaking ties — including the all-zero case
+  of a room where nobody played last season. The old test pinned the bug
+  by name; it now pins the fix.
+
+- **`next_man_up` dropped a room where everyone was hurt.** The week a
+  whole backfield goes down is the biggest vacancy on the board, and the
+  page showed nothing — indistinguishable from "nobody on this team is
+  injured". It now names the next man whatever his own flag says and
+  marks the row `room_all_out`, and `/app/nextup` says "this is a
+  vacancy, not a pickup" rather than presenting an injured player as the
+  grab. A starter with literally nobody behind him is still skipped:
+  there is no pickup to name.
+
+- **Three of the four boundary breaches are gone.** `capsules` reached
+  upward into a page module for a time formatter — that formatter is now
+  kernel (`app/feeds/clock.py`), which also ends six modules each
+  declaring their own `CENTRAL`. `scorecard` imported the odds unit for a
+  season year, now `config.SEASON_YEAR`. `previews` reached into the
+  private `vegas._GAME_TEAMS`, now the public `vegas.matchup_teams`, and
+  took its implied totals from the odds unit directly, now passed in by
+  the composer. The one left is `previews` importing `vegas` for that
+  public parser, kept deliberately: moving a parser for the odds unit's
+  own row shape into the kernel to satisfy a rule would be worse than
+  the import.
+
 - **The QB draft boost counted points that move nobody.** Checking the
   derived boost against the two overrides tuned on real draft behaviour
   found them disagreeing by roughly 2x (NDDPL: override 10, derived 19;

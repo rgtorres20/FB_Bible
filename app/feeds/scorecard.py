@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 
-from . import vegas
+from .. import config
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ BANDS = ((50, 59), (60, 69), (70, 79), (80, 100))
 
 # The season these predictions are about. Sourced from the odds module so
 # there is one place to change it, not two that can disagree.
-SEASON = vegas.YEAR
+SEASON = config.SEASON_YEAR
 
 
 def current_week(scores_state: dict | None) -> tuple[int | None, str]:

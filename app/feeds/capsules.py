@@ -18,7 +18,7 @@ changes, so a stale synthesis does not outlive the news it cites.
 
 from __future__ import annotations
 
-from . import render
+from . import clock
 from .alerts300 import _adp_lookup, _latest_mentions, _ranked_players
 from .board import match_key
 
@@ -112,7 +112,7 @@ def pending(
         if newest is not None:
             entry["newest_wire"] = {
                 "id": newest.get("id") or "",
-                "when": render.format_time(newest.get("published")),
+                "when": clock.format_time(newest.get("published")),
                 "source": newest.get("source_name") or "wire",
                 "title": (newest.get("title") or "").strip(),
             }

@@ -341,15 +341,43 @@ def test_the_replacement_skips_anyone_who_is_also_flagged_out():
     assert row["starter"]["name"] == "Saquon Barkley"
 
 
-def test_a_room_where_everyone_behind_the_starter_is_also_out_shows_nothing():
-    """Pins current behaviour, and it is the sharp edge of this module: the
-    week a whole backfield is hurt -- the biggest vacancy on the board --
-    the row is dropped entirely rather than named with no replacement."""
+def test_a_room_where_everyone_is_hurt_is_reported_not_dropped():
+    """Fixed Aug 21, and it was the sharp edge of this module: the week a
+    whole backfield is hurt -- the biggest vacancy on the board -- the row
+    was dropped entirely. Silence there is indistinguishable from "nobody
+    is injured on this team", which is the opposite of the truth.
+
+    It now names the next man whatever his own flag says and marks the
+    row, so the surface can show the flags rather than showing nothing.
+    """
     index = _index(
         _p("4034", "Saquon Barkley", "RB", injury="Out", rank=2),
         _p("8155", "Will Shipley", "RB", injury="IR", rank=214),
     )
-    assert depth.next_man_up(index, LINES) == []
+    rows = depth.next_man_up(index, LINES)
+    assert len(rows) == 1
+    assert rows[0]["starter"]["name"] == "Saquon Barkley"
+    assert rows[0]["replacement"]["name"] == "Will Shipley"
+    assert rows[0]["room_all_out"] is True
+    assert rows[0]["replacement"]["injury"] == "IR", "his own flag has to survive"
+
+
+def test_a_healthy_backup_is_still_preferred_over_a_hurt_one():
+    """The fix must not start recommending an injured player when a
+    healthy one exists further down."""
+    index = _index(
+        _p("4034", "Saquon Barkley", "RB", injury="Out", rank=2),
+        _p("8155", "Will Shipley", "RB", injury="IR", rank=214),
+        _p("1", "Healthy Third", "RB", rank=260),
+    )
+    row = depth.next_man_up(index, LINES)[0]
+    assert row["replacement"]["name"] == "Healthy Third"
+    assert row["room_all_out"] is False
+
+
+def test_a_starter_with_nobody_behind_him_is_still_skipped():
+    """One player at the position and he is out. There is no pickup to
+    name, and a row naming no player would be a row about nothing."""
     solo = _index(_p("4034", "Saquon Barkley", "RB", injury="Out", rank=2))
     assert depth.next_man_up(solo, LINES) == []
 
@@ -470,11 +498,13 @@ def test_backups_asks_for_one_position_and_honours_the_limit():
     assert len(depth.backups(two_rooms, LINES, limit=1)) == 1
 
 
-def test_the_list_is_ranked_by_the_backups_own_carries_at_every_position():
-    """Pins current behaviour. The sort key is the backup's rush_att, so
-    at RB it ranks handcuffs by workload as intended -- but at WR every
-    key is 0 and the rows come back in index order, which reads as a
-    ranking and is not one."""
+def test_the_list_is_ranked_by_the_backups_own_workload_at_his_own_position():
+    """Fixed Aug 21. The sort key was the backup's rush_att, which is
+    right at RB and silently wrong everywhere else: every receiver's key
+    was 0, so the WR board came back in index order and read as a ranking
+    it was not. It now sorts on the same position-aware opportunity
+    `chart` already measures — carries plus targets at RB, targets at WR
+    and TE, attempts at QB."""
     rooms = _index(
         # The thin receiving room is listed first, the busy one second.
         _p("1", "Thin Starter", "WR", team="NYG", rank=80),
@@ -499,10 +529,11 @@ def test_the_list_is_ranked_by_the_backups_own_carries_at_every_position():
         "Will Shipley",  # 28 carries
         "Quiet Backup",  # 9
     ]
-    # 8 targets ahead of DeVonta Smith's 112: index order, not usage.
+    # DeVonta Smith's 112 targets ahead of Thin Backup's 8 — the receiving
+    # room is now ordered by receiving work, not by index position.
     assert [r["name"] for r in depth.backups(rooms, lines, position="WR")] == [
-        "Thin Backup",
         "DeVonta Smith",
+        "Thin Backup",
     ]
 
 
@@ -569,3 +600,20 @@ def test_an_empty_or_untagged_feed_yields_no_mention_rather_than_a_wrong_one():
     assert depth.latest_mentions([], {"8155"}) == {}
     tagged = [_item("a", "Shipley news", NEWER, ("8155", "Will Shipley"))]
     assert depth.latest_mentions(tagged, set()) == {}
+
+
+def test_a_room_where_nobody_played_last_season_falls_back_to_rank():
+    """All-zero opportunity is a real case — a team whose backup at a
+    position is a rookie. Sorting has to stay deterministic and pick the
+    more highly regarded player, not whatever the index happened to
+    yield first."""
+    rooms = _index(
+        _p("1", "Rookie Starter", "WR", team="NYG", rank=120),
+        _p("2", "Deep Rookie", "WR", team="NYG", rank=400),
+        _p("3", "Other Starter", "WR", team="DAL", rank=60),
+        _p("4", "Touted Rookie", "WR", team="DAL", rank=150),
+    )
+    assert [r["name"] for r in depth.backups(rooms, None, position="WR")] == [
+        "Touted Rookie",  # rank 150
+        "Deep Rookie",  # rank 400
+    ]

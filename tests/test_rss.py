@@ -283,3 +283,45 @@ def test_to_dict_carries_the_whole_item():
         "author",
     }
     assert payload["source_key"] == "espn"
+
+
+# --- the cleaner's escaping order -------------------------------------------
+# Found Aug 21. `_clean` stripped tags once and then unescaped twice, so
+# anything that *became* a tag on the way out survived the strip.
+
+
+def test_a_tag_hidden_behind_one_layer_of_escaping_does_not_survive():
+    assert rss._clean("Geno Smith &lt;b&gt;out&lt;/b&gt; Sunday") == "Geno Smith out Sunday"
+
+
+def test_a_script_tag_hidden_behind_two_layers_does_not_survive():
+    """The sharp version. "&amp;lt;script&amp;gt;" is not a tag when the
+    strip runs and very much is one after two unescapes — and headlines
+    reach the page."""
+    out = rss._clean("Geno Smith &amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;")
+    assert "<script" not in out
+    assert "</script" not in out
+    assert out == "Geno Smith alert(1)"
+
+
+def test_no_depth_of_nesting_smuggles_a_tag_through():
+    """Whatever survives, it must not be markup. Bounded rounds plus a
+    final strip, because unbounded unescaping is its own denial of
+    service."""
+    for layers in range(1, 6):
+        raw = "&lt;img src=x onerror=alert(1)&gt;"
+        for _ in range(layers - 1):
+            raw = raw.replace("&", "&amp;")
+        out = rss._clean(f"News {raw}")
+        assert "<" not in out and ">" not in out, f"{layers} layers: {out!r}"
+
+
+def test_ordinary_double_escaped_text_still_decodes():
+    """The behaviour the original double-unescape existed for: Yahoo
+    ships "Jets&amp;#39; Geno Smith"."""
+    assert rss._clean("Jets&amp;#39; Geno Smith") == "Jets' Geno Smith"
+    assert rss._clean("Ja&#39;Marr Chase &amp; Tee Higgins") == "Ja'Marr Chase & Tee Higgins"
+
+
+def test_a_real_tag_is_still_stripped():
+    assert rss._clean("<b>Geno Smith</b> out") == "Geno Smith out"

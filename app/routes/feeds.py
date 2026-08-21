@@ -631,7 +631,17 @@ async def previews_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
     when its game's line has genuinely moved, so the prose never cites a
     number the table no longer shows."""
     data = await store.load()
-    work = previews.pending(data.get("vegas"), data.get("stats"), data.get("previews"))
+    # The implied totals are computed here rather than inside previews:
+    # an AI unit reaching sideways into the odds unit is a boundary
+    # breach, and a composer joining the two is exactly what composers
+    # are for (tests/test_boundaries.py).
+    slate = (data.get("vegas") or {}).get("games") or []
+    work = previews.pending(
+        data.get("vegas"),
+        data.get("stats"),
+        data.get("previews"),
+        implied=vegas.implied_by_team(slate),
+    )
     return {"games": work}
 
 

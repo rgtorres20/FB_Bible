@@ -114,7 +114,8 @@ from Sleeper. Neither blocks personal single-user use.
   `tests/test_boundaries.py` fails on a new upward or sideways import, or
   on any module touching another's private names. Its `KNOWN_BREACHES`
   list is a ratchet: it fails when a breach is added *and* when a listed
-  one is fixed but not deleted, so it can only shrink. One worked unit
+  one is fixed but not deleted, so it can only shrink — **four down to
+  one** on Aug 21, the survivor kept deliberately. One worked unit
   contract: [docs/units/wire.md](docs/units/wire.md).
 - **Serve-time edits to the app page are named transforms** in
   `app/feeds/page.py`, never inline `html.replace()` in `main.py`. Each
@@ -187,7 +188,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-926 tests green — 910 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+934 tests green — 918 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

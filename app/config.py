@@ -161,6 +161,13 @@ class Settings(BaseSettings):
         return bool(self.yahoo_client_id and self.yahoo_client_secret)
 
 
+# The season the whole app is about. Lived in `vegas` until Aug 21, which
+# made every module that needed a year import the odds unit for it --
+# `scorecard` did exactly that (tests/test_boundaries.py). A year is not
+# an odds fact.
+SEASON_YEAR = 2026
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

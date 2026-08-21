@@ -43,7 +43,7 @@ APP = pathlib.Path(__file__).resolve().parents[1] / "app"
 
 KERNEL = frozenset(
     {
-        "config", "leagues", "store", "skin", "teams", "players", "crypto",
+        "config", "leagues", "store", "skin", "teams", "players", "crypto", "clock",
         "deps", "base", "file_store", "redis_store", "sources", "parse",
         "oauth", "client", "authn", "passkeys", "mailer",
     }
@@ -86,18 +86,13 @@ LAYER = (
 # would take. Delete an entry when you fix it — the test will tell you.
 KNOWN_BREACHES = frozenset(
     {
-        # capsules needs one time formatter that happens to live in a page
-        # module. Fix: move `render.format_time` into the kernel.
-        "capsules imports render (upward: data -> surface)",
-        # Both want facts that are not really odds. scorecard wants the
-        # season year; previews wants implied totals and a game-string
-        # regex. Fix: lift the season constant to config, and give vegas a
-        # public accessor for the matchup parse.
+        # Narrowed Aug 21 from "previews imports vegas". The implied
+        # totals now come in from the composer, which is what composers
+        # are for; what is left is `vegas.matchup_teams`, a parser for
+        # the row shape vegas itself produces. Moving that would put odds
+        # trivia in the kernel to satisfy a rule, which is worse than the
+        # import. Kept deliberately, and it is now the only one.
         "previews imports vegas (sideways: ai -> odds)",
-        "scorecard imports vegas (sideways: scoring -> odds)",
-        # The regex is private. This is the sharpest of the three: it
-        # couples previews to a name vegas never promised to keep.
-        "previews touches private vegas._GAME_TEAMS",
     }
 )
 

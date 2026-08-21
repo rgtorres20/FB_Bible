@@ -43,19 +43,45 @@ class FeedItem:
         return asdict(self)
 
 
+# How many strip-then-unescape rounds `_clean` runs. Two covers the
+# double-escaping feeds actually ship; the third exists to notice that
+# two were not enough rather than to handle a real case.
+_CLEAN_ROUNDS = 3
+
+
 def _clean(text: str | None) -> str:
     """Strip tags, decode entities, collapse whitespace.
 
     Feeds embed HTML and double-escape entities: Yahoo ships
     "Jets&amp;#39; Geno Smith". Unescaping twice covers that without
     corrupting text that was only escaped once.
+
+    **The order matters, and it was wrong until Aug 21.** Stripping tags
+    once and then unescaping twice means anything that *becomes* a tag on
+    the way out survives: "&amp;lt;script&amp;gt;" is not a tag when the
+    strip runs and very much is one afterwards. A feed could put a live
+    script tag into a stored headline that way, and headlines reach the
+    page.
+
+    So strip and unescape alternately until the text stops changing. A
+    tag can only appear where an entity was decoded, and by then the next
+    round removes it.
     """
     if not text:
         return ""
-    plain = _TAG_RE.sub(" ", text)
-    once = html.unescape(plain)
-    twice = html.unescape(once)
-    return _WS_RE.sub(" ", twice).strip()
+    cleaned = text
+    for _ in range(_CLEAN_ROUNDS):
+        stripped = _TAG_RE.sub(" ", cleaned)
+        unescaped = html.unescape(stripped)
+        if unescaped == cleaned:
+            break
+        cleaned = unescaped
+    else:
+        # Still changing after three rounds. Deliberately strip once more
+        # and stop: unbounded unescaping is its own denial of service,
+        # and no honest feed nests entities this deep.
+        cleaned = _TAG_RE.sub(" ", cleaned)
+    return _WS_RE.sub(" ", cleaned).strip()
 
 
 def _truncate(text: str, limit: int = SUMMARY_LIMIT) -> str:
