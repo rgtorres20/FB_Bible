@@ -187,7 +187,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-919 tests green — 903 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+923 tests green — 907 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -231,6 +231,18 @@ the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table
 shipped with. Flags and wire posts live, workload labelled '25, nothing
 projected.
+
+The Settings panel stopped claiming to blend lists it does not have
+(Aug 21). Two different things were called **sources**: four hand-written
+board entries with no data behind any of them, whose sliders compute one
+ratio tilting the draft board between its tier order and live ADP; and
+the real ranking lists, which blend with no weights at all. The panel's
+note described the second while wired to the first. The fix is naming,
+not deletion — the sliders keep working because they do something, the
+group is now "Board order mix", the analyzer's slider reads **Board
+order** instead of "Source influence", and both point at where the real
+lists live. All four are named transforms in `app/feeds/page.py`
+(`source_truth`), so a design resync that renames an anchor says so.
 
 `/app/scoring` is the scoring board (owner ask, Aug 21): every player's
 stored stat line run through **each league's own scoring values**, ranked.

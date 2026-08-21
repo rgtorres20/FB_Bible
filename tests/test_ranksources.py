@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.config import get_settings
-from app.feeds import board, ranklists
+from app.feeds import board, page, ranklists
 from app.feeds.store import FileFeedStore
 from app.routes import access as access_route
 from app.routes import feeds as feeds_route
@@ -220,8 +220,13 @@ def rendered(tmp_path_factory):
     the design document stops carrying the row the panel hangs off."""
     if shutil.which("node") is None:  # pragma: no cover - CI pins node
         pytest.fail("node is required: this test is the only proof the panel renders")
-    html = INDEX.read_text(encoding="utf-8")
-    # Every styled span and div from the real document, with its real
+    # The SERVED page, not the committed one. mobile.js runs in a browser
+    # against what the server sent, and the server renames the row this
+    # panel hangs off (page.source_truth). Reading the file would test an
+    # anchor no browser ever sees.
+    html, misses = page.apply(INDEX.read_text(encoding="utf-8"), page.PRE)
+    assert not misses, f"serve-time transforms found no anchor for {misses}"
+    # Every styled span and div from the served document, with its real
     # text. Both decorators match on style and read textContent, so this
     # is the same haystack the browser gives them.
     anchors = [
@@ -256,12 +261,11 @@ def _flat(node):
 
 
 def test_the_panel_renders_at_all(rendered):
-    """It hangs off the analyzer's "Source influence" row. If the design
-    project renames that label, this fails instead of the panel quietly
-    never appearing."""
+    """It hangs off the analyzer's "Board order" row — a serve-time
+    rename, so this also fails if that transform stops firing."""
     assert rendered["rendered"], (
-        "mobile.js found no anchor in the committed index.html — the "
-        '"Source influence" row it binds to has moved or been renamed'
+        "mobile.js found no anchor in the served page — the "
+        '"Board order" row it binds to has moved or been renamed'
     )
 
 

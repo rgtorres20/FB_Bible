@@ -128,10 +128,44 @@ def test_only_the_rank_lists_get_a_slider(index_html):
 
 def test_each_source_group_states_what_it_actually_does(index_html):
     """A grouped panel that still implied influence would be a more
-    convincing version of the original bug, not a fix."""
+    convincing version of the original bug, not a fix.
+
+    The wire and usage groups are honest in the design document itself.
+    The board group is corrected at serve time, so it is asserted on the
+    served page below rather than here.
+    """
     assert '"not wired"' in index_html, "the news wires group must say it is not wired"
     assert '"on/off only"' in index_html, "the usage group must say it is a toggle"
-    assert '" in blend"' in index_html, "the board group must say how many lists count"
+
+
+def test_the_board_group_stops_calling_itself_a_list_blend(index_html):
+    """Two different things were called sources. The four board sliders
+    are hand-written names with no data behind them; they compute one
+    ratio that tilts the board between its tier order and live ADP. The
+    real ranking lists blend with no weights at all.
+
+    So the panel's old note -- "Each list's share blends into Draft
+    analyzer order" -- described code deleted on Aug 21. A real control
+    with a wrong label is worse than a dead one: a dead control teaches
+    you to stop touching it.
+    """
+    served, misses = page.source_truth(index_html)
+    assert not misses
+    assert "Rank lists — draft board" not in served
+    assert "Each list's share blends" not in served
+    assert "Board order mix" in served
+    assert "how far the draft board leans on live ADP versus your own tier order" in served
+    # And it points at where the real lists actually live.
+    assert "/app/mine" in served
+
+
+def test_the_analyzer_slider_stops_promising_named_sources(index_html):
+    """Its caption read "100 = pure ESPN/Yahoo ADP blend", which names two
+    lists it does not consult. It mixes tier order against live ADP."""
+    served, _ = page.source_truth(index_html)
+    assert "pure ESPN/Yahoo ADP blend" not in served
+    assert "0 = your own tier order · 100 = live ADP" in served
+    assert "Board order</span>" in served, "the label mobile.js anchors the panel on"
 
 
 def test_every_source_declares_its_group(index_html):

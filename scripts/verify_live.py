@@ -486,10 +486,23 @@ def main() -> int:
     # renders a slider only for the rank lists and labels the other two
     # groups for what they are. A revert would not error -- it would just
     # start claiming influence again, which is why this is checked live.
-    check("only the rank lists get a slider", "showSlider: board && on" in served)
+    check("only the board-mix group gets a slider", "showSlider: board && on" in served)
     check(
         "source groups say what they do",
         '"not wired"' in served and '"on/off only"' in served,
+    )
+    # Two different things were called "sources" and the panel described
+    # the wrong one. The four board sliders set one ratio; the real
+    # ranking lists blend with no weights. A revert would not error -- it
+    # would just start claiming to blend lists again.
+    check(
+        "board-mix group no longer calls itself a list blend",
+        "Rank lists — draft board" not in served and "Each list's share blends" not in served,
+    )
+    check("board-mix group names what it actually sets", "Board order mix" in served)
+    check(
+        "analyzer slider stops promising named sources",
+        "pure ESPN/Yahoo ADP blend" not in served,
     )
 
     # The one-time club ask. Owner, Aug 21: "choose your team should be in
@@ -526,7 +539,8 @@ def main() -> int:
     # rendered. What it can prove is that the script still carries the
     # anchor and the page still carries the row -- the pair that has to
     # survive a design resync.
-    check("analyzer keeps the row the panel hangs off", "Source influence" in served)
+    # Renamed at serve time; mobile.js anchors on the served text.
+    check("analyzer keeps the row the panel hangs off", "Board order</span>" in served)
 
     mobile_css = get("/app/mobile.css")
     check("mobile.css serves", b"min-height: 100vh" in mobile_css)
@@ -536,7 +550,7 @@ def main() -> int:
     check("overlay decorator serves", b"fb-new-badge" in mobile_js and b"injury_wire" in mobile_js)
     check(
         "source panel decorator serves",
-        b"fb-rank-sources" in mobile_js and b"Source influence" in mobile_js,
+        b"fb-rank-sources" in mobile_js and b"Board order" in mobile_js,
     )
 
     # --- verdict -----------------------------------------------------------

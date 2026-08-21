@@ -235,7 +235,79 @@ def stage_badge(html: str) -> tuple[str, list[str]]:
 
 # Applied before the live overlays, which need the page's own tables
 # present to rebind them.
-PRE = (head_tags, client_paths, vegas_binding, ffbets_landing, mode_picker)
+# The analyzer's small-caps label markup, shared by the anchor and its
+# replacement so the two cannot drift apart.
+_LABEL = (
+    '<span style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">'
+)
+
+
+def source_truth(html: str) -> tuple[str, list[str]]:
+    """Stop the Settings panel claiming to blend lists it does not have.
+
+    Two different things called "sources" ended up side by side, and the
+    panel described the wrong one.
+
+    The four board entries -- "Aggregate ADP", "ESPN draft kit", "Yahoo
+    consensus top-300", "My own tiers" -- are hand-written names with no
+    data behind any of them. Their sliders are not weightless, though:
+    the three "trusted" ones and the one "own" one compute a single
+    ratio, `srcWeight`, which tilts the draft board between its own tier
+    order and live ADP. That is a real control with a misleading label,
+    which is worse than a dead one -- a dead control teaches you to stop
+    touching it.
+
+    Meanwhile the *actual* ranking lists (app/feeds/ranklists.py) blend
+    with no weights at all. So the panel's note -- "Each list's share
+    blends into Draft analyzer order" -- describes code that was deleted
+    on Aug 21.
+
+    The fix is naming, not deletion. The four sliders keep working
+    because they do something; the group stops calling them rank lists,
+    and points at where the real ones live. Same for the analyzer's own
+    slider, whose caption promised "pure ESPN/Yahoo ADP blend".
+    """
+    return _apply(
+        html,
+        (
+            (
+                "settings board-mix title",
+                '{ title: "Rank lists — draft board", tag: activeSources.length + " in blend", '
+                'tagColor: "var(--color-accent-700)",',
+                '{ title: "Board order mix", tag: "sets one number", '
+                'tagColor: "var(--color-neutral-600)",',
+                1,
+            ),
+            (
+                "settings board-mix note",
+                "note: \"The only weights that work. Each list's share blends into Draft "
+                'analyzer order, alongside the rank-vs-ADP slider on the board.",',
+                'note: "These four set one number between them: how far the draft board '
+                "leans on live ADP versus your own tier order. They are not loaded "
+                "ranking lists — those carry no weights at all, count equally when "
+                "switched on, and live under Source lists in the Draft analyzer "
+                '(add or remove them at /app/mine).",',
+                1,
+            ),
+            (
+                "analyzer slider label",
+                _LABEL + "Source influence</span>",
+                _LABEL + "Board order</span>",
+                1,
+            ),
+            (
+                "analyzer slider caption",
+                "0 = your tier order · 100 = pure ESPN/Yahoo ADP blend",
+                "0 = your own tier order · 100 = live ADP. Separate from the ranking "
+                "lists below, which are blended equally.",
+                1,
+            ),
+        ),
+    )
+
+
+PRE = (head_tags, client_paths, vegas_binding, ffbets_landing, mode_picker, source_truth)
 
 # Applied after, so a rename also reaches the text the overlays injected.
 POST = (wordmark, league_names)

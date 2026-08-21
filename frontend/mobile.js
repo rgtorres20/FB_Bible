@@ -296,7 +296,11 @@
    *
    * Lists that are switched OFF are shown too, greyed. "Why is this
    * source not counting" is the question a panel showing only the active
-   * ones cannot answer, and it is the question that started this. */
+   * ones cannot answer, and it is the question that started this.
+   *
+   * Anchored on the analyzer's "Board order" row, which is a serve-time
+   * rename (app/feeds/page.py source_truth) -- the committed document
+   * still says "Source influence". Match the served page, not the file. */
   var sources = (typeof FB_RANK_SOURCES !== 'undefined' && FB_RANK_SOURCES) || null;
   var sourcesFetching = false;
 
@@ -370,7 +374,7 @@
     if (!sources) return;
     var labels = document.querySelectorAll('span[style*="0.14em"]');
     for (var i = 0; i < labels.length; i++) {
-      if (labels[i].textContent.indexOf('Source influence') !== 0) continue;
+      if (labels[i].textContent.indexOf('Board order') !== 0) continue;
       var row = labels[i].parentElement;
       if (!row || !row.parentElement) return;
       var host = document.createElement('div');

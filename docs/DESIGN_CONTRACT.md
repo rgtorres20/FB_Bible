@@ -38,6 +38,8 @@ Owned by `app/feeds/page.py` — this list is complete for that module:
 | `skin: "cowboys",` | Stops the page forcing a Dallas skin on everyone |
 | `Sunday Gravy` / `The Trenches` / `Gravy` / `Trenches` | Renamed to NDDPL / RED_EYE |
 | `</body>` | Where the BETA badge goes on preview deploys |
+| `Rank lists — draft board` / `Each list's share blends into…` | The Settings board group, renamed and re-noted — it sets one board-order ratio, it does not blend lists |
+| `Source influence` label / `pure ESPN/Yahoo ADP blend` | The analyzer's slider, renamed to **Board order** and re-captioned |
 
 Three more modules bind to their own literals — `board.py` (the
 `RAW_BOARD` array and the ADP column), `vegas.py` (the odds table,
@@ -54,11 +56,14 @@ the source, and a miss produces no log line anywhere. Two anchors:
 | Anchor (rendered text) | What hangs off it |
 | --- | --- |
 | `My team · …` header | The links to the mock room, league settings, Next man up and the scorecard |
-| `Source influence` label | The panel explaining how the Draft analyzer's average is made |
+| `Board order` label (**after** `source_truth` renames it) | The panel explaining how the Draft analyzer's average is made |
 
 Both are covered: `tests/test_ranksources.py` runs the real `mobile.js`
-under node against the real elements pulled out of the committed
-`index.html`, so renaming either row fails the suite instead of silently
+under node against the real elements pulled out of the **served** page —
+`page.apply(html, page.PRE)`, not the file on disk. That distinction is
+the point: `source_truth` renames *Source influence* to *Board order* at
+serve time, so the committed document's literal is not the one a browser
+ever sees. Renaming either row fails the suite instead of silently
 removing the feature.
 
 ## The counter-intuitive part
