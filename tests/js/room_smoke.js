@@ -39,6 +39,15 @@ Object.keys(room.LEAGUES).forEach(function (name) {
       myPicksWithReason: mine.filter((e) => e.why).length,
       qbReasons: mine.filter((e) => e.p.pos === 'QB').map((e) => e.why),
       groupsDrafted: Array.from(new Set(S.log.map((e) => e.p.grp).filter(Boolean))),
+      dstDrafted: S.log.filter((e) => e.p.dst).length,
+      // Most a single team took. A DEF slot plus the bench cap should
+      // make this exactly 1 -- a room hoarding backup defenses would
+      // misprice everything picked around them.
+      dstPerTeamMax: Math.max(
+        0,
+        ...S.teams.map((t) => t.roster.filter((p) => p.dst).length)
+      ),
+      dstReasons: mine.filter((e) => e.p.dst).map((e) => e.why),
     });
   });
   out.leagues[name] = {

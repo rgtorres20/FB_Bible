@@ -97,6 +97,9 @@ def league_config(lg: leagues_mod.League) -> dict:
         # The note the pick reason quotes. Labelled by its own numbers, so
         # a market-scoring league gets no QB claim at all.
         "qbNote": qb_note(lg),
+        # Whether this league drafts a whole team defense. Read off the
+        # slots like everything else, so it cannot disagree with them.
+        "dstSlots": sum(1 for slot in lg.slots if slot == "DEF"),
         "defKey": lg.key,
         "defRankKey": f"{lg.key}_rank",
         "adpKey": lg.adp_size_key,
@@ -177,6 +180,43 @@ def offense_pool(
 
 
 DEF_POOL = 400  # deep enough that 12 teams x 4 DBs never runs the well dry
+
+
+def dst_pool(
+    index: dict | None,
+    stats_state: dict | None,
+    capsules: dict | None,
+    board_leagues: Sequence[leagues_mod.League] | None = None,
+) -> list[dict]:
+    """All 32 team defenses, scored per league, for rooms that draft one.
+
+    Empty -- not a placeholder list -- when no league in the room starts
+    a DEF slot, or when the stored stats cannot support a full ranking
+    (idp.has_dst_stats). A room that cannot rank defenses should not
+    offer them in an order it made up.
+    """
+    room = [
+        lg for lg in (board_leagues if board_leagues is not None else ROOM_LEAGUES) if lg.starts_dst
+    ]
+    if not room:
+        return []
+    out = []
+    for r in idp.dst_rows(index, stats_state, board_leagues=room):
+        entry = {
+            "id": r["id"],
+            "name": r["name"],
+            "pos": "DEF",
+            "team": r["team"],
+            "inj": "",
+            "pa": r["pts_allow"],
+            "u7": r["shutdown"],
+            "cap": _capsule_text(capsules, r["id"]),
+        }
+        for lg in room:
+            entry[lg.key] = r[lg.key]
+            entry[f"{lg.key}_rank"] = r.get(f"{lg.key}_rank")
+        out.append(entry)
+    return out
 
 
 def defense_pool(
@@ -301,6 +341,7 @@ def build_html(
 
     offense = offense_pool(index, adp_state, capsules)
     defense = defense_pool(index, stats_state, capsules, board_leagues=room)
+    dst = dst_pool(index, stats_state, capsules, board_leagues=room)
     if not offense:
         return (
             head + "<p class='sub'>Player index unavailable — the hourly sync "
@@ -308,10 +349,11 @@ def build_html(
         )
 
     with_adp = sum(1 for p in offense if p["a10"] is not None)
-    with_cap = sum(1 for p in offense + defense if p["cap"])
+    with_cap = sum(1 for p in offense + defense + dst if p["cap"])
     data = {
         "offense": offense,
         "defense": defense,
+        "dst": dst,
         "leagues": {name: league_config(lg) for name, lg in named},
         "generated": stamp,
     }
@@ -394,8 +436,18 @@ _ENGINE = r"""
   // 8-IDP-starter room, each next one a couple of spots later. A stated
   // modeling assumption, not data.
   var DEF_BASE = 50, DEF_STEP = 2.0;
-  var K_PRICE = 235;                  // kickers wait for the late rounds
-  var CAPS = {QB: 2, TE: 2, K: 1};    // simulated-team bench caps
+  // Kickers and team defenses wait for the late rounds. Both prices are
+  // overall pick numbers, so both have to be read against the size of
+  // THIS draft: 235 is the second-to-last round of a 26x10 room and off
+  // the board entirely in a 16x10 one, where it would mean no room ever
+  // takes a kicker on value and every one of them arrives as a forced
+  // last-round scramble. The smoke test caught exactly that on the
+  // team-defense league. So each is a cap, and the fraction of the
+  // draft decides in a smaller room. Stated modeling assumptions, not
+  // data -- neither position has ADP in the pool this room runs on.
+  var K_PRICE = 235, K_SHARE = 0.92;
+  var DST_BASE = 195, DST_SHARE = 0.78, DST_STEP = 3.0;
+  var CAPS = {QB: 2, TE: 2, K: 1, DEF: 1};   // simulated-team bench caps
 
   var S = null;  // the running draft
 
@@ -434,12 +486,34 @@ _ENGINE = r"""
         price: DEF_BASE + i * DEF_STEP, live: false
       });
     });
+    // Team defenses, only for a league that starts one. Ordered by the
+    // league's own D/ST scoring of the '25 season, same as the
+    // individual defenders above.
+    if (L.dstSlots) {
+      var dstBase = latePrice(L, DST_BASE, DST_SHARE);
+      (FB_MOCK.dst || [])
+        .slice()
+        .sort(function (a, b) { return b[L.defKey] - a[L.defKey]; })
+        .forEach(function (p, i) {
+          pool.push({
+            id: p.id, name: p.name, pos: 'DEF', team: p.team, inj: '',
+            cap: p.cap, adp: null, bye: null, grp: null, dst: true,
+            pts: p[L.defKey], posRank: p[L.defRankKey], pa: p.pa, u7: p.u7,
+            price: dstBase + i * DST_STEP, live: false
+          });
+        });
+    }
     return pool;
+  }
+
+  // Where the late-round positions land in a draft this size.
+  function latePrice(L, cap, share) {
+    return Math.min(cap, Math.round(L.teams * L.slots.length * share));
   }
 
   function price(p, L) {
     if (p.grp) return p.price;
-    if (p.pos === 'K') return K_PRICE;
+    if (p.pos === 'K') return latePrice(L, K_PRICE, K_SHARE);
     if (p.pos === 'QB') return p.price - L.qbBoost;
     return p.price;
   }
@@ -566,6 +640,9 @@ _ENGINE = r"""
     }
     if (p.grp) {
       bits.push(p.posRank + ' by ' + S.lg + " '25 scoring, " + p.pts.toFixed(1) + ' pts');
+    } else if (p.dst) {
+      bits.push(p.posRank + ' by ' + S.lg + " '25 D/ST scoring, " + p.pts.toFixed(1) +
+        ' pts' + (p.u7 ? '; held ' + p.u7 + ' opponents under a TD' : ''));
     } else if (p.pos === 'QB' && S.L.qbNote) {
       // The league's own numbers, not a claim borrowed from another
       // league: a market-scoring league falls through to plain ADP.
@@ -754,6 +831,7 @@ _ENGINE = r"""
   function renderTabs() {
     var tabs = ['ALL','QB','RB','WR','TE','K','LB','DB','DL'];
     if (!S.L.defGroups.DL) tabs.pop();
+    if (S.L.dstSlots) tabs.splice(6, 0, 'DEF');
     var el = document.getElementById('postab');
     el.innerHTML = '';
     tabs.forEach(function (t) {
@@ -776,7 +854,11 @@ _ENGINE = r"""
     list = list.slice().sort(function (a, b) { return price(a, S.L) - price(b, S.L); })
                .slice(0, 40);
     var rows = list.map(function (p) {
-      var mkt = p.grp
+      // Defenders and team defenses carry their league-scored '25 total;
+      // offense carries live ADP. A DST has no ADP in this pool, so it
+      // shows its score rather than a dash pretending the market has an
+      // opinion the room cannot see.
+      var mkt = (p.grp || p.dst)
         ? (p.pts.toFixed(1) + " pts <b>" + esc(p.posRank || '') + '</b>')
         : (p.live ? p.adp.toFixed(1) : "<span class='quiet'>—</span>");
       var cap = p.cap
@@ -789,7 +871,7 @@ _ENGINE = r"""
     }).join('');
     document.getElementById('avail').innerHTML =
       "<table><thead><tr><th>Best available</th><th>Pos</th><th>Team</th>" +
-      "<th>" + (f === 'LB' || f === 'DB' || f === 'DL'
+      "<th>" + (f === 'LB' || f === 'DB' || f === 'DL' || f === 'DEF'
         ? esc(S.lg) + " '25</th>" : esc(S.L.adpLabel) + '</th>') +
       '</tr></thead><tbody>' + rows + '</tbody></table>';
     Array.prototype.forEach.call(

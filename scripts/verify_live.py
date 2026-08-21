@@ -285,6 +285,21 @@ def main() -> int:
     check("IDP board keeps its verified columns", "NDDPL '25" in idp_page)
     check("mock room offers the verified leagues", '"NDDPL"' in mock_page)
 
+    # Team defenses. The D/ST board only renders for a signed-in user
+    # whose league starts a DEF slot, which the watchdog can never be --
+    # so what it checks is the thing underneath: that the weekly stats
+    # refetch actually stored the 32 team-defense lines, and that every
+    # one of them carries a points-allowed ladder accounting for all its
+    # games. Ranking from a partial ladder is the failure this guards.
+    dst = json.loads(get("/api/defenses"))
+    total, complete = dst.get("total", 0), dst.get("complete", 0)
+    check("team defenses stored", total >= 32, f"{total} stored")
+    check(
+        "every defense has a full points-allowed ladder",
+        total > 0 and complete == total,
+        f"{complete} of {total}",
+    )
+
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)

@@ -49,9 +49,12 @@ IDP_GROUPS = ("DB", "LB", "DL")
 
 # Roster slots, in the order a lineup card reads them. A league is
 # defined by how many of each it starts; this order is what turns those
-# counts back into the slot tuple. "FLX" is any of WR/RB/TE, "D" is any
-# defensive group the league starts, "BN" is bench.
-SLOT_ORDER = ("QB", "RB", "WR", "TE", "FLX", "K", "DL", "LB", "DB", "D", "BN")
+# counts back into the slot tuple. "FLX" is any of WR/RB/TE, "DEF" is a
+# whole team defense/special teams, "D" is any individual defender the
+# league starts, and "BN" is bench. DEF and D are different things and
+# a league can start both -- the owner request that added DEF ("some
+# leagues do Team DEF not just IDP") is exactly that distinction.
+SLOT_ORDER = ("QB", "RB", "WR", "TE", "FLX", "K", "DEF", "DL", "LB", "DB", "D", "BN")
 
 # The IDP events a league can price, with the label the editor shows.
 # Keyed by the Sleeper stat fields -- every one verified against the live
@@ -68,6 +71,87 @@ IDP_FIELDS: tuple[tuple[str, str], ...] = (
     ("idp_pass_def", "Pass defensed"),
     ("idp_blk_kick", "Blocked kick"),
 )
+
+# Team defense / special teams, keyed by the fields Sleeper's season dump
+# carries on its bare team-code entries -- verified live before any of
+# them were trusted (probe run 7, 2026-08-21: DET holds all of these).
+#
+# Two traps in that entry, both found by looking rather than guessing:
+#
+#   * a bare `td`, which on Detroit reads 57 -- touchdowns *allowed*,
+#     not scored. Pricing it as a defensive touchdown would have handed
+#     every defense several hundred phantom points.
+#   * `sack`, `int`, `ff`, `fum_rec`, `td` and `qb_hit` each have 64
+#     holders across the dump, not 32: the team OFFENSE entries carry
+#     the same names for sacks and turnovers *given up*. Only the bare
+#     team-code entries are defenses, which is why the extractor reads
+#     those keys and no others.
+#
+# `def_st_td` is the touchdown field: defense plus return, which is what
+# a Yahoo D/ST touchdown category counts. The dump also carries `def_td`
+# and `st_td` separately, so adding them alongside it would double-count.
+DST_FIELDS: tuple[tuple[str, str], ...] = (
+    ("sack", "Sack"),
+    ("int", "Interception"),
+    ("ff", "Forced fumble"),
+    ("fum_rec", "Fumble recovery"),
+    ("def_st_td", "Defensive / return TD"),
+    ("safe", "Safety"),
+    ("fg_blkd", "Blocked kick"),
+    ("def_pass_def", "Pass defensed"),
+)
+
+# The points-allowed ladder. Yahoo and ESPN both use these boundaries and
+# Sleeper's dump already buckets each team's games into them, so a season
+# total is a dot product rather than a reconstruction: the stored value is
+# how many games the team held an opponent inside that band.
+DST_PA_TIERS: tuple[tuple[str, str], ...] = (
+    ("pts_allow_0", "Shutout"),
+    ("pts_allow_1_6", "1–6 allowed"),
+    ("pts_allow_7_13", "7–13 allowed"),
+    ("pts_allow_14_20", "14–20 allowed"),
+    ("pts_allow_21_27", "21–27 allowed"),
+    ("pts_allow_28_34", "28–34 allowed"),
+    ("pts_allow_35p", "35+ allowed"),
+)
+
+# The yards-allowed ladder, same idea, at Sleeper's own boundaries.
+# Offered because some Yahoo leagues really do score it and refusing
+# would be the preset mistake in miniature -- but almost every league
+# leaves these at zero, so the editor keeps them folded away.
+DST_YA_TIERS: tuple[tuple[str, str], ...] = (
+    ("yds_allow_0_100", "Under 100 allowed"),
+    ("yds_allow_100_199", "100–199 allowed"),
+    ("yds_allow_200_299", "200–299 allowed"),
+    ("yds_allow_300_349", "300–349 allowed"),
+    ("yds_allow_350_399", "350–399 allowed"),
+    ("yds_allow_400_449", "400–449 allowed"),
+    ("yds_allow_450_499", "450–499 allowed"),
+    ("yds_allow_500_549", "500–549 allowed"),
+    ("yds_allow_550p", "550+ allowed"),
+)
+
+# Yahoo's own D/ST defaults, offered as the starting point when someone
+# adds a DEF slot -- the numbers most leagues never change.
+DEFAULT_DST = {
+    "sack": 1.0,
+    "int": 2.0,
+    "ff": 0.0,
+    "fum_rec": 2.0,
+    "def_st_td": 6.0,
+    "safe": 2.0,
+    "fg_blkd": 2.0,
+    "def_pass_def": 0.0,
+}
+DEFAULT_DST_PA = {
+    "pts_allow_0": 10.0,
+    "pts_allow_1_6": 7.0,
+    "pts_allow_7_13": 4.0,
+    "pts_allow_14_20": 1.0,
+    "pts_allow_21_27": 0.0,
+    "pts_allow_28_34": -1.0,
+    "pts_allow_35p": -4.0,
+}
 
 # Bounds the editor enforces. Not arbitrary: the mock room seats every
 # team from one live player pool, so a 40-team league would simply run
@@ -99,6 +183,19 @@ class League:
     # field census before any of them were trusted).
     idp: dict[str, float] = field(default_factory=dict)
     idp_ret_yds_per_pt: float = 20.0
+    # Team defense / special teams, for leagues that start a DEF slot
+    # instead of (or alongside) individual defenders. Per-event values
+    # and the points-allowed ladder are separate because they are
+    # different kinds of number: one is per occurrence, the other is per
+    # game landed in a band.
+    dst: dict[str, float] = field(default_factory=dict)
+    dst_pa: dict[str, float] = field(default_factory=dict)
+    dst_ya: dict[str, float] = field(default_factory=dict)
+    # Turnover-return yardage only -- interception and fumble returns,
+    # the same two fields the IDP side divides. Kick and punt return
+    # yards are stored too but belong to the returner in most leagues,
+    # so they are deliberately not rolled in here.
+    dst_ret_yds_per_pt: float = 0.0
     # How far up the board the mock room moves this league's QBs. None
     # derives it from the scoring above; the two verified leagues carry
     # values tuned against real draft behaviour instead.
@@ -119,6 +216,12 @@ class League:
     @property
     def starts_idp(self) -> bool:
         return bool(self.idp_groups)
+
+    @property
+    def starts_dst(self) -> bool:
+        """Whether this league drafts whole team defenses. Independent of
+        `starts_idp`: plenty of leagues do one, some do both."""
+        return "DEF" in self.slots
 
     @property
     def rounds(self) -> int:
@@ -170,6 +273,22 @@ class League:
             points += returns / self.idp_ret_yds_per_pt
         return round(points, 1)
 
+    def score_dst(self, stats: dict) -> float:
+        """One team defense's season total under this league's settings.
+
+        The per-event half is a straight product. The tiered halves
+        multiply each band's value by the number of games the team
+        finished inside it -- which is exactly what Sleeper stores, so
+        no game-by-game reconstruction is involved.
+        """
+        points = sum(stats.get(f, 0) * v for f, v in self.dst.items())
+        points += sum(stats.get(f, 0) * v for f, v in self.dst_pa.items())
+        points += sum(stats.get(f, 0) * v for f, v in self.dst_ya.items())
+        if self.dst_ret_yds_per_pt:
+            returns = stats.get("int_ret_yd", 0) + stats.get("fum_ret_yd", 0)
+            points += returns / self.dst_ret_yds_per_pt
+        return round(points, 1)
+
     def to_dict(self) -> dict:
         """Plain data, for the store and for the browser."""
         return {
@@ -185,6 +304,10 @@ class League:
             "rush_yds_per_pt": self.rush_yds_per_pt,
             "idp": dict(self.idp),
             "idp_ret_yds_per_pt": self.idp_ret_yds_per_pt,
+            "dst": dict(self.dst),
+            "dst_pa": dict(self.dst_pa),
+            "dst_ya": dict(self.dst_ya),
+            "dst_ret_yds_per_pt": self.dst_ret_yds_per_pt,
             "qb_boost_override": self.qb_boost_override,
         }
 

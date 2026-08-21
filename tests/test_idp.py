@@ -171,3 +171,135 @@ async def test_route_serves_the_scored_board(client):
     await store.save({"items": [], "stats": _stats()})
     page = c.get("/app/idp").text
     assert "Roquan Smith" in page and "LB1" in page
+
+
+# --- team defenses ----------------------------------------------------------
+
+
+def _dst_index() -> dict:
+    index = _index()
+    index["players"]["DET"] = {
+        "id": "DET",
+        "name": "Detroit Lions",
+        "position": "DEF",
+        "team": "DET",
+        "injury_status": None,
+        "rank": None,
+        "dst": True,
+    }
+    index["players"]["CLE"] = {
+        "id": "CLE",
+        "name": "Cleveland Browns",
+        "position": "DEF",
+        "team": "CLE",
+        "injury_status": None,
+        "rank": None,
+        "dst": True,
+    }
+    return index
+
+
+def _dst_stats() -> dict:
+    state = _stats()
+    state["defenses"] = {
+        "DET": {
+            "gp": 17,
+            "sack": 49,
+            "int": 13,
+            "fum_rec": 6,
+            "def_st_td": 1,
+            "safe": 1,
+            "fg_blkd": 2,
+            "pts_allow": 411,
+            "pts_allow_7_13": 2,
+            "pts_allow_14_20": 2,
+            "pts_allow_21_27": 8,
+            "pts_allow_28_34": 4,
+            "pts_allow_35p": 1,
+        },
+        "CLE": {
+            "gp": 17,
+            "sack": 20,
+            "int": 5,
+            "fum_rec": 3,
+            "def_st_td": 0,
+            "safe": 0,
+            "fg_blkd": 0,
+            "pts_allow": 500,
+            "pts_allow_21_27": 9,
+            "pts_allow_28_34": 6,
+            "pts_allow_35p": 2,
+        },
+    }
+    state["coverage"]["defenses"] = 2
+    state["coverage"]["defense_pa_complete"] = 2
+    return state
+
+
+def _dst_league():
+    from dataclasses import replace
+
+    from app import leagues as leagues_mod
+
+    return replace(
+        leagues_mod.blank("Work League", 12),
+        slots=("QB", "RB", "WR", "TE", "K", "DEF", "BN"),
+        dst=dict(leagues_mod.DEFAULT_DST),
+        dst_pa=dict(leagues_mod.DEFAULT_DST_PA),
+    )
+
+
+def test_team_defenses_rank_by_the_league_s_own_dst_scoring():
+    rows = idp.dst_rows(_dst_index(), _dst_stats(), board_leagues=[_dst_league()])
+    assert [r["name"] for r in rows] == ["Detroit Lions", "Cleveland Browns"]
+    assert rows[0]["custom"] == 101.0
+    assert rows[0]["custom_rank"] == "DEF1"
+    # Games held under a touchdown, straight off the ladder. Detroit's
+    # real '25 line has none -- their best band was 7-13 -- so the honest
+    # answer here is zero, not the 7-13 count standing in for it.
+    assert rows[0]["shutdown"] == 0 and rows[1]["shutdown"] == 0
+
+
+def test_games_under_a_touchdown_sum_the_two_bands_that_mean_it():
+    index, state = _dst_index(), _dst_stats()
+    state["defenses"]["DET"].update({"pts_allow_0": 1, "pts_allow_1_6": 3, "pts_allow_21_27": 4})
+    rows = idp.dst_rows(index, state, board_leagues=[_dst_league()])
+    assert next(r for r in rows if r["team"] == "DET")["shutdown"] == 4
+
+
+def test_a_defense_missing_a_field_leaves_a_blank_cell_not_a_crash():
+    """Stored lines are external data. One defense short of a points-
+    allowed total must not take the page down with it."""
+    index, state = _dst_index(), _dst_stats()
+    del state["defenses"]["CLE"]["pts_allow"]
+    page = idp.build_html(index, state, NOW, board_leagues=[_dst_league()])
+    assert "Cleveland Browns" in page
+
+
+def test_a_league_with_no_def_slot_gets_no_team_defense_rows():
+    """NDDPL and RED_EYE start eight individual defenders and no team
+    defense. Ranking one for them would be an answer to a question their
+    draft never asks."""
+    assert idp.dst_rows(_dst_index(), _dst_stats()) == []
+
+
+def test_the_board_shows_the_team_defense_table_only_for_leagues_that_start_one():
+    with_def = idp.build_html(_dst_index(), _dst_stats(), NOW, board_leagues=[_dst_league()])
+    assert "Team defenses" in with_def
+    assert "Detroit Lions" in with_def
+    assert "Work League</b> pays" in with_def
+
+    owners = idp.build_html(_dst_index(), _dst_stats(), NOW)
+    assert "Team defenses" not in owners
+    assert "Detroit Lions" not in owners
+
+
+def test_an_incomplete_ladder_is_said_out_loud_rather_than_ranked():
+    """Ranking from a partial points-allowed ladder would underscore
+    whichever defense is missing a band, and read as a ranking."""
+    state = _dst_stats()
+    state["coverage"]["defense_pa_complete"] = 1
+    page = idp.build_html(_dst_index(), state, NOW, board_leagues=[_dst_league()])
+    assert "Team defenses" in page
+    assert "don't carry complete" in page
+    assert "Detroit Lions" not in page

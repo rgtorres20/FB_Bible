@@ -396,3 +396,41 @@ async def test_sync_carries_verdicts_forward_for_surviving_items(client, monkeyp
 
     saved = await store.load()
     assert saved["verdicts"] == {"keep": "still matters"}
+
+
+async def test_defenses_endpoint_reports_the_lines_and_the_ladder_check(client):
+    """Unscored on purpose: what a defense is worth depends on the league
+    reading it, so the endpoint returns the measurements and the one
+    quality number the boards gate on."""
+    c, store = client
+    await store.save(
+        {
+            "items": [],
+            "stats": {
+                "season": 2025,
+                "fetched_at": "2026-08-21T04:00:00+00:00",
+                "coverage": {"defenses": 2, "defense_pa_complete": 1},
+                "defenses": {
+                    "DET": {"gp": 17, "sack": 49, "pts_allow_21_27": 8},
+                    "CLE": {"gp": 17, "sack": 20},
+                },
+            },
+        }
+    )
+    body = c.get("/api/defenses").json()
+    assert body["total"] == 2 and body["complete"] == 1
+    assert body["defenses"]["DET"]["sack"] == 49
+    assert body["source"] == "Sleeper"
+    assert body["season"] == 2025
+
+
+def test_defenses_endpoint_is_honest_when_nothing_is_stored():
+    """An empty store answers zero rather than 500 -- and zero is what
+    the watchdog fails on, which is the point."""
+    from fastapi.testclient import TestClient
+
+    from app import main as main_mod
+
+    body = TestClient(main_mod.app).get("/api/defenses").json()
+    assert body["total"] == 0 and body["complete"] == 0
+    assert body["defenses"] == {}

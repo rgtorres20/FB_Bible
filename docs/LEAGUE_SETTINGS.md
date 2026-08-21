@@ -25,6 +25,14 @@ this repo will not ship (the no-false-positives rule in CLAUDE.md).
 - **IDP** — the ten per-event values (solo, assist, sack, INT, FF, FR,
   defensive TD, safety, pass defensed, blocked kick) plus the
   turnover-return-yardage divisor
+- **Team defense (D/ST)** — for a `DEF` slot: eight per-event values, the
+  seven-band points-allowed ladder, and (folded away, because almost
+  nobody scores it) the nine-band yards-allowed ladder
+
+`DEF` and `D` are different slots and a league can start both. `DEF` is a
+whole team's defense and special teams scored as one unit; `D` is one
+more individual defender of any group the league starts. Owner, Aug 21:
+*"some leagues do Team DEF not just IDP."*
 
 ## What the app derives, and shows you deriving
 
@@ -34,6 +42,7 @@ advice change rather than take it on faith:
 | Derived | From | Why it is not a separate setting |
 |---|---|---|
 | Startable defensive groups | the slots | A league with no DL slot can never be told it has one |
+| Whether team defenses are drafted at all | a `DEF` slot in the roster | A league that starts none is never shown a D/ST ranking |
 | FFC ADP column (10- or 12-team) | the room size | The board a draft is actually priced against |
 | QB premium, in points per game | pass TD, yards/point, per completion, measured against a stated market baseline (4-pt TD, 25 yds/pt, 0/completion) | So "QBs go early here" is a measurement, never an assertion |
 | QB draft-slot boost | that premium | Capped at two rounds — the translation is crude at the extremes |
@@ -53,7 +62,7 @@ Two rules about the QB boost that are worth stating plainly:
 |---|---|
 | `/app/leagues` | the editor itself |
 | `/app/mock` | the room offers each league at its own size, slots, ADP column and QB boost; pick reasons quote the league's own numbers |
-| `/app/idp` | one score-and-rank column per league that starts defenders; a league that starts none gets no column |
+| `/app/idp` | one score-and-rank column per league that starts defenders; a league that starts none gets no column. A **Team defenses** table sits above it for leagues with a `DEF` slot, again one column each. A league whose only defensive slot is `DEF` gets that table and no IDP board at all |
 
 A visitor with no leagues of their own — including the watchdog, which
 has no session — sees the owner's verified two, exactly as before.
@@ -82,6 +91,9 @@ downstream a quiet lie about that user's draft. So:
 - starts defenders but scores them nothing → refused, because the
   defensive board would rank everyone at zero and present it as a ranking
 - a yards-per-point of zero → refused; it is a divisor
+- starts a `DEF` slot but scores it nothing → refused, because all 32
+  defenses would rank identically at zero and a flat list presented as a
+  ranking is the same false positive
 
 ## Code map
 
@@ -95,6 +107,38 @@ downstream a quiet lie about that user's draft. So:
 - `tests/test_mock_engine.py` — drives the room's JavaScript under node,
   so a league-config change that breaks the draft fails in CI
 
+## Where the team-defense numbers come from
+
+Sleeper's season dump holds three populations in one dict: ~8,200 numeric
+player keys, 32 `TEAM_XXX` offense keys, and 32 **bare team codes** that
+carry the team defense / special-teams aggregates. That third population
+was counted and discarded until Aug 21. Two traps were found by probing
+it (`Actions → Probe endpoint → url + key=DET`) rather than assuming:
+
+- The entry carries a bare **`td`**, which on Detroit reads **57** —
+  touchdowns *allowed*. Pricing it as a defensive touchdown would have
+  handed every defense several hundred phantom points. `def_st_td` is the
+  score, and it already counts both defensive and return touchdowns, so
+  the separately-stored `def_td` and `st_td` must not be added alongside.
+- **`sack`, `int`, `ff`, `fum_rec`, `td`, `qb_hit` each have 64 holders,
+  not 32** — the team *offense* entries use the same names for sacks and
+  turnovers *given up*. The extractor reads the bare team codes and
+  nothing else.
+
+The points-allowed ladder needs no reconstruction: Sleeper already stores
+how many games each defense finished inside each band, at exactly the
+boundaries Yahoo and ESPN use, so a season total is a dot product. The
+reducer **checks** that: a defense's bands must account for all of its
+games, and `coverage.defense_pa_complete` counts how many do. The board
+renders only when every stored defense passes, because ranking off a
+partial ladder would silently underscore whichever defense is missing a
+band — and an underscored defense reads as a ranking, not as a gap.
+
+`GET /api/defenses` returns the stored lines unscored, plus that count.
+Unscored on purpose: what a defense is worth depends entirely on the
+league reading it. The watchdog checks it, since the D/ST board itself is
+only visible to a signed-in user whose league has a `DEF` slot.
+
 ## Not covered yet
 
 - **The main app page** (`/app/`) still renders the owner's two leagues in
@@ -102,6 +146,14 @@ downstream a quiet lie about that user's draft. So:
   not something the League dataclass reaches yet.
 - **The printable cheat sheet** (`/app/cheatsheet`) is ADP-first and
   carries the owner's league caveat as prose.
-- **Kicker and team-defense scoring** are not modelled anywhere in the
-  app, so they are not in the editor either. Adding fields nothing reads
-  would be a false promise.
+- **Kicker scoring** is not modelled anywhere in the app, so it is not in
+  the editor either. Adding fields nothing reads would be a false
+  promise. (Team defense *is* modelled now — see above.)
+- **D/ST kick and punt return yardage.** Stored (`def_kr_yd`,
+  `def_pr_yd`) but not scored: most leagues credit those to the returner,
+  not the defense. The board says so rather than quietly leaving them
+  out. Turnover-return yardage (`int_ret_yd` + `fum_ret_yd`) *is*
+  scorable, via the same divisor the IDP side uses.
+- **D/ST three-and-outs and forced punts.** Stored by Sleeper
+  (`def_3_and_out`, `def_forced_punts`), scored by a small minority of
+  leagues, not in the editor.

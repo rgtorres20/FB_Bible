@@ -28,6 +28,8 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
+from .. import leagues as leagues_mod
+
 log = logging.getLogger(__name__)
 
 STATS_URL = "https://api.sleeper.app/v1/stats/nfl/regular/2025"
@@ -95,10 +97,30 @@ PLAYER_FIELDS = (
     "idp_blk_kick",
 )
 
+# Team DEFENSE / special teams, from the 32 bare team-code entries this
+# reducer used to count and throw away. Owner request, Aug 21: "some
+# leagues do Team DEF not just IDP", so a league with a DEF slot needs
+# real season totals to rank defenses by.
+#
+# The names come from `app.leagues`, which carries the verification note:
+# `sack`/`int`/`ff`/`fum_rec`/`td`/`qb_hit` appear on the team OFFENSE
+# entries too (turnovers *given up*), so these are read from the bare
+# keys and nowhere else, and the ambiguous `td` is not read at all.
+DEFENSE_FIELDS = (
+    "gp",
+    "pts_allow",
+    "yds_allow",
+    *(f for f, _ in leagues_mod.DST_FIELDS),
+    "int_ret_yd",
+    "fum_ret_yd",
+    *(f for f, _ in leagues_mod.DST_PA_TIERS),
+    *(f for f, _ in leagues_mod.DST_YA_TIERS),
+)
+
 # Bump when PLAYER_FIELDS / TEAM_FIELDS change shape: stale() then refetches
 # even inside the weekly window, so a deploy that adds fields does not wait
-# a week for the store to carry them. v2: the idp_* block.
-STATS_VERSION = 2
+# a week for the store to carry them. v2: the idp_* block. v3: team defenses.
+STATS_VERSION = 3
 
 # Sleeper says WAS; every const in the page says WSH.
 _PAGE_CODES = {"WAS": "WSH"}
@@ -134,9 +156,16 @@ def reduce(raw: dict) -> dict:
     """
     teams: dict[str, dict] = {}
     players: dict[str, dict] = {}
+    defenses: dict[str, dict] = {}
     coverage_players: dict[str, int] = dict.fromkeys(PLAYER_FIELDS, 0)
     coverage_teams: dict[str, int] = dict.fromkeys(TEAM_FIELDS, 0)
     n_players = n_team_offense = n_team_defense = 0
+    # Whether each defense's points-allowed buckets account for all of
+    # its games. This is the assertion that the buckets mean what the
+    # scoring assumes -- counts of games landed in a band, not something
+    # else that happens to be a number. Reported, and the board gates on
+    # it rather than trusting the field names.
+    pa_buckets_tally = 0
 
     for key, entry in raw.items():
         if not isinstance(entry, dict):
@@ -161,7 +190,16 @@ def reduce(raw: dict) -> dict:
                     f: entry[f] for f in PLAYER_FIELDS if isinstance(entry.get(f), int | float)
                 }
         else:
-            n_team_defense += 1  # bare team codes: DEF/ST fantasy aggregates
+            # Bare team codes: the team DEFENSE / special-teams aggregates.
+            n_team_defense += 1
+            code = _PAGE_CODES.get(key, key)
+            kept = {f: entry[f] for f in DEFENSE_FIELDS if isinstance(entry.get(f), int | float)}
+            if not kept.get("gp"):
+                continue
+            banded = sum(kept.get(f, 0) for f, _ in leagues_mod.DST_PA_TIERS)
+            if banded == kept["gp"]:
+                pa_buckets_tally += 1
+            defenses[code] = kept
 
     return {
         "fetched_at": datetime.now(UTC).isoformat(),
@@ -169,9 +207,17 @@ def reduce(raw: dict) -> dict:
         "season": SEASON,
         "teams": teams,
         "players": players,
+        "defenses": defenses,
         "coverage": {
             "players": coverage_players,
             "team_offense": coverage_teams,
+            # How many defenses carry a full points-allowed ladder. The
+            # DEF board renders only when every one of them does: a
+            # partial ladder would quietly underscore whichever defense
+            # is missing a band, which reads as a ranking rather than a
+            # gap.
+            "defense_pa_complete": pa_buckets_tally,
+            "defenses": len(defenses),
         },
         "populations": {
             "players": n_players,
@@ -185,6 +231,8 @@ def stale(state: dict | None, now: datetime) -> bool:
     """Whether the sync should refetch: absent, unparseable, a week old, or
     reduced by an older extractor (missing fields this code expects)."""
     if not state or not state.get("teams"):
+        return True
+    if not state.get("defenses"):
         return True
     if state.get("v") != STATS_VERSION:
         return True

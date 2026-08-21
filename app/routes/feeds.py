@@ -223,6 +223,34 @@ async def mock_draft_room(
     )
 
 
+@router.get("/api/defenses", summary="Stored team-defense season lines")
+async def read_defenses(store: FeedStore = Depends(get_feed_store)) -> dict:
+    """The 32 team-defense season lines, unscored.
+
+    Unscored on purpose: what a defense is worth depends entirely on the
+    league reading it (/app/leagues), so this returns the measurements
+    and lets the caller price them. `complete` is how many carry a
+    points-allowed ladder accounting for all of their games -- the
+    check the boards gate on, reported here so a deploy can be verified
+    without guessing from a rendered page.
+    """
+    try:
+        stored = await store.load()
+    except Exception as exc:  # noqa: BLE001 - an honest empty beats a 500
+        log.warning("defenses: store unavailable: %s", exc)
+        stored = {}
+    state = stored.get("stats") or {}
+    coverage = state.get("coverage") or {}
+    return {
+        "season": state.get("season"),
+        "fetched_at": state.get("fetched_at"),
+        "total": coverage.get("defenses") or 0,
+        "complete": coverage.get("defense_pa_complete") or 0,
+        "defenses": state.get("defenses") or {},
+        "source": "Sleeper",
+    }
+
+
 @router.get("/api/feeds", summary="Polled news items, newest first")
 async def read_feeds(
     limit: int = Query(default=100, ge=1, le=400),

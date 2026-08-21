@@ -107,6 +107,15 @@ Straight from the owner, superseding the earlier D-slot open question:
   RED_EYE D slot an elite sack artist would have to out-point a
   tackle-machine LB to claim).
 
+### Neither of these leagues starts a team defense
+
+Both are IDP — 8 individual defenders each, no `DEF` slot. That is worth
+recording because plenty of leagues are the other way round, and the app
+now supports both: `/app/leagues` has a `DEF` slot and full D/ST scoring
+(docs/LEAGUE_SETTINGS.md), and a league that starts one gets a Team
+defenses table on `/app/idp` and drafts one in the mock room. The owner's
+two see none of that, correctly.
+
 ### Interpretation edge (stated on the IDP board too)
 
 - **Position classification is Sleeper's**, which can disagree with

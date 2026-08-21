@@ -63,7 +63,9 @@ from Sleeper. Neither blocks personal single-user use.
 - **League facts live in `app/leagues.py`,** nowhere else, and users can
   edit their own at `/app/leagues`
   ([docs/LEAGUE_SETTINGS.md](docs/LEAGUE_SETTINGS.md)). One `League`
-  dataclass carries a league's size, roster slots and every scoring value;
+  dataclass carries a league's size, roster slots and every scoring value —
+  offense, individual defenders (IDP) and whole team defenses (D/ST), which
+  are separate slots a league can start both of;
   the IDP board's per-event dicts and the mock room's JS config are both
   *generated* from it. Which defensive groups a league can start is derived
   from its slots, and its ADP column from its size — neither is configured
@@ -134,7 +136,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-483 tests green — 467 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+511 tests green — 495 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

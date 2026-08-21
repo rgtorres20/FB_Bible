@@ -65,7 +65,8 @@ def idp_group(rec: dict) -> str | None:
 
 # Bump when the index shape changes; stale cached indexes are refetched.
 # v3: defenders join the index with an `idp` group field.
-INDEX_VERSION = 3
+# v4: team defenses join it with a `dst` flag.
+INDEX_VERSION = 4
 
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 
@@ -149,6 +150,34 @@ def build_index(raw: dict) -> dict:
         if not rec.get("active"):
             continue
         position = rec.get("position")
+
+        # Team defenses (owner request, Aug 21: "some leagues do Team DEF
+        # not just IDP"). Sleeper stores them keyed by team code with no
+        # `full_name` and no `search_rank` -- verified live, probe run 8
+        # -- which is exactly why they have never been in this index.
+        #
+        # They join `players` and NOTHING else on purpose. The name maps
+        # drive news tagging, and "Detroit Lions" in a headline is a
+        # story about a team, not a mention of a draftable asset; adding
+        # it would retag the wire. Every existing consumer filters on
+        # `rank is not None` or on the `idp` group, so both skip these.
+        if position == "DEF":
+            city = (rec.get("first_name") or "").strip()
+            club = (rec.get("last_name") or "").strip()
+            code = rec.get("team") or pid
+            if not (city or club):
+                continue
+            players[pid] = Player(
+                id=pid,
+                name=f"{city} {club}".strip(),
+                position="DEF",
+                team=code,
+                injury_status=None,
+                rank=None,
+            ).to_dict()
+            players[pid]["dst"] = True
+            continue
+
         name = rec.get("full_name") or ""
         if not name:
             continue

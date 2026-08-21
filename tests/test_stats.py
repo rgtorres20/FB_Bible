@@ -256,3 +256,90 @@ def test_meta_stamps_team_intel_only_when_usage_reads_are_complete():
         bundled, [_one_item()], now, stats_state=stats.reduce(partial_raw)
     )
     assert stale_meta["meta"][0]["source"] == "'25 stats + win totals (estimates)"
+
+
+# --- team defenses ----------------------------------------------------------
+#
+# Owner, Aug 21: "some leagues do Team DEF not just IDP." The 32 bare
+# team-code entries were counted and thrown away until then. Two things
+# have to hold before anything ranks them: the right keys are read, and
+# the points-allowed ladder is checked rather than trusted.
+
+
+def _defense_entry(**over) -> dict:
+    """Detroit's real '25 line (probe run 7, 2026-08-21), trimmed."""
+    return {
+        "gp": 17.0,
+        "sack": 49.0,
+        "int": 13.0,
+        "ff": 15.0,
+        "fum_rec": 6.0,
+        "safe": 1.0,
+        "fg_blkd": 2.0,
+        "def_st_td": 1.0,
+        "def_pass_def": 93.0,
+        "int_ret_yd": 132.0,
+        "fum_ret_yd": 5.0,
+        "pts_allow": 411.0,
+        "yds_allow": 5642.0,
+        "td": 57.0,  # touchdowns ALLOWED -- must never be kept
+        "pts_allow_7_13": 2.0,
+        "pts_allow_14_20": 2.0,
+        "pts_allow_21_27": 8.0,
+        "pts_allow_28_34": 4.0,
+        "pts_allow_35p": 1.0,
+        **over,
+    }
+
+
+def test_reduce_keeps_the_team_defense_lines_it_used_to_discard():
+    raw = _raw()
+    raw["DET"] = _defense_entry()
+    state = stats.reduce(raw)
+    det = state["defenses"]["DET"]
+    assert det["sack"] == 49.0 and det["def_st_td"] == 1.0
+    assert det["pts_allow_21_27"] == 8.0
+
+
+def test_touchdowns_allowed_never_reach_the_store():
+    """`td` on a team-defense entry is what the defense gave up -- 57 for
+    Detroit. Keeping it would let a scoring bug turn it into 342 points."""
+    raw = _raw()
+    raw["DET"] = _defense_entry()
+    assert "td" not in stats.reduce(raw)["defenses"]["DET"]
+
+
+def test_defense_fields_are_read_only_from_the_bare_team_codes():
+    """`sack`, `int`, `ff`, `fum_rec` and `qb_hit` appear on the team
+    OFFENSE entries too -- as sacks and turnovers *given up*, 64 holders
+    across the dump rather than 32 (census, 2026-08-21). Reading them
+    from the wrong population would rank offenses as defenses."""
+    raw = _raw()
+    raw["TEAM_DET"] = {**raw["TEAM_HOU"], "sack": 61.0, "int": 19.0}
+    raw["DET"] = _defense_entry()
+    state = stats.reduce(raw)
+    assert state["defenses"]["DET"]["sack"] == 49.0
+    assert "DET" not in {k for k in state["defenses"] if k.startswith("TEAM")}
+    # The offense entry keeps its own fields under `teams`, untouched.
+    assert "sack" not in set(stats.TEAM_FIELDS)
+
+
+def test_a_points_allowed_ladder_that_does_not_add_up_is_reported_not_trusted():
+    """The check that those buckets are game counts at all. A ladder that
+    misses a band would silently underscore that defense, and an
+    underscored defense reads as a ranking rather than as a gap."""
+    raw = _raw()
+    raw["DET"] = _defense_entry()  # 2+2+8+4+1 = 17 = gp
+    raw["CLE"] = _defense_entry(pts_allow_35p=0.0)  # 16 of 17 games
+    cov = stats.reduce(raw)["coverage"]
+    assert cov["defenses"] == 3  # DET, CLE and the fixture's HOU
+    assert cov["defense_pa_complete"] == 1
+
+
+def test_a_stored_blob_without_defenses_is_stale():
+    """The version bump alone would do it, but this is the assertion that
+    survives the next bump: no defenses means the board cannot rank one,
+    so the weekly refetch has to run rather than wait out its window."""
+    fresh = stats.reduce(_raw())
+    assert not stats.stale(fresh, datetime.now(UTC))
+    assert stats.stale({**fresh, "defenses": {}}, datetime.now(UTC))

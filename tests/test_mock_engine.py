@@ -29,11 +29,38 @@ from pathlib import Path
 
 import pytest
 
+from app import leagues
 from app.feeds import mock
 from app.feeds import players as players_mod
 
 NOW = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
 JS_DIR = Path(__file__).parent / "js"
+
+# A third league joins the room for this test: one that starts a whole
+# team defense instead of individual defenders (owner, Aug 21: "some
+# leagues do Team DEF not just IDP"). Built here rather than shipped as
+# a default because it is nobody's verified league -- it exists to prove
+# the engine drafts a DEF slot, which the built-in two never exercise.
+TEAM_DEF_LEAGUE = leagues.League(
+    key="teamdef",
+    name="Team DEF",
+    teams=10,
+    slots=(
+        "QB",
+        "RB",
+        "RB",
+        "WR",
+        "WR",
+        "WR",
+        "TE",
+        "FLX",
+        "K",
+        "DEF",
+        *(("BN",) * 6),
+    ),
+    dst=dict(leagues.DEFAULT_DST),
+    dst_pa=dict(leagues.DEFAULT_DST_PA),
+)
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
@@ -80,13 +107,57 @@ def _pool() -> tuple[dict, dict, dict]:
                 "idp_int": 1,
                 "idp_pass_def": 5,
             }
+    # 32 team defenses, each with a points-allowed ladder that accounts
+    # for all 17 games -- the completeness the board and the room both
+    # gate on, so the fixture has to satisfy it honestly.
+    defenses: dict[str, dict] = {}
+    for i in range(32):
+        code = f"T{i:02d}"
+        players[code] = {
+            "id": code,
+            "name": f"{code} Defense",
+            "position": "DEF",
+            "team": code,
+            "injury_status": None,
+            "rank": None,
+            "dst": True,
+        }
+        good = i % 5  # a spread of shutouts, so the ranking is not flat
+        defenses[code] = {
+            "gp": 17,
+            "sack": 30 + i,
+            "int": 8 + (i % 7),
+            "fum_rec": 5,
+            "def_st_td": i % 3,
+            "safe": 0,
+            "fg_blkd": 1,
+            "pts_allow": 300 + i * 5,
+            "yds_allow": 5000 + i * 30,
+            "pts_allow_0": good,
+            "pts_allow_1_6": 1,
+            "pts_allow_7_13": 4,
+            "pts_allow_14_20": 5,
+            "pts_allow_21_27": 7 - good,
+            "pts_allow_28_34": 0,
+            "pts_allow_35p": 0,
+        }
+
     index = {"v": players_mod.INDEX_VERSION, "by_name": {}, "surnames": {}, "players": players}
-    stats_state = {"v": 2, "coverage": {"players": {"idp_tkl_solo": len(stats)}}, "players": stats}
+    stats_state = {
+        "v": 3,
+        "coverage": {
+            "players": {"idp_tkl_solo": len(stats)},
+            "defenses": len(defenses),
+            "defense_pa_complete": len(defenses),
+        },
+        "players": stats,
+        "defenses": defenses,
+    }
     adp = {
         "players": [
             {"name": p["name"], "adp": p["rank"] / 1.0, "sizes": {"10": p["rank"], "12": p["rank"]}}
             for p in players.values()
-            if not p.get("idp")
+            if not p.get("idp") and not p.get("dst")
         ]
     }
     return index, adp, stats_state
@@ -95,7 +166,14 @@ def _pool() -> tuple[dict, dict, dict]:
 @pytest.fixture(scope="module")
 def result(tmp_path_factory) -> dict:
     index, adp, stats_state = _pool()
-    page = mock.build_html(index, adp, stats_state, None, NOW)
+    page = mock.build_html(
+        index,
+        adp,
+        stats_state,
+        None,
+        NOW,
+        board_leagues=[*leagues.defaults(), TEAM_DEF_LEAGUE],
+    )
 
     scripts = re.findall(r"<script>(.*?)</script>", page, flags=re.S)
     # The theme boot script comes first; the payload and the engine are
@@ -121,7 +199,7 @@ def result(tmp_path_factory) -> dict:
 
 def test_every_league_completes_a_clean_draft(result):
     """The whole board, once each, every starter seated."""
-    assert set(result["leagues"]) == {"NDDPL", "RED_EYE"}
+    assert set(result["leagues"]) == {"NDDPL", "RED_EYE", "Team DEF"}
     for name, lg in result["leagues"].items():
         for run in lg["runs"]:
             where = f"{name} from slot {run['slot']}"
@@ -168,3 +246,26 @@ def test_a_qb_reason_quotes_its_own_league_scoring(result):
         assert reasons, f"{name} drafted no QB"
         assert all(note in why for why in reasons)
     assert "completion" not in result["leagues"]["NDDPL"]["qbNote"]
+
+
+def test_a_team_defense_league_drafts_one_defense_per_team(result):
+    """Owner, Aug 21: "some leagues do Team DEF not just IDP." A DEF slot
+    is a starting slot, so every team has to end up with exactly one --
+    and no more, because a room hoarding backup defenses would misprice
+    every pick made around them."""
+    runs = result["leagues"]["Team DEF"]["runs"]
+    for run in runs:
+        assert run["dstDrafted"] == result["leagues"]["Team DEF"]["teams"]
+        assert run["dstPerTeamMax"] == 1
+    # The leagues without a DEF slot must not see one at all: a defense
+    # they cannot start is not a draftable asset.
+    for name in ("NDDPL", "RED_EYE"):
+        assert all(run["dstDrafted"] == 0 for run in result["leagues"][name]["runs"])
+
+
+def test_a_defense_pick_states_its_own_league_s_scoring(result):
+    for run in result["leagues"]["Team DEF"]["runs"]:
+        assert run["dstReasons"], "autopilot took no defense"
+        for why in run["dstReasons"]:
+            assert "D/ST scoring" in why
+            assert "Team DEF '25" in why

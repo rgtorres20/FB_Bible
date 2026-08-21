@@ -25,6 +25,7 @@ from __future__ import annotations
 import html as html_mod
 import logging
 import re
+from dataclasses import replace
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -55,7 +56,8 @@ _OFFENSE_FIELDS: tuple[tuple[str, str, str], ...] = (
 
 _SLOT_HELP = {
     "FLX": "any WR/RB/TE",
-    "D": "any defender you start",
+    "DEF": "whole team D/ST",
+    "D": "any single defender",
     "BN": "bench",
 }
 
@@ -135,6 +137,31 @@ def league_from_form(form, key: str) -> tuple[leagues_mod.League | None, str]:
             "values, or the defensive board would rank everyone at zero."
         )
 
+    # Team defense / special teams. Three separate dicts because they are
+    # three different kinds of number: per event, per game inside a
+    # points-allowed band, per game inside a yards-allowed band.
+    dst = {}
+    for stat_field, _label in leagues_mod.DST_FIELDS:
+        value = _num(form, f"dst_{stat_field}", 0.0)
+        if value:
+            dst[stat_field] = value
+    dst_pa = {}
+    for stat_field, _label in leagues_mod.DST_PA_TIERS:
+        value = _num(form, f"dst_{stat_field}", 0.0)
+        if value:
+            dst_pa[stat_field] = value
+    dst_ya = {}
+    for stat_field, _label in leagues_mod.DST_YA_TIERS:
+        value = _num(form, f"dst_{stat_field}", 0.0)
+        if value:
+            dst_ya[stat_field] = value
+
+    if "DEF" in slots and not (dst or dst_pa or dst_ya):
+        return None, (
+            "You start a team defense but score it nothing — fill in the "
+            "D/ST values, or all 32 defenses would rank identically at zero."
+        )
+
     league = leagues_mod.League(
         key=key,
         name=name,
@@ -148,6 +175,10 @@ def league_from_form(form, key: str) -> tuple[leagues_mod.League | None, str]:
         rush_yds_per_pt=_num(form, "rush_yds_per_pt", 10.0),
         idp=idp,
         idp_ret_yds_per_pt=_num(form, "idp_ret_yds_per_pt", 0.0),
+        dst=dst,
+        dst_pa=dst_pa,
+        dst_ya=dst_ya,
+        dst_ret_yds_per_pt=_num(form, "dst_ret_yds_per_pt", 0.0),
         # Never inherited: a user league's QB adjustment is derived from
         # the scoring they just typed. The built-ins' tuned values came
         # from how those specific rooms draft and mean nothing here.
@@ -247,6 +278,16 @@ def derived_read(lg: leagues_mod.League) -> str:
     user should be able to see that happen rather than take it on faith.
     """
     groups = ", ".join(sorted(lg.idp_groups)) or "none"
+    if lg.starts_dst:
+        seats = sum(1 for s in lg.slots if s == "DEF")
+        shutout = lg.dst_pa.get("pts_allow_0")
+        defense = (
+            f"· <b>{seats}</b> team D/ST slot"
+            + ("s" if seats > 1 else "")
+            + (f", {shutout:g} for a shutout" if shutout else "")
+        )
+    else:
+        defense = ""
     premium = lg.qb_premium_per_game
     if premium > 0:
         qb = (
@@ -266,7 +307,7 @@ def derived_read(lg: leagues_mod.League) -> str:
         "<p class='read'>"
         f"<b>{lg.teams}</b> teams · <b>{lg.rounds}</b> rounds · drafts against "
         f"FantasyFootballCalculator's <b>{lg.adp_size_key[1:]}-team</b> board · "
-        f"defenders startable: <b>{groups}</b><br>"
+        f"individual defenders startable: <b>{groups}</b> {defense}<br>"
         f"{qb}<br>"
         + (
             "Receiving yardage is <b>discounted</b> here, so receptions carry more "
@@ -292,7 +333,16 @@ def _lineup(lg: leagues_mod.League | None) -> str:
 
 
 def _form(lg: leagues_mod.League | None, key: str = "") -> str:
-    base = lg or leagues_mod.blank()
+    # A new league's D/ST boxes start at Yahoo's own defaults rather than
+    # at zero. Fifteen numbers typed from memory is how a league gets
+    # entered wrong; the defaults are what most people would type anyway,
+    # and every one of them is still editable. An existing league shows
+    # exactly what it was saved with, defaults or not.
+    base = lg or replace(
+        leagues_mod.blank(),
+        dst=dict(leagues_mod.DEFAULT_DST),
+        dst_pa=dict(leagues_mod.DEFAULT_DST_PA),
+    )
     offense = "".join(
         _num_field(field, label, hint, getattr(base, field))
         for field, label, hint in _OFFENSE_FIELDS
@@ -307,6 +357,27 @@ def _form(lg: leagues_mod.League | None, key: str = "") -> str:
         "INT and fumble returns · 0 = not scored",
         base.idp_ret_yds_per_pt,
     )
+    dst_events = "".join(
+        _num_field(f"dst_{f}", label, "", base.dst.get(f, 0)) for f, label in leagues_mod.DST_FIELDS
+    )
+    dst_events += _num_field(
+        "dst_ret_yds_per_pt",
+        "Return yards per point",
+        "INT and fumble returns · 0 = not scored",
+        base.dst_ret_yds_per_pt,
+    )
+    dst_pa = "".join(
+        _num_field(f"dst_{f}", label, "", base.dst_pa.get(f, 0))
+        for f, label in leagues_mod.DST_PA_TIERS
+    )
+    # Folded away: the data is there and some leagues really do score it,
+    # but almost none do, and nine always-zero boxes would bury the
+    # points-allowed ladder that nearly every league does use.
+    dst_ya = "".join(
+        _num_field(f"dst_{f}", label, "", base.dst_ya.get(f, 0))
+        for f, label in leagues_mod.DST_YA_TIERS
+    )
+
     return (
         "<form method='post' action='/app/leagues/save'>"
         f"<input type='hidden' name='key' value='{_esc(key)}'>"
@@ -329,6 +400,19 @@ def _form(lg: leagues_mod.League | None, key: str = "") -> str:
         "individual defenders. Points per event, as your settings page "
         "states them.</p>"
         f"<div class='grid'>{idp}</div></fieldset>"
+        "<fieldset><legend>Team defense (D/ST)</legend>"
+        "<p class='read'>For a <b>DEF</b> slot — a whole team's defense and "
+        "special teams, scored as one. Separate from the IDP values above: "
+        "a league can start both, one, or neither. Prefilled with Yahoo's "
+        "defaults when you add a DEF slot; leave them at zero otherwise.</p>"
+        f"<div class='grid'>{dst_events}</div>"
+        "<p class='read' style='margin-top:10px'><b>Points allowed</b>, per "
+        "game finished inside the band.</p>"
+        f"<div class='grid'>{dst_pa}</div>"
+        "<details style='margin-top:8px'><summary>Yards allowed "
+        "(most leagues leave these at zero)</summary>"
+        f"<div class='grid'>{dst_ya}</div></details>"
+        "</fieldset>"
         "<button>Save league</button></form>"
     )
 

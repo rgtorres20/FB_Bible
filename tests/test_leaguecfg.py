@@ -240,9 +240,32 @@ async def _seed_pool(store) -> None:
         {
             "items": [],
             "stats": {
-                "v": 2,
-                "coverage": {"players": {"idp_tkl_solo": 1}},
+                "v": 3,
+                "coverage": {
+                    "players": {"idp_tkl_solo": 1},
+                    "defenses": 1,
+                    "defense_pa_complete": 1,
+                },
                 "players": {"2": {"gp": 17, "idp_tkl_solo": 100, "idp_tkl_ast": 40}},
+                # Detroit's real '25 line; the ladder accounts for all 17
+                # games, which is what the board gates on.
+                "defenses": {
+                    "DET": {
+                        "gp": 17,
+                        "sack": 49,
+                        "int": 13,
+                        "fum_rec": 6,
+                        "def_st_td": 1,
+                        "safe": 1,
+                        "fg_blkd": 2,
+                        "pts_allow": 411,
+                        "pts_allow_7_13": 2,
+                        "pts_allow_14_20": 2,
+                        "pts_allow_21_27": 8,
+                        "pts_allow_28_34": 4,
+                        "pts_allow_35p": 1,
+                    }
+                },
             },
         }
     )
@@ -301,3 +324,103 @@ async def test_a_league_that_starts_no_defenders_adds_no_idp_column(client):
     page = c.get("/app/idp").text
     assert "Offense Only '25" not in page
     assert "NDDPL '25" in page
+
+
+# --- team defense -----------------------------------------------------------
+#
+# Owner, Aug 21: "some leagues do Team DEF not just IDP." A DEF slot is a
+# different thing from the IDP slots above -- a whole team scored as one
+# unit -- and a league can start either, both, or neither.
+
+DST_FORM = {
+    **FORM,
+    "name": "D/ST League",
+    "slot_DEF": "1",
+    "slot_LB": "0",
+    "slot_DB": "0",
+    **{f"idp_{k}": "0" for k, _ in __import__("app.leagues", fromlist=["x"]).IDP_FIELDS},
+    "idp_ret_yds_per_pt": "0",
+    "dst_sack": "1",
+    "dst_int": "2",
+    "dst_fum_rec": "2",
+    "dst_def_st_td": "6",
+    "dst_safe": "2",
+    "dst_fg_blkd": "2",
+    "dst_pts_allow_0": "10",
+    "dst_pts_allow_1_6": "7",
+    "dst_pts_allow_7_13": "4",
+    "dst_pts_allow_14_20": "1",
+    "dst_pts_allow_28_34": "-1",
+    "dst_pts_allow_35p": "-4",
+}
+
+
+async def test_a_team_defense_league_saves_its_own_dst_scoring(client):
+    c = _signed_in(client)
+    _, store = client
+    c.post("/app/leagues/save", data=DST_FORM, follow_redirects=True)
+    lg = leagues_mod.user_leagues(await store.load_user("owner@example.com"))[0]
+    assert lg.starts_dst
+    assert not lg.starts_idp  # a DEF slot is not an IDP slot
+    assert lg.dst["sack"] == 1.0 and lg.dst["def_st_td"] == 6.0
+    assert lg.dst_pa["pts_allow_0"] == 10.0
+    assert lg.dst_pa["pts_allow_35p"] == -4.0
+    # A zero tier is stored as absent, not as a zero that reads as a
+    # deliberate setting -- 21-27 was left blank on the form.
+    assert "pts_allow_21_27" not in lg.dst_pa
+
+
+def test_starting_a_defense_you_score_nothing_is_refused(client):
+    """All 32 defenses would rank identically at zero, and a flat
+    ranking presented as a ranking is the false positive this repo
+    will not ship."""
+    c = _signed_in(client)
+    zeros = {k: "0" for k in DST_FORM if k.startswith("dst_")}
+    r = c.post("/app/leagues/save", data={**DST_FORM, **zeros}, follow_redirects=True)
+    assert "rank identically at zero" in r.text
+
+
+def test_the_editor_offers_yahoo_s_dst_defaults_on_a_new_league(client):
+    """Fifteen numbers typed from memory is how a league gets entered
+    wrong. Every one of them is still editable."""
+    c = _signed_in(client)
+    page = c.get("/app/leagues").text
+    assert "Team defense (D/ST)" in page
+    assert "name='dst_pts_allow_0' value='10.0'" in page
+    assert "name='dst_def_st_td' value='6.0'" in page
+    # Yards allowed exists but stays folded away: the data is there and
+    # some leagues score it, but nine always-zero boxes would bury the
+    # ladder nearly every league does use.
+    assert "Yards allowed" in page and "dst_yds_allow_550p" in page
+
+
+def test_the_page_says_what_a_def_slot_implies(client):
+    c = _signed_in(client)
+    page = c.post("/app/leagues/save", data=DST_FORM, follow_redirects=True).text
+    assert "1</b> team D/ST slot" in page
+    assert "10 for a shutout" in page
+
+
+async def test_a_saved_dst_league_gets_a_team_defense_table(client):
+    c = _signed_in(client)
+    _, store = client
+    await _seed_pool(store)
+    c.post("/app/leagues/save", data=DST_FORM, follow_redirects=True)
+    page = c.get("/app/idp").text
+    assert "Team defenses" in page
+    assert "D/ST League</b> pays" in page
+    # The owner's two start no team defense, so they contribute no
+    # column to it -- and keep their own IDP columns.
+    assert "NDDPL '25" in page and "RED_EYE '25" in page
+
+
+async def test_a_saved_dst_league_drafts_defenses_in_the_mock_room(client):
+    c = _signed_in(client)
+    _, store = client
+    await _seed_pool(store)
+    c.post("/app/leagues/save", data=DST_FORM, follow_redirects=True)
+    page = c.get("/app/mock").text
+    assert "D/ST League" in page
+    assert '"dstSlots":1' in page
+    # The built-ins keep zero DEF slots, so nothing about their draft moves.
+    assert page.count('"dstSlots":0') == 2

@@ -146,3 +146,113 @@ def test_a_stored_blob_cannot_crash_the_scoring_path():
     assert revived.teams == 10
     assert revived.score_idp({"idp_sack": 4}) == 0.0
     assert leagues.League.from_dict({}).slots == ()
+
+
+# --- team defenses ----------------------------------------------------------
+
+
+def _detroit() -> dict:
+    """Detroit's real '25 team-defense line, straight off Sleeper's season
+    dump (probe run 7, 2026-08-21). A real row rather than a made-up one,
+    so a scoring bug shows up as a number somebody could recognise."""
+    return {
+        "gp": 17,
+        "sack": 49,
+        "int": 13,
+        "ff": 15,
+        "fum_rec": 6,
+        "safe": 1,
+        "fg_blkd": 2,
+        "def_st_td": 1,
+        "def_pass_def": 93,
+        "int_ret_yd": 132,
+        "fum_ret_yd": 5,
+        "pts_allow": 411,
+        "pts_allow_7_13": 2,
+        "pts_allow_14_20": 2,
+        "pts_allow_21_27": 8,
+        "pts_allow_28_34": 4,
+        "pts_allow_35p": 1,
+        # The trap: a bare `td` on the same entry, which is touchdowns
+        # ALLOWED. Scoring it would hand every defense a few hundred
+        # phantom points, so nothing may read it.
+        "td": 57,
+    }
+
+
+def _yahoo_dst() -> leagues.League:
+    return replace(
+        leagues.blank("D/ST league", 12),
+        slots=("QB", "RB", "WR", "TE", "K", "DEF", "BN", "BN"),
+        dst=dict(leagues.DEFAULT_DST),
+        dst_pa=dict(leagues.DEFAULT_DST_PA),
+    )
+
+
+def test_a_def_slot_is_not_an_idp_slot():
+    """Two different things that both look like defense. A league can
+    start either, both, or neither, and the derivation has to keep them
+    apart -- "DEF" must never be read as the generic IDP "D"."""
+    dst_only = _yahoo_dst()
+    assert dst_only.starts_dst
+    assert not dst_only.starts_idp
+    assert dst_only.idp_groups == frozenset()
+
+    idp_only = leagues.NDDPL
+    assert idp_only.starts_idp
+    assert not idp_only.starts_dst
+
+    both = replace(dst_only, slots=(*dst_only.slots, "LB", "DB"))
+    assert both.starts_dst and both.idp_groups == frozenset({"LB", "DB"})
+
+
+def test_detroit_scores_the_way_the_settings_say():
+    """49 sacks, 13 INTs, 6 recoveries, a safety, 2 blocks, 1 defensive
+    or return TD = 99, and a points-allowed ladder worth +2 on Yahoo's
+    defaults."""
+    assert _yahoo_dst().score_dst(_detroit()) == 101.0
+
+
+def test_touchdowns_allowed_are_never_scored_as_touchdowns_scored():
+    """The single most expensive mistake available here: the team entry
+    carries a bare `td` of 57, which is what the defense gave up."""
+    assert "td" not in dict(leagues.DST_FIELDS)
+    line = _detroit()
+    with_td = _yahoo_dst().score_dst(line)
+    line["td"] = 0
+    assert _yahoo_dst().score_dst(line) == with_td
+
+
+def test_the_points_allowed_ladder_is_a_dot_product_over_game_counts():
+    """Each stored value is games finished inside that band, so a shutout
+    tier is worth its value times the number of shutouts -- no
+    game-by-game reconstruction anywhere."""
+    league = replace(
+        leagues.blank(),
+        slots=("DEF",),
+        dst_pa={"pts_allow_0": 10.0, "pts_allow_35p": -4.0},
+    )
+    assert league.score_dst({"pts_allow_0": 3, "pts_allow_35p": 2}) == 22.0
+
+
+def test_yards_allowed_and_return_yardage_are_available_but_off_by_default():
+    """Uncommon, so folded away in the editor -- but a league that scores
+    them must not be told its settings are unrepresentable."""
+    assert _yahoo_dst().dst_ya == {} and _yahoo_dst().dst_ret_yds_per_pt == 0.0
+    scored = replace(
+        _yahoo_dst(),
+        dst_ya={"yds_allow_100_199": 2.0},
+        dst_ret_yds_per_pt=25.0,
+    )
+    # +2 for the one sub-200 game Detroit had... they had none, so only
+    # the return yardage moves: (132 + 5) / 25 = 5.48.
+    assert scored.score_dst(_detroit()) == round(101.0 + 137 / 25, 1)
+
+
+def test_a_dst_league_survives_a_round_trip_through_storage():
+    league = replace(_yahoo_dst(), dst_ya={"yds_allow_550p": -3.0}, dst_ret_yds_per_pt=25.0)
+    assert leagues.League.from_dict(league.to_dict()) == league
+
+
+def test_a_league_that_starts_no_defense_scores_none():
+    assert leagues.blank().score_dst(_detroit()) == 0.0
