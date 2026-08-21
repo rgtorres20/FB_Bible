@@ -291,10 +291,15 @@ def main() -> int:
     score_page = get("/app/scorecard").decode("utf-8", errors="replace")
     check("scorecard serves", "Scorecard" in score_page)
     ungraded = "Nothing recorded yet" in score_page or "Nothing graded yet" in score_page
+    shows_rate = "hit rate" in score_page.lower()
+    # The detail is neutral in both directions on purpose. Written as a
+    # failure sentence it printed "printed a rate with nothing graded"
+    # next to a PASS -- a green line that reads like a broken one, which
+    # is the exact failure mode this whole watchdog exists to avoid.
     check(
-        "scorecard shows no rate without games behind it",
-        ("hit rate" in score_page.lower()) != ungraded,
-        "printed a rate with nothing graded" if ungraded else "",
+        "scorecard shows a rate only when games are behind it",
+        shows_rate != ungraded,
+        f"rate shown: {shows_rate}; nothing graded: {ungraded}",
     )
     print(f"  INFO  prediction ledger graded yet: {'no' if ungraded else 'yes'}")
 
