@@ -143,7 +143,16 @@ Ordered by draft-day value.
     with backoff); ADP/vegas fetch failures never annotate the workflow; ESPN
     extending its block to GitHub runners would age out silently. Add
     freshness assertions on `adp.state.date` / `vegas.fetched_at`.
-13. **Smaller product debt**: per-request Redis client (make the feed
+13. **User leagues stop at the boards** — `/app/leagues` (docs/LEAGUE_SETTINGS.md)
+    feeds the mock room and the IDP board, but the main app page's own
+    league picker is design-document markup renamed at serve time and
+    still shows only the owner's two. Same for the printable cheat sheet,
+    which is ADP-first and carries the owner's league caveat as prose. A
+    user with their own league sees it in two surfaces out of four, which
+    is worth stating plainly rather than letting them discover. Also not
+    modelled anywhere: kicker and team-defense scoring, so the editor
+    deliberately has no fields for them.
+14. **Smaller product debt**: per-request Redis client (make the feed
     store an lru_cache singleton like the token store); serve-time page
     assembly re-reads/re-substitutes 257KB per request (cache the file
     text at module level); "22 picks" hardcoded where the shape sums to
