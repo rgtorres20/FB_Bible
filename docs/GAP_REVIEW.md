@@ -4,6 +4,23 @@ Three parallel reviews (product-vs-blueprint, code correctness, ops/robustness)
 over the whole app. Everything verified against the code; line numbers were
 checked at review time and may drift.
 
+## Fixed Aug 21
+
+- **The suite was reaching the real network** — 29 tests made 37 outbound
+  HTTP calls and passed on the failure, so CLAUDE.md's "tests must pass
+  with no network" was true only by accident. `/internal/sync` was the
+  worst of it: tests that patch `adp.fetch` and `vegas.fetch` left
+  `players.fetch_index`, `stats.fetch` and `stats.fetch_week` reaching
+  Sleeper and ESPN for real. Nothing failed, but the suite's runtime
+  became ambient — it swung between 11s and 65s run to run on how fast
+  the proxy said no, which is enough noise to hide a genuine regression
+  in a timing (it hid one for most of an afternoon). `tests/conftest.py`
+  now blocks outbound sockets, and `tests/test_no_network.py` guards the
+  fence itself. Blocked at the socket rather than the httpx transport
+  because respx and `httpx.MockTransport` both patch the transport;
+  nothing that fakes a response opens a socket. Suite is now 10.4–11.1s
+  across runs.
+
 ## Fixed same day
 
 - **Sync wiped AI verdicts hourly** — the `/internal/sync` save dict omitted

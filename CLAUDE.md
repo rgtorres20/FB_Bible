@@ -139,7 +139,13 @@ from Sleeper. Neither blocks personal single-user use.
 
 ## Working rules
 
-- Tests must pass with no network and no Yahoo credentials.
+- **Tests must pass with no network and no Yahoo credentials** — and the
+  fence enforces it rather than trusting it. `tests/conftest.py` blocks
+  outbound sockets, so a test with an unpatched dependency fails naming
+  the URL instead of quietly reaching the internet and passing on the
+  refusal. Fake HTTP with `respx` or `httpx.MockTransport`; both patch
+  the transport and never open a socket, which is why the block sits
+  below them.
 - Keep this file updated: when a decision is made or the phase state changes
   materially, update the relevant section here.
 
@@ -181,7 +187,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-889 tests green — 873 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+895 tests green — 879 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
