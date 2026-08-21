@@ -120,6 +120,18 @@ def test_health_and_login_stay_outside_the_gate(client):
     assert "Owner sign-in" in c.get("/login").text
 
 
+def test_health_reports_whether_invite_mail_can_send(client, monkeypatch):
+    """Unconfigured SMTP is invisible from outside -- the owner asking
+    'why did nobody get an email' deserves a one-request answer."""
+    c, _ = client
+    assert c.get("/health").json()["invite_email"] == "off"
+    s = get_settings()
+    monkeypatch.setattr(s, "smtp_host", "smtp.example.com", raising=False)
+    monkeypatch.setattr(s, "smtp_user", "me@example.com", raising=False)
+    monkeypatch.setattr(s, "smtp_pass", "app-password", raising=False)
+    assert c.get("/health").json()["invite_email"] == "on"
+
+
 def test_sync_token_passes_the_gate_for_the_watchdog(client):
     c, _ = client
     r = c.get("/app/data/feeds.json", headers={"X-Sync-Token": "runner-token"})

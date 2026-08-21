@@ -110,6 +110,11 @@ async def health() -> dict:
         "branch": settings.vercel_git_commit_ref,
         "yahoo_configured": settings.configured,
         "app_auth": settings.auth_state,
+        # Whether invite mail can actually send. Reported rather than
+        # assumed: an unconfigured SMTP is a silent no-op from the
+        # outside, and "I never got one" should be answerable in one
+        # request instead of a guess (docs/ACCESS.md).
+        "invite_email": "on" if settings.email_configured else "off",
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
         "league_keys": settings.league_keys,

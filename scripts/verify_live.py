@@ -250,6 +250,7 @@ def main() -> int:
     )
     gate = health.get("app_auth", "?")
     print(f"  INFO  app login gate: {gate}")
+    print(f"  INFO  invite email: {health.get('invite_email', '?')}")
     if gate == "on":
         # Closed means closed: a stranger with no session and no sync
         # token must be turned away from the app itself, not merely told
