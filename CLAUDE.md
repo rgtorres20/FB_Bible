@@ -60,6 +60,13 @@ from Sleeper. Neither blocks personal single-user use.
   `[tool.vercel]`). That means: no reliance
   on local disk, no in-process caches that assume a long-lived process, no
   background tasks — those wait for Phase 3.
+- **League facts live in `app/leagues.py`,** nowhere else. One `League`
+  dataclass carries a league's size, roster slots and every scoring value;
+  the IDP board's per-event dicts and the mock room's JS config are both
+  *generated* from it. Which defensive groups a league can start is derived
+  from its slots, and its ADP column from its size — neither is configured
+  separately, so neither can disagree with the roster. The verified numbers
+  stay in [docs/LEAGUES.md](docs/LEAGUES.md).
 - **Yahoo JSON gets flattened in `app/yahoo/parse.py`,** not in routes and not
   in the browser app. New resource, new extractor, new test fixture mirroring
   the real shape.
@@ -125,7 +132,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-441 tests green — 425 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+465 tests green — 449 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -140,7 +147,10 @@ a slot, the other nine teams autopick from the live pool — market ADP with
 each league's verified scoring leaned on it, defenders by their /app/idp
 league-scored totals — or Autopilot drafts the owner's picks too, each with a
 stated reason, rendered as a round-by-round plan. All simulation is labelled;
-the engine has a headless smoke test (see app/feeds/mock.py). The Draft
+the engine has a headless smoke test — `tests/test_mock_engine.py` runs the
+page's own JavaScript under node against the DOM stub in `tests/js/`,
+drafting every league from both the turn and the wheel. CI pins node and
+fails the build if that test skips itself. The Draft
 analyzer links to it via mobile.js. The room wears the app's own modes
 (Light/Cowboys/Titans/Dark via `ww_theme`), drafts RED_EYE at its real 12
 seats, and its "Draft board ⧉" button opens the snake grid with hover

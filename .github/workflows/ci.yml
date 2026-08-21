@@ -29,6 +29,16 @@ jobs:
 
       - run: pip install -e ".[dev,server]"
 
+      # The mock room's draft engine is JavaScript embedded in a
+      # Python-rendered page, so its smoke test (tests/test_mock_engine.py)
+      # shells out to node. Pinned here rather than left to whatever the
+      # runner image ships, because that test skips itself when node is
+      # missing -- and a silent skip is the green-and-broken failure this
+      # repo has already been bitten by three times.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Lint
         run: ruff check .
 
@@ -37,6 +47,11 @@ jobs:
 
       - name: Tests
         run: pytest -q
+
+      # Belt and braces: prove the engine test ran rather than skipped
+      # itself. Fails the step if the word "skipped" appears at all.
+      - name: Draft engine smoke test must not skip
+        run: "! pytest -q tests/test_mock_engine.py --no-header | grep -q skipped"
 
   web:
     name: Browser client

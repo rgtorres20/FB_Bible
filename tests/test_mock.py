@@ -174,8 +174,10 @@ def test_page_embeds_the_pool_and_states_what_the_simulation_is():
     # follows (and writes back) the page's own stored theme.
     assert 'data-theme="titans"' in page and 'data-theme="cowboys"' in page
     assert "ww_theme" in page
-    # RED_EYE drafts as a 12-team room (owner correction Aug 20).
-    assert "teams: 12," in page
+    # RED_EYE drafts as a 12-team room (owner correction Aug 20). The
+    # config is generated from app/leagues.py into the JSON payload now,
+    # so it travels as data rather than as a literal in the engine.
+    assert '"teams":12' in page
     # The clickable board print-out with hover details.
     assert "Draft board" in page and "openBoard" in page
 
@@ -212,3 +214,46 @@ async def test_route_serves_the_room(client):
     page = c.get("/app/mock").text
     assert "Mock draft room" in page
     assert "Roquan Smith" in page and "Puka Nacua" in page
+
+
+def test_the_engine_config_is_generated_not_restated():
+    """The room's JS league object used to be a hand-kept copy of the
+    Python dicts in feeds/idp.py. It is generated from app/leagues.py
+    now, and this pins it to exactly what shipped hardcoded -- the
+    refactor has to be invisible to the draft."""
+    from app import leagues as leagues_mod
+
+    cfg = {lg.name: mock.league_config(lg) for lg in mock.ROOM_LEAGUES}
+    assert set(cfg) == {"NDDPL", "RED_EYE"}
+    assert cfg["NDDPL"]["slots"] == [
+        *"QB RB RB RB WR WR WR WR TE K".split(),
+        *("DB",) * 4,
+        *("LB",) * 4,
+        *("BN",) * 8,
+    ]
+    assert cfg["NDDPL"]["defGroups"] == {"DB": 1, "LB": 1}  # no DL slot at all
+    assert cfg["NDDPL"]["qbBoost"] == 10 and cfg["NDDPL"]["adpKey"] == "a10"
+    assert cfg["RED_EYE"]["slots"] == [
+        *"QB RB RB WR WR WR TE FLX K".split(),
+        *("D",) * 4,
+        *("DB",) * 4,
+        *("BN",) * 8,
+    ]
+    assert cfg["RED_EYE"]["defGroups"] == {"DB": 1, "DL": 1, "LB": 1}
+    assert cfg["RED_EYE"]["qbBoost"] == 18 and cfg["RED_EYE"]["adpKey"] == "a12"
+    # The ADP label names the column actually read, not the room size --
+    # a 14-team league drafts against FFC's 12-team board and says so.
+    assert cfg["RED_EYE"]["adpLabel"] == "ADP 12tm"
+    fourteen = leagues_mod.blank("Big", 14)
+    assert mock.league_config(fourteen)["adpLabel"] == "ADP 12tm"
+
+
+def test_a_market_scoring_league_makes_no_qb_premium_claim():
+    """The pick reason quoting "6-pt pass TDs" is true of the owner's two
+    leagues and of nobody else's. Generated from the settings, so a
+    league at market scoring says nothing rather than something false."""
+    from app import leagues as leagues_mod
+
+    assert mock.qb_note(leagues_mod.NDDPL) == "6-pt pass TDs, 20 pass yds/pt"
+    assert mock.qb_note(leagues_mod.RED_EYE).endswith("1/completion")
+    assert mock.qb_note(leagues_mod.blank()) == ""

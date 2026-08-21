@@ -20,37 +20,21 @@ defender mattered.
 from __future__ import annotations
 
 import html as html_mod
+from collections.abc import Sequence
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+from .. import leagues as leagues_mod
 
 CENTRAL = ZoneInfo("America/Chicago")
 
 TOP = 150
 
-# Per-event values from each league's Yahoo settings page (docs/LEAGUES.md).
-# Keys are the Sleeper stat fields; return yardage is divisor-based.
-NDDPL_SCORING = {
-    "idp_tkl_solo": 1.0,
-    "idp_tkl_ast": 0.5,
-    "idp_sack": 3.0,
-    "idp_int": 2.0,
-    "idp_ff": 2.0,
-    "idp_fum_rec": 2.0,
-    "idp_def_td": 6.0,
-    "idp_safe": 2.0,
-    "idp_pass_def": 1.0,
-    "idp_blk_kick": 2.0,
-}
-NDDPL_RET_YDS_PER_PT = 20.0
-RED_EYE_SCORING = {**NDDPL_SCORING, "idp_sack": 2.0, "idp_int": 3.0}
-RED_EYE_RET_YDS_PER_PT = 10.0
-
-_RET_FIELDS = ("idp_int_ret_yd", "idp_fum_ret_yd")
-
-# Which IDP groups each league can actually start (docs/LEAGUES.md).
-# NDDPL has no DL slot: edge rushers and tackles are unrosterable there.
-NDDPL_GROUPS = {"DB", "LB"}
-RED_EYE_GROUPS = {"DB", "LB", "DL"}
+# The per-event values and the startable groups both live in
+# `app.leagues` now -- one canonical description per league, so a user
+# editing their settings changes scoring and eligibility together
+# instead of leaving the two halves to be kept in step by hand.
+BOARD_LEAGUES = leagues_mod.defaults()
 
 _STYLE = """
 body { font-family: Georgia, 'Times New Roman', serif; margin: 24px;
@@ -68,11 +52,9 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowra
 """
 
 
-def score(entry: dict, scoring: dict[str, float], ret_yds_per_pt: float) -> float:
+def score(entry: dict, league: leagues_mod.League) -> float:
     """One player's '25 total under one league's IDP settings."""
-    points = sum(entry.get(field, 0) * value for field, value in scoring.items())
-    points += sum(entry.get(field, 0) for field in _RET_FIELDS) / ret_yds_per_pt
-    return round(points, 1)
+    return league.score_idp(entry)
 
 
 def has_idp_stats(stats_state: dict | None) -> bool:
@@ -81,16 +63,26 @@ def has_idp_stats(stats_state: dict | None) -> bool:
     return bool(coverage.get("idp_tkl_solo"))
 
 
-def rows(index: dict | None, stats_state: dict | None, top: int = TOP) -> list[dict]:
+def rows(
+    index: dict | None,
+    stats_state: dict | None,
+    top: int = TOP,
+    board_leagues: Sequence[leagues_mod.League] | None = None,
+) -> list[dict]:
     """Defenders the index knows, scored per league, best first.
 
-    Ordered by the better of the two league scores; position ranks are
-    computed within each league's startable groups only, so a DL shows a
-    RED_EYE rank and an explicit dash for NDDPL rather than a fake number.
+    Ordered by the best of the league scores; position ranks are computed
+    within each league's startable groups only, so a DL shows a RED_EYE
+    rank and an explicit dash for NDDPL rather than a fake number. Each
+    league contributes two keys named after itself -- `nddpl` and
+    `nddpl_rank` -- so a user-defined league lands in the same rows
+    without the callers learning a new shape.
+
     `top` widens the cut for consumers that need per-group depth the
     board's page cut cannot promise (the mock draft room must seat
     12 teams x 4 DBs).
     """
+    board = list(board_leagues if board_leagues is not None else BOARD_LEAGUES)
     players = (index or {}).get("players") or {}
     stats = ((stats_state or {}).get("players") or {}) if stats_state else {}
 
@@ -100,42 +92,41 @@ def rows(index: dict | None, stats_state: dict | None, top: int = TOP) -> list[d
         entry = stats.get(pid)
         if not group or not entry:
             continue
-        nddpl = score(entry, NDDPL_SCORING, NDDPL_RET_YDS_PER_PT)
-        red_eye = score(entry, RED_EYE_SCORING, RED_EYE_RET_YDS_PER_PT)
-        if nddpl <= 0 and red_eye <= 0:
+        scores = {lg.key: lg.score_idp(entry) for lg in board}
+        if all(v <= 0 for v in scores.values()):
             continue
-        out.append(
-            {
-                "id": pid,
-                "name": player.get("name") or "",
-                "position": player.get("position") or "",
-                "group": group,
-                "team": player.get("team") or "FA",
-                "injury": (player.get("injury_status") or "").strip(),
-                "gp": entry.get("gp"),
-                "solo": entry.get("idp_tkl_solo", 0),
-                "ast": entry.get("idp_tkl_ast", 0),
-                "sack": entry.get("idp_sack", 0),
-                "int": entry.get("idp_int", 0),
-                "pd": entry.get("idp_pass_def", 0),
-                "nddpl": nddpl if group in NDDPL_GROUPS else None,
-                "red_eye": red_eye,
-            }
-        )
+        row = {
+            "id": pid,
+            "name": player.get("name") or "",
+            "position": player.get("position") or "",
+            "group": group,
+            "team": player.get("team") or "FA",
+            "injury": (player.get("injury_status") or "").strip(),
+            "gp": entry.get("gp"),
+            "solo": entry.get("idp_tkl_solo", 0),
+            "ast": entry.get("idp_tkl_ast", 0),
+            "sack": entry.get("idp_sack", 0),
+            "int": entry.get("idp_int", 0),
+            "pd": entry.get("idp_pass_def", 0),
+        }
+        # A group the league cannot start is a dash, not a number: the
+        # score would be arithmetically fine and practically a lie.
+        for lg in board:
+            row[lg.key] = scores[lg.key] if group in lg.idp_groups else None
+        out.append(row)
 
-    out.sort(key=lambda r: max(r["nddpl"] or 0, r["red_eye"]), reverse=True)
+    out.sort(key=lambda r: max((r[lg.key] or 0) for lg in board), reverse=True)
 
-    # Position rank within each league's startable groups.
-    for league, groups in (("nddpl", NDDPL_GROUPS), ("red_eye", RED_EYE_GROUPS)):
+    for lg in board:
         counters: dict[str, int] = {}
         ordered = sorted(
-            (r for r in out if r[league] is not None and r["group"] in groups),
-            key=lambda r: r[league],
+            (r for r in out if r[lg.key] is not None),
+            key=lambda r, k=lg.key: r[k],
             reverse=True,
         )
         for row in ordered:
             counters[row["group"]] = counters.get(row["group"], 0) + 1
-            row[f"{league}_rank"] = f"{row['group']}{counters[row['group']]}"
+            row[f"{lg.key}_rank"] = f"{row['group']}{counters[row['group']]}"
 
     return out[:top]
 

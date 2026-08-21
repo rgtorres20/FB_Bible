@@ -31,6 +31,7 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from .. import leagues as leagues_mod
 from . import board, idp, skin
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -40,6 +41,53 @@ MIN_KICKERS = 14  # a 12-team room needs twelve starters plus margin
 
 # Positions that are neither startable offense nor IDP in these leagues.
 _EXCLUDED_POSITIONS = {"DEF", "DST", "P", "OL", "LS"}
+
+
+# Which leagues the room offers. One canonical description each
+# (app/leagues.py) -- the JS config below is generated from it, so a
+# league the user edits changes the room without a second edit here.
+ROOM_LEAGUES = leagues_mod.defaults()
+
+
+def _fmt(value: float) -> str:
+    return f"{value:g}"
+
+
+def qb_note(lg: leagues_mod.League) -> str:
+    """Why this league's QBs move up the board, in the league's own
+    numbers. Empty when the league scores QBs at market -- the room then
+    says nothing about QB premium rather than repeating a claim that is
+    only true of the owner's two leagues."""
+    bits = []
+    if lg.pass_td != leagues_mod.MARKET_PASS_TD:
+        bits.append(f"{_fmt(lg.pass_td)}-pt pass TDs")
+    if lg.pass_yds_per_pt != leagues_mod.MARKET_PASS_YDS_PER_PT:
+        bits.append(f"{_fmt(lg.pass_yds_per_pt)} pass yds/pt")
+    if lg.pass_completion != leagues_mod.MARKET_PASS_COMPLETION:
+        bits.append(f"{_fmt(lg.pass_completion)}/completion")
+    return ", ".join(bits)
+
+
+def league_config(lg: leagues_mod.League) -> dict:
+    """The engine's view of a league. Everything here is derived, not
+    restated: the startable defensive groups come from the slots, the ADP
+    column from the room size, the QB boost from the scoring."""
+    return {
+        "teams": lg.teams,
+        "slots": list(lg.slots),
+        "defGroups": {g: 1 for g in sorted(lg.idp_groups)},
+        "qbBoost": lg.qb_draft_boost,
+        # The note the pick reason quotes. Labelled by its own numbers, so
+        # a market-scoring league gets no QB claim at all.
+        "qbNote": qb_note(lg),
+        "defKey": lg.key,
+        "defRankKey": f"{lg.key}_rank",
+        "adpKey": lg.adp_size_key,
+        # Named after the column actually read, not the room size: a
+        # 14-team league drafts against FFC's 12-team board and the label
+        # should say so rather than inventing a 14-team market.
+        "adpLabel": f"ADP {lg.adp_size_key[1:]}tm",
+    }
 
 
 def _capsule_text(capsules: dict | None, pid: str) -> str:
@@ -117,24 +165,26 @@ DEF_POOL = 400  # deep enough that 12 teams x 4 DBs never runs the well dry
 def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | None) -> list[dict]:
     """The IDP board's rows, cut deeper than the board's page (the room
     must seat every group for a 12-team RED_EYE draft). Same scoring,
-    same source, so /app/mock and /app/idp can never disagree."""
+    same source, so /app/mock and /app/idp can never disagree.
+
+    Each league contributes its own score and rank keys, named after the
+    league -- the engine reads them through `defKey`/`defRankKey`, so a
+    third league needs no change here."""
     out = []
-    for r in idp.rows(index, stats_state, top=DEF_POOL):
-        out.append(
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "pos": r["position"],
-                "grp": r["group"],
-                "team": r["team"],
-                "inj": r["injury"],
-                "nddpl": r["nddpl"],
-                "red_eye": r["red_eye"],
-                "nddpl_rank": r.get("nddpl_rank"),
-                "red_eye_rank": r.get("red_eye_rank"),
-                "cap": _capsule_text(capsules, r["id"]),
-            }
-        )
+    for r in idp.rows(index, stats_state, top=DEF_POOL, board_leagues=ROOM_LEAGUES):
+        entry = {
+            "id": r["id"],
+            "name": r["name"],
+            "pos": r["position"],
+            "grp": r["group"],
+            "team": r["team"],
+            "inj": r["injury"],
+            "cap": _capsule_text(capsules, r["id"]),
+        }
+        for lg in ROOM_LEAGUES:
+            entry[lg.key] = r[lg.key]
+            entry[f"{lg.key}_rank"] = r.get(f"{lg.key}_rank")
+        out.append(entry)
     return out
 
 
@@ -230,6 +280,7 @@ def build_html(
     data = {
         "offense": offense,
         "defense": defense,
+        "leagues": {lg.name: league_config(lg) for lg in ROOM_LEAGUES},
         "generated": stamp,
     }
     # "</" would close the script tag from inside a player name or capsule.
@@ -253,8 +304,13 @@ def build_html(
         f"{html_mod.escape(stamp)} · data: Sleeper, FantasyFootballCalculator"
         "</p>"
         "<div class='bar'>"
-        "League <select id='lg'><option value='NDDPL'>NDDPL</option>"
-        "<option value='RED_EYE'>RED_EYE</option></select>"
+        "League <select id='lg'>"
+        + "".join(
+            f"<option value='{html_mod.escape(lg.name, quote=True)}'>"
+            f"{html_mod.escape(lg.name)}</option>"
+            for lg in ROOM_LEAGUES
+        )
+        + "</select>"
         "Your slot <select id='slot'></select>"
         "<button id='start' class='primary'>Start draft</button>"
         "<button id='auto' disabled>Pick for me</button>"
@@ -294,28 +350,12 @@ def build_html(
 _ENGINE = r"""
 'use strict';
 (function () {
-  var LEAGUES = {
-    NDDPL: {
-      teams: 10,
-      slots: ['QB','RB','RB','RB','WR','WR','WR','WR','TE','K',
-              'DB','DB','DB','DB','LB','LB','LB','LB',
-              'BN','BN','BN','BN','BN','BN','BN','BN'],
-      defGroups: {DB:1, LB:1},        // no DL slot at all
-      qbBoost: 10,                     // 6-pt pass TD + 20 yds/pt vs market
-      defKey: 'nddpl', defRankKey: 'nddpl_rank',
-      adpKey: 'a10', adpLabel: 'ADP 10tm'
-    },
-    RED_EYE: {
-      teams: 12,                       // owner correction Aug 20: 12-team room
-      slots: ['QB','RB','RB','WR','WR','WR','TE','FLX','K',
-              'D','D','D','D','DB','DB','DB','DB',
-              'BN','BN','BN','BN','BN','BN','BN','BN'],
-      defGroups: {DB:1, LB:1, DL:1},
-      qbBoost: 18,                     // adds 1 pt per completion on top
-      defKey: 'red_eye', defRankKey: 'red_eye_rank',
-      adpKey: 'a12', adpLabel: 'ADP 12tm'
-    }
-  };
+  // Generated server-side from app/leagues.py -- one canonical league
+  // description, so the room's sizes, slots, startable defensive groups,
+  // ADP column and QB boost cannot drift from what the IDP board and the
+  // cheat sheet score with.
+  var LEAGUES = FB_MOCK.leagues;
+  var LG_NAMES = Object.keys(LEAGUES);
   var TEAMS = 10;  // reassigned from the league config on every start()
   // Where simulated rooms start spending defender picks: the best
   // league-scored defender prices like a round-5/6 offense pick in an
@@ -494,9 +534,10 @@ _ENGINE = r"""
     }
     if (p.grp) {
       bits.push(p.posRank + ' by ' + S.lg + " '25 scoring, " + p.pts.toFixed(1) + ' pts');
-    } else if (p.pos === 'QB') {
-      bits.push('QBs price above market here (6-pt pass TDs' +
-        (S.lg === 'RED_EYE' ? ' + 1/completion' : '') + ')' +
+    } else if (p.pos === 'QB' && S.L.qbNote) {
+      // The league's own numbers, not a claim borrowed from another
+      // league: a market-scoring league falls through to plain ADP.
+      bits.push('QBs price above market here (' + S.L.qbNote + ')' +
         (p.live ? '; ADP ' + p.adp.toFixed(1) : ''));
     } else if (p.pos === 'K') {
       bits.push('kicker held for the late rounds');
@@ -851,9 +892,9 @@ _ENGINE = r"""
 
   // ---- boot ----------------------------------------------------------------
 
-  // Slot choices follow the league's room size (NDDPL 10, RED_EYE 12).
+  // Slot choices follow the league's own room size.
   function fillSlots() {
-    var L = LEAGUES[document.getElementById('lg').value] || LEAGUES.NDDPL;
+    var L = LEAGUES[document.getElementById('lg').value] || LEAGUES[LG_NAMES[0]];
     var slotSel = document.getElementById('slot');
     var keep = parseInt(slotSel.value, 10) || 1;
     slotSel.innerHTML = '';

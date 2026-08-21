@@ -5,7 +5,11 @@ owner as PDFs on **Aug 19, 2026**, plus later corrections straight from the
 owner (which supersede the PDFs — so far one: RED_EYE is **12-team**, said
 Aug 20, where the PDF read 10). This file is the ground truth; anything
 elsewhere in the repo that disagrees is wrong and should be corrected to
-match. (The chat-era league facts — "Sunday Gravy, 12-team" and "The
+match. Its machine-readable twin is **`app/leagues.py`** — one `League`
+dataclass per league, and the single place any surface reads scoring,
+roster or size from. Change a number here, change it there, and every
+surface (IDP board, mock room, cheat sheet) moves together; a user's own
+league is the same dataclass with different numbers. (The chat-era league facts — "Sunday Gravy, 12-team" and "The
 Trenches, a rushing league where QBs score nothing for passing" — were both
 wrong: the sizes, one name's existence, and the QB rule's *direction*.)
 
