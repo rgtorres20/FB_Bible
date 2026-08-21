@@ -126,7 +126,15 @@ a { color: inherit; }
 )
 
 
-def _page(title: str, body: str, wide: bool = False) -> HTMLResponse:
+def _page(title: str, body: str, wide: bool = False, here: str = "") -> HTMLResponse:
+    """`here` adds the way back to the app.
+
+    /login deliberately passes nothing: it is the way IN, reached by
+    people with no session and therefore no /app/ to return to. Every
+    other page here is behind the gate and gets the bar -- /app/access
+    was a served page with no exit at all until Aug 21, which the docs
+    lint caught after tests/test_navigation.py had missed it.
+    """
     main_tag = "<main class='wide'>" if wide else "<main>"
     return HTMLResponse(
         "<!doctype html><meta charset='utf-8'>"
@@ -134,7 +142,7 @@ def _page(title: str, body: str, wide: bool = False) -> HTMLResponse:
         f"<title>Fantasy Sports Bible — {html_mod.escape(title)}</title>"
         + skin.FAVICON
         + f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        f"{main_tag}{body}</main>"
+        + f"{main_tag}{skin.home_bar(here) if here else ''}{body}</main>"
     )
 
 
@@ -425,6 +433,7 @@ def _access_page(
         + "<form method='post' action='/logout'><button class='quietbtn'>"
         "Sign out</button></form>",
         wide=True,
+        here="Access",
     )
 
 

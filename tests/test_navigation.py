@@ -44,6 +44,9 @@ SERVED_PAGES = (
     "/app/idp",
     "/app/cheatsheet",
     "/app/alerts300",
+    # Owner-only, and missed by the first pass of this list -- the docs
+    # lint found it served as a full page with no way back (Aug 21).
+    "/app/access",
 )
 
 

@@ -211,13 +211,41 @@ Ordered so that nothing ships claiming an influence it does not have.
 
 Steps 1 and 2 are independently useful and do not depend on 3–5.
 
-## Open questions for the owner
+## Decided (owner, Aug 21)
 
-1. **Do wire weights belong to the user at all?** Trust in Schefter is close to
-   a fact about the world, not a preference. Options: ship measured defaults and
-   let users nudge; or keep wire trust owner-only and give users only board
-   trust and sleeper evidence, which are genuinely about their league and taste.
-2. **How much should corroboration count?** Three outlets on one story — worth
-   1.5× a single report, or 2×?
-3. **Should a user's own tier list be able to win outright?** Today `srcWeight`
-   can go to 0 ("My tiers only"). Keep that escape hatch in the N-list model?
+**1. Who owns each family.** Users get **board trust** and **sleeper
+evidence** — the two that are genuinely about their league and their
+taste. **Wire trust is not user-editable**: how often an outlet is right
+and first is a fact about the world, not a preference, so it ships as
+measured defaults.
+
+**2. Corroboration applies to the wire only.** Three outlets reporting
+the same injury is stronger evidence than one. Three ranking lists
+agreeing on a player is *not* corroboration — it is the mean, and the
+rank aggregation already computes it. There is no corroboration term in
+board trust.
+
+**3. How much corroboration is worth: strictly less than 2×, so 1.5×.**
+Not a taste call — the existing scale forces it. `impact.py` scores
+categories at severe 50 / status 25 / positive 15. If corroboration could
+multiply by 2.0, three outlets on a *status* item (25 × 2 = 50) would tie
+a *severe* single report, and anything above 2.0 would outrank it. That
+is wrong: five outlets confirming a player is questionable must never
+outrank one credible report of a torn ACL.
+
+So the ceiling is `50/25 = 2.0`, exclusive. `1 + 0.5·log₂(n)` gives
+1.0 / 1.5 / 1.79 / 2.0 for 1 / 2 / 3 / 4 outlets — which crosses the
+ceiling at four. Either clamp it below 2.0 or use a gentler curve; the
+test to write first is the constraint, not the formula:
+
+```
+a corroborated `status` item never outranks a single-source `severe` item
+```
+
+Write that test, then pick whichever curve passes it.
+
+## Still open
+
+**Should a user's own tier list be able to win outright?** Today
+`srcWeight` can go to 0 ("My tiers only"). Keep that escape hatch in the
+N-list model, or floor it so the market always has some pull?

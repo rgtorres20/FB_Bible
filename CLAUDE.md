@@ -105,7 +105,22 @@ from Sleeper. Neither blocks personal single-user use.
   app also has no address bar, so a page whose only exit is a text link is
   a dead end. `tests/test_navigation.py` walks a list of every
   server-rendered page, signed in *and* signed out — add a page, add it to
-  that list.
+  that list. The ten: `/app/mine`, `/app/leagues`, `/app/mock`,
+  `/app/mock/board`, `/app/nextup`, `/app/scorecard`, `/app/idp`,
+  `/app/cheatsheet`, `/app/alerts300`, `/app/access`. `scripts/lint_docs.py`
+  fails if that list and this one disagree.
+- **Units have fences, and the fence is a test.** `app/` is a layer
+  stack — kernel, data units, surfaces, composers — and
+  `tests/test_boundaries.py` fails on a new upward or sideways import, or
+  on any module touching another's private names. Its `KNOWN_BREACHES`
+  list is a ratchet: it fails when a breach is added *and* when a listed
+  one is fixed but not deleted, so it can only shrink. One worked unit
+  contract: [docs/units/wire.md](docs/units/wire.md).
+- **Serve-time edits to the app page are named transforms** in
+  `app/feeds/page.py`, never inline `html.replace()` in `main.py`. Each
+  reports the anchors it could not find, and `tests/test_page.py` asserts
+  every one still fires against the committed `frontend/index.html` — a
+  silent miss is the same failure as a control wired to nothing.
 - **No stale data.** Every user-facing surface is live-polled, the owner's
   own judgement, or curated facts wearing an honest as-of stamp — nothing
   claims freshness it does not have. The audit and the plan for what is
@@ -166,7 +181,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-603 tests green — 587 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+805 tests green — 789 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

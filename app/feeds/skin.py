@@ -9,6 +9,8 @@ mode the app itself is in.
 
 from __future__ import annotations
 
+import html as html_mod
+
 from . import teams
 
 TOKENS_CSS = """
@@ -127,7 +129,11 @@ def home_bar(here: str = "") -> str:
     stylesheet — the cheat sheet and the IDP board carry their own — and
     a nav that only works on half of them is the bug again.
     """
-    label = f" · {here}" if here else ""
+    # Escaped: `here` is the page's own name today, but an unescaped
+    # interpolation point is one caller away from being XSS, and the
+    # rest of this codebase already escapes league names before
+    # putting them in markup.
+    label = f" · {html_mod.escape(here)}" if here else ""
     return (
         "<style>@media print{.fsb-home{display:none}}</style>"
         "<a class='fsb-home' href='/app/' style=\"display:inline-flex;"
@@ -160,7 +166,7 @@ def head(title: str, here: str = "", style: str = "", boot: str = "") -> str:
     return (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>Fantasy Sports Bible — {title}</title>"
+        f"<title>Fantasy Sports Bible — {html_mod.escape(title)}</title>"
         + FAVICON
         + (f"<style>{style}</style>" if style else "")
         + (boot or THEME_BOOT)

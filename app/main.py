@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .feeds import board, previews, skin, stats, vegas
+from .feeds import board, page, previews, stats, vegas
 from .feeds.store import FeedStore
 from .routes import access, auth, feeds, league, leaguecfg, userdata
 
@@ -167,91 +167,21 @@ if _FRONTEND_READY:
         for these two paths while every other asset stays static.
         """
         html = _FRONTEND_INDEX.read_text(encoding="utf-8")
-        html = html.replace(
-            "</head>",
-            '<link rel="stylesheet" href="mobile.css">'
-            '<script src="mobile.js" defer></script>'
-            # The brand mark, serve-time like everything else here, so a
-            # design-project resync cannot drop it (docs/BRAND.md).
-            f"{skin.FAVICON}"
-            # The club palette, applied to <html> before first paint. The
-            # page's own token blocks are [data-skin][data-theme] pairs
-            # on its runtime's element; "team" matches none of them, so
-            # these :root values inherit straight through instead of
-            # fighting it (docs/BRAND.md).
-            f"{skin.THEME_BOOT}</head>",
-            1,
-        )
-        # FFBets, per the owner (Aug 15): Predictions is the landing mode and
-        # the Build-a-team toggle is shelved for now. Both are serve-time
-        # string edits -- the builder's code stays intact on disk and in git,
-        # just unreferenced in the served copy, so restoring it is deleting
-        # these two lines.
-        # Vegas lines: rebind the committed VEGAS table to the fetched data
-        # file, which the overlay route fills with live ESPN/DraftKings rows.
-        # F is the parsed feeds.json in the enclosing scope; the `||` keeps
-        # the committed table as the fallback when the overlay has no lines.
-        # The dynamic imports carry the design project's layout
-        # ("./frontend/lib/..."); served from /app/ the client lives at
-        # ./lib/. Same class of fix sw.js already carries for its precache
-        # list -- without this both the Yahoo link check and the 24h
-        # yahoo-cache purge fail with "API client failed to load".
-        html = html.replace('import("./frontend/lib/fbApi.js")', 'import("./lib/fbApi.js")')
-        html = html.replace("vegas: VEGAS,", "vegas: (F.vegas || VEGAS),", 1)
+        log = logging.getLogger(__name__)
         # A player listed twice on the board shows up twice mid-draft, and
         # marking one row taken leaves the other looking available. Not
         # gated on the store: this is wrong with or without live ADP.
         html, deduped = board.dedupe(html)
         if deduped:
-            logging.getLogger(__name__).info("board: dropped duplicate rows for %s", deduped)
-        html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
-        # The mode picker, rebuilt (owner, Aug 21): the user's club, Dark,
-        # Light — with the club being whichever of the 32 they chose, and
-        # the house navy until they choose one. Cowboys and Titans modes
-        # were the first two of those 32; they are not special any more,
-        # so the hand-written pair comes out and `data-team` decides.
-        #
-        # Serve-time string edits, like everything else here, so a design
-        # resync that changes any of these literals misses cleanly and the
-        # page keeps its own picker rather than breaking.
-        html = html.replace(
-            '<option value="cowboys">★ Cowboys mode</option>',
-            '<option value="team">★ My team</option>',
-            1,
-        )
-        # The label follows the same three values.
-        html = html.replace(
-            'themeLabel: s.theme === "cowboys" ? "★ Cowboys mode"',
-            'themeLabel: s.theme === "team" ? "★ My team"',
-            1,
-        )
-        # The restore guard whitelists stored themes. "team" joins it;
-        # the two retired names stay accepted so a browser still holding
-        # one is translated rather than reset (skin.THEME_BOOT does the
-        # translating).
-        html = html.replace(
-            'if (th === "dark" || th === "light" || th === "cowboys")',
-            'if (th === "dark" || th === "light" || th === "team" ||'
-            ' th === "cowboys" || th === "titans")',
-            1,
-        )
-        # The page's own skin hook. It only ever knew "cowboys"; the club
-        # palettes come from /app/teams.css via data-team instead, so this
-        # just stops the page forcing a Dallas skin on everyone.
-        # Owner, Aug 21: "home page should be the dark blue not light
-        # mode". The page's own default state was light; it opens on the
-        # club theme now, which is the house navy until a club is picked.
-        html = html.replace('theme: "light"', 'theme: "team"', 1)
-        html = html.replace(
-            'skin: "cowboys",',
-            'skin: s.theme === "team" ? "team" : "none",',
-            1,
-        )
-        html = html.replace(
-            '[{ id: "build", label: "Build a team" }, { id: "predict", label: "Predictions" }]',
-            '[{ id: "predict", label: "Predictions" }]',
-            1,
-        )
+            log.info("board: dropped duplicate rows for %s", deduped)
+        # Every other edit to the served page is a named transform owned by
+        # app/feeds/page.py. It reports the anchors it could not find, so a
+        # design resync that renames a literal says so instead of quietly
+        # dropping a feature -- a silent html.replace() miss is the same
+        # failure as a control wired to nothing.
+        html, misses = page.apply(html, page.PRE)
+        if misses:
+            log.warning("served page: transforms found no anchor for %s", ", ".join(misses))
         # Live overlays, every failure path serving the committed page: the
         # odds caption stops claiming openers, TD-lean confidence tracks
         # implied-total movement (the leans stay the owner's), the Week 1
@@ -299,27 +229,11 @@ if _FRONTEND_READY:
                     )
             except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
                 logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
-        # The app's wordmark in the sidebar. Serve-time like the rest, so
-        # a design-project resync cannot silently revert the name.
-        html = html.replace(">FANTASY BIBLE<", ">FANTASY SPORTS BIBLE<", 1)
-        # The real league names (docs/LEAGUES.md, owner request): the design
-        # document still says "Sunday Gravy" / "The Trenches" everywhere --
-        # picker values, curated alert rows, helper copy, and the board's
-        # injected ADP toggle. One late pass renames every occurrence, page
-        # and injected snippets alike, so the picker values and the code
-        # comparing against them move together. Full names first, then the
-        # bare shorthands the curated copy uses.
-        for old, new in (
-            ("Sunday Gravy", "NDDPL"),
-            ("The Trenches", "RED_EYE"),
-            ("Gravy", "NDDPL"),
-            ("Trenches", "RED_EYE"),
-        ):
-            html = html.replace(old, new)
-        # A beta deploy announces itself (styles in mobile.css). Prod and
-        # local runs serve no badge at all.
+        html, post_misses = page.apply(html, page.POST)
+        if post_misses:
+            log.warning("served page: transforms found no anchor for %s", ", ".join(post_misses))
         if settings.stage == "preview":
-            html = html.replace("</body>", '<div id="fb-stage-badge">BETA</div></body>', 1)
+            html, _ = page.stage_badge(html)
         return HTMLResponse(html)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
