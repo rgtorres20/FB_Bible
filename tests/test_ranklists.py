@@ -218,3 +218,46 @@ def test_age_does_not_silently_change_the_blend():
     ancient = lst("b", ["Puka Nacua", "Jahmyr Gibbs"], as_of=date(2020, 1, 1))
     players = ["Puka Nacua", "Jahmyr Gibbs"]
     assert ranklists.blend([fresh], players).scores == ranklists.blend([ancient], players).scores
+
+
+# --- the lists that ship with the app -----------------------------------
+
+
+def test_the_committed_lists_load():
+    """Before Aug 21 the panel named four board sources and three had no
+    data at all (docs/WEIGHTS.md #9). These are the owner's own cheat
+    sheets, extracted from the PDFs they supplied."""
+    got = ranklists.builtins()
+    assert len(got) == 5
+    overall = [x for x in got if x.scope == ranklists.OVERALL]
+    assert len(overall) == 2
+    assert all(len(x.order) == 300 for x in overall)
+
+
+def test_within_position_lists_are_scoped_and_start_inactive():
+    """The IDP sheets rank inside a position group: Maxx Crosby is DL 1,
+    Jordyn Brooks is LB 1, Nick Emmanwori is DB 1. Blending those into one
+    overall board would call all three the best player in the draft, so
+    they carry a scope and do not join the overall blend by default."""
+    idp = [x for x in ranklists.builtins() if x.scope != ranklists.OVERALL]
+    assert {x.scope for x in idp} == {"DL", "LB", "DB"}
+    assert all(len(x.order) == 40 for x in idp)
+    assert all(x.active is False for x in idp)
+
+
+def test_the_two_overall_sheets_agree_on_the_top_pick():
+    """A join check on real data. They use different apostrophes, so this
+    also pins the normaliser fix — before it, WR1 was two players."""
+    a, b = (x for x in ranklists.builtins() if x.scope == ranklists.OVERALL)
+    assert a.order[0] == b.order[0] == "Jahmyr Gibbs"
+    chase = [n for n in a.order if "Marr Chase" in n][0]
+    assert ranklists.match_key(chase) == ranklists.match_key("Ja'Marr Chase")
+
+
+def test_blending_the_two_real_sheets_produces_a_top_list():
+    """End to end on committed data, not fixtures."""
+    overall = [x for x in ranklists.builtins() if x.scope == ranklists.OVERALL]
+    players = list(overall[0].order)
+    top = ranklists.top_list(ranklists.blend(overall, players))
+    assert len(top.order) >= 290
+    assert top.order[0] == "Jahmyr Gibbs"

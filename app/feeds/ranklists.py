@@ -34,6 +34,8 @@ comment nobody checks:
 
 from __future__ import annotations
 
+import json
+import pathlib
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -95,6 +97,10 @@ class RankList:
     # The only control. On means in the blend, off means out -- and every
     # list that is on counts the same as every other.
     active: bool = True
+    # What the ranks are relative to. "OVERALL" is a whole draft board;
+    # "DL"/"LB"/"DB" are within-position, where rank 1 means best at that
+    # position and NOT first overall.
+    scope: str = "OVERALL"
 
     @property
     def ranks(self) -> dict[str, int]:
@@ -174,3 +180,41 @@ def top_list(blended: Blended, name: str = "Top rankings", as_of: date | None = 
         order=ranked,
         active=False,
     )
+
+
+# --- lists that ship with the app ------------------------------------------
+# The owner's own cheat sheets, extracted from the PDFs they supplied on
+# Aug 21 and committed as data. Before these, the panel named four board
+# sources and three of them had nothing behind them (docs/WEIGHTS.md #9).
+
+_DATA = pathlib.Path(__file__).resolve().parents[1] / "data" / "ranklists.json"
+
+# A list ranks players against each other only inside its scope. OVERALL is
+# a whole draft board; DL/LB/DB are within-position. Mixing them would say
+# the top defensive lineman and the top linebacker are the same player.
+OVERALL = "OVERALL"
+
+
+def builtins() -> list[RankList]:
+    """The committed lists, newest date first."""
+    try:
+        raw = json.loads(_DATA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    out = []
+    for entry in raw:
+        try:
+            as_of = date.fromisoformat(entry["as_of"])
+        except (KeyError, ValueError):
+            continue
+        out.append(
+            RankList(
+                key=entry.get("key") or "list",
+                name=entry.get("name") or "List",
+                as_of=as_of,
+                order=tuple(entry.get("order") or ()),
+                active=entry.get("scope", OVERALL) == OVERALL,
+                scope=entry.get("scope", OVERALL),
+            )
+        )
+    return out

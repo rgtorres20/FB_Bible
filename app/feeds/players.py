@@ -114,9 +114,16 @@ class Player:
         return out
 
 
+# Apostrophe variants publishers actually ship. NFKD does not fold these
+# to ASCII, so without this "Ja'Marr Chase" and "Ja’Marr Chase" are two
+# different players -- found Aug 21 when two real cheat sheets used
+# different quotes and WR1 failed to join between them.
+_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "`": "'"})
+
+
 def normalize(text: str) -> str:
     """Fold accents and lowercase. 'Amon-Ra St. Brown' -> 'amon ra st brown'."""
-    folded = unicodedata.normalize("NFKD", text)
+    folded = unicodedata.normalize("NFKD", text.translate(_APOSTROPHES))
     folded = "".join(c for c in folded if not unicodedata.combining(c))
     return folded.lower().replace("-", " ").replace(".", " ")
 
