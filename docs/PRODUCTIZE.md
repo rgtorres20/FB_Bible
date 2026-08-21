@@ -9,6 +9,53 @@ file exists so the cost, the blockers and — most importantly — the
 five testers, free, personal use** to **something other people pay for.**
 Most of the work is not code.
 
+## What a domain actually buys
+
+Asked directly, Aug 21. Grouped by *when* it matters, because two of
+these get more expensive the longer they wait.
+
+**Matters right now — and the cost of delay is other people's data:**
+
+1. **Every user's browser-side state survives.** This is the big one and
+   it is bigger than passkeys. Fifteen `localStorage` keys are bound to
+   the origin, and a domain move wipes all of them for everyone:
+   `ww_my_teams` (the drafted roster, per league), `ww_taken` (players
+   marked gone mid-draft), `ww_queue`, `ww_my_sleepers`,
+   `ww_scout_dismissed`, `ww_cuff_order` / `ww_cuff_hidden` (a
+   customized layout), `ww_src_w` / `ww_src_weight` (source weighting),
+   `ww_theme` / `ww_skin`, `fb_visit` (what the NEW badges compare
+   against). `/app/mine` is server-side and survives a move; none of
+   this does. Losing it mid-season, mid-draft-prep, is a real loss.
+2. **Passkeys survive.** Credentials are hostname-bound, so every Face ID
+   registration dies on a move.
+3. **You stop being a tenant of your own URL.** Today the address *is*
+   the host. Moving off Vercel for any reason — the non-commercial
+   clause, pricing, an outage, a better fit — breaks every bookmark,
+   home-screen install, passkey and localStorage blob at once. With your
+   own domain you repoint DNS and nobody notices anything happened.
+
+**Matters once other people use it:**
+
+4. **Invite mail that lands in inboxes.** SPF/DKIM/DMARC on a domain you
+   control is what separates "invite" from "spam folder" as volume grows.
+5. **It reads as a product.** `fb-bible-torro2.vercel.app` looks like a
+   dev preview — including the random suffix, which means the clean name
+   was already taken.
+6. **Real addresses.** Cloudflare Email Routing forwards `you@yourdomain`
+   free on domains registered there.
+7. **Clean stages.** `app.` and `beta.` subdomains instead of two
+   unrelated Vercel URLs (see ENVIRONMENTS.md).
+
+**Matters only if selling:**
+
+8. Digital Asset Links for a Play Store TWA listing.
+9. Stripe, terms and privacy policy all assume a stable domain.
+
+One honest counterpoint: `.vercel.app` is on the Public Suffix List, so
+cookies cannot be shared across it — that is *protective* today. On your
+own domain you control subdomain cookie scope yourself, which is more
+power and more rope.
+
 ## What it costs
 
 Today the whole system runs at **$0/month** (public repo → unmetered

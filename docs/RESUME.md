@@ -32,6 +32,16 @@ swap before anything public) and **how hard are the app stores**:
   2025 but the replacement fee is still unresolved as of Aug 2026, so
   web-first is the stable answer either way.
 
+Follow-up (same day): asked what else a domain buys, and the answer is
+bigger than passkeys — **fifteen `localStorage` keys are origin-bound**,
+so a domain move wipes every user's drafted roster (`ww_my_teams`), taken
+players, queue, sleepers, customized layout, source weighting, theme and
+NEW-badge state. `/app/mine` is server-side and survives; none of the
+browser state does. Enumerated in PRODUCTIZE.md. It also ends being a
+tenant of the URL: today the address *is* the host, so leaving Vercel for
+any reason breaks every bookmark, install, passkey and local blob at
+once.
+
 NOT a licence to build any of it — the repo is still Phase 2.
 
 ## Aug 21 — the gate goes live, and passkeys
