@@ -29,6 +29,7 @@ that bind code, and the pointer to every page below.
 - [GAP_REVIEW.md](GAP_REVIEW.md) — known gaps and the fixes already made
 
 **Operations**
+- [DESIGN_CONTRACT.md](DESIGN_CONTRACT.md) — the literals `index.html` must keep, and what a new control needs
 - [OBSIDIAN.md](OBSIDIAN.md) — free two-way sync between here and your machine
 - [ACCESS.md](ACCESS.md) — login gate, invites, passkeys
 - [YAHOO_SETUP.md](YAHOO_SETUP.md) · [YAHOO_APPLICATION.md](YAHOO_APPLICATION.md)
