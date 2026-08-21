@@ -1,7 +1,7 @@
 {
- "name": "Fantasy Bible",
- "short_name": "FB Bible",
- "description": "Waiver watch + draft tool for the 2026 season — Sunday Gravy and The Trenches.",
+ "name": "Fantasy Sports Bible",
+ "short_name": "FS Bible",
+ "description": "Draft prep + team watcher for the 2026 season \u2014 NDDPL and RED_EYE.",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",

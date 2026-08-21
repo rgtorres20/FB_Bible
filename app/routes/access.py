@@ -116,7 +116,7 @@ def _page(title: str, body: str, wide: bool = False) -> HTMLResponse:
     return HTMLResponse(
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>FB Bible — {html_mod.escape(title)}</title>"
+        f"<title>Fantasy Sports Bible — {html_mod.escape(title)}</title>"
         f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
         f"{main_tag}{body}</main>"
     )
@@ -217,7 +217,7 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
     )
     return _page(
         "sign in",
-        "<h1>Fantasy Bible</h1>"
+        "<h1>Fantasy Sports Bible</h1>"
         "<p class='sub'>Access is by invitation. If you got an invite link, "
         "open it on this device and you're in — no password.</p>"
         + err

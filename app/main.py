@@ -1,4 +1,4 @@
-"""FB Bible Phase 2 -- the Yahoo league link server.
+"""Fantasy Sports Bible Phase 2 -- the Yahoo league link server.
 
 Runs two ways from the same module, deliberately:
   * local / container:  uvicorn app.main:app --reload
@@ -41,7 +41,7 @@ logging.basicConfig(
 )
 
 app = FastAPI(
-    title="FB Bible -- Yahoo league link",
+    title="Fantasy Sports Bible -- Yahoo league link",
     description=(
         "Phase 2 of the Fantasy Bible productization plan: OAuth to the Yahoo "
         "Fantasy API for live rosters, draft results and opponent picks."
@@ -261,6 +261,9 @@ if _FRONTEND_READY:
                     )
             except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
                 logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
+        # The app's wordmark in the sidebar. Serve-time like the rest, so
+        # a design-project resync cannot silently revert the name.
+        html = html.replace(">FANTASY BIBLE<", ">FANTASY SPORTS BIBLE<", 1)
         # The real league names (docs/LEAGUES.md, owner request): the design
         # document still says "Sunday Gravy" / "The Trenches" everywhere --
         # picker values, curated alert rows, helper copy, and the board's

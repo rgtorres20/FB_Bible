@@ -91,7 +91,7 @@ def _page(body: str) -> HTMLResponse:
     return HTMLResponse(
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>FB Bible — my stuff</title>"
+        "<title>Fantasy Sports Bible — my stuff</title>"
         f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
         f"<main>{body}</main>"
         f"<script>{passkeys.BROWSER_JS}</script>"

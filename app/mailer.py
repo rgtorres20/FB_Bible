@@ -34,12 +34,12 @@ LEAGUE_LINKS = (
     ("RED_EYE", "https://football.fantasysports.yahoo.com/league/red_eye"),
 )
 
-SUBJECT = "You're invited to the Fantasy Bible"
+SUBJECT = "You're invited to Fantasy Sports Bible"
 
 
 def invite_body(invite_link: str, app_base: str) -> str:
     leagues = "\n".join(f"  - {name}: {url}" for name, url in LEAGUE_LINKS)
-    return f"""You've been invited to the Fantasy Bible -- our draft-prep app
+    return f"""You've been invited to Fantasy Sports Bible -- our draft-prep app
 for this season's leagues.
 
 Your sign-in link (works once, expires in 7 days -- open it on the
@@ -74,7 +74,7 @@ def send_invite(to_email: str, invite_link: str, app_base: str, settings: Settin
     _send(msg, settings)
 
 
-TEST_SUBJECT = "Fantasy Bible — test email"
+TEST_SUBJECT = "Fantasy Sports Bible — test email"
 
 
 def send_test(to_email: str, app_base: str, settings: Settings) -> None:
@@ -89,7 +89,7 @@ def send_test(to_email: str, app_base: str, settings: Settings) -> None:
     msg["From"] = settings.mail_from_address
     msg["To"] = to_email
     msg.set_content(
-        "This is a test from the Fantasy Bible.\n\n"
+        "This is a test from Fantasy Sports Bible.\n\n"
         "If you are reading it, invite mail works: adding someone at\n"
         f"{app_base}app/access will email them their sign-in link\n"
         "along with an intro to the app and both league links.\n"

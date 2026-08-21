@@ -260,3 +260,11 @@ def test_league_names_are_the_real_ones():
 
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
     assert "Sunday Gravy" in on_disk  # disk stays pristine
+
+
+def test_served_page_carries_the_new_wordmark():
+    """The rename is serve-time, like every other page edit, so a design
+    project resync cannot silently revert the name."""
+    page = client.get("/app/").text
+    assert "FANTASY SPORTS BIBLE" in page
+    assert ">FANTASY BIBLE<" not in page

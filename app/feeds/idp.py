@@ -145,7 +145,7 @@ def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> s
     head = (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>FB Bible — IDP draft board</title>"
+        "<title>Fantasy Sports Bible — IDP draft board</title>"
         f"<style>{_STYLE}</style>"
         "<h1>IDP draft board — NDDPL &amp; RED_EYE</h1>"
     )

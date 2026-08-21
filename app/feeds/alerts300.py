@@ -126,7 +126,7 @@ def build_html(
     head = (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>FB Bible — top-300 alert board</title>"
+        "<title>Fantasy Sports Bible — top-300 alert board</title>"
         f"<style>{_STYLE}</style>"
         "<h1>Top-300 alert board</h1>"
     )

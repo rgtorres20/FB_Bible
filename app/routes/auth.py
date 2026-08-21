@@ -63,7 +63,7 @@ async def callback(
         "<title>Yahoo linked</title>"
         "<body style='font:16px/1.5 system-ui;max-width:34rem;margin:4rem auto'>"
         "<h1>Yahoo account linked</h1>"
-        "<p>Tokens stored. You can close this tab and go back to the Fantasy Bible.</p>"
+        "<p>Tokens stored. You can close this tab and go back to Fantasy Sports Bible.</p>"
         "<p><a href='/api/leagues'>Check your leagues &rarr;</a></p>"
     )
 

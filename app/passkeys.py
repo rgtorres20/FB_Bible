@@ -37,7 +37,7 @@ import time
 
 CHALLENGE_COOKIE = "fb_pk_chal"
 CHALLENGE_SECONDS = 300
-RP_NAME = "Fantasy Bible"
+RP_NAME = "Fantasy Sports Bible"
 
 
 def _sign(secret: str, body: str) -> str:

@@ -211,7 +211,7 @@ def build_html(
     head = (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>FB Bible — mock draft room</title>"
+        "<title>Fantasy Sports Bible — mock draft room</title>"
         f"<style>{_STYLE}</style>"
         f"{_THEME_BOOT}"
         "<h1>Mock draft room</h1>"
@@ -836,7 +836,7 @@ _ENGINE = r"""
       '<!doctype html><html' + (theme ? " data-theme='" + theme + "'" : '') +
       "><head><meta charset='utf-8'>" +
       "<meta name='viewport' content='width=device-width, initial-scale=1'>" +
-      '<title>FB Bible — draft board (' + esc(S.lg) + ')</title>' +
+      '<title>Fantasy Sports Bible — draft board (' + esc(S.lg) + ')</title>' +
       '<style>' + (styleEl ? styleEl.textContent : '') + BOARD_CSS +
       '</style></head><body>' +
       '<h1>Draft board — ' + esc(S.lg) + '</h1>' +
