@@ -60,10 +60,39 @@ picks get hard and a tool is most useful. The mock room was built to 300
 and the alert board to 300; the board the owner would actually draft from
 is the one that was not.
 
+### And the total was the *smaller* problem
+
+Owner, Aug 21: *"the board should go by number of players allowed by team
+and bench players that determine the size."* That is already how the
+requirement is computed — `League.rounds` is `len(self.slots)`, starters
+plus bench — so it is derived from the league and cannot disagree with
+it. Edit a roster at `/app/leagues` and the board requirement moves.
+
+But counting only the total hides the real gap. A board with 300 rows and
+49 defenders still cannot seat a league that starts eight per team:
+
+| League | Roster | Board needed | IDP starters needed | Board has | Short |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| NDDPL | 18+8 = 26 | 260 | 80 | 49 | **31** |
+| RED_EYE | 17+8 = 25 | 300 | 96 | 49 | **47** |
+| BALLAPALOSA | 10+6 = 16 | 160 | n/a — team D/ST | — | — |
+
+Kickers are short in all three: 6 on the board against 10–12 starters.
+
+**RED_EYE starts 96 individual defenders across twelve teams and the
+board carries 49.** Half the league cannot fill its defensive lineup from
+it — a worse failure than running out in round 18, because it is wrong
+from the first defensive pick rather than at the end.
+
+BALLAPALOSA's DEF slot is a whole-team defence from `/api/defenses` (32
+stored, verified live), not from this board, so it is not a shortfall.
+
 `MAX_BOARD` is fixed (220 -> 320) with a test pinning it to
-`max(teams x rounds)` so it cannot drift behind a league again.
-`RAW_BOARD` is **not** fixed here: it ships from the design project, so
-300 rows is a design-side change ([DESIGN_CONTRACT.md](DESIGN_CONTRACT.md)).
+`max(teams x rounds)`. `RAW_BOARD` is **not** fixed here: it ships from
+the design project, so a deeper board is a design-side change
+([DESIGN_CONTRACT.md](DESIGN_CONTRACT.md)).
+`tests/test_board_depth.py` holds the shortfalls as a ratchet — they can
+only shrink, and a resync that ships a shallower board fails.
 
 Board composition, counted from the committed file:
 
