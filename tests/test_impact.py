@@ -166,18 +166,53 @@ def test_different_stories_about_the_same_player_stay_separate():
     assert len(impact.cluster([a, b])) == 2
 
 
-def test_a_tier1_telling_replaces_a_tier2_one():
-    a = impact.score(
-        item("Pearce suspended 8 games", players=[PEARCE], source="CBS Sports NFL", tier=2), RANKS
-    )
-    b = impact.score(
-        item("Pearce suspended 8 games after arrest", players=[PEARCE], source="ESPN NFL", tier=1),
+def test_the_earliest_telling_survives_the_fold():
+    """Owner, Aug 21: "just needs to log info first and add to the list."
+    Whoever reported it first is the telling that survives; the rest are
+    credited. Being first is a fact, unlike being the outlet we rate
+    highest -- wire sources carry no weight (docs/WEIGHTS.md)."""
+    early = impact.score(
+        item(
+            "Pearce suspended 8 games",
+            players=[PEARCE],
+            source="CBS Sports NFL",
+            tier=2,
+            published="2026-08-15T05:00:00+00:00",
+        ),
         RANKS,
     )
-    clustered = impact.cluster([a, b])
+    late = impact.score(
+        item(
+            "Pearce suspended 8 games after arrest",
+            players=[PEARCE],
+            source="ESPN NFL",
+            tier=1,
+            published="2026-08-15T09:00:00+00:00",
+        ),
+        RANKS,
+    )
+    for order in ([early, late], [late, early]):
+        clustered = impact.cluster(order)
+        assert len(clustered) == 1
+        # The later, better-tier ESPN telling must NOT win.
+        assert clustered[0]["source_name"] == "CBS Sports NFL"
+        assert clustered[0]["also_from"] == ["ESPN NFL"]
+
+
+def test_an_undated_telling_never_wins_by_having_no_time():
+    """An item with no date must not beat a dated one to the front. It has
+    no claim to being first -- it has no claim at all."""
+    dated = impact.score(
+        item("Pearce suspended 8 games", players=[PEARCE], source="ESPN NFL"), RANKS
+    )
+    undated = impact.score(
+        item("Pearce suspended 8 games after arrest", players=[PEARCE], source="CBS Sports NFL"),
+        RANKS,
+    )
+    undated["published"] = None
+    clustered = impact.cluster([undated, dated])
     assert len(clustered) == 1
-    assert clustered[0]["tier"] == 1
-    assert "CBS Sports NFL" in clustered[0]["also_from"]
+    assert clustered[0]["source_name"] == "ESPN NFL"
 
 
 def test_stories_far_apart_in_time_do_not_fold():
@@ -248,16 +283,27 @@ def test_rank_boundaries_label_the_right_band():
     assert "top-400" in impact.annotate(scored)
 
 
-def test_better_tier_takeover_never_credits_its_own_outlet():
-    """CBS then ESPN on the same story: ESPN keeps the telling and credits
-    CBS -- not itself."""
-    cbs = item("Pearce suspended 8 games", players=[PEARCE], source="CBS Sports NFL", tier=2)
-    espn = item("Pearce suspended 8 games", players=[PEARCE], source="ESPN NFL", tier=1)
-    kept = impact.cluster([impact.score(cbs), impact.score(espn)])
-
-    assert len(kept) == 1
-    assert kept[0]["source_name"] == "ESPN NFL"
-    assert kept[0]["also_from"] == ["CBS Sports NFL"]
+def test_the_fold_never_credits_the_surviving_outlet_to_itself():
+    """ "ESPN (also: ESPN, CBS)" credits nobody. The winner's own name must
+    never appear in the list of who else carried it."""
+    tellings = [
+        impact.score(
+            item(
+                "Pearce suspended 8 games",
+                players=[PEARCE],
+                source=src,
+                published=f"2026-08-15T{hour:02d}:00:00+00:00",
+            ),
+            RANKS,
+        )
+        for src, hour in (("ESPN NFL", 9), ("CBS Sports NFL", 5), ("Yahoo Sports NFL", 11))
+    ]
+    clustered = impact.cluster(tellings)
+    assert len(clustered) == 1
+    winner = clustered[0]
+    assert winner["source_name"] == "CBS Sports NFL"
+    assert winner["source_name"] not in winner["also_from"]
+    assert sorted(winner["also_from"]) == ["ESPN NFL", "Yahoo Sports NFL"]
 
 
 def test_naive_published_stamp_does_not_crash_clustering():

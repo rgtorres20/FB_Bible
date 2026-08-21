@@ -216,9 +216,31 @@ def _same_story(a: dict, b: dict, ta: frozenset, tb: frozenset) -> bool:
     return False
 
 
+def _first_told(item: dict) -> str:
+    """When this telling appeared. Undated sorts LAST, never first: an item
+    with no date must not win the race by having no time at all."""
+    return item.get("published") or item.get("first_seen") or "9999"
+
+
 def cluster(items: list[dict]) -> list[dict]:
-    """Fold duplicates. Keeps the best-tier, earliest telling of each story
-    and records the other outlets on it as `also_from`."""
+    """Fold duplicates, keeping whoever reported it first.
+
+    Owner, Aug 21: "news sources just are what i want to view and i want to
+    limit the duplicates ... just needs to log info first and add to the
+    list." So the surviving telling is the *earliest* one, and the other
+    outlets are credited on it as `also_from`.
+
+    Two things this used to do, and no longer does:
+
+    - It kept whichever telling it saw first, and `poller.merge` sorts
+      newest-first -- so it kept the NEWEST telling while its docstring
+      claimed the earliest. The order it is handed is not a fact about the
+      story, so the comparison is now explicit.
+    - It preferred a better-tier outlet over an earlier one. Wire sources
+      carry no weight (docs/WEIGHTS.md), so there is no tier to prefer:
+      being first is the only claim, and it is a fact rather than a
+      judgement about who to believe.
+    """
     kept: list[dict] = []
     token_cache: list[frozenset] = []
 
@@ -226,22 +248,22 @@ def cluster(items: list[dict]) -> list[dict]:
         tokens = _tokens(item.get("title", ""))
         for i, existing in enumerate(kept):
             if _same_story(existing, item, token_cache[i], tokens):
-                also = existing.setdefault("also_from", [])
-                name = item.get("source_name", "?")
-                if name != existing.get("source_name") and name not in also:
-                    also.append(name)
-                # Prefer the better tier as the kept telling. The credit
-                # list must never contain the kept item's own outlet --
+                if _first_told(item) < _first_told(existing):
+                    winner, loser = dict(item), existing
+                else:
+                    winner, loser = existing, item
+                # Credit every other outlet, never the winner's own --
                 # "ESPN (also: ESPN, CBS)" credits nobody.
-                if item.get("tier", 9) < existing.get("tier", 9):
-                    credits = also + [existing.get("source_name", "?")]
-                    item["also_from"] = [
-                        s
-                        for i2, s in enumerate(credits)
-                        if s != item.get("source_name") and s not in credits[:i2]
-                    ]
-                    kept[i] = item
-                    token_cache[i] = tokens
+                credits = list(loser.get("also_from") or [])
+                credits += list(existing.get("also_from") or [])
+                credits.append(loser.get("source_name", "?"))
+                seen: list[str] = []
+                for name in credits:
+                    if name and name != winner.get("source_name") and name not in seen:
+                        seen.append(name)
+                winner["also_from"] = seen
+                kept[i] = winner
+                token_cache[i] = _tokens(winner.get("title", ""))
                 break
         else:
             kept.append(dict(item))

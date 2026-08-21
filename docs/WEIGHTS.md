@@ -245,6 +245,49 @@ a corroborated `status` item never outranks a single-source `severe` item
 
 Write that test, then pick whichever curve passes it.
 
+**5. News wires get no weights at all — they are a view, not an input.**
+
+Owner, Aug 21: *"news sources just are what i want to view and i want to
+limit the duplicates ... just needs to log info first and add to the
+list."*
+
+That deletes the wire-trust family rather than deferring it, and
+simplifies the design from three families to two. A news feed is
+something you read; it was never a ranking input, and weighting it was
+over-design on my part. What the wire actually owes the owner is:
+
+- **Which outlets show up** — an on/off view filter, no weights.
+- **One row per story** — the same report from four outlets is one entry,
+  with the others credited.
+- **The first telling wins.** Whoever reported it first is the row that
+  survives. Being first is a *fact*; "which outlet do we rate highest"
+  was a judgement nobody asked for.
+
+Corroboration survives only as *information* on the row (`also_from` —
+who else carried it), never as a multiplier. Decisions 2 and 3 above
+described a corroboration term and a ceiling derived from the category
+scale; both are moot now, and are kept only as the record of how the
+number would have been bounded had one been needed.
+
+Built Aug 21: `impact.cluster()` now keeps the earliest telling. It had
+two problems, both found by asking what it actually did rather than what
+it said:
+
+- It kept whichever telling it encountered first, and `poller.merge`
+  sorts newest-first — so it kept the **newest** while its docstring
+  claimed the **earliest**. The comparison is explicit now.
+- It preferred a better-tier outlet over an earlier one, which is the
+  weighting this decision removes.
+
+Undated items sort last, never first: an item with no date has no claim
+to being first because it has no claim at all.
+
+**Still open on the wire:** the source toggles do not filter anything.
+Not weights — nothing. There are zero references to `srcOn.s1/s2/s8/s7`
+in the page, so switching an outlet off changes no row. Making them a
+real view filter is a design-side change; the panel currently labels them
+`not wired`, which is at least honest.
+
 **4. The escape hatch survives, but ADP comes out of the blend.**
 
 Today `srcWeight → 0` ("My tiers only") zeroes ADP, which conflates two
