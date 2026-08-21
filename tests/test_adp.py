@@ -248,3 +248,17 @@ async def test_fetch_raises_on_empty_payload():
     with pytest.raises(ValueError):
         await adp.fetch(client)
     await client.aclose()
+
+
+def test_the_board_is_deep_enough_for_the_deepest_draft():
+    """Owner, Aug 21: "why only 205 players, i have you list of 300 at
+    least". MAX_BOARD was 220 with a comment assuming a 15-round room --
+    but RED_EYE is 12 teams x 25 rounds = 300 picks, so the board ran out
+    with 80 to go. A board that empties mid-draft is worse than a short
+    one: the tool goes silent exactly when the picks get hard."""
+    from app import leagues
+
+    deepest = max(lg.teams * lg.rounds for lg in leagues.defaults())
+    assert adp.MAX_BOARD >= deepest, (
+        f"board caps at {adp.MAX_BOARD} but the deepest league drafts {deepest}"
+    )

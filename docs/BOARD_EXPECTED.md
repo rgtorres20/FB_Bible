@@ -39,6 +39,32 @@ individual defenders** (25 LB, 23 DB, 1 WR/DB). FFC's PPR ADP carries no
 IDP at all. So 24% of the board has no ADP by construction — before
 anyone touches a slider.
 
+### The board is 95 players short of the draft it is used in
+
+Owner, Aug 21: *"why only 205 players, i have you list of 300 at least"* —
+correct, and it is a live defect, not a documentation gap. Measured
+against `app/leagues.py`:
+
+| Surface | Depth | Needs | |
+| --- | ---: | ---: | --- |
+| Mock room offense pool | 300 | 300 | OK |
+| Mock room defender pool | 400 | 300 | OK |
+| Top-300 alert board | 300 | 300 | OK |
+| **Draft analyzer `RAW_BOARD`** | **205** | **300** | **short by 95** |
+| **ADP blend `MAX_BOARD`** | **220** | **300** | **short by 80** |
+
+*Needs* is the deepest draft this app serves: RED_EYE at 12 teams x 25
+rounds = **300 picks**. NDDPL needs 260. So the draft board empties with
+roughly eight rounds still to go — and it goes silent exactly when the
+picks get hard and a tool is most useful. The mock room was built to 300
+and the alert board to 300; the board the owner would actually draft from
+is the one that was not.
+
+`MAX_BOARD` is fixed (220 -> 320) with a test pinning it to
+`max(teams x rounds)` so it cannot drift behind a league again.
+`RAW_BOARD` is **not** fixed here: it ships from the design project, so
+300 rows is a design-side change ([DESIGN_CONTRACT.md](DESIGN_CONTRACT.md)).
+
 Board composition, counted from the committed file:
 
 | RB | WR | TE | QB | LB | DB | WR/DB | K |

@@ -35,7 +35,12 @@ ADP_URL = "https://fantasyfootballcalculator.com/api/v1/adp/ppr"
 # Both leagues are 10-team; 12-team rides along as market depth (see module docstring).
 LEAGUE_SIZES = (12, 10)
 
-MAX_BOARD = 220  # deep enough for a 15-round 12-teamer with margin
+# The deepest draft this app serves is RED_EYE: 12 teams x 25 rounds =
+# 300 picks (app/leagues.py). The old value of 220 assumed a 15-round
+# room and left the board 80 picks short of the draft it is used in --
+# owner, Aug 21: "why only 205 players, i have you list of 300 at least".
+# A cap, not a requirement: fewer rows from the source is fine.
+MAX_BOARD = 320
 MAX_HISTORY_DAYS = 10
 MOVER_WINDOW = timedelta(days=8)
 MOVER_MIN_DELTA = 4.0  # ADP spots; below this is draft-to-draft noise
