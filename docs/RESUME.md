@@ -42,6 +42,17 @@ tenant of the URL: today the address *is* the host, so leaving Vercel for
 any reason breaks every bookmark, install, passkey and local blob at
 once.
 
+Aug 21 addition — **email has its own section now**, after the owner set
+up iCloud SMTP and asked for it in the plan. The number worth knowing: a
+free personal account allows roughly **100 messages/day over SMTP** (not
+the 500/day the web UI gets), and machine-sent mail from a personal
+address about a service on an unrelated domain is close to a textbook
+spam signature. The fix is free — Resend's free tier is 3,000/mo, ~30x
+this app's ceiling — but it needs the domain, for SPF/DKIM/DMARC on a
+`From:` you control. This also **corrected an earlier estimate in the
+cost table**: transactional email was listed at ~$15/mo and is actually
+$0 here. `app/mailer.py` needs no rewrite; Resend speaks SMTP.
+
 NOT a licence to build any of it — the repo is still Phase 2.
 
 ## Aug 21 — the gate goes live, and passkeys

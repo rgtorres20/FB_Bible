@@ -69,7 +69,7 @@ Gmail SMTP). Here is what each step off that actually adds:
 | Domain, `.io` | ~$35–60/yr renewal | Not worth it here |
 | **Vercel Pro** | **$20/mo** | The moment you charge anyone — Hobby is licensed **non-commercial** |
 | Upstash paid | ~$0 until ~500K commands/mo, then cents per 100K | Somewhere past a few dozen active users |
-| Transactional email | $0 → ~$15/mo (Postmark/Resend) at volume | When Gmail SMTP starts landing invites in spam (see below) |
+| Transactional email | **$0** — Resend's free tier is 3,000/mo, far above this app's ceiling | As soon as invites go to people who are not you |
 | Google AI paid tier | $0 today | Only if the free tier's limits stop fitting |
 | Google Play account | **$25 one-time** | Only if shipping an Android store listing |
 | Apple Developer Program | **$99/yr** | Only if shipping an iOS store listing |
@@ -143,12 +143,46 @@ money changes hands:
   every AI surface. Paying users make that an outage, not an annoyance.
 - **Store writes race** (#8). Whole-blob load-modify-save with no
   locking; more concurrent users makes the window matter.
-- **Invite email deliverability.** Gmail SMTP is fine for six people and
-  will start hitting spam folders as volume grows — a real transactional
-  sender (SPF/DKIM on the custom domain) is the fix, and it wants the
-  domain to exist first.
+- **Invite email deliverability** — its own section below; the short
+  version is that personal SMTP has a hard ceiling far lower than people
+  expect, and the fix is free.
 - **Per-user data isolation** is done (`/app/mine`, per-email keys), which
   was itself on LICENSING's "before anyone else uses it" list.
+
+## Email: the ceiling is lower than it looks
+
+Set up Aug 21 with personal SMTP (iCloud app-specific password). That is
+the right call for now and the wrong one for later, for a reason worth
+knowing before it bites.
+
+**Stage 0 — personal SMTP relay (today).** iCloud or Gmail with an
+app-specific password, $0. Works, and `/app/access` has a test button
+plus `/health: invite_email` so its state is never a guess.
+
+The ceiling is the surprise: a free Gmail account allows roughly **100
+messages per day through SMTP** — not the 500 recipients/day the web
+interface gets — and iCloud is the same order. That is plenty for six
+invitations and nowhere near enough for anything automated. Worse than
+the cap is the *quality*: mail from a personal address, sent by a
+machine, about a service on an unrelated domain is close to a textbook
+spam signature. It works today because six people know to look for it.
+
+**Stage 1 — your domain + a transactional sender.** The fix, and it is
+**free at this app's volume**: Resend's free tier is 3,000 emails/month,
+roughly 30× anything this app would plausibly send. (Postmark's free tier
+is 100/month and its paid plans start ~$15/mo — worth knowing, not worth
+paying here.) What actually buys deliverability is the domain: an
+authenticated `From:` on a domain you control, with **SPF**, **DKIM** and
+**DMARC** records published. That is the difference between "invite" and
+"spam folder", and no amount of careful wording substitutes for it.
+
+So the earlier ~$15/mo line in the cost table was pessimistic and has
+been corrected to $0. The dependency stands, though: **this needs the
+domain**, which is why it is step 2 in the order below and not step 1.
+
+**What changes in code:** almost nothing. `app/mailer.py` is plain SMTP
+over stdlib, and Resend speaks SMTP — so this is four environment
+variables and a DNS record set, not a rewrite. Worth keeping that way.
 
 ## Mobile: do the app stores actually help?
 
