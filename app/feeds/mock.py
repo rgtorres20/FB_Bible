@@ -314,8 +314,6 @@ a { color: inherit; }
 """
 )
 
-_THEME_BOOT = skin.THEME_BOOT
-
 
 def build_html(
     index: dict | None,
@@ -334,16 +332,7 @@ def build_html(
     room = list(board_leagues if board_leagues is not None else ROOM_LEAGUES)
     named = room_names(room)
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
-    head = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — mock draft room</title>"
-        f"{skin.FAVICON}"
-        f"<style>{_STYLE}</style>"
-        f"{_THEME_BOOT}"
-        f"{skin.home_bar('Mock draft room')}"
-        "<h1>Mock draft room</h1>"
-    )
+    head = skin.head("mock draft room", "Mock draft room", _STYLE) + "<h1>Mock draft room</h1>"
 
     offense = offense_pool(index, adp_state, capsules)
     defense = defense_pool(index, stats_state, capsules, board_leagues=room)

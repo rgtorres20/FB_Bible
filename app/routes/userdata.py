@@ -94,12 +94,7 @@ a { color: inherit; }
 
 def _page(body: str, club: str = "") -> HTMLResponse:
     return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — my stuff</title>"
-        + skin.FAVICON
-        + f"<style>{_STYLE}</style>{skin.theme_boot(club)}"
-        f"<main>{body}</main>"
+        skin.head("my stuff", "My stuff", _STYLE, skin.theme_boot(club)) + f"<main>{body}</main>"
         f"<script>{passkeys.BROWSER_JS}</script>"
         "<script>"
         # A save cannot reach localStorage from the server, so the
@@ -176,7 +171,7 @@ def _render(
     )
 
     return _page(
-        skin.home_bar("My stuff") + "<h1>My stuff</h1>"
+        "<h1>My stuff</h1>"
         f"<p class='sub'>Signed in as <b>{html_mod.escape(email)}</b> · your "
         "personal layer on the shared app — notes, rankings, lists. Only you "
         "see this page's contents; it follows your sign-in across devices. "
@@ -261,7 +256,7 @@ def _team_card(current: str) -> str:
 
 def _signin_needed() -> HTMLResponse:
     return _page(
-        skin.home_bar("My stuff") + "<h1>My stuff</h1>"
+        "<h1>My stuff</h1>"
         "<p class='sub'>This page is your personal layer on the app, so it "
         "needs to know who you are. <a href='/login'>Sign in</a> — with your "
         "invite link, or the owner code if you're the owner.</p>"

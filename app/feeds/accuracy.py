@@ -76,13 +76,7 @@ def build_html(
     week, reason = scorecard.current_week(scores_state)
     stats = scorecard.summary(ledger)
 
-    head = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — scorecard</title>"
-        f"{skin.FAVICON}<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        f"<main>{skin.home_bar('Scorecard')}<h1>Scorecard</h1>"
-    )
+    head = skin.head("scorecard", "Scorecard", _STYLE) + "<main><h1>Scorecard</h1>"
 
     intro = (
         "<p class='sub'>Every TD lean this app has published, recorded when "

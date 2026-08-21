@@ -103,6 +103,36 @@ def test_the_way_back_names_where_you_are(client, path):
     assert "Fantasy Sports Bible ·" in page, path
 
 
+@pytest.mark.parametrize("path", SERVED_PAGES)
+def test_every_page_carries_the_mark(client, path):
+    """Owner, Aug 21: "my fab logo should be on all pages."
+
+    It is two things on every page: the tab icon in the head, and the
+    mark itself in the home bar. Both come from skin.head() now, because
+    nine hand-written heads had already drifted -- the alert board had no
+    favicon at all and the cheat sheet's empty-board branch had lost the
+    one its full branch carried.
+    """
+    page = client.get(path).text
+    assert "/app/assets/fsb-icon.svg" in page, f"{path} has no tab icon"
+    assert "/app/assets/fsb-mark.svg" in page, f"{path} does not show the mark"
+
+
+@pytest.mark.parametrize("path", SERVED_PAGES)
+def test_every_page_boots_the_users_theme(client, path):
+    """Found while fixing the logo: three pages never read ww_theme, so
+    they rendered in the house navy whichever club the user had picked."""
+    page = client.get(path).text
+    assert "ww_theme" in page, f"{path} ignores the picked theme"
+
+
+@pytest.mark.parametrize("path", SIGNED_OUT_PAGES)
+def test_the_ask_to_sign_in_carries_the_mark_too(anon, path):
+    page = anon.get(path).text
+    assert "/app/assets/fsb-icon.svg" in page, path
+    assert "/app/assets/fsb-mark.svg" in page, path
+
+
 def test_the_bar_needs_no_stylesheet_of_its_own():
     """These pages do not share one stylesheet — the cheat sheet and the
     IDP board carry their own — so a nav that depended on the app's

@@ -258,9 +258,20 @@
     if (picked || document.getElementById('fb-team-ask')) return;
     var bar = document.createElement('div');
     bar.id = 'fb-team-ask';
-    bar.innerHTML = "<span>Pick your team and the app wears its colours.</span>" +
+    /* Owner, Aug 21: "choose your team should be in middle of page so I
+       can see it." It was a 12px strip pinned to the bottom edge, among
+       the sync footer and the menu button, and it read as chrome rather
+       than a question. Same one-time ask, now a centred panel. */
+    bar.setAttribute('role', 'dialog');
+    bar.setAttribute('aria-modal', 'true');
+    bar.setAttribute('aria-label', 'Choose your team');
+    bar.innerHTML = "<div class='fb-team-ask-card'>" +
+      "<img src='/app/assets/fsb-mark.svg' alt='' width='104' height='80'>" +
+      "<h2>Choose your team</h2>" +
+      "<p>Pick a club and the whole app wears its colours \u2014 the " +
+      "boards, the mock room, all of it.</p>" +
       "<a href='/app/mine'>Choose a team →</a>" +
-      "<button type='button' aria-label='Dismiss'>&#215;</button>";
+      "<button type='button'>Not now</button></div>";
     bar.querySelector('button').onclick = function () {
       /* Remembered as the house theme, so the ask does not come back
          every visit for someone who does not want a club. */

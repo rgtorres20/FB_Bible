@@ -377,6 +377,17 @@ def main() -> int:
             f"way back to the app from {path}",
             "class='fsb-home' href='/app/'" in page,
         )
+        # Owner, Aug 21: "my fab logo should be on all pages." Two
+        # separate things -- the tab icon in the head and the mark the
+        # home bar shows -- and the heads had drifted apart before they
+        # were generated from one place.
+        check(
+            f"mark on {path}",
+            "/app/assets/fsb-icon.svg" in page and "/app/assets/fsb-mark.svg" in page,
+        )
+        # Found while fixing the logo: three pages never read ww_theme,
+        # so they ignored the club the user picked.
+        check(f"{path} wears the picked theme", "ww_theme" in page)
 
     # Team defenses. The D/ST board only renders for a signed-in user
     # whose league starts a DEF slot, which the watchdog can never be --
@@ -436,6 +447,14 @@ def main() -> int:
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
+
+    # The one-time club ask. Owner, Aug 21: "choose your team should be in
+    # middle of page so I can see it" -- it was a 12px strip on the bottom
+    # edge among the sync footer and the menu button. A revert to that bar
+    # is the failure this guards.
+    ask_js = get("/app/mobile.js").decode("utf-8", errors="replace")
+    check("club ask is a centred panel", "fb-team-ask-card" in ask_js)
+    check("club ask asks the question in words", "Choose your team" in ask_js)
 
     mobile_css = get("/app/mobile.css")
     check("mobile.css serves", b"min-height: 100vh" in mobile_css)

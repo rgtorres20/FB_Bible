@@ -255,15 +255,7 @@ def build_html(
     # A league that starts only a team D/ST has no IDP board to speak of,
     # and calling its page one would be a small lie in large type.
     kind = "IDP draft board" if idp_ls else "Defense draft board"
-    head = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<title>Fantasy Sports Bible — {kind}</title>"
-        f"{skin.FAVICON}"
-        f"<style>{_STYLE}</style>"
-        f"{skin.home_bar('Defense board')}"
-        f"<h1>{kind} — {title}</h1>"
-    )
+    head = skin.head(kind, "Defense board", _STYLE) + f"<h1>{kind} — {title}</h1>"
 
     dst_table = _dst_table(index, stats_state, board_ls)
 

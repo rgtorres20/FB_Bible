@@ -260,12 +260,7 @@ a { color: inherit; }
 
 def _page(body: str) -> HTMLResponse:
     return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — league settings</title>"
-        + skin.FAVICON
-        + f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        f"<main>{body}</main>"
+        skin.head("league settings", "League settings", _STYLE) + f"<main>{body}</main>"
     )
 
 
@@ -477,7 +472,7 @@ def render(email: str, data: dict, err: str = "", editing: str = "") -> HTMLResp
         )
 
     return _page(
-        skin.home_bar("League settings") + "<h1>League settings</h1>"
+        "<h1>League settings</h1>"
         f"<p class='sub'>Signed in as <b>{html_mod.escape(email)}</b> · your "
         "leagues, your scoring. The draft board, the IDP rankings and the mock "
         "draft room all score with whatever you enter here — a league that pays "
@@ -492,7 +487,7 @@ def render(email: str, data: dict, err: str = "", editing: str = "") -> HTMLResp
 
 def _signin_needed() -> HTMLResponse:
     return _page(
-        skin.home_bar("League settings") + "<h1>League settings</h1>"
+        "<h1>League settings</h1>"
         "<p class='sub'>Your leagues are stored against your sign-in, so this "
         "page needs to know who you are. <a href='/login'>Sign in</a> — with "
         "your invite link, or the owner code if you're the owner.</p>"

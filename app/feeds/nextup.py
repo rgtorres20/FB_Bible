@@ -107,13 +107,7 @@ def build_html(
     now: datetime,
 ) -> str:
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
-    head = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — next man up</title>"
-        f"{skin.FAVICON}<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        f"<main>{skin.home_bar('Next man up')}<h1>Next man up</h1>"
-    )
+    head = skin.head("next man up", "Next man up", _STYLE) + "<main><h1>Next man up</h1>"
 
     rows = depth.next_man_up(index, stats_state)
     if not rows:

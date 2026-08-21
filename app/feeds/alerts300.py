@@ -123,14 +123,7 @@ def build_html(
     capsules: dict[str, dict] | None = None,
 ) -> str:
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
-    head = (
-        "<!doctype html><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>Fantasy Sports Bible — top-300 alert board</title>"
-        f"<style>{_STYLE}</style>"
-        f"{skin.home_bar('Alert board')}"
-        "<h1>Top-300 alert board</h1>"
-    )
+    head = skin.head("top-300 alert board", "Alert board", _STYLE) + "<h1>Top-300 alert board</h1>"
 
     offense, defense = _split_sections(index)
     if not offense and not defense:

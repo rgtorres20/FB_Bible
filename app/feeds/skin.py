@@ -141,3 +141,28 @@ def home_bar(here: str = "") -> str:
         "style='display:block'>"
         f"<span>Fantasy Sports Bible{label}</span></a>"
     )
+
+
+def head(title: str, here: str = "", style: str = "", boot: str = "") -> str:
+    """The whole top of a served page: head tags, then the way back.
+
+    Owner, Aug 21: "my fab logo should be on all pages." It was not.
+    Every page hand-assembled its own head, so each one could miss a
+    piece independently -- and they had drifted: the alert board carried
+    no favicon at all, the cheat sheet's empty-board branch dropped the
+    one its full branch had, and three pages had lost the theme boot, so
+    they rendered in the house navy no matter which club the user picked.
+
+    The same lesson as the home bar. Nine hand-written copies of the same
+    six lines is nine chances to forget one, so there is now one copy.
+    Pass the page's own stylesheet as `style`; it is inlined in place.
+    """
+    return (
+        "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>Fantasy Sports Bible — {title}</title>"
+        + FAVICON
+        + (f"<style>{style}</style>" if style else "")
+        + (boot or THEME_BOOT)
+        + home_bar(here)
+    )
