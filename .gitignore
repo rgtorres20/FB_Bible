@@ -30,3 +30,9 @@ venv/
 # Test coverage artifacts
 .coverage
 htmlcov/
+
+# Obsidian vault (docs/). The settings we agree on are committed; the
+# per-machine UI state churns on every pane you open, so it is not.
+docs/.obsidian/workspace*.json
+docs/.obsidian/cache
+docs/.obsidian/plugins/*/data.json
