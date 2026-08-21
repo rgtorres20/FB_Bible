@@ -29,7 +29,7 @@ from ..config import Settings, get_settings
 from ..feeds import ranklists, skin, teams
 from ..feeds.store import FeedStore
 from .access import session_email
-from .feeds import get_feed_store
+from .feeds import get_feed_store, get_optional_feed_store
 
 log = logging.getLogger(__name__)
 
@@ -555,3 +555,36 @@ async def mine_list_delete(
     await store.save_user(email, {**data, "ranklists": saved})
     log.info("mine: removed a ranking list, user now holds %d", len(saved))
     return RedirectResponse("/app/mine", status_code=303)
+
+
+@router.get("/app/data/ranksources.json", include_in_schema=False)
+async def rank_sources(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore | None = Depends(get_optional_feed_store),
+) -> list[dict]:
+    """The lists behind the Draft analyzer's average, as data.
+
+    Owner, Aug 21: the source list belongs in the analyzer "so they know
+    how the average is created", and they want to "see live updates when
+    one is added or removed".
+
+    The page is rebuilt per request, so a reload would already reflect a
+    change -- but a list is added at /app/mine, which is a different tab.
+    Coming back to the analyzer without this would show yesterday's set
+    until a hard reload, which is exactly the stale surface this repo
+    keeps ruling out. So the panel re-reads here when the tab regains
+    focus.
+
+    Signed out, or with no store, this is the committed set. That is the
+    honest answer rather than an error: those lists are real and are what
+    the blend is using.
+    """
+    mine: list[ranklists.RankList] = []
+    email = session_email(request, settings)
+    if email and store is not None:
+        try:
+            mine = ranklists.user_lists(await store.load_user(email))
+        except Exception as exc:  # noqa: BLE001 - the panel must still render
+            log.warning("rank sources: user lists unavailable: %s", exc)
+    return ranklists.sources_payload(ranklists.builtins() + mine, date.today())

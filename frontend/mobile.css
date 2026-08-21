@@ -383,3 +383,57 @@ aside > div:nth-child(2) {
   opacity: 0.14 !important;
   background-size: 40vmin !important;
 }
+
+/* The Draft analyzer's source panel: which ranking lists make its
+ * average, and which are switched off. Built by showRankSources() in
+ * mobile.js; see the note there for why the off ones are shown. */
+#fb-rank-sources {
+  border: 1px solid var(--color-neutral-400);
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.fb-src-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600, inherit);
+  margin-bottom: 6px;
+}
+.fb-src-note {
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--color-neutral-600, inherit);
+  margin-bottom: 10px;
+}
+.fb-src-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 5px 0;
+  border-top: 1px solid var(--color-neutral-300, rgba(128, 128, 128, 0.3));
+}
+/* Off is dimmer, never hidden — the panel exists to answer "why is this
+ * one not counting", which a hidden row cannot do. */
+.fb-src-off { opacity: 0.55; }
+.fb-src-name { font-size: 12px; font-weight: 700; }
+.fb-src-meta { font-size: 11px; color: var(--color-neutral-600, inherit); }
+.fb-src-state {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-700, inherit);
+}
+.fb-src-off .fb-src-state { color: var(--color-neutral-600, inherit); }
+.fb-src-foot {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-accent-700, inherit);
+}

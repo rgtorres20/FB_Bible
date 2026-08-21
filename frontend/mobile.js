@@ -282,10 +282,130 @@
     document.body.appendChild(bar);
   }
 
+  /* How the Draft analyzer's average is made (owner request, Aug 21:
+   * the source list "should probably belong in the draft analyzer so
+   * they know how the average is created", and they want to "see live
+   * updates when one is added or removed").
+   *
+   * The server injects the current set as FB_RANK_SOURCES when it builds
+   * the page, so the first paint is already right. A list is added or
+   * removed at /app/mine though -- a different tab -- so coming back here
+   * would otherwise show the set from whenever this tab last loaded.
+   * Hence the re-read on focus.
+   *
+   * Lists that are switched OFF are shown too, greyed. "Why is this
+   * source not counting" is the question a panel showing only the active
+   * ones cannot answer, and it is the question that started this. */
+  var sources = (typeof FB_RANK_SOURCES !== 'undefined' && FB_RANK_SOURCES) || null;
+  var sourcesFetching = false;
+
+  function ageWords(days) {
+    if (days <= 0) return 'today';
+    if (days === 1) return '1 day old';
+    return days + ' days old';
+  }
+
+  function sourceRow(s) {
+    var row = document.createElement('div');
+    row.className = 'fb-src-row' + (s.active ? '' : ' fb-src-off');
+    var name = document.createElement('span');
+    name.className = 'fb-src-name';
+    name.textContent = s.name;
+    var meta = document.createElement('span');
+    meta.className = 'fb-src-meta';
+    /* Every number here came off the list itself. Nothing is estimated,
+     * so nothing needs a hedge. */
+    var bits = [s.n + ' players', 'as of ' + s.asOf + ' · ' + ageWords(s.age)];
+    if (s.scope && s.scope !== 'OVERALL') bits.push('ranks within ' + s.scope);
+    meta.textContent = bits.join(' · ');
+    var state = document.createElement('span');
+    state.className = 'fb-src-state';
+    state.textContent = s.active ? 'in the average' : 'off';
+    row.appendChild(name);
+    row.appendChild(meta);
+    row.appendChild(state);
+    return row;
+  }
+
+  function renderSources() {
+    var host = document.getElementById('fb-rank-sources');
+    if (!host || !sources) return;
+    var active = sources.filter(function (s) { return s.active; });
+    host.textContent = '';
+
+    var head = document.createElement('div');
+    head.className = 'fb-src-head';
+    head.textContent = 'How the average is made · ' + active.length +
+      ' of ' + sources.length + ' lists in the blend';
+    host.appendChild(head);
+
+    var note = document.createElement('div');
+    note.className = 'fb-src-note';
+    /* The honest description of blend() -- equal weight, averaged over
+     * the lists that carry the player, no invented rank for the ones
+     * nobody lists. Anything shorter would be a claim about weights that
+     * no longer exist. */
+    note.textContent = active.length
+      ? 'Every list switched on counts the same. A player’s blended rank is his ' +
+        'average place across the lists that carry him — a shorter list does not ' +
+        'push him down, and a player no list ranks gets no blended rank at all.'
+      : 'No list is switched on, so nothing is being averaged. The board is in its ' +
+        'own order.';
+    host.appendChild(note);
+
+    sources.forEach(function (s) { host.appendChild(sourceRow(s)); });
+
+    var foot = document.createElement('a');
+    foot.className = 'fb-src-foot';
+    foot.href = '/app/mine';
+    foot.target = '_blank';
+    foot.rel = 'noopener';
+    foot.textContent = 'Add, switch off or remove a list →';
+    host.appendChild(foot);
+  }
+
+  function showRankSources() {
+    if (document.getElementById('fb-rank-sources')) { renderSources(); return; }
+    if (!sources) return;
+    var labels = document.querySelectorAll('span[style*="0.14em"]');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].textContent.indexOf('Source influence') !== 0) continue;
+      var row = labels[i].parentElement;
+      if (!row || !row.parentElement) return;
+      var host = document.createElement('div');
+      host.id = 'fb-rank-sources';
+      row.parentElement.insertBefore(host, row.nextSibling);
+      renderSources();
+      return;
+    }
+  }
+
+  /* Re-read when the tab comes back, because the list was changed in the
+   * other one. Failure is silent and leaves the injected set on screen:
+   * a panel that empties itself because a fetch blipped would be worse
+   * than one showing what the page was built with. */
+  function refreshSources() {
+    if (document.visibilityState !== 'visible' || sourcesFetching) return;
+    sourcesFetching = true;
+    fetch('/app/data/ranksources.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (fresh) {
+        sourcesFetching = false;
+        if (!fresh || !fresh.length) return;
+        sources = fresh;
+        renderSources();
+      })
+      .catch(function () { sourcesFetching = false; });
+  }
+
+  document.addEventListener('visibilitychange', refreshSources);
+  window.addEventListener('focus', refreshSources);
+
   function decorate() {
     applyTeamTheme();
     offerTeamPicker();
     linkDraftTools();
+    showRankSources();
     if (!data) return;
     badgeNews();
     stampInjury();

@@ -49,7 +49,7 @@ def get(path: str) -> bytes:
         return resp.read()
 
 
-def get_json(path: str) -> dict:
+def get_json(path: str) -> dict | list:
     return json.loads(get(path))
 
 
@@ -339,7 +339,13 @@ def main() -> int:
         code = anon_status(asset)
         check(f"sign-in page can load its {label}", code == 200, f"HTTP {code}")
     # And the allowlist must not have opened anything else.
-    for guarded in ("/app/", "/app/mine", "/app/mobile.js", "/app/data/feeds.json"):
+    for guarded in (
+        "/app/",
+        "/app/mine",
+        "/app/mobile.js",
+        "/app/data/feeds.json",
+        "/app/data/ranksources.json",
+    ):
         code = anon_status(guarded)
         check(f"still gated: {guarded}", code in (303, 401, 307), f"HTTP {code}")
     check("app page carries the icon", "/app/assets/fsb-icon.svg" in served_login_probe)
@@ -466,12 +472,44 @@ def main() -> int:
     check("club ask is a centred panel", "fb-team-ask-card" in ask_js)
     check("club ask asks the question in words", "Choose your team" in ask_js)
 
+    # The Draft analyzer's source panel (owner, Aug 21: the list of lists
+    # belongs in the analyzer "so they know how the average is created").
+    # Three separate ways this goes quiet without erroring, so three
+    # checks: the payload stops being injected, the endpoint that keeps it
+    # current stops answering, or mobile.js loses the row it hangs off.
+    sources = re.search(r"const FB_RANK_SOURCES = (\[.*?\]);\n", served, re.S)
+    published = json.loads(sources.group(1)) if sources else []
+    check(
+        "rank sources published to the page",
+        bool(published),
+        f"{len(published)} lists, {sum(1 for x in published if x['active'])} in the blend",
+    )
+    check(
+        "every published list carries its size and date",
+        bool(published) and all(x.get("n") and x.get("asOf") for x in published),
+    )
+    live_sources = get_json("/app/data/ranksources.json")
+    check(
+        "ranksources.json answers",
+        isinstance(live_sources, list) and bool(live_sources),
+        f"{len(live_sources) if isinstance(live_sources, list) else 0} lists",
+    )
+    # The panel is built client-side, so a live page cannot prove it
+    # rendered. What it can prove is that the script still carries the
+    # anchor and the page still carries the row -- the pair that has to
+    # survive a design resync.
+    check("analyzer keeps the row the panel hangs off", "Source influence" in served)
+
     mobile_css = get("/app/mobile.css")
     check("mobile.css serves", b"min-height: 100vh" in mobile_css)
     check("wire-stamp styles serve", b"fb-wire-stamp" in mobile_css)
     mobile_js = get("/app/mobile.js")
     check("mobile.js serves", b"fb-menu-btn" in mobile_js)
     check("overlay decorator serves", b"fb-new-badge" in mobile_js and b"injury_wire" in mobile_js)
+    check(
+        "source panel decorator serves",
+        b"fb-rank-sources" in mobile_js and b"Source influence" in mobile_js,
+    )
 
     # --- verdict -----------------------------------------------------------
     print(f"\n{len(passes)} passed, {len(failures)} failed")

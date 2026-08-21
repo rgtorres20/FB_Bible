@@ -45,6 +45,22 @@ caption and schedule) and `stats.py` (the team-intel usage reads). Their
 own test files are the authority on those; they are not re-listed here
 because a partial list read as complete is worse than none.
 
+## The browser-side ones
+
+`frontend/mobile.js` binds too, and it is the easier one to forget: it
+runs *after* the page renders, so it matches on the DOM rather than on
+the source, and a miss produces no log line anywhere. Two anchors:
+
+| Anchor (rendered text) | What hangs off it |
+| --- | --- |
+| `My team · …` header | The links to the mock room, league settings, Next man up and the scorecard |
+| `Source influence` label | The panel explaining how the Draft analyzer's average is made |
+
+Both are covered: `tests/test_ranksources.py` runs the real `mobile.js`
+under node against the real elements pulled out of the committed
+`index.html`, so renaming either row fails the suite instead of silently
+removing the feature.
+
 ## The counter-intuitive part
 
 **Do not "fix" the stale-looking strings in the design document.**

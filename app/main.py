@@ -8,6 +8,7 @@ Runs two ways from the same module, deliberately:
 from __future__ import annotations
 
 import logging
+from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, page, previews, stats, vegas
+from .feeds import board, page, previews, ranklists, stats, vegas
 from .feeds.store import FeedStore
 from .routes import access, auth, feeds, league, leaguecfg, userdata
 
@@ -158,7 +159,9 @@ if _FRONTEND_READY:
     @app.get("/app/", include_in_schema=False)
     @app.get("/app/index.html", include_in_schema=False)
     async def app_page(
+        request: Request,
         store: FeedStore | None = Depends(feeds.get_optional_feed_store),
+        settings=Depends(get_settings),
     ) -> HTMLResponse:
         """Serve the page with the mobile stylesheet injected.
 
@@ -240,6 +243,24 @@ if _FRONTEND_READY:
                     )
             except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
                 logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
+        # The blend's inputs, published so the Draft analyzer can show how
+        # its average is built (owner, Aug 21). Outside the store block on
+        # purpose: these lists are committed data, so the panel is right
+        # even when every live feed is down -- and a panel that vanishes
+        # exactly when the board falls back is the worst time to lose the
+        # explanation of what the board is ordered by.
+        mine: list[ranklists.RankList] = []
+        who = access.session_email(request, settings)
+        if who and store is not None:
+            try:
+                mine = ranklists.user_lists(await store.load_user(who))
+            except Exception as exc:  # noqa: BLE001 - the committed lists still stand
+                log.warning("ranking sources: user lists unavailable: %s", exc)
+        html, n_src = board.inject_sources(
+            html, ranklists.sources_payload(ranklists.builtins() + mine, date.today())
+        )
+        if n_src:
+            log.info("board: %d ranking sources published", n_src)
         html, post_misses = page.apply(html, page.POST)
         if post_misses:
             log.warning("served page: transforms found no anchor for %s", ", ".join(post_misses))

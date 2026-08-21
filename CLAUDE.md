@@ -181,7 +181,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-869 tests green — 853 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+889 tests green — 873 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -225,6 +225,24 @@ the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table
 shipped with. Flags and wire posts live, workload labelled '25, nothing
 projected.
+
+The Draft analyzer says **how its average is made** (owner ask, Aug 21).
+Ranking lists are blended with **no weights at all** — every list that is
+switched on counts the same, and a player's blended rank is his average
+place across the lists that carry him, so a short list cannot push him
+down and a player nobody ranks gets no invented rank. The analyzer now
+renders that set as a panel: each list's size, its as-of date and age, its
+scope, and whether it is in the blend — **including the ones switched
+off**, because "why is this source not counting" is the question a panel
+showing only the active ones cannot answer. The set is injected at serve
+time and re-read from `/app/data/ranksources.json` when the tab regains
+focus, so a list added or removed at `/app/mine` in another tab shows up
+without a hard reload. Five real lists ship with the app, extracted from
+the owner's own PDFs: two 300-player overall sheets, and three 40-deep
+ESPN IDP sheets (DL/LB/DB) that are scoped within position and start
+inactive. `tests/test_ranksources.py` runs the real `mobile.js` under node
+against the real anchors in the committed `index.html` — the panel is
+built client-side, so nothing else proves it renders.
 
 The login gate (owner request, Aug 20): `/login` + an owner-managed email
 allowlist at `/app/access` with one-time invite links — built, tested, and

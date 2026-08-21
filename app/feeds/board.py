@@ -354,3 +354,36 @@ def deepen(html: str, index: dict | None, leagues_list) -> tuple[str, int]:
         "const RAW_BOARD = [" + body + "\n" + "\n".join(added) + "\n];",
         1,
     ), len(added)
+
+
+# The page's own board declaration. Deliberately NOT the live-ADP block:
+# that one only exists when the ADP feed came back, and a panel explaining
+# what the board is ordered by must not disappear on the day the feed does.
+# `const RAW_BOARD = [` is in the committed document, so this always fires.
+_SOURCES_ANCHOR = "const RAW_BOARD = ["
+
+
+def inject_sources(html: str, payload: list[dict]) -> tuple[str, int]:
+    """Publish the blend's inputs to the page.
+
+    Owner, Aug 21: the source list belongs in the Draft analyzer "so they
+    know how the average is created", and has to update as lists are added
+    or removed. The page is rebuilt per request, so injecting the current
+    set here is the whole mechanism for a fresh load; `mobile.js` re-reads
+    /app/data/ranksources.json when the tab regains focus, which covers a
+    list changed at /app/mine in another tab.
+
+    Misses cleanly -- a design resync that renames the board declaration
+    leaves the constant undefined, and the panel simply does not render
+    rather than rendering an empty one.
+    """
+    if _SOURCES_ANCHOR not in html:
+        return html, 0
+    return (
+        html.replace(
+            _SOURCES_ANCHOR,
+            f"const FB_RANK_SOURCES = {json.dumps(payload)};\n{_SOURCES_ANCHOR}",
+            1,
+        ),
+        len(payload),
+    )

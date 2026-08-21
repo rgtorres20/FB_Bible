@@ -218,3 +218,53 @@ def builtins() -> list[RankList]:
             )
         )
     return out
+
+
+def sources_payload(lists: list[RankList], today: date) -> list[dict]:
+    """What the Draft analyzer needs to show how its average is built.
+
+    Owner, Aug 21: the list of sources "should probably belong in the
+    draft analyzer so they know how the average is created", and update
+    when one is added or removed.
+
+    So this reports every list the blend can see -- including the ones
+    switched off, because "why is this source not counting" is exactly
+    the question a panel showing only active sources cannot answer.
+    """
+    out = []
+    for lst in lists:
+        age = (today - lst.as_of).days
+        out.append(
+            {
+                "key": lst.key,
+                "name": lst.name,
+                "n": len(lst.order),
+                "asOf": lst.as_of.isoformat(),
+                "age": max(age, 0),
+                "scope": lst.scope,
+                "active": bool(lst.active and lst.order),
+            }
+        )
+    # Active first, then by name, so the ones doing the work read first.
+    return sorted(out, key=lambda s: (not s["active"], s["name"].lower()))
+
+
+def user_lists(stored: dict | None) -> list[RankList]:
+    """Rebuild a signed-in user's saved lists from the store."""
+    out = []
+    for key, entry in ((stored or {}).get("ranklists") or {}).items():
+        try:
+            as_of = date.fromisoformat(entry.get("as_of") or "")
+        except ValueError:
+            as_of = date.today()
+        out.append(
+            RankList(
+                key=key,
+                name=entry.get("name") or key,
+                as_of=as_of,
+                order=tuple(entry.get("order") or ()),
+                active=bool(entry.get("active", True)),
+                scope=entry.get("scope", OVERALL),
+            )
+        )
+    return out
