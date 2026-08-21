@@ -757,5 +757,13 @@ async def sync(
         "vegas_error": vegas_error,
         "stats_teams": len(stats_state.get("teams", {})),
         "stats_usage_complete": stats.usage_reads(stats_state) is not None,
+        # Team defenses, and how many carry a full points-allowed ladder.
+        # In the sync's own response because a refetch that quietly
+        # stored zero of them is the failure mode worth seeing in the
+        # runner log rather than an hour later on a board.
+        "stats_defenses": len(stats_state.get("defenses", {})),
+        "stats_defenses_complete": (stats_state.get("coverage") or {}).get(
+            "defense_pa_complete", 0
+        ),
         "polled_at": polled["polled_at"],
     }
