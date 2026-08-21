@@ -200,3 +200,43 @@ def test_invite_links_use_https_behind_the_proxy(client):
     ).text
     assert "https://testserver/login/invite/" in page
     assert "http://testserver/login/invite/" not in page
+
+
+def test_the_sign_in_page_introduces_the_app(client):
+    """Someone who just got an invite has no idea what they were invited
+    to. The page leads with the mark and says what the app does — and
+    every claim on it is something the app does today."""
+    c, _ = client
+    page = c.get("/login").text
+    assert "/app/assets/fsb-logo.svg" in page
+    assert "What this is" in page
+    for claim in ("Live wire", "mock draft room", "Vegas lines", "league's scoring"):
+        assert claim in page, claim
+    # The honesty line survives too -- it is the point of the section.
+    assert "labelled" in page and "blank instead of inventing" in page
+
+
+def test_the_mark_sits_on_its_own_navy_in_every_theme(client):
+    """The wordmark is white and gold. On the light theme's cream ground
+    "Fantasy" and "Bible" vanish and the name reads as one gold word, so
+    the hero paints its own panel (docs/BRAND.md)."""
+    c, _ = client
+    assert "background: #0B1A36" in c.get("/login").text
+
+
+def test_every_served_page_wears_the_same_icon(client):
+    """A favicon that disagrees between surfaces reads as two apps."""
+    c, _ = client
+    _owner_login(c)  # everything but /login is behind the gate here
+    for path in ("/login", "/app/leagues", "/app/mine", "/app/mock", "/app/idp"):
+        assert "/app/assets/fsb-icon.svg" in c.get(path).text, path
+
+
+def test_the_brand_assets_are_served_and_are_real_svg(client):
+    c, _ = client
+    _owner_login(c)
+    for name in ("fsb-logo.svg", "fsb-icon.svg", "fsb-mark.svg"):
+        r = c.get(f"/app/assets/{name}")
+        assert r.status_code == 200, name
+        assert r.text.lstrip().startswith(("<!--", "<svg")), name
+        assert "</svg>" in r.text

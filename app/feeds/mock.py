@@ -338,6 +338,7 @@ def build_html(
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — mock draft room</title>"
+        f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
         f"{_THEME_BOOT}"
         "<h1>Mock draft room</h1>"
@@ -1178,6 +1179,7 @@ BOARD_PAGE = (
     "<!doctype html><html><head><meta charset='utf-8'>"
     "<meta name='viewport' content='width=device-width, initial-scale=1'>"
     "<title>Fantasy Sports Bible \u2014 draft board</title>"
+    + skin.FAVICON
     + skin.THEME_BOOT
     + "<style id='boardcss'></style>"
     "<style>.empty{font-family:Georgia,'Times New Roman',serif;margin:20px;"

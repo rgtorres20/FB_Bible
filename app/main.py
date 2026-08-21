@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .feeds import board, previews, stats, vegas
+from .feeds import board, previews, skin, stats, vegas
 from .feeds.store import FeedStore
 from .routes import access, auth, feeds, league, leaguecfg, userdata
 
@@ -154,7 +154,10 @@ if _FRONTEND_READY:
         html = html.replace(
             "</head>",
             '<link rel="stylesheet" href="mobile.css">'
-            '<script src="mobile.js" defer></script></head>',
+            '<script src="mobile.js" defer></script>'
+            # The brand mark, serve-time like everything else here, so a
+            # design-project resync cannot drop it (docs/BRAND.md).
+            f"{skin.FAVICON}</head>",
             1,
         )
         # FFBets, per the owner (Aug 15): Predictions is the landing mode and

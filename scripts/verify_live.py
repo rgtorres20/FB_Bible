@@ -237,6 +237,7 @@ def main() -> int:
     # state -- "off" until the owner enables it, then "on"; a lingering
     # "misconfigured" is a half-enable worth seeing in the log.
     login_page = get("/login").decode("utf-8", errors="replace")
+    served_login_probe = get("/app/").decode("utf-8", errors="replace")
     check("login page serves", "Owner sign-in" in login_page)
     check("login offers passkey sign-in", "Sign in with Face ID" in login_page)
     # Proves the WebAuthn dependency survived the deploy: this endpoint
@@ -274,6 +275,15 @@ def main() -> int:
     # session, so it must get the honest ask-to-sign-in page rather than
     # anybody's league. And the built-ins must still be described as the
     # owner's verified settings, not silently editable.
+    # The mark. A favicon that 404s is invisible until someone bookmarks
+    # the app, and the sign-in page is the one surface that has to
+    # introduce the app to a stranger (docs/BRAND.md).
+    check("sign-in page leads with the mark", "/app/assets/fsb-logo.svg" in login_page)
+    check("sign-in page says what the app is", "What this is" in login_page)
+    icon = get("/app/assets/fsb-icon.svg").decode("utf-8", errors="replace")
+    check("app icon serves", "</svg>" in icon)
+    check("app page carries the icon", "/app/assets/fsb-icon.svg" in served_login_probe)
+
     lg_page = get("/app/leagues").decode("utf-8", errors="replace")
     check("league settings page serves", "League settings" in lg_page)
     check(

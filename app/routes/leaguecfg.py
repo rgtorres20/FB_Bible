@@ -263,7 +263,8 @@ def _page(body: str) -> HTMLResponse:
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — league settings</title>"
-        f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
+        + skin.FAVICON
+        + f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
         f"<main>{body}</main>"
     )
 

@@ -25,6 +25,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .. import leagues as leagues_mod
+from . import skin
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -258,6 +259,7 @@ def build_html(
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         f"<title>Fantasy Sports Bible — {kind}</title>"
+        f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
         f"<h1>{kind} — {title}</h1>"
     )

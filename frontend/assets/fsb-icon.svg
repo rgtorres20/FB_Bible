@@ -1,0 +1,53 @@
+<!-- App icon / favicon. Square, its own navy ground (a favicon cannot
+     borrow the page's), and the mark scaled up with the wordmark dropped:
+     at 32px the words are noise and the trophy is the only thing anyone
+     can read. FSB stays because the icon is also the home-screen tile. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Fantasy Sports Bible">
+  <defs>
+    <linearGradient id="icGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F6D66B"/>
+      <stop offset="0.45" stop-color="#E5B32B"/>
+      <stop offset="1" stop-color="#B8850F"/>
+    </linearGradient>
+    <linearGradient id="icNavy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132A55"/>
+      <stop offset="1" stop-color="#08152C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#icNavy)"/>
+
+  <g transform="translate(256,196) scale(0.92) translate(-200,-140)">
+    <path fill="#C08F12"
+          d="M200 118 C152 96 92 90 34 104 L18 112 L18 250 L34 244
+             C92 230 152 236 200 262 C248 236 308 230 366 244 L382 250
+             L382 112 L366 104 C308 90 248 96 200 118 Z"/>
+    <path fill="#12244A" stroke="#F4F6FB" stroke-width="8" stroke-linejoin="round"
+          d="M196 112 C150 92 94 86 40 99 L40 231 C94 219 150 225 196 248 Z"/>
+    <g stroke="#F4F6FB" stroke-width="3.5" opacity="0.8" fill="none">
+      <path d="M74 100 L74 230"/><path d="M118 102 L118 234"/><path d="M162 107 L162 241"/>
+    </g>
+    <path fill="#12244A" stroke="#F4F6FB" stroke-width="8" stroke-linejoin="round"
+          d="M204 112 C250 92 306 86 360 99 L360 231 C306 219 250 225 204 248 Z"/>
+    <g stroke="#F4F6FB" stroke-width="3.5" opacity="0.8" fill="none">
+      <path d="M326 100 L326 230"/><path d="M282 102 L282 234"/><path d="M238 107 L238 241"/>
+    </g>
+    <path fill="#0B1A36" d="M195 110 L205 110 L205 258 L200 262 L195 258 Z"/>
+    <g fill="url(#icGold)" stroke="#8A6205" stroke-width="2.5" stroke-linejoin="round">
+      <path d="M158 18 L242 18 L242 58 C242 98 224 124 200 124
+               C176 124 158 98 158 58 Z"/>
+      <path d="M158 28 L136 28 C123 28 116 39 116 52 C116 74 134 89 158 91
+               L158 76 C143 74 132 65 132 53 C132 46 136 42 145 42 L158 42 Z"/>
+      <path d="M242 28 L264 28 C277 28 284 39 284 52 C284 74 266 89 242 91
+               L242 76 C257 74 268 65 268 53 C268 46 264 42 255 42 L242 42 Z"/>
+      <path d="M192 122 L208 122 L208 148 L192 148 Z"/>
+      <path d="M174 146 L226 146 L230 161 L170 161 Z"/>
+    </g>
+  </g>
+
+  <text x="256" y="440" text-anchor="middle" fill="#F4F6FB"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-weight="900" font-style="italic" font-size="132"
+        letter-spacing="1">FSB</text>
+  <path d="M132 464 L380 464 L360 482 L152 482 Z" fill="#E5B32B"/>
+</svg>

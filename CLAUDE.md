@@ -35,6 +35,17 @@ These come from the app's own CLAUDE.md and still bind here:
 - Trusted news sources: NBC Sports, @AdamSchefter, Rotowire, ESPN, CBS,
   Yahoo's wire.
 
+## The mark
+
+The app's identity — open book as a football field, gold trophy, FSB —
+ships as vector in `frontend/assets/` and is wired into every served page
+through `skin.FAVICON`. Rules that bind code: the wordmark is white and
+gold, so **it always sits on its own navy panel** (it disappears on the
+light theme otherwise), and the two manifest PNGs are *rendered from* the
+icon SVG, so they get regenerated whenever it changes.
+[docs/BRAND.md](docs/BRAND.md) has the palette and the swap procedure for
+dropping in different artwork.
+
 ## Commercial posture
 
 This may be sold. That reverses the app's original "doesn't care about
@@ -139,7 +150,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-518 tests green — 502 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+522 tests green — 506 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

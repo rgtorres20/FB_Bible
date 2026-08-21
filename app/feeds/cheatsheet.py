@@ -22,6 +22,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import adp as adp_mod
+from . import skin
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -93,6 +94,7 @@ def build_html(state: dict, index: dict | None, now: datetime) -> str:
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible cheat sheet</title>"
+        f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
         "<h1>Draft cheat sheet — NDDPL (10tm) &amp; RED_EYE (12tm)</h1>"
         f"<p class='sub'>Live ADP from real PPR mock drafts — read the 10tm column "

@@ -61,3 +61,15 @@ THEME_BOOT = (
     "if(['dark','cowboys','titans'].indexOf(t)>=0)"
     "document.documentElement.dataset.theme=t;}catch(e){}</script>"
 )
+
+
+# Every page this app serves points at the same icon. SVG favicons are
+# supported everywhere the rest of this app needs (Safari 15+, Firefox,
+# Chromium); the apple-touch-icon line is what an iOS home-screen tile
+# reads, and it is deliberately the same file rather than a second
+# rendering that could drift from it.
+FAVICON = (
+    "<link rel='icon' type='image/svg+xml' href='/app/assets/fsb-icon.svg'>"
+    "<link rel='apple-touch-icon' href='/app/assets/fsb-icon.svg'>"
+    "<meta name='theme-color' content='#0B1A36'>"
+)

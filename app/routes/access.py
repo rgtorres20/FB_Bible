@@ -65,6 +65,21 @@ _STYLE = (
     + """
 body { display: flex; flex-direction: column; align-items: center; }
 main { width: min(430px, 94vw); margin-top: 9vh; }
+/* The sign-in page introduces the app to someone who has never seen it,
+   so it runs wider than the bare form and leads with the mark. */
+main:has(.hero) { width: min(560px, 94vw); margin-top: 5vh; }
+/* The mark carries its own navy ground in every mode. The wordmark is
+   white and gold by design -- on the light theme's cream it read as a
+   gold word between two invisible ones. This is also how the brand is
+   drawn everywhere else, so the panel is the faithful choice rather
+   than a workaround. */
+.hero { margin: 0 0 16px; padding: 10px 16px 14px; background: #0B1A36;
+        border: 2px solid #0B1A36; box-shadow: 3px 3px 0 var(--color-text); }
+.hero img { display: block; width: 100%; height: auto; }
+.card.what ul { margin: 0; padding-left: 18px; }
+.card.what li { font-size: 12.5px; line-height: 1.55; margin-bottom: 7px;
+                color: var(--color-neutral-700); }
+.card.what li b { color: var(--color-text); }
 main.wide { width: min(640px, 94vw); margin-top: 5vh; }
 h1 { font-weight: 900; font-size: 26px; letter-spacing: -0.02em;
      margin: 0 0 4px; text-transform: uppercase; }
@@ -117,7 +132,8 @@ def _page(title: str, body: str, wide: bool = False) -> HTMLResponse:
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         f"<title>Fantasy Sports Bible — {html_mod.escape(title)}</title>"
-        f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
+        + skin.FAVICON
+        + f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
         f"{main_tag}{body}</main>"
     )
 
@@ -215,9 +231,39 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         "you sign in once.</div></div>"
         "<div class='or' id='pkor' hidden>or</div>"
     )
+    # What the app is, for the person who just got an invite and has no
+    # idea what they were invited to. Every line is something the app
+    # actually does today -- no roadmap, no "coming soon".
+    what_it_does = (
+        "<div class='card what'><h2>What this is</h2>"
+        "<p class='sub' style='margin:0 0 10px'>A draft-prep desk for "
+        "fantasy football, built around <b>your</b> league's scoring rather "
+        "than a generic ranking.</p>"
+        "<ul>"
+        "<li><b>Live wire, ranked by impact.</b> Seven publishers polled "
+        "around the clock — NBC, ESPN, CBS, Rotowire, Yahoo — deduped, "
+        "stamped, newest first.</li>"
+        "<li><b>Boards that use your rules.</b> Enter your league's scoring "
+        "once and the draft board, the defensive rankings and the mock room "
+        "all score with it. Individual defenders or a team D/ST, whichever "
+        "you start.</li>"
+        "<li><b>A mock draft room.</b> Pick your league and your exact seat, "
+        "then draft — the rest of the room autopicks off live ADP with your "
+        "scoring leaned on it, or Autopilot drafts for you and says why on "
+        "every pick.</li>"
+        "<li><b>Live Vegas lines and usage reads</b>, measured from last "
+        "season rather than asserted.</li>"
+        "</ul>"
+        "<p class='sub' style='margin:10px 0 0'>Machine-written lines are "
+        "always labelled as such, and anything the app cannot actually "
+        "measure it leaves blank instead of inventing.</p></div>"
+    )
     return _page(
         "sign in",
-        "<h1>Fantasy Sports Bible</h1>"
+        "<div class='hero'>"
+        "<img src='/app/assets/fsb-logo.svg' alt='Fantasy Sports Bible — "
+        "draft smarter, dominate longer' width='900' height='420'>"
+        "</div>"
         "<p class='sub'>Access is by invitation. If you got an invite link, "
         "open it on this device and you're in — no password.</p>"
         + err
@@ -227,6 +273,7 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         "<label>Email</label><input name='email' type='email' required>"
         "<label>Owner code</label><input name='code' type='password' required>"
         "<button>Sign in</button></form></div>"
+        + what_it_does
         + state_note
         + f"<script>{passkeys.BROWSER_JS}</script>"
         + "<script>"
