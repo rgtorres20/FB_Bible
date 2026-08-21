@@ -83,6 +83,22 @@ PLAYER_FIELDS = (
     "rec_td",
     "pass_att",
     "pass_rz_att",
+    # Added Aug 21. Without these the app could not score a single
+    # offensive player: it had every league's scoring VALUES and none of
+    # the stats they multiply. pass_cmp matters most -- it is what makes
+    # RED_EYE and BALLAPALOSA weird (1 pt per completion).
+    "pass_cmp",
+    "pass_yd",
+    "pass_td",
+    "pass_int",
+    "pass_2pt",
+    "rush_2pt",
+    "rec_2pt",
+    "fum_lost",
+    # Kickers. Six of them are on the board and every league starts one.
+    "fgm",
+    "fga",
+    "xpm",
     "def_snp",
     "tm_def_snp",
     "idp_tkl_solo",
@@ -133,7 +149,8 @@ DEFENSE_FIELDS = (
 # even inside the weekly window, so a deploy that adds fields does not wait
 # a week for the store to carry them. v2: the idp_* block. v3: team
 # defenses. v4: 4th-down stops and the summed blocked-kick field.
-STATS_VERSION = 4
+# v5: offense scoring inputs -- passing, fumbles, 2-pt, kickers.
+STATS_VERSION = 5
 
 # Sleeper says WAS; every const in the page says WSH.
 _PAGE_CODES = {"WAS": "WSH"}

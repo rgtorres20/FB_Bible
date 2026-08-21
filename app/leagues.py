@@ -188,6 +188,20 @@ class League:
     pass_completion: float = MARKET_PASS_COMPLETION
     rec_yds_per_pt: float = MARKET_REC_YDS_PER_PT
     rush_yds_per_pt: float = 10.0
+    # Added Aug 21 with the offense scorer. Every value is the owner's
+    # verified Yahoo setting (docs/LEAGUES.md) -- all three leagues agree
+    # on these four, which is why they are plain defaults rather than
+    # per-league overrides.
+    rush_td: float = 6.0
+    rec_td: float = 6.0
+    pass_int: float = -2.0
+    fum_lost: float = -2.0
+    two_pt: float = 2.0
+    # Kickers. Distance tiers are a Yahoo setting this repo has not
+    # verified per league, so a made field goal is scored flat and the
+    # scorer says so rather than guessing 3/4/5 by yardage.
+    fg_made: float = 3.0
+    xp_made: float = 1.0
     # IDP, keyed by the Sleeper stat fields (verified via the probe's
     # field census before any of them were trusted).
     idp: dict[str, float] = field(default_factory=dict)
@@ -274,6 +288,46 @@ class League:
     def receiving_is_halved(self) -> bool:
         return self.rec_yds_per_pt > MARKET_REC_YDS_PER_PT
 
+    def score_offense(self, stats: dict) -> float:
+        """One offensive player's total under this league's settings.
+
+        The half that was missing. `score_idp` and `score_dst` have scored
+        defenders against league rules since August; offence had every
+        scoring VALUE and none of the stats they multiply, so the app
+        could not total a single quarterback (owner ask, Aug 21).
+
+        Kickers are included -- every league starts one and six are on the
+        board -- at a flat value per made field goal. Yahoo's distance
+        tiers are a per-league setting this repo has not verified, and
+        guessing 3/4/5 by yardage would be inventing a number.
+
+        **Known undercount, BALLAPALOSA only.** Its per-game bonuses (4 at
+        400 passing yards, 4 at 175 rushing or receiving, 4 for a 40-plus
+        yard TD) cannot be derived from season aggregates -- a 175-yard
+        game and two 90-yard games look identical in a total. Weekly lines
+        would settle it; until then that league reads slightly low, and
+        this note is the label rather than a silent difference.
+        """
+        pts = stats.get("rec", 0) * self.ppr
+        for stat_key, per_pt in (
+            ("rec_yd", self.rec_yds_per_pt),
+            ("rush_yd", self.rush_yds_per_pt),
+            ("pass_yd", self.pass_yds_per_pt),
+        ):
+            if per_pt:
+                pts += stats.get(stat_key, 0) / per_pt
+        pts += stats.get("pass_cmp", 0) * self.pass_completion
+        pts += stats.get("pass_td", 0) * self.pass_td
+        pts += stats.get("rush_td", 0) * self.rush_td
+        pts += stats.get("rec_td", 0) * self.rec_td
+        pts += stats.get("pass_int", 0) * self.pass_int
+        pts += stats.get("fum_lost", 0) * self.fum_lost
+        two = stats.get("pass_2pt", 0) + stats.get("rush_2pt", 0) + stats.get("rec_2pt", 0)
+        pts += two * self.two_pt
+        pts += stats.get("fgm", 0) * self.fg_made
+        pts += stats.get("xpm", 0) * self.xp_made
+        return round(pts, 1)
+
     def score_idp(self, stats: dict) -> float:
         """One defender's season total under this league's settings."""
         points = sum(stats.get(f, 0) * v for f, v in self.idp.items())
@@ -311,6 +365,13 @@ class League:
             "pass_completion": self.pass_completion,
             "rec_yds_per_pt": self.rec_yds_per_pt,
             "rush_yds_per_pt": self.rush_yds_per_pt,
+            "rush_td": self.rush_td,
+            "rec_td": self.rec_td,
+            "pass_int": self.pass_int,
+            "fum_lost": self.fum_lost,
+            "two_pt": self.two_pt,
+            "fg_made": self.fg_made,
+            "xp_made": self.xp_made,
             "idp": dict(self.idp),
             "idp_ret_yds_per_pt": self.idp_ret_yds_per_pt,
             "dst": dict(self.dst),

@@ -171,3 +171,42 @@ the same rule they are held to.
   startable in an LB slot despite the board's dash (Micah Parsons is the
   classic case). Definitive eligibility is the player's page inside the
   league; exact per-league eligibility arrives with Yahoo API access.
+
+## League-scored offence (Aug 21)
+
+`League.score_offense()` totals an offensive player under a league's own
+settings, the way `score_idp` and `score_dst` already did for defenders.
+Until this existed the app held every offensive scoring *value* and none
+of the stats they multiply — it could not total a single quarterback,
+which is the position these leagues differ from market on most.
+
+`stats.PLAYER_FIELDS` gained the eleven inputs it needed (passing yards,
+TDs, completions, interceptions, lost fumbles, 2-pt conversions, and
+kicker makes) and `STATS_VERSION` went to 5 so the store refetches rather
+than waiting a week.
+
+What that makes visible for the first time, on a real quarterback season
+(359 cmp / 4306 yd / 28 TD / 6 INT / 531 rush / 12 rush TD) against a
+WR1 season (105 / 1450 / 9):
+
+| League | QB | WR1 | Ratio |
+| --- | ---: | ---: | ---: |
+| NDDPL | 490.4 | 233.5 | 2.1x |
+| RED_EYE | 849.4 | 233.5 | **3.6x** |
+| BALLAPALOSA | 806.3 | 306.0 | 2.6x |
+
+RED_EYE's completion bonus alone is 359 points — more than that entire
+WR1 season. "QBs score above market" has been a rule in CLAUDE.md carried
+by a hand-tuned `qb_boost_override`; it is now a computed number, and
+that override should be retired against measurement rather than kept as
+a fudge factor.
+
+**Two honest limits, both labelled rather than silent:**
+
+- **Kickers score flat** — 3 per made field goal, 1 per extra point.
+  Yahoo's distance tiers are a per-league setting this repo has not
+  verified, and 3/4/5-by-yardage would be an invented number.
+- **BALLAPALOSA reads slightly low.** Its per-game bonuses (4 at 400
+  passing yards, 4 at 175 rushing or receiving, 4 for a 40-plus yard TD)
+  cannot be derived from season aggregates: one 175-yard game and two
+  90-yard games are identical in a total. Weekly lines would settle it.
