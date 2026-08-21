@@ -1,0 +1,519 @@
+<title>Three Kinds of Weight</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --paper:    #F2F5FA;
+    --surface:  #FFFFFF;
+    --ink:      #0F1A2C;
+    --ink-soft: #4A586E;
+    --ink-mute: #75839B;
+    --rule:     #D3DBE7;
+    --rule-soft:#E4EAF3;
+    --accent:   #8A6410;
+    --accent-bg:#F4EBD4;
+    --measured: #1B6553;
+    --measured-bg:#DDEEE8;
+    --dead:     #9E3524;
+    --dead-bg:  #F7E2DD;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:    #0A1320;
+      --surface:  #121E30;
+      --ink:      #DEE6F3;
+      --ink-soft: #A6B4CA;
+      --ink-mute: #7A889F;
+      --rule:     #27374E;
+      --rule-soft:#1C2A3E;
+      --accent:   #D9B449;
+      --accent-bg:#2A2415;
+      --measured: #59C3A6;
+      --measured-bg:#12291F;
+      --dead:     #E8836E;
+      --dead-bg:  #2E1A18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:    #0A1320;
+    --surface:  #121E30;
+    --ink:      #DEE6F3;
+    --ink-soft: #A6B4CA;
+    --ink-mute: #7A889F;
+    --rule:     #27374E;
+    --rule-soft:#1C2A3E;
+    --accent:   #D9B449;
+    --accent-bg:#2A2415;
+    --measured: #59C3A6;
+    --measured-bg:#12291F;
+    --dead:     #E8836E;
+    --dead-bg:  #2E1A18;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  /* ---- masthead ---- */
+  header { padding: 64px 0 40px; border-bottom: 2px solid var(--ink); }
+  .chip {
+    display: inline-block;
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 5px 10px; margin-bottom: 20px;
+    color: var(--dead); background: var(--dead-bg);
+    border: 1px solid var(--dead);
+  }
+  h1 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 800; font-size: clamp(34px, 7vw, 54px);
+    line-height: 1.02; letter-spacing: -0.022em;
+    text-wrap: balance; margin: 0 0 18px;
+  }
+  .standfirst {
+    font-size: 20px; line-height: 1.5; color: var(--ink-soft);
+    max-width: 34em; margin: 0; text-wrap: pretty;
+  }
+  .askquote {
+    margin: 28px 0 0; padding: 16px 20px;
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    font-style: italic; font-size: 16px; color: var(--ink-soft);
+  }
+  .askquote b { font-style: normal; color: var(--ink); }
+
+  /* ---- section rhythm ---- */
+  section { padding-top: 52px; }
+  h2 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 800; font-size: 27px; letter-spacing: -0.012em;
+    line-height: 1.2; text-wrap: balance; margin: 0 0 6px;
+  }
+  h3 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 600; font-size: 18px; letter-spacing: -0.005em;
+    margin: 34px 0 8px; text-wrap: balance;
+  }
+  .kicker {
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--ink-mute);
+    margin: 0 0 12px;
+  }
+  p { margin: 0 0 16px; text-wrap: pretty; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+
+  /* ---- code / formulas ---- */
+  code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.86em;
+    background: var(--rule-soft);
+    padding: 1px 5px;
+  }
+  .formula {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px; line-height: 1.75;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 16px 18px; margin: 20px 0;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink);
+  }
+  .formula .cmt { color: var(--ink-mute); }
+  .formula code { background: none; padding: 0; font-size: inherit; }
+
+  /* ---- tables ---- */
+  .tablewrap { overflow-x: auto; margin: 22px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td {
+    text-align: left; padding: 10px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  th {
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-mute);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  td:first-child { font-weight: 600; }
+  .dead { color: var(--dead); font-weight: 600; }
+  .live { color: var(--measured); font-weight: 600; }
+
+  /* ---- family cards ---- */
+  .families { display: grid; gap: 14px; margin: 26px 0 8px; }
+  @media (min-width: 660px) { .families { grid-template-columns: repeat(3, 1fr); } }
+  .fam {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--accent);
+    padding: 16px 16px 18px;
+  }
+  .fam h4 {
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 15px; font-weight: 800; margin: 0 0 8px;
+  }
+  .fam dl { margin: 0; font-size: 13.5px; line-height: 1.5; }
+  .fam dt {
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--ink-mute);
+    margin-top: 10px;
+  }
+  .fam dd { margin: 2px 0 0; color: var(--ink-soft); }
+
+  /* ---- figure ---- */
+  figure { margin: 30px 0; }
+  figure svg { display: block; width: 100%; max-width: 100%; height: auto; }
+  .figbox {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 20px 18px;
+    overflow-x: auto;
+  }
+  figcaption {
+    font-size: 13.5px; color: var(--ink-mute);
+    margin-top: 12px; text-wrap: pretty;
+  }
+  .s-dead { fill: var(--dead); }
+  .s-dead-stroke { stroke: var(--dead); }
+  .s-accent-stroke { stroke: var(--accent); }
+  .s-accent { fill: var(--accent); }
+  .s-surface { fill: var(--surface); }
+
+  /* ---- callout ---- */
+  .callout {
+    background: var(--measured-bg);
+    border: 1px solid var(--measured);
+    padding: 20px 22px; margin: 26px 0;
+  }
+  .callout .kicker { color: var(--measured); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ---- phases (a real sequence) ---- */
+  ol.phases { list-style: none; counter-reset: ph; padding: 0; margin: 24px 0 0; }
+  ol.phases li {
+    counter-increment: ph;
+    position: relative;
+    padding: 0 0 20px 46px;
+    border-left: 1px solid var(--rule);
+    margin-left: 13px;
+  }
+  ol.phases li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.phases li::before {
+    content: counter(ph);
+    position: absolute; left: -13px; top: 0;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 12px; font-weight: 800;
+    color: var(--paper); background: var(--ink);
+    border-radius: 50%;
+  }
+  ol.phases b {
+    font-family: Archivo, system-ui, sans-serif;
+    font-weight: 800; font-size: 15px;
+    display: block; margin-bottom: 2px;
+  }
+  ol.phases p { font-size: 15px; color: var(--ink-soft); margin: 0; }
+
+  /* ---- questions ---- */
+  ol.qs { padding-left: 20px; margin: 20px 0 0; }
+  ol.qs li { margin-bottom: 16px; padding-left: 6px; }
+  ol.qs b { font-weight: 600; }
+
+  footer {
+    margin-top: 60px; padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-family: Archivo, system-ui, sans-serif;
+    font-size: 12px; color: var(--ink-mute);
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="chip">Design · nothing built yet</span>
+  <h1>Three Kinds of Weight</h1>
+  <p class="standfirst">The Trusted&nbsp;sources panel has one slider doing three unrelated jobs — and for five of nine rows, doing nothing at all.</p>
+  <p class="askquote">“We have a few types of weights — one for news wires and another for top-300 draft picks toward draft analyzer. <b>Sleepers should have a weight based on info given</b> (website post or a list given by users). Let's take a step back and architect this the right way.” — owner, Aug&nbsp;21</p>
+</header>
+
+<section>
+  <p class="kicker">The problem</p>
+  <h2>One abstraction, three jobs</h2>
+  <p><code>frontend/index.html:1409</code> defines a single <code>SOURCES</code> array — ten entries, one weight each, one slider each, one percentage each. The percentage is a share of whatever is switched on:</p>
+
+  <div class="formula">influence(x) = weightOf(x) / Σ weightOf(active) × 100   <span class="cmt">// :2178, :2187</span></div>
+
+  <p>But the entries are not the same <em>kind of thing</em>, and almost none of the weights reach an output.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Source</th><th>Kind</th><th>What its weight does</th></tr></thead>
+      <tbody>
+        <tr><td>Aggregate ADP · ESPN kit · Yahoo top-300</td><td>rank list</td><td class="live">Sums into <code>trusted</code></td></tr>
+        <tr><td>My own tiers</td><td>rank list</td><td class="live">Sums into <code>own</code></td></tr>
+        <tr><td>Team beat writers</td><td>usage signal</td><td class="dead">Nothing — on/off only</td></tr>
+        <tr><td>Route and snap analytics</td><td>usage signal</td><td class="dead">Nothing — on/off only</td></tr>
+        <tr><td>NBC Sports · @AdamSchefter · Rotowire</td><td>news wire</td><td class="dead">Nothing at all</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The four that count collapse into one scalar, which drives the whole board:</p>
+
+  <div class="formula">srcWeight  = 100 × trusted / (trusted + own)          <span class="cmt">// :1904</span>
+blendScore = (1 − w) × player.rank + w × player.adp   <span class="cmt">// :2250</span></div>
+
+  <p>So five of nine active sliders move a bar and change no output. The panel says <em>“weight sets how hard it pulls.”</em> For most rows it does not pull. Under this repo's <strong>no false positives</strong> rule that is a defect, not a rough edge.</p>
+
+  <p>The deeper fault is the category error: a news wire and a top-300 ranking list cannot share a slider, because they share no <strong>unit</strong>, no <strong>consumer</strong>, and no <strong>truth condition</strong>. Schefter reporting a torn ACL and ESPN ranking a player 73rd are not two amounts of the same substance.</p>
+</section>
+
+<figure>
+  <div class="figbox">
+    <svg viewBox="0 0 760 430" role="img" aria-label="Today, ten sources feed one weight slider but only the rank lists reach the draft board; proposed, three separate weight families each reach their own consumer.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <polygon points="0,1 9,5 0,9" fill="currentColor"/>
+        </marker>
+        <marker id="ar-dead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <polygon points="0,1 9,5 0,9" class="s-dead"/>
+        </marker>
+      </defs>
+
+      <!-- ============ NOW ============ -->
+      <text x="0" y="12" font-family="Archivo, sans-serif" font-size="11" font-weight="800" letter-spacing="1.8" fill="currentColor">NOW</text>
+
+      <g font-family="Archivo, sans-serif" font-size="11.5" fill="currentColor">
+        <rect x="1" y="32" width="125" height="34" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="53" text-anchor="middle">3 news wires</text>
+
+        <rect x="1" y="82" width="125" height="34" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="103" text-anchor="middle">4 rank lists</text>
+
+        <rect x="1" y="132" width="125" height="34" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="153" text-anchor="middle">2 usage signals</text>
+      </g>
+
+      <!-- wires: dead end -->
+      <g class="s-dead-stroke" fill="none" stroke-width="1.5">
+        <line x1="126" y1="49" x2="205" y2="49" marker-end="url(#ar-dead)"/>
+        <line x1="216" y1="42" x2="230" y2="56"/>
+        <line x1="230" y1="42" x2="216" y2="56"/>
+      </g>
+      <text x="244" y="53" font-family="Archivo, sans-serif" font-size="11" class="s-dead">weight ignored</text>
+
+      <!-- usage: binary only -->
+      <line x1="126" y1="149" x2="222" y2="149" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)" fill="none"/>
+      <rect x="230" y="132" width="132" height="34" class="s-surface" stroke="currentColor"/>
+      <text x="296" y="153" text-anchor="middle" font-family="Archivo, sans-serif" font-size="11.5" fill="currentColor">on/off nudge only</text>
+
+      <!-- rank lists: the one live path -->
+      <g stroke="currentColor" stroke-width="1.5" fill="none">
+        <line x1="126" y1="99" x2="222" y2="99" marker-end="url(#ar)"/>
+        <line x1="378" y1="99" x2="424" y2="99" marker-end="url(#ar)"/>
+        <line x1="552" y1="99" x2="598" y2="99" marker-end="url(#ar)"/>
+      </g>
+      <g font-family="Archivo, sans-serif" font-size="11.5" fill="currentColor">
+        <rect x="230" y="82" width="148" height="34" class="s-surface" stroke="currentColor"/>
+        <text x="304" y="103" text-anchor="middle">srcWeight · 1 scalar</text>
+
+        <rect x="424" y="82" width="128" height="34" class="s-surface" stroke="currentColor"/>
+        <text x="488" y="103" text-anchor="middle">blendScore</text>
+
+        <rect x="598" y="82" width="140" height="34" class="s-surface s-accent-stroke"/>
+        <text x="668" y="103" text-anchor="middle">Draft board</text>
+      </g>
+
+      <line x1="0" y1="196" x2="760" y2="196" stroke="currentColor" stroke-width="1" opacity="0.28"/>
+
+      <!-- ============ PROPOSED ============ -->
+      <text x="0" y="226" font-family="Archivo, sans-serif" font-size="11" font-weight="800" letter-spacing="1.8" fill="currentColor">PROPOSED</text>
+
+      <g stroke="currentColor" stroke-width="1.5" fill="none">
+        <line x1="126" y1="265" x2="166" y2="265" marker-end="url(#ar)"/>
+        <line x1="126" y1="325" x2="166" y2="325" marker-end="url(#ar)"/>
+        <line x1="126" y1="385" x2="166" y2="385" marker-end="url(#ar)"/>
+        <line x1="466" y1="265" x2="506" y2="265" marker-end="url(#ar)"/>
+        <line x1="466" y1="325" x2="506" y2="325" marker-end="url(#ar)"/>
+        <line x1="466" y1="385" x2="506" y2="385" marker-end="url(#ar)"/>
+      </g>
+
+      <g font-family="Archivo, sans-serif" font-size="11.5" fill="currentColor">
+        <!-- lane 1 -->
+        <rect x="1" y="246" width="125" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="269" text-anchor="middle">News wires</text>
+        <rect x="174" y="246" width="292" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="320" y="269" text-anchor="middle">× wire trust, + corroboration</text>
+        <rect x="514" y="246" width="224" height="38" class="s-surface s-accent-stroke"/>
+        <text x="626" y="269" text-anchor="middle">Alerts &amp; news order</text>
+
+        <!-- lane 2 -->
+        <rect x="1" y="306" width="125" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="329" text-anchor="middle">Rank lists</text>
+        <rect x="174" y="306" width="292" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="320" y="329" text-anchor="middle">weighted rank aggregation</text>
+        <rect x="514" y="306" width="224" height="38" class="s-surface s-accent-stroke"/>
+        <text x="626" y="329" text-anchor="middle">Draft analyzer order</text>
+
+        <!-- lane 3 -->
+        <rect x="1" y="366" width="125" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="63" y="389" text-anchor="middle">Evidence kinds</text>
+        <rect x="174" y="366" width="292" height="38" class="s-surface" stroke="currentColor"/>
+        <text x="320" y="389" text-anchor="middle">base × trust × corrob. × recency</text>
+        <rect x="514" y="366" width="224" height="38" class="s-surface s-accent-stroke"/>
+        <text x="626" y="389" text-anchor="middle">Sleeper list order</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>Today every source funnels into one slider, and only the rank lists survive the trip to an output. Proposed, each family keeps its own unit and reaches its own consumer — so a slider that moves always moves something.</figcaption>
+</figure>
+
+<section>
+  <p class="kicker">Foundations</p>
+  <h2>What already exists, and is good</h2>
+  <p>The server already has a real news scorer. This design does not replace it — it plugs weights into it.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Module</th><th>What it already does</th></tr></thead>
+      <tbody>
+        <tr><td><code>impact.py</code></td><td>Buckets each item severe / status / positive / noise; scores category (<code>50/25/15/−40</code>) plus who it is about; decays at <code>3.0</code>/day; clusters the same story across outlets. <strong>Source identity is not part of the score.</strong></td></tr>
+        <tr><td><code>sources.py</code></td><td>Seven polled feeds, each with <code>tier</code> (fact vs analysis) and <code>budget_hours</code>. No trust value.</td></tr>
+        <tr><td><code>adp.py</code></td><td>Live ADP blended across 10- and 12-team; sleeper finds from a position-adjusted ADP-vs-rank gap; plus wire items that say “sleeper” and name a player.</td></tr>
+        <tr><td><code>scorecard.py</code></td><td>An immutable ledger: records a call when it is made, grades it later against real box scores, reports calibration.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Two of these matter enormously. <code>cluster()</code> already knows when three outlets said the same thing — today it treats that purely as duplication to fold away. And <code>scorecard.py</code> already knows how to grade a claim. Neither is used by any weighting.</p>
+</section>
+
+<section>
+  <p class="kicker">The design</p>
+  <h2>Three families, three units</h2>
+  <p>Three registries in one canonical module — <code>app/feeds/weights.py</code> — for the same reason <code>app/leagues.py</code> is the only place league facts live: a number that exists in two places will eventually disagree with itself. <code>sources.py</code> stays <em>where to fetch</em>; <code>weights.py</code> becomes <em>how much to believe</em>.</p>
+
+  <div class="families">
+    <div class="fam">
+      <h4>Wire trust</h4>
+      <dl>
+        <dt>Unit</dt><dd>Multiplier on an impact score</dd>
+        <dt>Consumer</dt><dd>Alerts &amp; news order</dd>
+        <dt>Answers</dt><dd>How much does this outlet's post move things?</dd>
+      </dl>
+    </div>
+    <div class="fam">
+      <h4>Board trust</h4>
+      <dl>
+        <dt>Unit</dt><dd>Share in a rank aggregation</dd>
+        <dt>Consumer</dt><dd>Draft analyzer order</dd>
+        <dt>Answers</dt><dd>How hard does this list pull the board?</dd>
+      </dl>
+    </div>
+    <div class="fam">
+      <h4>Sleeper evidence</h4>
+      <dl>
+        <dt>Unit</dt><dd>Confidence in one claim</dd>
+        <dt>Consumer</dt><dd>Sleeper list order</dd>
+        <dt>Answers</dt><dd>How good is the info behind this?</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3>Wire trust — news</h3>
+  <div class="formula">final = impact.score(item) × wire_trust(source) × corroboration(n) − decay(age)</div>
+  <p>Two changes to <code>impact.py</code>. <code>order()</code> factors in the outlet, so a Schefter status post outranks an identical-category post from a weaker source. And <code>cluster()</code> returns <strong>how many outlets carried the story</strong> — three independent outlets reporting the same injury is a stronger claim than one, so corroboration should raise the score sub-linearly (<code>1 + k·log n</code>), with the highest-trust outlet's copy shown.</p>
+  <p>Trust is separable from tier: tier says fact-vs-opinion, trust says how often this outlet is right and first.</p>
+
+  <h3>Board trust — rankings into the analyzer</h3>
+  <div class="formula">blended_rank(p) = Σ (wᵢ × rankᵢ(p)) / Σ wᵢ    <span class="cmt">over lists that rank p</span></div>
+  <p>Only genuine rank lists belong here: Aggregate ADP, ESPN draft kit, Yahoo top-300, Sleeper search rank, and My own tiers. The wires do not — that is the category error, fixed. Today's <code>srcWeight</code> is just the two-list case of this.</p>
+  <p>The trap is <strong>missing players</strong>. A source that does not rank someone must not be read as ranking him 0, and must not silently drop him. Renormalize over the lists that do rank him — and surface how many did, because a player ranked by one list out of five is a different claim from one ranked by all five.</p>
+
+  <h3>Sleeper evidence</h3>
+  <p>The family the owner framed most precisely: <em>weight based on the info given</em>. A sleeper claim has <strong>provenance</strong>, and provenance sets confidence.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Evidence</th><th>Source</th><th>Why it ranks there</th></tr></thead>
+      <tbody>
+        <tr><td class="live">Measured ADP gap</td><td><code>adp.py</code></td><td>Computed from real draft rooms — strongest, because nobody's opinion is in it</td></tr>
+        <tr><td class="live">Measured usage</td><td><code>depth.py</code></td><td>Also measured; not yet joined to sleepers</td></tr>
+        <tr><td>Article mention</td><td><code>_article_finds()</code></td><td>Someone published it — trust flows from wire trust</td></tr>
+        <tr><td>User list</td><td>★ button, <code>/app/mine</code></td><td>The owner's own call: high trust, zero corroboration</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="formula">confidence = evidence_base(kind) × source_trust × corroboration × recency</div>
+  <p>The point is to make evidence kinds <strong>comparable</strong>, so a sleeper backed by a measured 30-pick gap can outrank one backed by a listicle — and the card says which it is, instead of calling both “Sleeper find”.</p>
+</section>
+
+<section>
+  <div class="callout">
+    <p class="kicker">The part that makes the weights honest</p>
+    <p>Every weight above is, today, an opinion typed into an array. The app already owns the machinery to turn them into measurements.</p>
+    <p>A sleeper call is the same shape as a TD lean: a claim, made at a known time, gradeable later against real production. Record sleeper and wire-driven calls into the ledger with their evidence kind and source attached, and after a few weeks of real games it can answer <strong>which sources and which evidence kinds were actually right</strong>.</p>
+    <p>The defaults then stop being declared and start being earned. That is the argument for architecting this rather than patching the sliders: it is the difference between a control panel and a measurement.</p>
+  </div>
+</section>
+
+<section>
+  <p class="kicker">Placement</p>
+  <h2>Where things live</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Home</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>Registries + combine functions</td><td><code>app/feeds/weights.py</code></td><td>New. Pure, no I/O, unit-testable</td></tr>
+        <tr><td>Wire trust applied</td><td><code>app/feeds/impact.py</code></td><td><code>order()</code>, <code>cluster()</code></td></tr>
+        <tr><td>Board aggregation</td><td><code>app/feeds/board.py</code></td><td>Serve-time inject; <code>index.html</code> stays pristine</td></tr>
+        <tr><td>Sleeper confidence</td><td><code>app/feeds/adp.py</code></td><td>Finds carry evidence + confidence</td></tr>
+        <tr><td>Per-user overrides</td><td>Own Redis key, per email</td><td>Same pattern as the allowlist and leagues</td></tr>
+        <tr><td>Editor UI</td><td><code>/app/weights</code></td><td>Built with <code>skin.head()</code>; add to <code>test_navigation.py</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Constraints that bind: no background tasks, no local disk, no in-process caches — both <code>uvicorn</code> and Vercel must keep working. Any surface that goes live gets a <code>verify-live.yml</code> check in the same commit.</p>
+</section>
+
+<section>
+  <p class="kicker">Sequence · each step depends on the one before</p>
+  <h2>Phasing</h2>
+  <p>Ordered so nothing ships claiming an influence it does not have.</p>
+  <ol class="phases">
+    <li><b>Stop lying</b><p>Split the panel into three labelled groups; disable the sliders that feed nothing, each with a one-line statement of what it changes. Small, and it closes the false-positive defect immediately.</p></li>
+    <li><b>Wire trust</b><p>Trust values and corroboration in <code>impact.py</code>. Self-contained, and the Alerts board shows the effect straight away.</p></li>
+    <li><b>Board aggregation</b><p>Replace the scalar blend with weighted rank aggregation. The riskiest change — it reorders the draft board — so the mock-draft engine's headless test is its check.</p></li>
+    <li><b>Sleeper evidence</b><p>Evidence kinds and confidence on every find; each card states its provenance.</p></li>
+    <li><b>Grade it</b><p>Sleeper calls into the ledger; calibration by source and by evidence kind; defaults derived from the record.</p></li>
+  </ol>
+  <p style="margin-top:22px">Steps 1 and 2 are independently useful and do not depend on 3–5.</p>
+</section>
+
+<section>
+  <p class="kicker">Decisions I should not make alone</p>
+  <h2>Open questions</h2>
+  <ol class="qs">
+    <li><b>Do wire weights belong to the user at all?</b> Trust in Schefter is close to a fact about the world, not a preference. Either ship measured defaults and let users nudge, or keep wire trust owner-only and give users just board trust and sleeper evidence — the two that are genuinely about their league and their taste.</li>
+    <li><b>How much should corroboration count?</b> Three outlets on one story — worth 1.5× a single report, or 2×?</li>
+    <li><b>Should your own tier list be able to win outright?</b> Today <code>srcWeight</code> can go to zero (“My tiers only”). Keep that escape hatch in the N-list model?</li>
+  </ol>
+</section>
+
+<footer>Fantasy Sports Bible · weights architecture · design only, nothing built · Aug 21</footer>
+
+</div>
