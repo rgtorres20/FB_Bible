@@ -18,7 +18,6 @@ from fastapi.testclient import TestClient
 
 from app import main
 from app.config import get_settings
-from app.feeds import ranklists
 from app.feeds.store import FileFeedStore
 from app.routes import access as access_route
 from app.routes import feeds as feeds_route
@@ -115,19 +114,30 @@ async def test_a_nonsense_date_falls_back_rather_than_storing_garbage(client, an
 
 
 @pytest.mark.anyio
-async def test_a_weight_outside_the_range_is_clamped_on_the_way_in(client, anyio_backend):
-    """Rule 1: no weight can silence a list. A stored zero would read as a
-    setting the owner chose, so it never gets stored."""
+async def test_a_list_starts_in_the_blend(client, anyio_backend):
+    """A list you just added is one you want used."""
     _save(client, "ESPN", ESPN_PASTE)
-    for attempt in (0, -20, 999):
-        client.post(
-            "/app/mine/list/weight",
-            data={"key": "espn", "weight": attempt},
-            follow_redirects=False,
-        )
-        saved = await _lists(client)
-        got = saved["espn"]["weight"]
-        assert ranklists.MIN_WEIGHT <= got <= ranklists.MAX_WEIGHT, f"{attempt} stored as {got}"
+    assert (await _lists(client))["espn"]["active"] is True
+
+
+@pytest.mark.anyio
+async def test_toggling_takes_a_list_in_and_out(client, anyio_backend):
+    """The only control a list has, and it does exactly one thing."""
+    _save(client, "ESPN", ESPN_PASTE)
+    for expected in (False, True):
+        client.post("/app/mine/list/toggle", data={"key": "espn"}, follow_redirects=False)
+        assert (await _lists(client))["espn"]["active"] is expected
+
+
+@pytest.mark.anyio
+async def test_toggling_keeps_the_list_itself(client, anyio_backend):
+    """Switching a list off must not disturb its order or its date."""
+    _save(client, "ESPN", ESPN_PASTE, as_of="2026-08-01")
+    before = (await _lists(client))["espn"]
+    client.post("/app/mine/list/toggle", data={"key": "espn"}, follow_redirects=False)
+    after = (await _lists(client))["espn"]
+    assert after["order"] == before["order"]
+    assert after["as_of"] == before["as_of"]
 
 
 @pytest.mark.anyio
@@ -151,18 +161,6 @@ async def test_saving_the_same_name_replaces_rather_than_duplicating(client, any
     assert saved["espn top 300"]["order"] == ["Bijan Robinson", "Jahmyr Gibbs"]
 
 
-@pytest.mark.anyio
-async def test_reweighting_keeps_the_list_itself(client, anyio_backend):
-    """A weight change must not disturb the order or the date."""
-    _save(client, "ESPN", ESPN_PASTE, as_of="2026-08-01")
-    before = (await _lists(client))["espn"]
-    client.post("/app/mine/list/weight", data={"key": "espn", "weight": 9}, follow_redirects=False)
-    after = (await _lists(client))["espn"]
-    assert after["order"] == before["order"]
-    assert after["as_of"] == before["as_of"]
-    assert after["weight"] == 9
-
-
 def test_the_page_shows_the_list_with_its_age_and_a_way_out(client):
     """What the owner needs to judge a list: how big, how old, and how to
     remove it."""
@@ -175,13 +173,14 @@ def test_the_page_shows_the_list_with_its_age_and_a_way_out(client):
     assert "/app/mine/list/delete" in page
 
 
-def test_the_page_says_a_weight_cannot_silence_a_list(client):
-    """The control has to explain what it does — and what it cannot do,
-    since removal is the only exclusion."""
+def test_the_page_says_there_are_no_weights(client):
+    """The control has to explain itself, and the honest explanation is
+    short: every list on counts the same."""
     _save(client, "ESPN", ESPN_PASTE)
     page = client.get("/app/mine").text
-    assert "never silence" in page
-    assert "remove the list" in page.lower()
+    assert "counts the same" in page
+    assert "no weights" in page.lower()
+    assert "In the blend" in page
 
 
 def test_lists_are_not_offered_to_a_signed_out_visitor(client):

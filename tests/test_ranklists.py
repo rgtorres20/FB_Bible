@@ -7,6 +7,10 @@ setting there is an outcome named in advance.
 
 Real player names throughout — the fabricated-fixture lesson from this
 thread. These are the app's own board (`RAW_BOARD`).
+
+The list *names* below ("espn", "yahoo") are what a user might type when
+pasting one in. They are not real ESPN or Yahoo rankings: the app holds
+no such data, and the orders here are chosen to exercise the blend.
 """
 
 from __future__ import annotations
@@ -24,9 +28,9 @@ ELITE = ["Jahmyr Gibbs", "Bijan Robinson", "Puka Nacua", "Ja'Marr Chase"]
 DEFENDERS = ["Zaire Franklin", "Fred Warner", "Kyle Hamilton"]
 
 
-def lst(key, names, weight=ranklists.DEFAULT_WEIGHT, as_of=TODAY):
+def lst(key, names, active=True, as_of=TODAY):
     return ranklists.RankList(
-        key=key, name=key.title(), as_of=as_of, order=tuple(names), weight=weight
+        key=key, name=key.title(), as_of=as_of, order=tuple(names), active=active
     )
 
 
@@ -72,38 +76,81 @@ def test_parse_returns_empty_rather_than_inventing_rows():
         assert ranklists.parse(junk) == []
 
 
-# --- rule 1: every enabled list always pulls ---------------------------
+# --- activation is the only control ------------------------------------
 
 
-def test_a_weight_can_never_silence_a_list():
-    """Owner: "I never want to fully influence the boards, should be a
-    combination of all at all times." At its lowest setting — or below it,
-    or at zero, or negative — a list still counts."""
-    for setting in (0, -5, ranklists.MIN_WEIGHT - 1):
-        assert lst("espn", ELITE, weight=setting).effective_weight >= ranklists.MIN_WEIGHT
-
-
-def test_no_weight_lets_one_list_dictate_the_whole_board():
-    """The other half of rule 1. Cranked to the top against a floored
-    rival, the heavy list still cannot impose its exact order."""
-    a = lst("espn", ["Puka Nacua", "Jahmyr Gibbs"], weight=ranklists.MAX_WEIGHT)
-    b = lst("yahoo", ["Jahmyr Gibbs", "Puka Nacua"], weight=ranklists.MIN_WEIGHT)
+def test_every_active_list_counts_the_same():
+    """Owner, Aug 21: "weight them all the same." Two lists disagreeing
+    about two players average to a tie — no list carries more."""
+    a = lst("espn", ["Puka Nacua", "Jahmyr Gibbs"])
+    b = lst("yahoo", ["Jahmyr Gibbs", "Puka Nacua"])
     out = ranklists.blend([a, b], ["Puka Nacua", "Jahmyr Gibbs"])
-    # Heavy list wins the order...
-    assert out.order[0] == "Puka Nacua"
-    # ...but the light one still moved the numbers off a clean 1 and 2.
-    assert out.scores["puka nacua"] != 1.0
-    assert out.scores["jahmyr gibbs"] != 2.0
+    assert out.scores["puka nacua"] == out.scores["jahmyr gibbs"] == 1.5
 
 
-def test_removing_a_list_is_what_actually_excludes_it():
-    """Rule 2: removal is a deliberate act with a visible result. Dropping
-    the list changes the order in a way no slider position could."""
-    heavy = lst("espn", ["Puka Nacua", "Jahmyr Gibbs"], weight=ranklists.MAX_WEIGHT)
-    other = lst("yahoo", ["Jahmyr Gibbs", "Puka Nacua"], weight=ranklists.MIN_WEIGHT)
+def test_order_of_the_lists_does_not_change_the_result():
+    """Equal weight means the blend cannot depend on which list was
+    loaded first — the bug that was hiding in the wire dedupe."""
+    a = lst("espn", ELITE)
+    b = lst("yahoo", list(reversed(ELITE)))
+    players = ELITE
+    assert ranklists.blend([a, b], players).scores == ranklists.blend([b, a], players).scores
+
+
+def test_turning_a_list_off_takes_it_out_of_the_blend():
+    """The whole control. On is in, off is out, and the difference shows
+    in the order rather than in a number nobody can check."""
+    espn = lst("espn", ["Puka Nacua", "Jahmyr Gibbs"])
+    mine = lst("mine", ["Jahmyr Gibbs", "Puka Nacua"])
     players = ["Puka Nacua", "Jahmyr Gibbs"]
-    assert ranklists.blend([heavy, other], players).order[0] == "Puka Nacua"
-    assert ranklists.blend([other], players).order[0] == "Jahmyr Gibbs"
+    both = ranklists.blend([espn, mine], players)
+    assert both.scores["puka nacua"] == both.scores["jahmyr gibbs"]
+
+    dormant = lst("mine", ["Jahmyr Gibbs", "Puka Nacua"], active=False)
+    off = ranklists.blend([espn, dormant], players)
+    assert off.order[0] == "Puka Nacua"
+    assert off.covered_by["puka nacua"] == 1
+
+
+def test_an_inactive_list_contributes_nothing_at_all():
+    """Not a reduced share — nothing. An inactive list must not leave a
+    trace in the coverage count either, or the board would claim someone
+    was ranked by a list that is switched off."""
+    out = ranklists.blend([lst("espn", ELITE, active=False)], ELITE)
+    assert out.scores == {}
+    assert set(out.unranked) == set(ELITE)
+    assert all(n == 0 for n in out.covered_by.values())
+
+
+# --- the combined list -------------------------------------------------
+
+
+def test_the_blend_is_itself_a_list():
+    """Owner: "create a new list of top rankings." The combined order is a
+    ranking in its own right, not just a sort applied to a board."""
+    a = lst("espn", ["Puka Nacua", "Jahmyr Gibbs", "Bijan Robinson"])
+    b = lst("yahoo", ["Jahmyr Gibbs", "Puka Nacua", "Bijan Robinson"])
+    top = ranklists.top_list(ranklists.blend([a, b], ELITE))
+    assert isinstance(top, ranklists.RankList)
+    assert top.order[:1] in (("Puka Nacua",), ("Jahmyr Gibbs",))
+    assert "Bijan Robinson" in top.order
+
+
+def test_the_top_list_holds_only_players_something_ranked():
+    """The unranked tail belongs on a board where it can be labelled, not
+    in a list that claims to rank."""
+    out = ranklists.blend([lst("espn", ELITE)], ELITE + DEFENDERS)
+    top = ranklists.top_list(out)
+    for name in DEFENDERS:
+        assert name not in top.order
+    assert set(top.order) == set(ELITE)
+
+
+def test_the_top_list_starts_switched_off():
+    """It is derived from the others. Blending it back in would count
+    every source twice."""
+    top = ranklists.top_list(ranklists.blend([lst("espn", ELITE)], ELITE))
+    assert top.active is False
 
 
 # --- rule 3: a player nobody ranks keeps his place ---------------------

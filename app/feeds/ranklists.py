@@ -5,21 +5,29 @@ wires carry no weights; these do. A list is a top-N of players in order,
 supplied by the owner: the ESPN draft kit, the Yahoo consensus top-300,
 whatever a user pastes in at /app/mine.
 
-Four rules from the owner, and each one is a property the tests assert
-rather than a comment nobody checks:
+**There are no weights.** Owner, Aug 21: *"instead of having weights
+lets weight them all the same and only blend data when they are activated
+and create a new list of top rankings."*
 
-1. **Every enabled list always pulls.** "I never want to fully influence
-   the boards, should be a combination of all at all times." So a weight
-   tilts a list's share and can never drive it -- or any sibling -- to
-   zero. `MIN_WEIGHT` is the floor.
-2. **Removal is the only exclusion.** Taking a list out is a deliberate
-   act with a visible result, not a slider parked at the end of its
-   travel. That is the caller's job; this module just never sees it.
-3. **A player nobody ranks keeps his place.** Blending renormalizes over
-   the lists that actually rank him, so a list being short does not push
-   him down. Ranked by none, he has no blended rank at all -- reported
-   as such, never given an invented one.
-4. **Lists go stale.** Each carries an `as_of`; a preseason top-300 read
+Every active list counts exactly the same. That is not a simplification
+of the earlier design so much as a better answer to what it was reaching
+for: "I never want to fully influence the boards" was being enforced with
+a floor and a ceiling on a slider, when equal weight makes it true by
+construction. One list cannot dominate because none of them can.
+
+So the only control is **activation**, and it does something obvious: a
+list that is on is in the blend, a list that is off is not. The output is
+a new ranking of its own -- the combined Top list.
+
+Three rules remain, each a property the tests assert rather than a
+comment nobody checks:
+
+1. **Active lists count equally; inactive ones do not count at all.**
+2. **A player nobody ranks keeps his place.** Blending averages over the
+   lists that actually rank him, so a short list does not push him down.
+   Ranked by none, he has no blended rank at all -- reported as such,
+   never given an invented one.
+3. **Lists go stale.** Each carries an `as_of`; a preseason top-300 read
    in week 8 is stale data wearing no label. This module keeps the date
    and reports the age; what to do about it is the surface's call.
 """
@@ -31,12 +39,6 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from .board import match_key
-
-# A weight's travel. The floor is what makes rule 1 true: at its lowest a
-# list still counts, so the only way to silence one is to remove it.
-MIN_WEIGHT = 1
-MAX_WEIGHT = 10
-DEFAULT_WEIGHT = 5
 
 # Lines that are obviously not a player: headers, blank rows, section
 # markers from a pasted table.
@@ -90,16 +92,13 @@ class RankList:
     name: str
     as_of: date
     order: tuple[str, ...] = field(default=())
-    weight: int = DEFAULT_WEIGHT
+    # The only control. On means in the blend, off means out -- and every
+    # list that is on counts the same as every other.
+    active: bool = True
 
     @property
     def ranks(self) -> dict[str, int]:
         return {match_key(n): i + 1 for i, n in enumerate(self.order)}
-
-    @property
-    def effective_weight(self) -> int:
-        """Clamped, so no slider position can silence a list (rule 1)."""
-        return max(MIN_WEIGHT, min(MAX_WEIGHT, self.weight))
 
     def age_days(self, today: date) -> int:
         return (today - self.as_of).days
@@ -116,16 +115,18 @@ class Blended:
 
 
 def blend(lists: list[RankList], players: list[str]) -> Blended:
-    """Weighted rank aggregation over the lists that rank each player.
+    """Average each player's rank across the active lists that carry him.
 
-    Renormalizing over *present* lists is rule 3: a player ranked 12th by
-    the one list that carries him is not punished for the others being
-    short. What the caller must not do is read a missing player as rank
-    zero, or drop him -- both were live risks the moment ADP stopped
-    covering 24% of this board (docs/BOARD_EXPECTED.md).
+    Equal weight, by the owner's call: one list cannot dominate because
+    none of them can. Activation is the whole control.
+
+    Averaging over *present* lists is rule 2: a player ranked 12th by the
+    one list carrying him is not punished for the others being short. What
+    a caller must not do is read a missing player as rank zero, or drop
+    him -- both were live risks the moment ADP stopped covering 24% of
+    this board (docs/BOARD_EXPECTED.md).
     """
-    enabled = [lst for lst in lists if lst.order]
-    ranks = [(lst.effective_weight, lst.ranks) for lst in enabled]
+    active = [lst.ranks for lst in lists if lst.active and lst.order]
 
     scores: dict[str, float] = {}
     covered: dict[str, int] = {}
@@ -133,26 +134,17 @@ def blend(lists: list[RankList], players: list[str]) -> Blended:
 
     for name in players:
         key = match_key(name)
-        total_w = 0
-        acc = 0.0
-        n = 0
-        for weight, table in ranks:
-            place = table.get(key)
-            if place is None:
-                continue
-            acc += weight * place
-            total_w += weight
-            n += 1
-        covered[key] = n
-        if not total_w:
+        places = [table[key] for table in active if key in table]
+        covered[key] = len(places)
+        if places:
+            scores[key] = sum(places) / len(places)
+        else:
             unranked.append(name)
-            continue
-        scores[key] = acc / total_w
 
     # Ranked players first, in blended order; then the unranked, in the
-    # order the caller gave them. They are last because nothing we trust
-    # has an opinion -- not because they are bad, which is why the caller
-    # has to label them.
+    # order the caller gave them. They are last because nothing active has
+    # an opinion -- not because they are bad, which is why the caller has
+    # to label them.
     ranked = sorted(
         (n for n in players if match_key(n) in scores),
         key=lambda n: scores[match_key(n)],
@@ -162,4 +154,23 @@ def blend(lists: list[RankList], players: list[str]) -> Blended:
         scores=scores,
         covered_by=covered,
         unranked=tuple(unranked),
+    )
+
+
+def top_list(blended: Blended, name: str = "Top rankings", as_of: date | None = None) -> RankList:
+    """The blend as a list in its own right.
+
+    Owner: "create a new list of top rankings." The combined order is not
+    just an ordering applied to a board -- it is a ranking the owner can
+    look at, keep, and compare against the ones that produced it. Only the
+    players something actually ranked go in: the unranked tail belongs on
+    a board, where it can be labelled, not in a list that claims to rank.
+    """
+    ranked = tuple(n for n in blended.order if match_key(n) in blended.scores)
+    return RankList(
+        key="top",
+        name=name,
+        as_of=as_of or date.today(),
+        order=ranked,
+        active=False,
     )

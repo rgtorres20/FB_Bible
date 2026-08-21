@@ -205,7 +205,7 @@ def _list_card(saved: dict, today: date) -> str:
     for key in sorted(saved):
         entry = saved[key]
         order = entry.get("order") or []
-        weight = int(entry.get("weight", ranklists.DEFAULT_WEIGHT))
+        active = entry.get("active", True)
         as_of = entry.get("as_of") or ""
         age = ""
         if as_of:
@@ -222,16 +222,12 @@ def _list_card(saved: dict, today: date) -> str:
             + (f" · as of {html_mod.escape(as_of)}" if as_of else "")
             + (f" · {age}" if age else "")
             + "</p>"
-            "<form method='post' action='/app/mine/list/weight' class='row'>"
+            "<form method='post' action='/app/mine/list/toggle' class='row'>"
             f"<input type='hidden' name='key' value='{safe}'>"
-            f"<label for='w-{safe}'>Weight</label>"
-            f"<input id='w-{safe}' type='range' name='weight' "
-            f"min='{ranklists.MIN_WEIGHT}' max='{ranklists.MAX_WEIGHT}' value='{weight}'>"
-            f"<span class='meta'>{weight}</span>"
-            "<button>Save weight</button></form>"
-            "<p class='quiet'>A weight tilts how hard this list pulls the draft "
-            "board. It can never silence the others — remove the list to do "
-            "that.</p>"
+            f"<span class='meta'>{'In the blend' if active else 'Not in the blend'}</span>"
+            f"<button>{'Turn off' if active else 'Turn on'}</button></form>"
+            "<p class='quiet'>Every list that is on counts the same. There are "
+            "no weights — turning one off is how you change the blend.</p>"
             "<details><summary>View order</summary><pre>"
             + html_mod.escape("\n".join(f"{i + 1}. {n}" for i, n in enumerate(order[:60])))
             + ("\n…" if len(order) > 60 else "")
@@ -507,7 +503,7 @@ async def mine_list_save(
     saved[key] = {
         "name": name,
         "as_of": stamp,
-        "weight": int(saved.get(key, {}).get("weight", ranklists.DEFAULT_WEIGHT)),
+        "active": bool(saved.get(key, {}).get("active", True)),
         "order": order,
         "updated": int(time.time()),
     }
@@ -517,14 +513,19 @@ async def mine_list_save(
     return RedirectResponse("/app/mine", status_code=303)
 
 
-@router.post("/app/mine/list/weight", include_in_schema=False)
-async def mine_list_weight(
+@router.post("/app/mine/list/toggle", include_in_schema=False)
+async def mine_list_toggle(
     request: Request,
     key: str = Form(...),
-    weight: int = Form(ranklists.DEFAULT_WEIGHT),
     settings: Settings = Depends(get_settings),
     store: FeedStore = Depends(get_feed_store),
 ) -> Response:
+    """In the blend, or not. The only control a list has.
+
+    Owner, Aug 21: "weight them all the same and only blend data when they
+    are activated." There is no weight to store, so there is nothing here
+    that can be set to a value that quietly means nothing.
+    """
     email = session_email(request, settings)
     if not email:
         return _signin_needed()
@@ -533,12 +534,7 @@ async def mine_list_weight(
     entry = saved.get(key)
     if not entry:
         return RedirectResponse("/app/mine", status_code=303)
-    # Clamped here as well as in the blend. A stored value outside the range
-    # would read as a setting the owner chose.
-    saved[key] = {
-        **entry,
-        "weight": max(ranklists.MIN_WEIGHT, min(ranklists.MAX_WEIGHT, weight)),
-    }
+    saved[key] = {**entry, "active": not entry.get("active", True)}
     await store.save_user(email, {**data, "ranklists": saved})
     return RedirectResponse("/app/mine", status_code=303)
 

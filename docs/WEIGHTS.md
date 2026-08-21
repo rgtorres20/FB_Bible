@@ -400,6 +400,45 @@ breaks loudly or not at all.
 Where a source publishes a real API, a **named adapter** is fine — FFC
 already is one. That is a small verified set, not a general scraper.
 
+**9. There are no weights. Equal blend, activation is the control.**
+
+Owner, Aug 21: *"instead of having weights lets weight them all the same
+and only blend data when they are activated and create a new list of top
+rankings."*
+
+This replaces decision 6's clamped slider. Equal weight makes "no list
+may dominate" true **by construction** rather than by enforcing a floor
+and a ceiling on a control that could still be misread. The whole weight
+vocabulary is gone from the app: no `MIN_WEIGHT`, no share, no tilt. A
+list is in the blend or it is not, and the combined order is published as
+a ranking in its own right — `ranklists.top_list()`.
+
+**And the finding that explains why the weights never felt right.** Three
+of the four sources the panel groups as *"in blend"* have no data behind
+them at all:
+
+| Panel row | Backing data |
+| --- | --- |
+| Aggregate ADP | **real** — live FFC feed |
+| ESPN draft kit · "imported PDF" | **none** — no such import exists |
+| Yahoo consensus top-300 | **none** |
+| My own tiers | **none** |
+
+The only real inputs to the draft order are the design document's own
+hand-made `RAW_BOARD` ordering and live ADP. The "ESPN" hits elsewhere in
+`app/feeds` are ESPN's *news* RSS feed and its *scoreboard* API — neither
+is a draft kit.
+
+So the weights were sliders over phantom sources. No setting could have
+worked, because there was nothing on the other end of three of them. That
+is the same defect as the wire sliders, one layer deeper: the panel named
+sources rather than controls, and the sources were the fiction.
+
+The upload path built on Aug 21 is what makes those rows real — paste the
+ESPN or Yahoo list in at `/app/mine` and it becomes an actual input.
+Until a list is pasted, the honest display for those rows is *not
+loaded*, not a weight.
+
 ## Still open
 
 Nothing. The four decisions above close the design; what remains is
