@@ -29,6 +29,12 @@ PLAYER_TTL_SECONDS = 20 * 60 * 60
 
 
 _AUTH_KEY = "fbbible:auth"
+# The prediction ledger. Its own key for the same reason as the
+# allowlist: the sync rebuilds the feeds blob from an explicit
+# carry-forward list, and a record of what the app predicted must not
+# depend on being remembered there. Losing it would not just drop data
+# -- it would silently reset the accuracy history to "no evidence".
+_SCORECARD_KEY = "fbbible:scorecard"
 
 
 class FeedStore(Protocol):
@@ -43,6 +49,10 @@ class FeedStore(Protocol):
     async def load_auth(self) -> dict: ...
 
     async def save_auth(self, payload: dict) -> None: ...
+
+    async def load_scorecard(self) -> dict: ...
+
+    async def save_scorecard(self, payload: dict) -> None: ...
 
     async def load_user(self, email: str) -> dict: ...
 
@@ -97,6 +107,24 @@ class FileFeedStore:
     @property
     def _auth_path(self) -> Path:
         return self._path.with_name("auth.json")
+
+    @property
+    def _scorecard_path(self) -> Path:
+        return self._path.with_name("scorecard.json")
+
+    async def load_scorecard(self) -> dict:
+        if not self._scorecard_path.exists():
+            return {}
+        try:
+            return json.loads(self._scorecard_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    async def save_scorecard(self, payload: dict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._scorecard_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        tmp.replace(self._scorecard_path)
 
     async def load_auth(self) -> dict:
         if not self._auth_path.exists():
@@ -180,6 +208,20 @@ class RedisFeedStore:
         # Own key, no TTL: the allowlist must survive every sync rebuild
         # of the feeds blob (see the FileFeedStore note).
         await self._redis.set(_AUTH_KEY, json.dumps(payload))
+
+    async def load_scorecard(self) -> dict:
+        raw = await self._redis.get(_SCORECARD_KEY)
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    async def save_scorecard(self, payload: dict) -> None:
+        # Own key, no TTL. The ledger only grows and is the evidence the
+        # accuracy page reads; a TTL would quietly delete the record.
+        await self._redis.set(_SCORECARD_KEY, json.dumps(payload))
 
     async def load_user(self, email: str) -> dict:
         raw = await self._redis.get(_USER_KEY_PREFIX + email)

@@ -25,6 +25,7 @@ from .. import authn
 from .. import leagues as leagues_mod
 from ..config import Settings, get_settings
 from ..feeds import (
+    accuracy,
     adp,
     alerts300,
     build_feed_store,
@@ -38,6 +39,7 @@ from ..feeds import (
     poller,
     previews,
     render,
+    scorecard,
     stats,
     teams,
     vegas,
@@ -223,6 +225,22 @@ async def mock_draft_room(
             board_leagues=await _leagues_for(request, settings, store),
         )
     )
+
+
+@router.get("/app/scorecard", include_in_schema=False, response_class=HTMLResponse)
+async def prediction_scorecard(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """How the app's own TD leans actually did (app/feeds/accuracy.py).
+
+    Reads the ledger from its own store key, so a sync rebuild of the
+    feeds blob can never reset the accuracy history to "no evidence".
+    Declared before the /app static mount so it wins."""
+    try:
+        ledger = await store.load_scorecard()
+        stored = await store.load()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("scorecard: store unavailable: %s", exc)
+        ledger, stored = {}, {}
+    return HTMLResponse(accuracy.build_html(ledger, stored.get("scores"), datetime.now(UTC)))
 
 
 @router.get("/app/nextup", include_in_schema=False, response_class=HTMLResponse)
@@ -778,6 +796,45 @@ async def sync(
         except Exception as exc:  # noqa: BLE001 - stats must never sink the news sync
             log.warning("season stats fetch failed, keeping previous state: %s", exc)
 
+    # The prediction ledger (app/feeds/scorecard.py). Two separate jobs,
+    # deliberately in this order: snapshot what the app is claiming right
+    # now, then settle anything the box scores can already decide. The
+    # record is immutable once written -- re-running this twenty times a
+    # day must not let a call drift toward whatever is currently true.
+    #
+    # Nothing happens during the preseason. There is no regular-season
+    # week to key a prediction to, and a scorecard over zero played games
+    # would be an accuracy figure with no evidence behind it.
+    ledger_recorded = ledger_settled = 0
+    week, week_reason = scorecard.current_week(scores_state)
+    if week is not None:
+        try:
+            ledger = await store.load_scorecard()
+            ledger, ledger_recorded = scorecard.record(
+                ledger,
+                vegas.adjust_predictions(
+                    vegas.curated_predictions(),
+                    vegas.curated_implied(),
+                    vegas.implied_by_team((vegas_state or {}).get("games") or []),
+                ),
+                scorecard.SEASON,
+                week,
+                polled["polled_at"],
+            )
+            box = await stats.fetch_week(scorecard.SEASON, week)
+            if box:
+                ledger, ledger_settled = scorecard.grade(
+                    ledger,
+                    box,
+                    scorecard.name_index(await store.load_players()),
+                    scorecard.SEASON,
+                    week,
+                )
+            if ledger_recorded or ledger_settled:
+                await store.save_scorecard(ledger)
+        except Exception as exc:  # noqa: BLE001 - the ledger must never sink the sync
+            log.warning("scorecard: skipped this run: %s", exc)
+
     await store.save(
         {
             "items": merged["items"],
@@ -818,6 +875,12 @@ async def sync(
         # In the sync's own response because a refetch that quietly
         # stored zero of them is the failure mode worth seeing in the
         # runner log rather than an hour later on a board.
+        # What the prediction ledger did this run. In the sync response
+        # because "recorded 0" during the season is a real problem and a
+        # silent one otherwise.
+        "predictions_recorded": ledger_recorded,
+        "predictions_settled": ledger_settled,
+        "predictions_week": week if week is not None else week_reason,
         "stats_defenses": len(stats_state.get("defenses", {})),
         "stats_defenses_complete": (stats_state.get("coverage") or {}).get(
             "defense_pa_complete", 0

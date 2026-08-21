@@ -193,7 +193,8 @@ aside > div:nth-child(2) {
  * settings (mobile.js). */
 #fb-mock-link,
 #fb-leagues-link,
-#fb-nextup-link {
+#fb-nextup-link,
+#fb-score-link {
   display: block;
   margin-bottom: 8px;
   padding: 6px 10px;

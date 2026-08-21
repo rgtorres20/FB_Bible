@@ -33,6 +33,11 @@ from .. import leagues as leagues_mod
 log = logging.getLogger(__name__)
 
 STATS_URL = "https://api.sleeper.app/v1/stats/nfl/regular/2025"
+# Per-week box scores, same shape keyed by player id (probed live Aug 21:
+# HTTP 200, rush_att / rush_yd / rush_rz_att and the rest of the same
+# vocabulary). This is what settles a TD lean -- a prediction graded
+# against anything other than the real box score is not graded.
+WEEK_STATS_URL = "https://api.sleeper.app/v1/stats/nfl/regular/{season}/{week}"
 SEASON = 2025
 
 # Final-season data is static; a weekly refetch only guards against the
@@ -152,6 +157,34 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
         if own_client:
             await client.aclose()
     return reduce(raw)
+
+
+async def fetch_week(
+    season: int, week: int, client: httpx.AsyncClient | None = None
+) -> dict | None:
+    """One week's per-player box scores, or None if the week is not
+    published yet.
+
+    None rather than {} on purpose: an unplayed week and a week where
+    everybody scored zero are different facts, and the grader must not
+    settle predictions against the second when it means the first.
+    """
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient(
+            timeout=60.0,
+            headers={"User-Agent": "FBBible/1.0 (personal fantasy tool, weekly)"},
+        )
+    try:
+        response = await client.get(WEEK_STATS_URL.format(season=season, week=week))
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        payload = response.json()
+    finally:
+        if own_client:
+            await client.aclose()
+    return payload if isinstance(payload, dict) and payload else None
 
 
 def reduce(raw: dict) -> dict:

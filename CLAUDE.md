@@ -158,7 +158,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-545 tests green — 529 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+559 tests green — 543 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -182,6 +182,17 @@ analyzer links to it via mobile.js. The room wears the app's own modes
 seats, and its "Draft board ⧉" button opens the snake grid with hover
 details in a new tab. The page's news overlay reads newest-first — impact
 selects what shows, chronology orders it (owner call, Aug 20).
+
+`/app/scorecard` grades the app against reality (owner ask, Aug 21): an
+immutable ledger records every TD lean when it is made — an existing
+entry is never overwritten, which is what makes it evidence rather than
+opinion — and Sleeper's per-week box scores settle it later. It reports
+**calibration**, not just a hit rate, because "said 78, hit 33" is the
+finding a bare percentage hides. No rate is printed until real games are
+behind it; pushes and unplayed games are excluded; prose surfaces
+(capsules, verdicts, previews) stay explicitly unscored rather than
+graded against an invented rubric. Ledger in its own Redis key so no sync
+can reset the history to "no evidence".
 
 `/app/nextup` is the pickup board (owner request, Aug 21): every starter
 flagged out, the player measured to be behind him, how much work comes

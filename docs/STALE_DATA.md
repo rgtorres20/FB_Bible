@@ -136,6 +136,46 @@ Ordered by how much staleness actually costs.
    projections on the same tab stay curated**, and the Data health row says
    which half is which.
 
+## Checking the app against reality
+
+Added Aug 21, after the owner asked how to improve the AI predictions and
+whether a second model would help. The honest answer was that **nothing
+had ever checked whether a call was right**, so there was no way to tell
+whether any change — a second model, a better prompt, more evidence —
+helped or hurt. A second model buys agreement, not accuracy; both read
+the same inputs and regress to the same conventional wisdom.
+
+`/app/scorecard` is the check. `app/feeds/scorecard.py` keeps an
+**immutable ledger**: every TD lean is snapshotted the moment it is made,
+keyed by season, week, player and prop, and an existing key is never
+overwritten — not by a line move, not by a re-run, not by a better idea.
+A prediction you can edit once you know the answer is not a prediction,
+and the sync runs every 15 minutes, so this property is what makes the
+record evidence rather than a changing opinion. Grading happens later
+against Sleeper's real per-week box scores (endpoint probed live before
+anything was scored against it).
+
+The number the page exists for is **calibration**, not the hit rate: a
+band that says 78 and hits 33 is overconfidence, and a bare 52% hides it.
+
+Three refusals, each a way the figure could become a lie:
+
+- **No rate over an empty set.** Before Week 1 the page says which games
+  it is waiting for. An empty ledger reports `None`, never 0%.
+- **Pushes and unplayed games are excluded**, not folded in. A player who
+  did not appear stays open — "did not play" is not a wrong call about
+  what he would have done.
+- **Only falsifiable calls are counted.** Props have lines a box score
+  settles. Capsules, wire verdicts, mover reads and matchup previews are
+  prose; scoring prose needs an invented rubric and would produce a
+  number that looks measured and is not. They stay unscored and the page
+  says so.
+
+The ledger lives in its own store key (`fbbible:scorecard`), like the
+allowlist, because losing it to a feeds-blob rebuild would not merely
+drop data — it would silently reset the accuracy history to "no
+evidence", which is the most flattering possible state.
+
 ## The enforcement loop
 
 - Data health is the single place freshness is reported, and the overlay

@@ -285,6 +285,19 @@ def main() -> int:
     flagged = nextup_page.count("class='row'")
     print(f"  INFO  starters flagged out right now: {flagged}")
 
+    # The scorecard. Its whole value is that it refuses to show a number
+    # it cannot back, so the check is that it never prints a rate before
+    # there are graded games behind it.
+    score_page = get("/app/scorecard").decode("utf-8", errors="replace")
+    check("scorecard serves", "Scorecard" in score_page)
+    ungraded = "Nothing recorded yet" in score_page or "Nothing graded yet" in score_page
+    check(
+        "scorecard shows no rate without games behind it",
+        ("hit rate" in score_page.lower()) != ungraded,
+        "printed a rate with nothing graded" if ungraded else "",
+    )
+    print(f"  INFO  prediction ledger graded yet: {'no' if ungraded else 'yes'}")
+
     # League settings: same rule as /app/mine -- the watchdog has no
     # session, so it must get the honest ask-to-sign-in page rather than
     # anybody's league. And the built-ins must still be described as the
