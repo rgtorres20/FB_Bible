@@ -1,6 +1,7 @@
 # Weights — architecture
 
-**Status: design. Nothing here is built yet.** Owner ask, Aug 21: *"we have a
+**Status: design. Nothing here is built yet — but the design is now closed:
+all four open questions were decided by the owner on Aug 21 (see *Decided*).** Owner ask, Aug 21: *"we have a
 few types of weights — one for news wires and another for top-300 draft picks
 toward draft analyzer. Sleepers should have a weight based on info given
 (website post or a list given by users). Let's take a step back and architect
@@ -244,8 +245,56 @@ a corroborated `status` item never outranks a single-source `severe` item
 
 Write that test, then pick whichever curve passes it.
 
+**4. The escape hatch survives, but ADP comes out of the blend.**
+
+Today `srcWeight → 0` ("My tiers only") zeroes ADP, which conflates two
+different questions:
+
+- **Your tier list answers "who is better."** That is an opinion, and it
+  is yours. It should be able to win outright — a tool that overrides
+  the owner is a worse copy of the market.
+- **ADP answers "when will he be gone."** That is not an opinion. It is a
+  measurement of what the other nine or eleven managers will do. Zeroing
+  it does not remove someone else's bias; it deletes information you need
+  regardless of your opinions, and you reach in round 3 for a player who
+  would have lasted to round 7.
+
+So they do not belong on the same control. ADP is not a competing
+ranking — it is an **availability column**.
+
+The N-list model also makes the current behaviour newly dangerous. Under
+the old two-list blend a player with no ADP fell back to `b.rank`, so
+there was always a number. Under renormalization-over-present-lists, a
+player ranked by *zero* active lists has an undefined rank — at "my tiers
+only" that is every kicker, every defender and every late flier the owner
+never personally ranked. This repo's leagues make it worse: FFC's ADP
+carries no individual defenders at all, so eight starting slots in NDDPL
+and RED_EYE are already thin before anyone moves a slider.
+
+Decided:
+
+1. **Rank blend** — ESPN, Yahoo, Sleeper, own tiers. Any may go to zero,
+   including all-but-mine. The escape hatch is preserved, and doubles as
+   a diagnostic: flipping between "market only" and "mine only" shows
+   exactly where the owner disagrees with consensus.
+2. **ADP is not in that blend.** Always present, never weighted. It
+   drives the availability column, the reach/value flags, and the mock
+   room's simulation of when players actually go.
+3. **A coverage floor.** A player ranked by none of the active sources is
+   ordered by ADP and *labelled* "unranked by your sources" — visible,
+   never silently sunk to the bottom as though he were bad. No invented
+   rank: say there isn't one.
+
+The test to write **before** any of this is built:
+
+```
+with only my tiers active, every player on the board still has a defined
+position, and the ones I never ranked are marked as such
+```
+
+If that fails, the escape hatch is broken whatever the sliders say.
+
 ## Still open
 
-**Should a user's own tier list be able to win outright?** Today
-`srcWeight` can go to 0 ("My tiers only"). Keep that escape hatch in the
-N-list model, or floor it so the market always has some pull?
+Nothing. The four decisions above close the design; what remains is
+building it, in the order under *Phasing*.
