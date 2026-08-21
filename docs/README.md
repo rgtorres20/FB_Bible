@@ -19,6 +19,7 @@ that bind code, and the pointer to every page below.
 
 **Decisions and designs**
 - [WEIGHTS.md](WEIGHTS.md) — the three weight families *(design only, not built)*
+- [BOARD_EXPECTED.md](BOARD_EXPECTED.md) — the draft board's expected results, written before the code
 - [PHASE2_SPEC.md](PHASE2_SPEC.md) — scope of the Yahoo link
 - [HOSTING.md](HOSTING.md) · [ENVIRONMENTS.md](ENVIRONMENTS.md) — where it runs, prod vs beta
 - [LICENSING.md](LICENSING.md) — verified terms; what selling would require
