@@ -53,6 +53,25 @@ def get_json(path: str) -> dict:
     return json.loads(get(path))
 
 
+def post_json(path: str) -> tuple[int, dict]:
+    """(status, body) for an anonymous POST. Used to prove an endpoint is
+    actually wired -- a missing dependency in the deployed bundle shows up
+    here as a 500 rather than as a button that fails in someone's hand."""
+    req = urllib.request.Request(
+        BASE + path,
+        data=b"",
+        headers={"User-Agent": "FBBible-verify/1.0", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.status, json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        return exc.code, {}
+    except Exception:  # noqa: BLE001 - a malformed body is still "not wired"
+        return 0, {}
+
+
 def anon_status(path: str) -> int:
     """Status code for a request carrying NO sync token, redirects not
     followed -- the only way to prove the login gate actually closes for
@@ -219,6 +238,16 @@ def main() -> int:
     # "misconfigured" is a half-enable worth seeing in the log.
     login_page = get("/login").decode("utf-8", errors="replace")
     check("login page serves", "Owner sign-in" in login_page)
+    check("login offers passkey sign-in", "Sign in with Face ID" in login_page)
+    # Proves the WebAuthn dependency survived the deploy: this endpoint
+    # imports it, so a bundle that dropped it answers 500 here instead of
+    # failing later in someone's hand. The challenge must be real, too.
+    code, opts = post_json("/passkey/login/options")
+    check(
+        "passkey challenge issues",
+        code == 200 and len(str(opts.get("challenge", ""))) > 20,
+        f"HTTP {code}",
+    )
     gate = health.get("app_auth", "?")
     print(f"  INFO  app login gate: {gate}")
     if gate == "on":

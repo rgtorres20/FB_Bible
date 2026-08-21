@@ -1,5 +1,28 @@
 # Resume here
 
+## Aug 21 — the gate goes live, and passkeys
+
+- **Owner activated the login gate.** OWNER_EMAIL is
+  rgtorres20@icloud.com; the owner holds APP_OWNER_CODE and
+  SESSION_SECRET in Vercel env (never in the repo). The watchdog now
+  proves the gate actually closes when /health says "on" — an anonymous,
+  token-less request to /app/ must be turned away — and FAILS on a
+  half-set enable instead of passing quietly.
+- **Invite links honor x-forwarded-proto**: Vercel's ASGI scope can
+  report http, which would have mailed real invites on the wrong scheme.
+- **Passkeys** (owner request): WebAuthn via py_webauthn 3.0, which
+  rides on the cryptography already shipped. Register from /app/mine
+  after a normal sign-in; the login page then signs you in with Face ID
+  / Touch ID and no email typed (discoverable credentials, user
+  verification required). Guards, not crypto, are what the tests cover:
+  registration needs a live session, a stale or forged challenge opens
+  nothing, an unknown credential is refused, and a revoked email's
+  passkey is both rejected AND deleted. Watchdog asserts the challenge
+  endpoint answers, which is also how we would learn the new dependency
+  failed to make the Vercel bundle.
+  KNOWN LIMIT: passkeys are bound to the hostname — a custom-domain move
+  means everyone re-registers (docs/ACCESS.md).
+
 ## Aug 20 (late) — the personal layer and emailed invites
 
 - **/app/mine ("My stuff")**: the owner's shape for multi-user — "a base

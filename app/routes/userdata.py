@@ -23,6 +23,7 @@ import time
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from .. import passkeys
 from ..config import Settings, get_settings
 from ..feeds import skin
 from ..feeds.store import FeedStore
@@ -76,6 +77,11 @@ pre { background: var(--color-neutral-200); padding: 8px 10px;
 details summary { cursor: pointer; font-weight: 700; font-size: 13px;
                   padding: 4px 0; }
 .quiet { color: var(--color-neutral-600); font-style: italic; font-size: 12.5px; }
+button.pk { width: 100%; font-size: 13.5px; padding: 10px 14px; }
+.pkrow { display: flex; justify-content: space-between; align-items: center;
+         gap: 10px; border-bottom: 1px solid var(--color-neutral-300);
+         padding: 5px 0; font-size: 12.5px; }
+.pkmsg { font-size: 12px; margin-top: 8px; }
 a { color: inherit; }
 """
 )
@@ -88,10 +94,27 @@ def _page(body: str) -> HTMLResponse:
         "<title>FB Bible — my stuff</title>"
         f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
         f"<main>{body}</main>"
+        f"<script>{passkeys.BROWSER_JS}</script>"
+        "<script>"
+        "var pkcard = document.getElementById('pkcard');"
+        "if (pkcard && FBPK.supported) {"
+        "  pkcard.hidden = false;"
+        "  var btn = document.getElementById('pkbtn'), msg = document.getElementById('pkmsg');"
+        "  btn.onclick = async function () {"
+        "    btn.disabled = true; msg.textContent = 'Waiting for your device…';"
+        "    var name = (navigator.platform || 'This device').split(' ')[0];"
+        "    try { await FBPK.register(name); location.reload(); }"
+        "    catch (e) { msg.textContent = e.message || 'That did not work.';"
+        "                btn.disabled = false; }"
+        "  };"
+        "}"
+        "</script>"
     )
 
 
-def _render(email: str, data: dict, err: str = "") -> HTMLResponse:
+def _render(
+    email: str, data: dict, err: str = "", pk_list: list[dict] | None = None
+) -> HTMLResponse:
     docs = data.get("docs") or {}
     cards = []
     for name in sorted(docs):
@@ -141,8 +164,42 @@ def _render(email: str, data: dict, err: str = "") -> HTMLResponse:
         f"Up to {MAX_DOCS} documents, {MAX_DOC_BYTES // 1000}KB each · "
         "<a href='/app/'>back to the app</a></p>"
         + (f"<div class='err'>{html_mod.escape(err)}</div>" if err else "")
+        + _passkey_card(pk_list or [])
         + add_form
         + ("".join(cards) or "<p class='quiet'>Nothing saved yet.</p>")
+    )
+
+
+def _passkey_card(pk_list: list[dict]) -> str:
+    """Face ID / Touch ID setup for this device. Rendered hidden and
+    revealed by script only where the browser supports WebAuthn."""
+    rows = "".join(
+        "<div class='pkrow'><span>"
+        + html_mod.escape(entry.get("label") or "Passkey")
+        + (
+            " <span class='quiet'>added "
+            + time.strftime("%b %d, %Y", time.localtime(entry["added"]))
+            + "</span>"
+            if entry.get("added")
+            else ""
+        )
+        + "</span>"
+        "<form method='post' action='/app/mine/passkey/remove' style='margin:0'>"
+        "<input type='hidden' name='cred' value='"
+        + html_mod.escape(entry.get("id", ""), quote=True)
+        + "'><button class='quietbtn'>Remove</button></form></div>"
+        for entry in pk_list
+    )
+    return (
+        "<div class='card' id='pkcard' hidden><h2>Sign in with Face ID</h2>"
+        "<p class='meta'>Add this device and next time you can sign in with a "
+        "face or a fingerprint instead of a link or a code. The key stays in "
+        "your device's secure enclave — this app only ever stores its public "
+        "half.</p>"
+        + (rows or "<p class='quiet'>No devices set up yet.</p>")
+        + "<button class='pk' id='pkbtn' style='margin-top:12px'>"
+        "Set up on this device</button>"
+        "<div class='pkmsg quiet' id='pkmsg'></div></div>"
     )
 
 
@@ -164,7 +221,8 @@ async def mine_page(
     email = session_email(request, settings)
     if not email:
         return _signin_needed()
-    return _render(email, await store.load_user(email))
+    auth = await store.load_auth()
+    return _render(email, await store.load_user(email), pk_list=passkeys.list_for(auth, email))
 
 
 @router.post("/app/mine/save", include_in_schema=False)

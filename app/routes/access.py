@@ -24,10 +24,33 @@ import logging
 import time
 
 from fastapi import APIRouter, Depends, Form, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
-from .. import authn, mailer
+from .. import authn, mailer, passkeys
+
+# Passkeys are the only feature with a dependency outside the original
+# set, and this repo has lost deploys to dependency trouble before. A
+# guarded import means a bundle that dropped webauthn costs the Face ID
+# button -- not the whole app, /login and /health included.
+try:
+    from webauthn import (
+        generate_authentication_options,
+        generate_registration_options,
+        options_to_json,
+        verify_authentication_response,
+        verify_registration_response,
+    )
+    from webauthn.helpers.structs import (
+        AuthenticatorSelectionCriteria,
+        PublicKeyCredentialDescriptor,
+        ResidentKeyRequirement,
+        UserVerificationRequirement,
+    )
+
+    PASSKEYS_READY = True
+except ImportError:  # pragma: no cover - exercised only by a broken bundle
+    PASSKEYS_READY = False
 from ..config import Settings, get_settings
 from ..feeds import skin
 from ..feeds.store import FeedStore, build_feed_store
@@ -78,6 +101,11 @@ th { text-align: left; border-bottom: 2px solid var(--color-text);
      text-transform: uppercase; color: var(--color-neutral-700); }
 td { padding: 5px 6px; border-bottom: 1px solid var(--color-neutral-300); }
 .quiet { color: var(--color-neutral-600); font-style: italic; }
+button.pk { width: 100%; margin-top: 0; font-size: 14px; padding: 11px 14px; }
+.or { text-align: center; font-size: 11px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--color-neutral-600);
+      margin: 16px 0 12px; }
+.pkmsg { font-size: 12.5px; margin-top: 10px; }
 a { color: inherit; }
 """
 )
@@ -142,7 +170,7 @@ def _public_base(request: Request) -> str:
     return base
 
 
-def _set_session(response: RedirectResponse, email: str, settings: Settings) -> None:
+def _set_session(response: Response, email: str, settings: Settings) -> None:
     response.set_cookie(
         authn.SESSION_COOKIE,
         authn.mint_session(email, settings.session_secret),
@@ -175,17 +203,45 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         f"<b>{settings.auth_state}</b> — the app is open at /app/ and this "
         "page is a preview. docs/ACCESS.md has the enable steps.</p>"
     )
+    # The passkey card renders hidden and is revealed by script only where
+    # the browser actually supports WebAuthn -- a Face ID button that does
+    # nothing would be worse than no button.
+    passkey_card = (
+        ""
+        if not PASSKEYS_READY
+        else "<div class='card' id='pkcard' hidden><h2>This device</h2>"
+        "<button class='pk' id='pkbtn'>Sign in with Face ID / Touch ID</button>"
+        "<div class='pkmsg quiet' id='pkmsg'>Set one up from “My stuff” after "
+        "you sign in once.</div></div>"
+        "<div class='or' id='pkor' hidden>or</div>"
+    )
     return _page(
         "sign in",
         "<h1>Fantasy Bible</h1>"
         "<p class='sub'>Access is by invitation. If you got an invite link, "
         "open it on this device and you're in — no password.</p>"
         + err
+        + passkey_card
         + "<div class='card'><h2>Owner sign-in</h2>"
         "<form method='post' action='/login'>"
         "<label>Email</label><input name='email' type='email' required>"
         "<label>Owner code</label><input name='code' type='password' required>"
-        "<button>Sign in</button></form></div>" + state_note,
+        "<button>Sign in</button></form></div>"
+        + state_note
+        + f"<script>{passkeys.BROWSER_JS}</script>"
+        + "<script>"
+        "if (FBPK.supported) {"
+        "  document.getElementById('pkcard').hidden = false;"
+        "  document.getElementById('pkor').hidden = false;"
+        "  var btn = document.getElementById('pkbtn'), msg = document.getElementById('pkmsg');"
+        "  btn.onclick = async function () {"
+        "    btn.disabled = true; msg.textContent = 'Waiting for your device…';"
+        "    try { var r = await FBPK.signIn(); location.href = r.next || '/app/'; }"
+        "    catch (e) { msg.textContent = e.message || 'That did not work.';"
+        "                btn.disabled = false; }"
+        "  };"
+        "}"
+        "</script>",
     )
 
 
@@ -362,7 +418,188 @@ async def access_remove(
     if not _is_owner(request, settings):
         return RedirectResponse("/login", status_code=303)
     auth = await store.load_auth()
-    updated = authn.remove_email(auth, email)
+    updated = passkeys.drop_all_for(authn.remove_email(auth, email), authn.normalize_email(email))
     await store.save_auth(updated)
     log.info("access: removed one, allowlist now %d", len(updated.get("allow") or {}))
     return _access_page(updated, settings)
+
+
+# --- passkeys: Face ID / Touch ID ------------------------------------------
+# A faster way in for someone who already has access, never a way to grant
+# it: registration needs a live session, and sign-in still ends at the same
+# allowlist check the password-less flows use.
+
+
+def _challenge_cookie(response: Response, challenge: bytes, settings: Settings) -> None:
+    response.set_cookie(
+        passkeys.CHALLENGE_COOKIE,
+        passkeys.mint_challenge(challenge, settings.session_secret),
+        max_age=passkeys.CHALLENGE_SECONDS,
+        httponly=True,
+        secure=settings.stage != "local",
+        samesite="lax",
+        path="/",
+    )
+
+
+@router.post("/passkey/register/options", include_in_schema=False)
+async def passkey_register_options(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    if not PASSKEYS_READY:
+        return JSONResponse({"detail": "Passkeys are unavailable here."}, status_code=503)
+    email = session_email(request, settings)
+    if not email:
+        return JSONResponse({"detail": "Sign in first, then add a passkey."}, status_code=401)
+    auth = await store.load_auth()
+    rp_id, _ = passkeys.rp_from_request(request)
+    options = generate_registration_options(
+        rp_id=rp_id,
+        rp_name=passkeys.RP_NAME,
+        user_name=email,
+        user_id=email.encode(),
+        user_display_name=email,
+        # Discoverable + user verification is what makes it a face or a
+        # finger rather than a bare tap, and lets sign-in skip the email.
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.REQUIRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
+        exclude_credentials=[
+            PublicKeyCredentialDescriptor(id=passkeys.from_b64url(c["id"]))
+            for c in passkeys.list_for(auth, email)
+        ],
+    )
+    response = Response(content=options_to_json(options), media_type="application/json")
+    _challenge_cookie(response, options.challenge, settings)
+    return response
+
+
+@router.post("/passkey/register/verify", include_in_schema=False)
+async def passkey_register_verify(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    if not PASSKEYS_READY:
+        return JSONResponse({"detail": "Passkeys are unavailable here."}, status_code=503)
+    email = session_email(request, settings)
+    if not email:
+        return JSONResponse({"detail": "Sign in first, then add a passkey."}, status_code=401)
+    challenge = passkeys.read_challenge(
+        request.cookies.get(passkeys.CHALLENGE_COOKIE), settings.session_secret
+    )
+    if not challenge:
+        return JSONResponse({"detail": "That took too long — try again."}, status_code=400)
+    body = await request.json()
+    rp_id, origin = passkeys.rp_from_request(request)
+    try:
+        verified = verify_registration_response(
+            credential=body.get("credential"),
+            expected_challenge=challenge,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            require_user_verification=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - any failure is "that passkey didn't verify"
+        log.warning("passkey: registration rejected (%s)", type(exc).__name__)
+        return JSONResponse({"detail": "That passkey could not be verified."}, status_code=400)
+
+    auth = await store.load_auth()
+    auth = passkeys.add_credential(
+        auth,
+        email,
+        verified.credential_id,
+        verified.credential_public_key,
+        verified.sign_count,
+        str(body.get("label") or "This device"),
+    )
+    await store.save_auth(auth)
+    log.info("passkey: registered one, user now holds %d", len(passkeys.list_for(auth, email)))
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(passkeys.CHALLENGE_COOKIE, path="/")
+    return response
+
+
+@router.post("/passkey/login/options", include_in_schema=False)
+async def passkey_login_options(
+    request: Request, settings: Settings = Depends(get_settings)
+) -> Response:
+    if not PASSKEYS_READY:
+        return JSONResponse({"detail": "Passkeys are unavailable here."}, status_code=503)
+    rp_id, _ = passkeys.rp_from_request(request)
+    # No allow-list of credential ids: the passkey is discoverable, so the
+    # device offers the right one and nobody has to type an email. It also
+    # means this endpoint reveals nothing about who has an account.
+    options = generate_authentication_options(
+        rp_id=rp_id, user_verification=UserVerificationRequirement.REQUIRED
+    )
+    response = Response(content=options_to_json(options), media_type="application/json")
+    _challenge_cookie(response, options.challenge, settings)
+    return response
+
+
+@router.post("/passkey/login/verify", include_in_schema=False)
+async def passkey_login_verify(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    if not PASSKEYS_READY:
+        return JSONResponse({"detail": "Passkeys are unavailable here."}, status_code=503)
+    challenge = passkeys.read_challenge(
+        request.cookies.get(passkeys.CHALLENGE_COOKIE), settings.session_secret
+    )
+    if not challenge:
+        return JSONResponse({"detail": "That took too long — try again."}, status_code=400)
+    body = await request.json()
+    credential = body.get("credential") or {}
+    cred_id = str(credential.get("rawId") or credential.get("id") or "")
+
+    auth = await store.load_auth()
+    hit = passkeys.find_credential(auth, cred_id)
+    if not hit:
+        return JSONResponse({"detail": "That passkey isn't registered here."}, status_code=401)
+    email, entry = hit
+    # The allowlist still governs: a removed email's passkey opens nothing.
+    if not authn.is_allowed(auth, email, settings.owner_email):
+        return JSONResponse({"detail": "That access has been removed."}, status_code=403)
+
+    rp_id, origin = passkeys.rp_from_request(request)
+    try:
+        verified = verify_authentication_response(
+            credential=credential,
+            expected_challenge=challenge,
+            expected_rp_id=rp_id,
+            expected_origin=origin,
+            credential_public_key=passkeys.from_b64url(entry["pk"]),
+            credential_current_sign_count=int(entry.get("sign_count") or 0),
+            require_user_verification=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - a failed signature is just "no"
+        log.warning("passkey: sign-in rejected (%s)", type(exc).__name__)
+        return JSONResponse({"detail": "That passkey could not be verified."}, status_code=401)
+
+    await store.save_auth(passkeys.bump_sign_count(auth, email, cred_id, verified.new_sign_count))
+    log.info("passkey: sign-in accepted")
+    response = JSONResponse({"ok": True, "next": "/app/"})
+    _set_session(response, email, settings)
+    response.delete_cookie(passkeys.CHALLENGE_COOKIE, path="/")
+    return response
+
+
+@router.post("/app/mine/passkey/remove", include_in_schema=False)
+async def passkey_remove(
+    request: Request,
+    cred: str = Form(...),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    email = session_email(request, settings)
+    if not email:
+        return RedirectResponse("/login", status_code=303)
+    auth = await store.load_auth()
+    await store.save_auth(passkeys.remove_credential(auth, email, cred))
+    return RedirectResponse("/app/mine", status_code=303)

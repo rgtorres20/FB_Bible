@@ -44,6 +44,35 @@ nothing by itself.
 
 Then sign in at `/login` and add people at `/app/access`.
 
+**First run, in order:** set the four vars → redeploy → check `/health`
+shows `"app_auth": "on"` → sign in at `/login` with your email and owner
+code → open `/app/mine` and hit "Set up on this device" so Face ID works
+from then on → add your testers at `/app/access`.
+
+## Passkeys — Face ID / Touch ID
+
+Once you (or anyone you've invited) has signed in once the normal way,
+`/app/mine` offers **"Set up on this device"**. After that the login page
+shows **Sign in with Face ID / Touch ID** and a face or fingerprint is the
+whole sign-in — no email typed, no code, no link.
+
+How it behaves, deliberately:
+
+- A passkey is a faster way in for someone who **already** has access,
+  never a way to grant it. Registration needs a live session; sign-in
+  still ends at the same allowlist check.
+- Remove someone from the allowlist and their passkeys are deleted with
+  them — the key on their phone stops opening anything immediately.
+- Only public keys are stored. The private half never leaves the
+  device's secure enclave, so this app holds nothing that could
+  impersonate anyone even if the store leaked.
+- Passkeys are bound to the site's hostname. **Moving to a custom domain
+  means everyone re-registers** — the old keys silently stop being
+  offered. Worth doing the domain move before handing out invites.
+- Works on iPhone/iPad/Mac (Face ID, Touch ID), Android, and Windows
+  Hello. The button only appears where the browser supports it; the
+  owner code and invite links keep working everywhere as the fallback.
+
 ## Emailing invites automatically (optional)
 
 Adding an email can also send the invite for you — the message carries

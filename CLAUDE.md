@@ -125,7 +125,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-430 tests green — 414 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+441 tests green — 425 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -157,7 +157,12 @@ runner/watchdog pass with X-Sync-Token. `/api/*` deliberately stays open
 (GAP_REVIEW #11). On top of it: `/app/mine` gives each signed-in user
 their own private layer (named text/CSV documents, per-email Redis key),
 and adding a user can email them the invite + app intro + league links
-when SMTP env is set (all in docs/ACCESS.md).
+when SMTP env is set. **Passkeys** (Face ID / Touch ID) layer on top:
+register from `/app/mine` after a normal sign-in, then the login page
+signs you in with a face or fingerprint — discoverable credentials, user
+verification required, public keys only, and the allowlist still governs
+(revoking an email deletes its passkeys). Bound to the hostname, so a
+custom-domain move means re-registering. All of it in docs/ACCESS.md.
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.
