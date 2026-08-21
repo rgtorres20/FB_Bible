@@ -21,6 +21,10 @@ on:
         description: "Set to 'fields' for a field census across a big id-keyed map"
         required: false
         default: ""
+      key:
+        description: "Print this one key's entry in full (e.g. DET) instead of the shape view"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -36,6 +40,7 @@ jobs:
           PROBE_URL: ${{ inputs.url }}
           PROBE_AUTH: ${{ inputs.auth }}
           PROBE_MODE: ${{ inputs.mode }}
+          PROBE_KEY: ${{ inputs.key }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python3 scripts/probe_endpoint.py

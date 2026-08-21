@@ -111,6 +111,28 @@ def main() -> int:
             print(f"  {field}: {n}")
         return 0
 
+    # One named entry, in full. The shape view below picks the *richest*
+    # entry, which on a mixed payload is whichever population happens to
+    # carry the most fields -- no help when the question is about a
+    # smaller population sharing the same dict. Sleeper's season stats are
+    # exactly that: 8,179 numeric player keys, 32 "TEAM_XXX" offense keys
+    # and 32 bare team codes carrying team DEFENSE/special-teams
+    # aggregates. Asking for "DET" is the only way to see the third.
+    wanted = os.environ.get("PROBE_KEY") or ""
+    if wanted and isinstance(payload, dict):
+        entry = payload.get(wanted)
+        if entry is None:
+            near = [k for k in payload if wanted.lower() in str(k).lower()][:10]
+            print(f"::error::no key {wanted!r}. Similar keys: {near}")
+            return 1
+        if isinstance(entry, dict):
+            print(f"entry [{wanted}] ({len(entry)} fields):")
+            for field in sorted(entry):
+                print(f"  {field}: {entry[field]}")
+        else:
+            print(f"entry [{wanted}]: {str(entry)[:MAX_VALUE_CHARS]}")
+        return 0
+
     print(describe(payload))
 
     # For a big id-keyed map, one real entry says more than the schema does
