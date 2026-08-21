@@ -12,10 +12,17 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
+import sys
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
+
+# Run as a script from anywhere; the canonical page list lives in the app.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from app.feeds import skin  # noqa: E402
 
 # Overridable so the same 35 checks can be pointed at a preview deployment.
 # `or` rather than a get() default: an unset workflow input arrives as an
@@ -232,10 +239,15 @@ def main() -> int:
     # a gap. The page refuses to render one; this checks it did not have to.
     scoring_page = get("/app/scoring").decode("utf-8", errors="replace")
     check("scoring board serves", "Scoring board" in scoring_page)
+    # `detail` prints on PASS as well as FAIL, so it has to describe what
+    # was OBSERVED, never what failure would mean. A green line reading
+    # "stored stats predate pass_cmp" is unreadable, and this log is the
+    # thing CLAUDE.md says to read instead of the badge.
+    stale_fields = "predate the scoring fields" in scoring_page
     check(
         "scoring board is not sitting on stale stat fields",
-        "predate the scoring fields" not in scoring_page,
-        "stored stats predate pass_cmp -- the sync has not refetched",
+        not stale_fields,
+        "stored stats predate pass_cmp -- the sync has not refetched" if stale_fields else "",
     )
     scoring_rows = max(scoring_page.count("<tr>") - 1, 0)
     check("scoring board is populated", scoring_rows > 0, f"{scoring_rows} rows")
@@ -246,7 +258,13 @@ def main() -> int:
     # The whole claim of the page: the columns differ because the leagues
     # do. Identical columns would mean the per-league scoring is not being
     # applied -- which would look completely normal on screen.
-    per_league = re.findall(r"<th>([A-Z_]+)</th>", scoring_page)
+    #
+    # Deduped, and GP excluded: the D/ST table repeats both, so the raw
+    # match list read "GP, NDDPL, RED_EYE, BALLAPALOSA, GP, BALLAPALOSA"
+    # and a reader cannot tell a repeated column from a duplicated league.
+    per_league = sorted(
+        {th for th in re.findall(r"<th>([A-Z_]+)</th>", scoring_page) if th != "GP"}
+    )
     check(
         "scoring board carries a column per league",
         len(per_league) >= 2,
@@ -395,17 +413,12 @@ def main() -> int:
     # (Aug 21). The unit test covers what the app RENDERS; this covers
     # what it actually SERVES, which is a different claim: a page can
     # render its bar and still be broken by a route or a gate.
-    for path in (
-        "/app/mine",
-        "/app/leagues",
-        "/app/mock",
-        "/app/mock/board",
-        "/app/nextup",
-        "/app/scorecard",
-        "/app/idp",
-        "/app/cheatsheet",
-        "/app/alerts300",
-    ):
+    # The list lives in app/feeds/skin.py, which owns the home bar itself.
+    # It used to be duplicated here, and on Aug 21 it drifted exactly as
+    # you would expect: /app/scoring was added to the unit test's copy and
+    # not to this one, so the new page rendered its way home and nothing
+    # checked that it served one.
+    for path in skin.SERVED_PAGES:
         page = get(path).decode("utf-8", errors="replace")
         check(
             f"way back to the app from {path}",

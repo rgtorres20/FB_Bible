@@ -247,9 +247,15 @@ def rule_no_wikilinks(root: Path) -> list[Problem]:
 _PAGE_RE = re.compile(r"/app/[A-Za-z0-9_./-]*")
 
 
-def served_pages_from_tests(root: Path) -> tuple[list[str], Problem | None]:
-    """The SERVED_PAGES tuple, read with `ast` rather than imported."""
-    rel = "tests/test_navigation.py"
+def served_pages_from_skin(root: Path) -> tuple[list[str], Problem | None]:
+    """The SERVED_PAGES tuple, read with `ast` rather than imported.
+
+    Canonical since Aug 21. It lived in tests/test_navigation.py and was
+    copied into scripts/verify_live.py, and the copy drifted the first
+    time a page was added: /app/scoring reached the unit test and not the
+    watchdog, so the new page's way home was never checked live.
+    """
+    rel = "app/feeds/skin.py"
     text = _read(root, rel)
     if text is None:
         return [], Problem(rel, 0, "missing — the served-page list cannot be checked")
@@ -258,9 +264,15 @@ def served_pages_from_tests(root: Path) -> tuple[list[str], Problem | None]:
     except SyntaxError as exc:
         return [], Problem(rel, exc.lineno or 0, f"does not parse: {exc.msg}")
     for node in tree.body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "SERVED_PAGES" for t in node.targets
-        ):
+        # Annotated (`SERVED_PAGES: tuple[str, ...] = (...)`) as well as plain.
+        named = (
+            any(isinstance(t, ast.Name) and t.id == "SERVED_PAGES" for t in node.targets)
+            if isinstance(node, ast.Assign)
+            else isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "SERVED_PAGES"
+        )
+        if named and getattr(node, "value", None) is not None:
             try:
                 value = ast.literal_eval(node.value)
             except ValueError:
@@ -291,9 +303,9 @@ def rule_served_pages(root: Path) -> list[Problem]:
     """A page in one list and not the other is the drift.
 
     CLAUDE.md's own rule: "add a page, add it to that list". The list is
-    `SERVED_PAGES` in tests/test_navigation.py; the prose is CLAUDE.md.
+    `skin.SERVED_PAGES`; the prose is CLAUDE.md.
     """
-    listed, err = served_pages_from_tests(root)
+    listed, err = served_pages_from_skin(root)
     if err:
         return [err]
     claimed = pages_claimed_in_claude_md(root)
@@ -309,7 +321,7 @@ def rule_served_pages(root: Path) -> list[Problem]:
     for page in sorted(claimed - set(listed)):
         problems.append(
             Problem(
-                "tests/test_navigation.py",
+                "app/feeds/skin.py",
                 0,
                 f"CLAUDE.md names {page} but it is not in SERVED_PAGES",
             )
@@ -535,11 +547,53 @@ def rule_design_pages(root: Path) -> list[Problem]:
 # runner
 # --------------------------------------------------------------------------
 
+
+def rule_one_served_page_list(root: Path) -> list[Problem]:
+    """Nobody keeps a second copy of the served-page list.
+
+    This rule exists because the duplicate was not hypothetical: the list
+    was copied into the watchdog, /app/scoring was added to one and not
+    the other, and the new page shipped with its way home unverified
+    live. A rule that only compares prose to code would not have caught
+    it — both copies were code.
+    """
+    problems: list[Problem] = []
+    for rel in ("tests/test_navigation.py", "scripts/verify_live.py"):
+        text = _read(root, rel)
+        if text is None:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            value = getattr(node, "value", None)
+            targets = getattr(node, "targets", None) or (
+                [node.target] if isinstance(node, ast.AnnAssign) else []
+            )
+            if not any(isinstance(t, ast.Name) and t.id == "SERVED_PAGES" for t in targets):
+                continue
+            if isinstance(value, ast.Tuple | ast.List):
+                problems.append(
+                    Problem(
+                        rel,
+                        node.lineno,
+                        "defines its own SERVED_PAGES literal — read skin.SERVED_PAGES instead",
+                    )
+                )
+        if "skin.SERVED_PAGES" not in text:
+            problems.append(
+                Problem(rel, 0, "does not read skin.SERVED_PAGES — it must walk the same list")
+            )
+    return problems
+
+
 RULES = (
     ("test count adds up", rule_test_count),
     ("relative links resolve", rule_links),
     ("no wikilinks", rule_no_wikilinks),
     ("served pages agree with SERVED_PAGES", rule_served_pages),
+    ("one served-page list, not three", rule_one_served_page_list),
     ("league facts match app/leagues.py", rule_league_facts),
     ("design pages are linked as designs", rule_design_pages),
 )

@@ -71,9 +71,26 @@ NDDPL = League(key="nddpl", name="NDDPL", teams=10)
 DEFAULTS: tuple[League, ...] = (NDDPL,)
 '''
 
+GOOD_SKIN = '''"""fixture"""
+
+SERVED_PAGES: tuple[str, ...] = ("/app/mock",)
+'''
+
+# The two consumers, each reading the canonical list rather than keeping
+# a copy — which is what `rule_one_served_page_list` exists to require.
 GOOD_NAV = '''"""fixture"""
 
-SERVED_PAGES = ("/app/mock",)
+from app.feeds import skin
+
+SERVED_PAGES = skin.SERVED_PAGES
+'''
+
+GOOD_VERIFY = '''"""fixture"""
+
+from app.feeds import skin
+
+for path in skin.SERVED_PAGES:
+    pass
 '''
 
 
@@ -83,7 +100,9 @@ def clean(tmp_path):
     write(tmp_path, "CLAUDE.md", GOOD_CLAUDE)
     write(tmp_path, "docs/LEAGUES.md", GOOD_LEAGUES_MD)
     write(tmp_path, "app/leagues.py", GOOD_LEAGUES_PY)
+    write(tmp_path, "app/feeds/skin.py", GOOD_SKIN)
     write(tmp_path, "tests/test_navigation.py", GOOD_NAV)
+    write(tmp_path, "scripts/verify_live.py", GOOD_VERIFY)
     return tmp_path
 
 
@@ -176,7 +195,11 @@ def test_a_wikilink_inside_a_fenced_block_is_not_a_violation(clean):
 
 
 def test_served_pages_catches_a_page_the_docs_never_mention(clean):
-    write(clean, "tests/test_navigation.py", 'SERVED_PAGES = ("/app/mock", "/app/newboard")\n')
+    write(
+        clean,
+        "app/feeds/skin.py",
+        'SERVED_PAGES: tuple[str, ...] = ("/app/mock", "/app/newboard")\n',
+    )
     problems = lint_docs.rule_served_pages(clean)
     assert len(problems) == 1
     assert "/app/newboard is in SERVED_PAGES but CLAUDE.md never names it" in problems[0].message
@@ -186,15 +209,44 @@ def test_served_pages_catches_a_page_missing_from_the_navigation_list(clean):
     write(clean, "CLAUDE.md", GOOD_CLAUDE + "\nand `/app/newboard` is the other one\n")
     problems = lint_docs.rule_served_pages(clean)
     assert len(problems) == 1
-    assert problems[0].path == "tests/test_navigation.py"
+    assert problems[0].path == "app/feeds/skin.py"
     assert "/app/newboard" in problems[0].message
 
 
 def test_served_pages_reports_a_missing_or_unreadable_list(clean):
-    write(clean, "tests/test_navigation.py", "PAGES = ()\n")
+    write(clean, "app/feeds/skin.py", "PAGES = ()\n")
     problems = lint_docs.rule_served_pages(clean)
     assert len(problems) == 1
     assert "no SERVED_PAGES assignment" in problems[0].message
+
+
+def test_a_second_copy_of_the_served_page_list_is_caught(clean):
+    """The rule that would have caught the Aug 21 drift. Both copies were
+    code, so a rule comparing prose to code saw nothing: /app/scoring
+    reached the unit test's list and not the watchdog's, and the new
+    page shipped with its way home unverified live."""
+    write(
+        clean,
+        "scripts/verify_live.py",
+        'SERVED_PAGES = ("/app/mock",)\nfor path in SERVED_PAGES:\n    pass\n',
+    )
+    problems = lint_docs.rule_one_served_page_list(clean)
+    assert problems, "a duplicated literal must be reported"
+    assert any("its own SERVED_PAGES literal" in p.message for p in problems)
+    assert all(p.path == "scripts/verify_live.py" for p in problems)
+
+
+def test_a_consumer_that_walks_some_other_list_is_caught(clean):
+    """Deleting the copy is not enough — the consumer has to walk the
+    canonical one. A watchdog iterating its own hand-written paths would
+    pass the no-literal check while checking the wrong pages."""
+    write(clean, "scripts/verify_live.py", 'for path in ("/app/mock",):\n    pass\n')
+    problems = lint_docs.rule_one_served_page_list(clean)
+    assert any("does not read skin.SERVED_PAGES" in p.message for p in problems)
+
+
+def test_both_consumers_reading_the_canonical_list_is_clean(clean):
+    assert lint_docs.rule_one_served_page_list(clean) == []
 
 
 def test_served_pages_ignores_served_assets(clean):

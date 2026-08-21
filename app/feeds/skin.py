@@ -113,6 +113,33 @@ FAVICON = (
 )
 
 
+# Every page this app serves as a full document, and therefore every page
+# that needs a way home. Installed as a PWA there is no address bar, so a
+# page whose only exit is a text link is a dead end -- the owner hit
+# exactly that after picking a club theme (Aug 21).
+#
+# Canonical, and read rather than copied: `tests/test_navigation.py` walks
+# it signed in and signed out, `scripts/verify_live.py` walks it against
+# the deployment, and `scripts/lint_docs.py` holds CLAUDE.md to it. It was
+# duplicated in the first two, and it drifted the first time a page was
+# added -- /app/scoring reached the unit test's copy and not the live one.
+SERVED_PAGES: tuple[str, ...] = (
+    "/app/mine",
+    "/app/leagues",
+    "/app/mock",
+    "/app/mock/board",
+    "/app/nextup",
+    "/app/scorecard",
+    "/app/idp",
+    "/app/scoring",
+    "/app/cheatsheet",
+    "/app/alerts300",
+    # Owner-only, and missed by the first pass of this list -- the docs
+    # lint found it served as a full page with no way back (Aug 21).
+    "/app/access",
+)
+
+
 def home_bar(here: str = "") -> str:
     """A way back to the app, on every page this server renders.
 

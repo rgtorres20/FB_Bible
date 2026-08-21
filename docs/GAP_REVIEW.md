@@ -45,6 +45,26 @@ checked at review time and may drift.
   own row shape into the kernel to satisfy a rule would be worse than
   the import.
 
+- **The served-page list was duplicated, and it drifted the same day.**
+  `tests/test_navigation.py` and `scripts/verify_live.py` each kept their
+  own copy. `/app/scoring` was added to the first and not the second, so
+  the new page's way home was verified in the unit tests and never
+  against the deployment — and nothing caught it, because the docs lint
+  compared prose to code and *both* copies were code. The list is now
+  `skin.SERVED_PAGES`, read by all three, with a lint rule that fails on
+  a second literal or on a consumer that walks some other list.
+
+- **A verify-live check printed its failure text next to a PASS.**
+  `check(label, ok, detail)` prints `detail` whether it passed or failed,
+  and the new scoring-board check passed a static explanation string. The
+  live log read `PASS scoring board is not sitting on stale stat fields:
+  stored stats predate pass_cmp -- the sync has not refetched`, which is
+  a contradiction in the one artefact CLAUDE.md says to read instead of
+  the badge. Details now describe what was observed, never what a failure
+  would have meant. The same check's column list was deduped and had `GP`
+  excluded — it read "GP, NDDPL, RED_EYE, BALLAPALOSA, GP, BALLAPALOSA",
+  where a repeated column is indistinguishable from a duplicated league.
+
 - **The QB draft boost counted points that move nobody.** Checking the
   derived boost against the two overrides tuned on real draft behaviour
   found them disagreeing by roughly 2x (NDDPL: override 10, derived 19;

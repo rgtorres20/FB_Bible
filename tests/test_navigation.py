@@ -34,21 +34,7 @@ from app.routes import feeds as feeds_route
 # Every page the server renders as a full document. /login is excluded on
 # purpose: it is the way IN, and it is reached by people with no session
 # to go back to.
-SERVED_PAGES = (
-    "/app/mine",
-    "/app/leagues",
-    "/app/mock",
-    "/app/mock/board",
-    "/app/nextup",
-    "/app/scorecard",
-    "/app/idp",
-    "/app/scoring",
-    "/app/cheatsheet",
-    "/app/alerts300",
-    # Owner-only, and missed by the first pass of this list -- the docs
-    # lint found it served as a full page with no way back (Aug 21).
-    "/app/access",
-)
+SERVED_PAGES = skin.SERVED_PAGES
 
 
 @pytest.fixture

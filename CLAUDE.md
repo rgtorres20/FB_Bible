@@ -103,9 +103,14 @@ from Sleeper. Neither blocks personal single-user use.
   hand-written heads had already drifted — the alert board carried no
   favicon and three pages ignored the user's club. Installed as a PWA the
   app also has no address bar, so a page whose only exit is a text link is
-  a dead end. `tests/test_navigation.py` walks a list of every
-  server-rendered page, signed in *and* signed out — add a page, add it to
-  that list. The eleven: `/app/mine`, `/app/leagues`, `/app/mock`,
+  a dead end. The list is **`skin.SERVED_PAGES`, and it is read, never
+  copied**: `tests/test_navigation.py` walks it signed in *and* signed
+  out, `scripts/verify_live.py` walks it against the deployment, and
+  `scripts/lint_docs.py` holds both to it. It was duplicated in the first
+  two and drifted the first time a page was added — `/app/scoring`
+  reached the unit test's copy and not the watchdog's, so the new page
+  shipped with its way home unverified live. Add a page, add it to
+  `skin.SERVED_PAGES`. The eleven: `/app/mine`, `/app/leagues`, `/app/mock`,
   `/app/mock/board`, `/app/nextup`, `/app/scorecard`, `/app/idp`,
   `/app/scoring`, `/app/cheatsheet`, `/app/alerts300`, `/app/access`. `scripts/lint_docs.py`
   fails if that list and this one disagree.
@@ -188,7 +193,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-986 tests green — 970 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+989 tests green — 973 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
