@@ -50,6 +50,14 @@ def test_parse_reads_the_shapes_people_actually_paste(text):
     assert ranklists.parse(text) == ["Jahmyr Gibbs", "Bijan Robinson", "Puka Nacua"]
 
 
+def test_a_csv_header_row_does_not_become_a_player():
+    """Found Aug 21 by a fixture copied from a real paste. "Rank,Player,Pos"
+    had its tail stripped to "Rank", which then looked like a perfectly
+    good three-letter name and took the top of the list."""
+    out = ranklists.parse("Rank,Player,Pos\n1,Ja'Marr Chase,WR\n2,Puka Nacua,WR")
+    assert out == ["Ja'Marr Chase", "Puka Nacua"]
+
+
 def test_parse_drops_repeats_rather_than_ranking_a_player_twice():
     """A player listed twice would get two ranks and a distorted blend."""
     out = ranklists.parse("1. Puka Nacua\n2. Bijan Robinson\n3. Puka Nacua")

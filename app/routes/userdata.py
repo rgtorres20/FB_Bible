@@ -19,13 +19,14 @@ from __future__ import annotations
 import html as html_mod
 import logging
 import time
+from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
-from ..feeds import skin, teams
+from ..feeds import ranklists, skin, teams
 from ..feeds.store import FeedStore
 from .access import session_email
 from .feeds import get_feed_store
@@ -37,6 +38,10 @@ router = APIRouter()
 MAX_DOCS = 12
 MAX_DOC_BYTES = 200_000
 MAX_NAME_LEN = 60
+# Ranking lists are separate from documents on purpose: a document is free
+# text the owner reads, a list is structured input the draft board blends
+# (docs/WEIGHTS.md). Same upload, different contract.
+MAX_LISTS = 8
 
 _STYLE = (
     skin.TOKENS_CSS
@@ -181,9 +186,82 @@ def _render(
         + (f"<div class='err'>{html_mod.escape(err)}</div>" if err else "")
         + _team_card(data.get("team") or teams.HOUSE)
         + _passkey_card(pk_list or [])
+        + _list_card(data.get("ranklists") or {}, date.today())
         + add_form
         + ("".join(cards) or "<p class='quiet'>Nothing saved yet.</p>"),
         club=data.get("team") or "",
+    )
+
+
+def _list_card(saved: dict, today: date) -> str:
+    """Ranking lists: the one weighted input in the app.
+
+    Each row shows what the owner needs to judge it -- how many players it
+    carries, when it was true, and how old that makes it. Owner, Aug 21:
+    "these can get outdated once season starts", so the age is stated
+    rather than left for someone to work out from a date.
+    """
+    rows = []
+    for key in sorted(saved):
+        entry = saved[key]
+        order = entry.get("order") or []
+        weight = int(entry.get("weight", ranklists.DEFAULT_WEIGHT))
+        as_of = entry.get("as_of") or ""
+        age = ""
+        if as_of:
+            try:
+                days = (today - date.fromisoformat(as_of)).days
+                age = "today" if days <= 0 else f"{days} day{'s' if days != 1 else ''} old"
+            except ValueError:
+                age = ""
+        safe = html_mod.escape(key, quote=True)
+        rows.append(
+            "<div class='card'>"
+            f"<h2>{html_mod.escape(entry.get('name') or key)}</h2>"
+            f"<p class='meta'>{len(order)} players"
+            + (f" · as of {html_mod.escape(as_of)}" if as_of else "")
+            + (f" · {age}" if age else "")
+            + "</p>"
+            "<form method='post' action='/app/mine/list/weight' class='row'>"
+            f"<input type='hidden' name='key' value='{safe}'>"
+            f"<label for='w-{safe}'>Weight</label>"
+            f"<input id='w-{safe}' type='range' name='weight' "
+            f"min='{ranklists.MIN_WEIGHT}' max='{ranklists.MAX_WEIGHT}' value='{weight}'>"
+            f"<span class='meta'>{weight}</span>"
+            "<button>Save weight</button></form>"
+            "<p class='quiet'>A weight tilts how hard this list pulls the draft "
+            "board. It can never silence the others — remove the list to do "
+            "that.</p>"
+            "<details><summary>View order</summary><pre>"
+            + html_mod.escape("\n".join(f"{i + 1}. {n}" for i, n in enumerate(order[:60])))
+            + ("\n…" if len(order) > 60 else "")
+            + "</pre></details>"
+            "<form method='post' action='/app/mine/list/delete' style='margin-top:6px'>"
+            f"<input type='hidden' name='key' value='{safe}'>"
+            "<button class='quietbtn'>Remove this list</button></form>"
+            "</div>"
+        )
+
+    add = (
+        "<div class='card'><h2>Add a ranking list</h2>"
+        "<p class='meta'>A top-N in order — one player per line, or pasted "
+        "from a CSV. The draft board blends every list you keep here.</p>"
+        "<form method='post' action='/app/mine/list' enctype='multipart/form-data'>"
+        "<label>Name</label>"
+        f"<input type='text' name='name' maxlength='{MAX_NAME_LEN}' required "
+        "placeholder='ESPN top 300, Yahoo consensus, My tiers…'>"
+        "<label>As of</label><input type='date' name='as_of'>"
+        "<label>Paste the list</label><textarea name='text'></textarea>"
+        "<label>…or upload it</label>"
+        "<input type='file' name='file' accept='.txt,.csv,.md,.json'>"
+        "<button>Save list</button></form></div>"
+        if len(saved) < MAX_LISTS
+        else f"<p class='quiet'>You're at the {MAX_LISTS}-list cap — remove one to add another.</p>"
+    )
+    return (
+        "<h2 class='section'>Ranking lists</h2>"
+        + add
+        + ("".join(rows) or "<p class='quiet'>No ranking lists yet.</p>")
     )
 
 
@@ -358,4 +436,126 @@ async def mine_delete(
     data = await store.load_user(email)
     docs = {k: v for k, v in (data.get("docs") or {}).items() if k != name}
     await store.save_user(email, {**data, "docs": docs})
+    return RedirectResponse("/app/mine", status_code=303)
+
+
+# --- ranking lists ---------------------------------------------------------
+# The one weighted input in the app (docs/WEIGHTS.md). Three routes, one per
+# intent: add a list, tilt how hard it pulls, or take it out. Removal is the
+# only exclusion -- a weight can never silence a list, which is why there is
+# no "disable" here.
+
+
+def _list_key(name: str) -> str:
+    return " ".join(name.strip().split()).lower()[:MAX_NAME_LEN]
+
+
+@router.post("/app/mine/list", include_in_schema=False)
+async def mine_list_save(
+    request: Request,
+    name: str = Form(...),
+    as_of: str = Form(""),
+    text: str = Form(""),
+    file: UploadFile | None = File(None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    email = session_email(request, settings)
+    if not email:
+        return _signin_needed()
+
+    data = await store.load_user(email)
+    saved = dict(data.get("ranklists") or {})
+
+    body = text
+    if file is not None and file.filename:
+        raw = await file.read()
+        try:
+            body = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return _render(email, data, "That file isn't text — paste it or upload text/CSV.")
+
+    name = name.strip()[:MAX_NAME_LEN]
+    if not name:
+        return _render(email, data, "A ranking list needs a name.")
+    if len(body.encode("utf-8")) > MAX_DOC_BYTES:
+        return _render(email, data, f"Too big — the cap is {MAX_DOC_BYTES // 1000}KB.")
+
+    order = ranklists.parse(body)
+    if not order:
+        # The whole point of parse() returning empty rather than guessing:
+        # a list stored with no players looks like a working one and would
+        # silently contribute nothing to the blend.
+        return _render(
+            email,
+            data,
+            "No players found in that. One name per line, or a CSV with the "
+            "name in the first column.",
+        )
+
+    key = _list_key(name)
+    if key not in saved and len(saved) >= MAX_LISTS:
+        return _render(email, data, f"You're at the {MAX_LISTS}-list cap.")
+
+    # An as-of the owner did not give is today, not blank: a list with no
+    # date cannot be judged for staleness, and every list here will be.
+    try:
+        stamp = date.fromisoformat(as_of).isoformat() if as_of else date.today().isoformat()
+    except ValueError:
+        stamp = date.today().isoformat()
+
+    saved[key] = {
+        "name": name,
+        "as_of": stamp,
+        "weight": int(saved.get(key, {}).get("weight", ranklists.DEFAULT_WEIGHT)),
+        "order": order,
+        "updated": int(time.time()),
+    }
+    await store.save_user(email, {**data, "ranklists": saved})
+    # Counts only -- never the contents, never the email.
+    log.info("mine: saved a ranking list of %d players, user now holds %d", len(order), len(saved))
+    return RedirectResponse("/app/mine", status_code=303)
+
+
+@router.post("/app/mine/list/weight", include_in_schema=False)
+async def mine_list_weight(
+    request: Request,
+    key: str = Form(...),
+    weight: int = Form(ranklists.DEFAULT_WEIGHT),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    email = session_email(request, settings)
+    if not email:
+        return _signin_needed()
+    data = await store.load_user(email)
+    saved = dict(data.get("ranklists") or {})
+    entry = saved.get(key)
+    if not entry:
+        return RedirectResponse("/app/mine", status_code=303)
+    # Clamped here as well as in the blend. A stored value outside the range
+    # would read as a setting the owner chose.
+    saved[key] = {
+        **entry,
+        "weight": max(ranklists.MIN_WEIGHT, min(ranklists.MAX_WEIGHT, weight)),
+    }
+    await store.save_user(email, {**data, "ranklists": saved})
+    return RedirectResponse("/app/mine", status_code=303)
+
+
+@router.post("/app/mine/list/delete", include_in_schema=False)
+async def mine_list_delete(
+    request: Request,
+    key: str = Form(...),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    email = session_email(request, settings)
+    if not email:
+        return _signin_needed()
+    data = await store.load_user(email)
+    saved = dict(data.get("ranklists") or {})
+    saved.pop(key, None)
+    await store.save_user(email, {**data, "ranklists": saved})
+    log.info("mine: removed a ranking list, user now holds %d", len(saved))
     return RedirectResponse("/app/mine", status_code=303)

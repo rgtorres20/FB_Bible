@@ -66,7 +66,11 @@ def parse(text: str, limit: int = 400) -> list[str]:
         line = _LEADING_RANK.sub("", line)
         line = _TRAILING.sub("", line)
         line = _PAREN.sub("", line).strip(" -–—\t")
-        if not line or len(line) < 3 or line.isdigit():
+        # Re-check after cleaning: a CSV header row reads "Rank,Player,Pos",
+        # which the trailing-metadata strip turns into a plausible-looking
+        # "Rank". Checking only the raw line let the header through as a
+        # player -- found by a fixture copied from a real paste.
+        if not line or _SKIP.match(line) or len(line) < 3 or line.isdigit():
             continue
         key = match_key(line)
         if not key or key in seen:
