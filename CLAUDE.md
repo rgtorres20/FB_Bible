@@ -187,7 +187,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-923 tests green — 907 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+926 tests green — 910 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -231,6 +231,20 @@ the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table
 shipped with. Flags and wire posts live, workload labelled '25, nothing
 projected.
+
+The mock room's **QB draft boost stopped counting points that move
+nobody** (Aug 21). A league's QB premium was measured against the market,
+but what decides how early to draft one is its spread against a
+*replacement QB in the same league* — and RED_EYE's point per completion
+adds ~22 points a game to the best starter and ~22 to the twelfth, real
+points that change nobody's order. `qb_spread_premium_per_game` excludes
+that class of bonus; TD and yardage values stay in, since a better
+quarterback throws more of them. Found by checking the derivation against
+the two overrides tuned on real draft behaviour, which disagreed with it
+by roughly 2x. The overrides are **kept** — they encode how those rooms
+actually draft, and the fact that two leagues with identical spread
+premiums draft QBs differently is a finding for the owner, not a bug to
+paper over ([docs/GAP_REVIEW.md](docs/GAP_REVIEW.md)).
 
 The Settings panel stopped claiming to blend lists it does not have
 (Aug 21). Two different things were called **sources**: four hand-written

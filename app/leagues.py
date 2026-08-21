@@ -37,11 +37,14 @@ QB_TD_PER_GAME = 1.6
 QB_PASS_YDS_PER_GAME = 250.0
 QB_COMPLETIONS_PER_GAME = 22.0
 # Points-per-game premium worth roughly one round of draft capital in a
-# 10-12 team room. A heuristic, and the shakiest number here: a premium
-# every quarterback receives equally lifts the whole position rather than
-# spreading it, so the translation into draft slots saturates. Hence the
-# cap below -- without it RED_EYE's point-per-completion scoring derives
-# a 110-slot boost, which would put every QB in the first round.
+# 10-12 team room. A heuristic, and still the shakiest number here.
+#
+# The cap below used to be load-bearing: the derivation counted the
+# point-per-completion bonus, which every starting QB earns equally, and
+# RED_EYE derived a 110-slot boost that would have put every quarterback
+# in the first round. `qb_spread_premium_per_game` excludes that class of
+# bonus now, so the cap is a backstop rather than the thing doing the
+# work.
 POINTS_PER_ROUND = 3.0
 MAX_DERIVED_QB_BOOST = 24.0
 
@@ -277,18 +280,50 @@ class League:
         return round(td + yards + completions, 2)
 
     @property
+    def qb_spread_premium_per_game(self) -> float:
+        """The part of the premium that actually separates QB1 from QB12.
+
+        The distinction this property exists to make, found Aug 21 by
+        checking the derived boost against the two overrides that were
+        tuned on real draft behaviour. They disagreed by roughly 2x, and
+        the reason is structural rather than a bad constant.
+
+        **A premium every starting quarterback earns changes nobody's
+        draft order.** RED_EYE pays a point per completion. QB1 completes
+        about 22 a game and so does the twelfth-best starter, so the
+        bonus adds ~22 points per game to *every* QB and moves none of
+        them relative to the others -- while `qb_premium_per_game`, which
+        measures level against the market, counts all 22 as a reason to
+        draft one early.
+
+        Touchdown and yardage bonuses are different: they scale with how
+        good the quarterback is, so richer values there really do widen
+        the gap between the best and the replacement. Those stay.
+
+        **Still an estimate**, and the remaining error is the same kind,
+        smaller: the TD and yardage terms use one starter's volume rather
+        than the spread between a starter and a replacement. Closing that
+        needs measured per-QB lines, which is a real piece of work -- see
+        docs/GAP_REVIEW.md. The two verified leagues carry overrides
+        precisely because this is not yet measured.
+        """
+        td = (self.pass_td - MARKET_PASS_TD) * QB_TD_PER_GAME
+        yards = QB_PASS_YDS_PER_GAME * (1 / self.pass_yds_per_pt - 1 / MARKET_PASS_YDS_PER_PT)
+        return round(td + yards, 2)
+
+    @property
     def qb_draft_boost(self) -> float:
         """The QB premium expressed as draft slots, for the mock room.
 
         An explicit override wins, because the two verified leagues were
         tuned against how their rooms actually draft. Otherwise derive
-        and cap: the derivation is directionally right and numerically
-        crude, so it is not allowed to produce a boost larger than two
-        rounds however extreme the scoring gets.
+        from the *spread* premium and cap: the derivation is directionally
+        right and numerically crude, so it is not allowed to produce a
+        boost larger than two rounds however extreme the scoring gets.
         """
         if self.qb_boost_override is not None:
             return self.qb_boost_override
-        derived = self.qb_premium_per_game / POINTS_PER_ROUND * self.teams
+        derived = self.qb_spread_premium_per_game / POINTS_PER_ROUND * self.teams
         return round(min(derived, MAX_DERIVED_QB_BOOST), 1)
 
     @property

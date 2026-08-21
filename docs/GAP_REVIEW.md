@@ -6,6 +6,41 @@ checked at review time and may drift.
 
 ## Fixed Aug 21
 
+- **The QB draft boost counted points that move nobody.** Checking the
+  derived boost against the two overrides tuned on real draft behaviour
+  found them disagreeing by roughly 2x (NDDPL: override 10, derived 19;
+  RED_EYE: override 18, derived 24 — capped, and 92 uncapped). The cause
+  is structural rather than a bad constant: `qb_premium_per_game`
+  measures a league's QB scoring against the *market*, but what decides
+  how early to draft one is its spread against a *replacement QB in the
+  same league*. RED_EYE's point per completion adds ~22 points a game to
+  QB1 and ~22 to the twelfth-best starter — real points that change
+  nobody's draft order. `qb_spread_premium_per_game` now excludes that
+  class of bonus and `qb_draft_boost` derives from it; touchdown and
+  yardage values stay in, because a better quarterback throws more of
+  them and a richer value really does widen the gap. BALLAPALOSA, the
+  one league with no override, drops from a capped 24.0 to 10.7. The
+  league editor now says the two numbers apart rather than letting a big
+  premium beside a small boost read as a bug.
+
+  **Still open, and now the interesting part:** NDDPL and RED_EYE have
+  *identical* spread premiums — same TD and yardage scoring, differing
+  only by the completion bonus — yet their tuned overrides are 10 and 18.
+  If the spread analysis is right, those rooms should draft QBs the same
+  way and they do not. The likeliest explanation is that the override is
+  measuring human behaviour rather than optimal play: RED_EYE's raw QB
+  totals look enormous (874 against a WR1's 247 on the scoring board),
+  and people draft what the totals look like. Worth the owner's read
+  before anything is changed — the overrides are kept precisely because
+  they encode something real that the model does not.
+
+  **The remaining modelling error**, smaller and the same kind: the TD
+  and yardage terms still use one starter's volume rather than the spread
+  between a starter and a replacement. Closing it needs measured per-QB
+  lines, which the app now has the stats for (`/app/scoring`) but the
+  `League` dataclass cannot reach — it is pure data with no store access.
+  A `qb_spread_from_stats()` in a surface would be the honest fix.
+
 - **The suite was reaching the real network** — 29 tests made 37 outbound
   HTTP calls and passed on the failure, so CLAUDE.md's "tests must pass
   with no network" was true only by accident. `/internal/sync` was the

@@ -145,13 +145,53 @@ def test_a_user_league_derives_its_own_boost_and_never_inherits_one():
     assert wild.qb_draft_boost > tame.qb_draft_boost
 
 
+def test_a_bonus_every_quarterback_earns_does_not_move_the_draft_board():
+    """The Aug 21 finding, and the reason the derived boost disagreed with
+    the tuned overrides by roughly 2x.
+
+    A point per completion adds ~22 points a game to QB1 and ~22 to the
+    twelfth-best starter. It lifts the whole position and separates
+    nobody, so it belongs in the *level* premium and not in the number
+    that decides how early to draft one.
+    """
+    plain = replace(leagues.blank("Plain", 12), qb_boost_override=None)
+    rich = replace(plain, pass_completion=1.0)
+    assert rich.qb_premium_per_game > plain.qb_premium_per_game, "level: it is real points"
+    assert rich.qb_spread_premium_per_game == plain.qb_spread_premium_per_game
+    assert rich.qb_draft_boost == plain.qb_draft_boost
+
+
+def test_a_bonus_that_scales_with_quality_does_move_it():
+    """Touchdown and yardage values are the other case: a better
+    quarterback throws more of them, so a richer value widens the gap
+    between him and a replacement. Those must still count."""
+    plain = replace(leagues.blank("Plain", 12), qb_boost_override=None)
+    rich = replace(plain, pass_td=plain.pass_td + 2)
+    assert rich.qb_spread_premium_per_game > plain.qb_spread_premium_per_game
+    assert rich.qb_draft_boost > plain.qb_draft_boost
+
+
+def test_the_two_verified_leagues_differ_only_by_a_bonus_that_spreads_nobody():
+    """NDDPL and RED_EYE score passing touchdowns and yardage identically;
+    the only difference is RED_EYE's point per completion. So their spread
+    premiums must be equal even though their level premiums are not.
+
+    Their overrides are 10 and 18, which is the interesting part and why
+    both are kept: the override records how that room *actually* drafts,
+    and those rooms do not draft the same way (docs/GAP_REVIEW.md).
+    """
+    nddpl, red_eye, _ = leagues.defaults()
+    assert nddpl.qb_spread_premium_per_game == red_eye.qb_spread_premium_per_game
+    assert red_eye.qb_premium_per_game > nddpl.qb_premium_per_game
+
+
 def test_a_derived_boost_is_capped_at_two_rounds():
-    """Without the cap RED_EYE's scoring derives a 110-slot boost, which
-    would put every quarterback in the first round. The derivation is
-    directionally right and numerically crude, and is not allowed to
-    claim more than that."""
-    absurd = replace(leagues.blank("Absurd", 12), pass_completion=5.0, qb_boost_override=None)
-    assert absurd.qb_premium_per_game > 100
+    """The cap used to be load-bearing — it was the only thing stopping
+    the completion bonus deriving a 110-slot boost. It is a backstop now,
+    so this checks it still holds for genuinely extreme scoring rather
+    than for the case that got fixed."""
+    absurd = replace(leagues.blank("Absurd", 12), pass_td=40.0, qb_boost_override=None)
+    assert absurd.qb_spread_premium_per_game > 50
     assert absurd.qb_draft_boost == leagues.MAX_DERIVED_QB_BOOST
 
 

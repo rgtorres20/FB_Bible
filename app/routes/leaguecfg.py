@@ -301,6 +301,18 @@ def derived_read(lg: leagues_mod.League) -> str:
             f"the mock room moves quarterbacks up about <b>{lg.qb_draft_boost:g}</b> "
             "draft slots"
         )
+        # The two numbers disagreeing is the interesting case, not an
+        # error: a bonus every starting QB earns lifts the whole position
+        # and separates nobody, so it is real points that change no draft
+        # order. Saying so beats letting a big premium next to a small
+        # boost read as a bug.
+        spread = lg.qb_spread_premium_per_game
+        if spread < premium:
+            qb += (
+                f" — but only <b>{spread:g}</b> of those points separate the best QB "
+                "from a replacement. A bonus every starter earns (a point per "
+                "completion, say) lifts them all and moves none of them up your board"
+            )
         if lg.qb_boost_override is not None:
             qb += " (tuned against how this room actually drafts)"
         elif lg.qb_draft_boost >= leagues_mod.MAX_DERIVED_QB_BOOST:
