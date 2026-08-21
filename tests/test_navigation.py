@@ -11,6 +11,12 @@ This test is deliberately written as a property over a list of every
 server-rendered page rather than one assertion per page, so a new board
 cannot ship without an exit: adding the route and forgetting the bar
 fails here.
+
+It runs signed IN and signed OUT. The first version only signed in, and
+the live watchdog caught what it missed: /app/mine and /app/leagues
+render a separate "who are you?" page for a visitor with no session, and
+that branch had no bar. A page that strands you is worse, not better,
+when you have not signed in yet.
 """
 
 from __future__ import annotations
@@ -55,6 +61,32 @@ def client(tmp_path, monkeypatch):
     c.post("/login", data={"email": "owner@example.com", "code": "open-sesame"})
     yield c
     main.app.dependency_overrides.clear()
+
+
+# The two pages that render a different document for a visitor with no
+# session. The rest either need no session or are gated before they render.
+SIGNED_OUT_PAGES = ("/app/mine", "/app/leagues")
+
+
+@pytest.fixture
+def anon(tmp_path, monkeypatch):
+    """Same app, no sign-in -- the branch the signed-in fixture hides."""
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    s = get_settings()
+    monkeypatch.setattr(s, "app_auth", False, raising=False)
+    monkeypatch.setattr(s, "owner_email", "owner@example.com", raising=False)
+    monkeypatch.setattr(s, "session_secret", "unit-test-secret", raising=False)
+    main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
+    monkeypatch.setattr(access_route, "build_feed_store", lambda _s: store)
+    yield TestClient(main.app)
+    main.app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("path", SIGNED_OUT_PAGES)
+def test_the_ask_to_sign_in_still_has_a_way_back(anon, path):
+    page = anon.get(path).text
+    assert "Sign in" in page, f"{path} did not render the signed-out branch"
+    assert "class='fsb-home' href='/app/'" in page, path
 
 
 @pytest.mark.parametrize("path", SERVED_PAGES)

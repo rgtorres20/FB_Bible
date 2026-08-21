@@ -492,7 +492,7 @@ def render(email: str, data: dict, err: str = "", editing: str = "") -> HTMLResp
 
 def _signin_needed() -> HTMLResponse:
     return _page(
-        "<h1>League settings</h1>"
+        skin.home_bar("League settings") + "<h1>League settings</h1>"
         "<p class='sub'>Your leagues are stored against your sign-in, so this "
         "page needs to know who you are. <a href='/login'>Sign in</a> — with "
         "your invite link, or the owner code if you're the owner.</p>"

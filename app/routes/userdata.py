@@ -261,7 +261,7 @@ def _team_card(current: str) -> str:
 
 def _signin_needed() -> HTMLResponse:
     return _page(
-        "<h1>My stuff</h1>"
+        skin.home_bar("My stuff") + "<h1>My stuff</h1>"
         "<p class='sub'>This page is your personal layer on the app, so it "
         "needs to know who you are. <a href='/login'>Sign in</a> — with your "
         "invite link, or the owner code if you're the owner.</p>"
