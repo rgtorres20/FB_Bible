@@ -160,3 +160,34 @@ def test_without_mail_config_the_page_says_send_it_yourself(client):
     _sign_in_owner(c)
     page = c.post("/app/access/add", data={"email": "pal3@example.com"}).text
     assert "send it yourself" in page and "/login/invite/" in page
+
+
+def test_owner_can_send_themselves_a_test_email(client, monkeypatch):
+    """'I never got one' has several causes; the button names the real one."""
+    c, _ = client
+    _sign_in_owner(c)
+    s = get_settings()
+
+    # Unconfigured: says so plainly instead of pretending to send.
+    page = c.post("/app/access/test-mail", follow_redirects=True).text
+    assert "isn&#x27;t configured" in page or "not configured" in page.lower()
+
+    monkeypatch.setattr(s, "smtp_host", "smtp.mail.me.com", raising=False)
+    monkeypatch.setattr(s, "smtp_user", "owner@example.com", raising=False)
+    monkeypatch.setattr(s, "smtp_pass", "app-specific", raising=False)
+
+    sent = {}
+    monkeypatch.setattr(
+        mailer, "send_test", lambda to, base, settings: sent.update(to=to, base=base)
+    )
+    page = c.post("/app/access/test-mail", follow_redirects=True).text
+    assert sent["to"] == "owner@example.com"
+    assert "Test email sent" in page
+
+    # A failure reports the reason rather than a shrug.
+    def boom(*a, **k):
+        raise TimeoutError("port blocked")
+
+    monkeypatch.setattr(mailer, "send_test", boom)
+    page = c.post("/app/access/test-mail", follow_redirects=True).text
+    assert "Send failed: TimeoutError" in page

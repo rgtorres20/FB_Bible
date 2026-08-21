@@ -61,7 +61,33 @@ def send_invite(to_email: str, invite_link: str, app_base: str, settings: Settin
     msg["From"] = settings.smtp_from or settings.smtp_user
     msg["To"] = to_email
     msg.set_content(invite_body(invite_link, app_base))
+    _send(msg, settings)
 
+
+TEST_SUBJECT = "Fantasy Bible — test email"
+
+
+def send_test(to_email: str, app_base: str, settings: Settings) -> None:
+    """Prove the SMTP settings work, from the owner's own screen.
+
+    Raises on failure so the caller can show the real reason -- an
+    authentication error and a blocked port need different fixes, and
+    "it didn't work" sends nobody anywhere.
+    """
+    msg = EmailMessage()
+    msg["Subject"] = TEST_SUBJECT
+    msg["From"] = settings.smtp_from or settings.smtp_user
+    msg["To"] = to_email
+    msg.set_content(
+        "This is a test from the Fantasy Bible.\n\n"
+        "If you are reading it, invite mail works: adding someone at\n"
+        f"{app_base}app/access will email them their sign-in link\n"
+        "along with an intro to the app and both league links.\n"
+    )
+    _send(msg, settings)
+
+
+def _send(msg: EmailMessage, settings: Settings) -> None:
     if settings.smtp_port == 465:
         with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=20) as server:
             server.login(settings.smtp_user, settings.smtp_pass)

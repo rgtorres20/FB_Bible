@@ -86,9 +86,21 @@ the free path with a Gmail account:
    `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the app password>`
    (optional `SMTP_FROM` if different).
 
+**iCloud works too** — arguably better if you already have an Apple ID:
+`SMTP_HOST=smtp.mail.me.com`, `SMTP_PORT=587`, `SMTP_USER=` your full
+iCloud address, `SMTP_PASS=` an **app-specific password** from
+appleid.apple.com → Sign-In and Security → App-Specific Passwords. Your
+normal Apple password will fail; iCloud requires the app-specific one and
+only supports 587/STARTTLS, never 465.
+
 Unset, the access page simply shows you the link to send yourself; a
 failed send falls back to the same, honestly labelled. Nothing about a
 link is ever logged either way.
+
+**Checking it works:** `/health` reports `invite_email: "on" | "off"`, and
+`/app/access` has a **Send myself a test** button once SMTP is set — it
+reports the real failure reason (auth vs. blocked port) rather than a
+shrug, because "I never got one" has several possible causes.
 
 ## Each user's own data — /app/mine ("My stuff")
 

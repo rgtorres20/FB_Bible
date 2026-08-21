@@ -304,6 +304,9 @@ def _access_page(
     invites = auth.get("invites") or {}
     now = time.time()
 
+    standalone_note = (
+        f"<div class='ok'>{html_mod.escape(mail_note)}</div>" if mail_note and not minted else ""
+    )
     minted_html = ""
     if minted:
         email, link = minted
@@ -342,13 +345,27 @@ def _access_page(
         else ""
     )
 
+    mail_card = (
+        "<div class='card'><h2>Invite email</h2>"
+        + (
+            "<p class='sub' style='margin:0 0 8px'>Configured — adding "
+            "someone emails them their link automatically.</p>"
+            "<form method='post' action='/app/access/test-mail'>"
+            "<button class='quietbtn'>Send myself a test</button></form>"
+            if settings.email_configured
+            else "<p class='sub' style='margin:0'><b>Not configured</b>, so "
+            "nothing is emailed — adding someone just shows you the link to "
+            "send yourself. Four env vars turn it on: docs/ACCESS.md.</p>"
+        )
+        + "</div>"
+    )
     return _page(
         "access",
         "<h1>Who gets in</h1>"
         "<p class='sub'>People you store here can open the app. Adding an "
         "email mints a one-time invite link for you to send; removing one "
         "locks them out on their next request. Gate is "
-        f"<b>{settings.auth_state}</b>.</p>" + minted_html + "<div class='card'>"
+        f"<b>{settings.auth_state}</b>.</p>" + standalone_note + minted_html + "<div class='card'>"
         "<h2>Add access</h2><form method='post' action='/app/access/add'>"
         "<label>Email</label><input name='email' type='email' required>"
         "<button>Add &amp; mint invite link</button></form></div>"
@@ -357,6 +374,7 @@ def _access_page(
         + rows
         + "</table></div>"
         + pending_html
+        + mail_card
         + "<form method='post' action='/logout'><button class='quietbtn'>"
         "Sign out</button></form>",
         wide=True,
@@ -603,3 +621,35 @@ async def passkey_remove(
     auth = await store.load_auth()
     await store.save_auth(passkeys.remove_credential(auth, email, cred))
     return RedirectResponse("/app/mine", status_code=303)
+
+
+@router.post("/app/access/test-mail", include_in_schema=False)
+async def access_test_mail(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Send the owner a test message, and report the real reason it failed.
+
+    Exists because "I never got one" has several possible causes -- SMTP
+    unconfigured, wrong password, a blocked port -- and guessing between
+    them from an absence is exactly the diagnosis this repo tries not to
+    make people do.
+    """
+    if not _is_owner(request, settings):
+        return RedirectResponse("/login", status_code=303)
+    auth = await store.load_auth()
+    if not settings.email_configured:
+        return _access_page(
+            auth, settings, mail_note="Email isn't configured — nothing to test yet."
+        )
+    try:
+        await run_in_threadpool(
+            mailer.send_test, settings.owner_email, _public_base(request), settings
+        )
+        note = f"Test email sent to {settings.owner_email} — check your inbox (and spam)."
+        log.info("access: test email sent")
+    except Exception as exc:  # noqa: BLE001 - the owner needs the reason, not a stack
+        note = f"Send failed: {type(exc).__name__}. Check SMTP_USER / SMTP_PASS and the port."
+        log.warning("access: test email failed: %s", type(exc).__name__)
+    return _access_page(auth, settings, mail_note=note)
