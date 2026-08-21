@@ -249,6 +249,47 @@ avoids the whole question.**
 on the web with Stripe → Google Play via TWA as cheap extra distribution
 → treat iOS App Store as a separate, later, genuinely-native decision.
 
+## Buying and wiring the domain — the runbook
+
+Registrar: **Cloudflare**, on price integrity rather than features —
+$10.44/yr at cost, the *same* at renewal, where most registrars advertise
+$1–6 and renew at $15–25. It also throws in free DNS and free email
+forwarding (`you@yourdomain` → your inbox).
+
+The one constraint: Cloudflare Registrar requires Cloudflare's own
+nameservers. That is fine here — host DNS there and point records at
+Vercel.
+
+**Order of operations, and the detail that bites:**
+
+1. Buy at `dash.cloudflare.com` → Domain Registration.
+2. Vercel → project → Settings → **Domains** → add `yourdomain.com`.
+   Vercel shows the A / CNAME records it wants.
+3. Add those in Cloudflare DNS with the proxy **OFF — grey cloud, "DNS
+   only"**. Orange-cloud proxying puts Cloudflare's CDN in front of
+   Vercel's, which fights over TLS and caching. Grey cloud is the
+   supported shape.
+4. Wait for Vercel to issue the certificate (minutes).
+5. The old `*.vercel.app` URL keeps working, so nothing breaks the
+   instant you switch — but treat the custom domain as canonical from
+   then on and hand *that* out.
+
+**Then, and only then, the two things that were waiting on it:**
+
+- **Register passkeys on the new hostname.** Anything registered against
+  the `.vercel.app` name silently stops being offered. If nobody has
+  registered one yet, do not bother until the domain is live.
+- **Verify the domain in Resend** and set `MAIL_FROM=invites@yourdomain`.
+  That is what unlocks emailing anyone other than yourself.
+
+**Naming, briefly.** The expensive mistake is not picking the wrong name
+— a second domain costs another $10 — it is *moving*, which costs every
+user their passkeys and their browser-stored draft state. So pick
+something durable and stop optimizing. Two things to avoid: anything
+built on "Draft Bible", which is crowded commercially (NFL Draft Bible
+has run since 2002, and SportsLine publishes a "Fantasy Football Draft
+Bible"), and any NFL club name or mark.
+
 ## The order — and the one trap
 
 The sequence matters more than the list, because two items create rework
