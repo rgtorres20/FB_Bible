@@ -48,6 +48,11 @@ Object.keys(room.LEAGUES).forEach(function (name) {
         ...S.teams.map((t) => t.roster.filter((p) => p.dst).length)
       ),
       dstReasons: mine.filter((e) => e.p.dst).map((e) => e.why),
+      // Nobody benches a kicker. The cap says 1; this is the check.
+      kPerTeamMax: Math.max(
+        0,
+        ...S.teams.map((t) => t.roster.filter((p) => p.pos === 'K').length)
+      ),
     });
   });
   out.leagues[name] = {

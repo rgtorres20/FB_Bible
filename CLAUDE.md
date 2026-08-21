@@ -21,7 +21,10 @@ These come from the app's own CLAUDE.md and still bind here:
   ([docs/LEAGUES.md](docs/LEAGUES.md) is the ground truth):
   **NDDPL** `nfl.l.192426` (10-team) and **RED_EYE** `nfl.l.811739`
   (**12-team** — owner correction Aug 20, superseding the PDF's 10),
-  **both full PPR, both IDP** (8 defensive starters each).
+  **both full PPR, both IDP** (8 defensive starters each); plus
+  **BALLAPALOSA** `963878` (10-team, settings page Aug 21) — full PPR,
+  **team D/ST instead of IDP**, and receiving yardage *not* halved.
+  A league starts individual defenders or a team defense, never both.
 - **QBs score above market in both leagues** — 6-pt passing TDs and
   20 pass yds/pt in both; RED_EYE adds **1 pt per completion**. The old
   "rushing league, QBs score nothing for passing" rule had it backwards
@@ -136,7 +139,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-512 tests green — 496 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+518 tests green — 502 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

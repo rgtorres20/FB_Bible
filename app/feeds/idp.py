@@ -317,7 +317,12 @@ def build_html(
         "the same shape, 4 LB + 4 DB. Tackles rule this scoring, which makes "
         "every-down MIKE linebackers the premium picks; the '25 point totals "
         "below agree, since solo+assist volume dominates them.</p>"
-        if [lg.key for lg in idp_ls] == [lg.key for lg in BOARD_LEAGUES]
+        # Only when the IDP columns are exactly the owner's own two --
+        # this read is about how THOSE rooms play their slots, and it
+        # would be a claim about somebody else's league otherwise.
+        # Compared against the IDP-starting built-ins, not all of them:
+        # BALLAPALOSA is a built-in that starts no defenders at all.
+        if [lg.key for lg in idp_ls] == [lg.key for lg in BOARD_LEAGUES if lg.starts_idp]
         else ""
     )
 

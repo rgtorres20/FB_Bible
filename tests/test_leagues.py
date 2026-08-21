@@ -19,13 +19,13 @@ from dataclasses import replace
 from app import leagues
 
 
-def test_the_two_verified_leagues_match_the_settings_pages():
+def test_the_two_idp_leagues_match_the_settings_pages():
     """docs/LEAGUES.md is the ground truth: NDDPL 10-team, RED_EYE
     12-team (owner correction Aug 20, superseding the PDF's 10), both
     full PPR, both 6-pt passing TDs at 20 yds/pt, RED_EYE alone paying a
     point per completion, receiving yards halved in both."""
     assert (leagues.NDDPL.teams, leagues.RED_EYE.teams) == (10, 12)
-    for lg in leagues.defaults():
+    for lg in (leagues.NDDPL, leagues.RED_EYE):
         assert lg.ppr == 1.0
         assert lg.pass_td == 6.0
         assert lg.pass_yds_per_pt == 20.0
@@ -35,11 +35,37 @@ def test_the_two_verified_leagues_match_the_settings_pages():
     assert leagues.RED_EYE.pass_completion == 1.0
 
 
-def test_both_leagues_start_eight_defenders():
+def test_ballapalosa_matches_its_settings_page():
+    """The third verified league (ID# 963878, settings page Aug 21), and
+    the one that proves the D/ST path on real numbers: 10 teams, full
+    PPR, 6-pt passing TDs and a point per completion — but market
+    yardage on all three, so receiving is NOT halved here."""
+    lg = leagues.BALLAPALOSA
+    assert lg.teams == 10
+    assert lg.ppr == 1.0
+    assert (lg.pass_td, lg.pass_yds_per_pt, lg.pass_completion) == (6.0, 25.0, 1.0)
+    assert lg.rec_yds_per_pt == 10.0 and not lg.receiving_is_halved
+    # QB/3WR/2RB/TE/W-R-T/K/DEF then six bench. The settings page also
+    # lists two IR slots; those are not draft rounds, and counting them
+    # would run the mock room two rounds past the real draft.
+    assert lg.rounds == 16
+    assert leagues.counts_from_slots(lg.slots)["DEF"] == 1
+
+
+def test_the_two_idp_leagues_start_eight_defenders():
     """The count the IDP board and the mock room both depend on."""
-    for lg in leagues.defaults():
+    for lg in (leagues.NDDPL, leagues.RED_EYE):
         assert sum(1 for s in lg.slots if s in {"DB", "LB", "DL", "D"}) == 8
         assert lg.starts_idp
+        assert not lg.starts_dst
+
+
+def test_no_built_in_league_starts_both_kinds_of_defense():
+    """Owner's rule, Aug 21: a league picks one. The editor refuses the
+    other combination; this is the assertion that the shipped leagues
+    obey the same rule they are held to."""
+    for lg in leagues.defaults():
+        assert not (lg.starts_idp and lg.starts_dst), lg.name
 
 
 def test_startable_groups_are_derived_from_the_slots():
@@ -162,9 +188,10 @@ def _detroit() -> dict:
         "ff": 15,
         "fum_rec": 6,
         "safe": 1,
-        "fg_blkd": 2,
+        "blk_kick_any": 2,
         "def_st_td": 1,
         "def_pass_def": 93,
+        "def_4_and_stop": 11,
         "int_ret_yd": 132,
         "fum_ret_yd": 5,
         "pts_allow": 411,
@@ -209,8 +236,11 @@ def test_a_def_slot_is_not_an_idp_slot():
 def test_detroit_scores_the_way_the_settings_say():
     """49 sacks, 13 INTs, 6 recoveries, a safety, 2 blocks, 1 defensive
     or return TD = 99, and a points-allowed ladder worth +2 on Yahoo's
-    defaults."""
+    defaults. Fourth-down stops score 0 by Yahoo default, so the eleven
+    Detroit had are worth nothing here -- and 55 points in BALLAPALOSA,
+    which pays 5 apiece."""
     assert _yahoo_dst().score_dst(_detroit()) == 101.0
+    assert leagues.BALLAPALOSA.score_dst(_detroit()) == 139.0
 
 
 def test_touchdowns_allowed_are_never_scored_as_touchdowns_scored():

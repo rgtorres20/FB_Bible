@@ -209,7 +209,7 @@ def _dst_stats() -> dict:
             "fum_rec": 6,
             "def_st_td": 1,
             "safe": 1,
-            "fg_blkd": 2,
+            "blk_kick_any": 2,
             "pts_allow": 411,
             "pts_allow_7_13": 2,
             "pts_allow_14_20": 2,
@@ -224,7 +224,7 @@ def _dst_stats() -> dict:
             "fum_rec": 3,
             "def_st_td": 0,
             "safe": 0,
-            "fg_blkd": 0,
+            "blk_kick_any": 0,
             "pts_allow": 500,
             "pts_allow_21_27": 9,
             "pts_allow_28_34": 6,
@@ -279,8 +279,12 @@ def test_a_defense_missing_a_field_leaves_a_blank_cell_not_a_crash():
 def test_a_league_with_no_def_slot_gets_no_team_defense_rows():
     """NDDPL and RED_EYE start eight individual defenders and no team
     defense. Ranking one for them would be an answer to a question their
-    draft never asks."""
-    assert idp.dst_rows(_dst_index(), _dst_stats()) == []
+    draft never asks. (BALLAPALOSA, the third built-in, is the one that
+    does start one -- so the leagues are named rather than defaulted.)"""
+    from app import leagues as leagues_mod
+
+    idp_only = [leagues_mod.NDDPL, leagues_mod.RED_EYE]
+    assert idp.dst_rows(_dst_index(), _dst_stats(), board_leagues=idp_only) == []
 
 
 def test_the_board_shows_the_team_defense_table_only_for_leagues_that_start_one():
@@ -289,9 +293,19 @@ def test_the_board_shows_the_team_defense_table_only_for_leagues_that_start_one(
     assert "Detroit Lions" in with_def
     assert "Work League</b> pays" in with_def
 
+    from app import leagues as leagues_mod
+
+    idp_only = idp.build_html(
+        _dst_index(), _dst_stats(), NOW, board_leagues=[leagues_mod.NDDPL, leagues_mod.RED_EYE]
+    )
+    assert "Team defenses" not in idp_only
+    assert "Detroit Lions" not in idp_only
+
+    # The shipped default set now includes BALLAPALOSA, which does start
+    # one -- so the owner's own board carries both tables.
     owners = idp.build_html(_dst_index(), _dst_stats(), NOW)
-    assert "Team defenses" not in owners
-    assert "Detroit Lions" not in owners
+    assert "Team defenses" in owners and "BALLAPALOSA" in owners
+    assert "NDDPL '25" in owners  # and the IDP half is untouched
 
 
 def test_an_incomplete_ladder_is_said_out_loud_rather_than_ranked():

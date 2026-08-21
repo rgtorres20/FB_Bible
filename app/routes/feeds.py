@@ -223,6 +223,23 @@ async def mock_draft_room(
     )
 
 
+@router.get("/app/mock/board", include_in_schema=False, response_class=HTMLResponse)
+async def mock_draft_board() -> HTMLResponse:
+    """The draft board the mock room hands off, as a real page.
+
+    The room used to write the board into an about:blank popup, which
+    gave that tab no document of its own -- so refreshing it reloaded
+    about:blank and the board went white (owner, Aug 21). This route is
+    the fix: a real same-origin URL that reads the board the room left in
+    localStorage, so reload, back/forward and share-to-self all work.
+
+    The board is entirely the visitor's own draft, so nothing is stored
+    server-side and nothing here touches the feed store. Declared before
+    the /app static mount so it wins.
+    """
+    return HTMLResponse(mock.BOARD_PAGE)
+
+
 @router.get("/api/defenses", summary="Stored team-defense season lines")
 async def read_defenses(store: FeedStore = Depends(get_feed_store)) -> dict:
     """The 32 team-defense season lines, unscored.

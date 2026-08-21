@@ -461,7 +461,11 @@ _ENGINE = r"""
   // data -- neither position has ADP in the pool this room runs on.
   var K_PRICE = 235, K_SHARE = 0.92;
   var DST_BASE = 195, DST_SHARE = 0.78, DST_STEP = 3.0;
-  var CAPS = {QB: 2, TE: 2, K: 1, DEF: 1};   // simulated-team bench caps
+  // Simulated-team bench caps. Owner, Aug 21: never a second kicker --
+  // nobody benches one and a room that did would misprice every pick
+  // around it -- but a second team defense is a real roster move, since
+  // streaming defenses by matchup is how the position is played.
+  var CAPS = {QB: 2, TE: 2, K: 1, DEF: 2};
 
   var S = null;  // the running draft
 
@@ -957,7 +961,7 @@ _ENGINE = r"""
   }
 
   function boardHtml() {
-    var head = '<tr><th></th>';
+    var head = "<tr><th class='rnd'></th>";
     for (var c = 0; c < TEAMS; c++) {
       head += '<th>' + (c === S.mySlot ? 'YOU' : 'T' + (c + 1)) + '</th>';
     }
@@ -981,7 +985,24 @@ _ENGINE = r"""
   }
 
   var BOARD_CSS =
-    'body{margin:14px}table{font-size:10.5px}' +
+    'body{margin:0;padding:0 14px 14px}' +
+    // The header sticks. On a phone the grid is taller than the screen
+    // in both directions, and scrolling down used to take the league
+    // name, the seat and the "this is a simulation" line off-screen
+    // together -- leaving a wall of names with nothing saying whose
+    // draft it is or that it never happened (owner, Aug 21).
+    '.bhead{position:sticky;top:0;z-index:20;background:var(--color-bg);' +
+    'padding:12px 0 8px;border-bottom:2px solid var(--color-text)}' +
+    '.bhead h1{margin:0 0 2px;font-size:19px}' +
+    '.bhead .sub{margin:0}' +
+    '@media (max-width:640px){.bhead h1{font-size:15px}' +
+    '.bhead .sub{font-size:10px;max-height:3.2em;overflow:auto}}' +
+    // The round column sticks to the left edge for the same reason:
+    // scrolling sideways through a 12-team grid otherwise loses which
+    // round each row is.
+    'td.rnd,th.rnd{position:sticky;left:0;z-index:10;' +
+    'background:var(--color-bg)}' +
+    'table{font-size:10.5px}' +
     'td.cell{min-width:86px;position:relative;vertical-align:top;' +
     'border:1px solid var(--color-neutral-300);padding:3px 5px}' +
     'td.cell.mine{background:var(--color-neutral-200);font-weight:700}' +
@@ -992,30 +1013,48 @@ _ENGINE = r"""
     'width:270px;background:var(--color-bg);border:2px solid var(--color-text);' +
     'box-shadow:2px 2px 0 var(--color-text);padding:6px 8px;font-size:11px;' +
     'font-weight:400;line-height:1.4}' +
-    'td.cell:hover .tip{display:block}td.cell:hover{outline:2px solid var(--color-accent)}' +
+    'td.cell:hover .tip,td.cell.tapped .tip{display:block}' +
+    'td.cell:hover,td.cell.tapped{outline:2px solid var(--color-accent)}' +
+    '@media (max-width:640px){.tip{width:auto;right:0;left:auto;min-width:190px}}' +
     '@media print{.tip{display:none !important}body{-webkit-print-color-adjust:exact}}';
+
+  // The board is handed to a real same-origin page rather than written
+  // into an about:blank popup. document.write into a blank window gives
+  // the tab no document of its own, so a refresh reloads about:blank and
+  // the board goes white -- which is exactly what it did (owner, Aug 21).
+  // Stored under a versioned key the board page reads back; localStorage
+  // because the board outlives the tab that opened it.
+  var BOARD_KEY = 'fb_mock_board';
+
+  function boardPayload() {
+    var styleEl = document.querySelector('style');
+    return {
+      league: S.lg,
+      theme: document.documentElement.dataset.theme || '',
+      css: (styleEl ? styleEl.textContent : '') + BOARD_CSS,
+      title: 'Draft board — ' + S.lg,
+      sub: TEAMS + ' teams · ' + S.rounds + ' rounds · your seat is pick ' +
+        (S.mySlot + 1) + ' · ' + S.log.length + ' of ' + (S.rounds * TEAMS) +
+        ' picks in · tap or hover a pick for its details (AI lines labelled; ' +
+        'simulated picks are a simulation, not a prediction) · generated ' +
+        'from the room at ' + FB_MOCK.generated,
+      grid: boardHtml()
+    };
+  }
 
   function openBoard() {
     if (!S || !S.log.length) return;
-    var w = window.open('', '_blank');
-    if (!w) return;
-    var styleEl = document.querySelector('style');
-    var theme = document.documentElement.dataset.theme || '';
-    w.document.write(
-      '<!doctype html><html' + (theme ? " data-theme='" + theme + "'" : '') +
-      "><head><meta charset='utf-8'>" +
-      "<meta name='viewport' content='width=device-width, initial-scale=1'>" +
-      '<title>Fantasy Sports Bible — draft board (' + esc(S.lg) + ')</title>' +
-      '<style>' + (styleEl ? styleEl.textContent : '') + BOARD_CSS +
-      '</style></head><body>' +
-      '<h1>Draft board — ' + esc(S.lg) + '</h1>' +
-      "<p class='sub'>" + TEAMS + ' teams · ' + S.rounds + ' rounds · your seat is ' +
-      'pick ' + (S.mySlot + 1) + ' · ' + S.log.length + ' of ' +
-      (S.rounds * TEAMS) + ' picks in · hover a pick for its details ' +
-      '(AI lines labelled; simulated picks are a simulation, not a ' +
-      'prediction) · generated from the room at ' +
-      esc(FB_MOCK.generated) + '</p>' + boardHtml() + '</body></html>');
-    w.document.close();
+    try {
+      localStorage.setItem(BOARD_KEY, JSON.stringify(boardPayload()));
+    } catch (e) {
+      // Private browsing, or a grid too big for the quota. Say so rather
+      // than opening a page that would render empty.
+      document.getElementById('status').textContent =
+        'Could not hand the board to a new tab — this browser refused to ' +
+        'store it. The room itself still has every pick.';
+      return;
+    }
+    window.open('/app/mock/board', '_blank');
   }
 
   // ---- boot ----------------------------------------------------------------
@@ -1066,3 +1105,83 @@ _ENGINE = r"""
   }
 })();
 """
+
+# The board page's own script (see BOARD_PAGE below).
+BOARD_JS = r"""
+(function () {
+  var raw = null;
+  try { raw = localStorage.getItem('fb_mock_board'); } catch (e) {}
+  var root = document.getElementById('root');
+  if (!raw) {
+    root.innerHTML = "<p class='empty'>No draft board saved on this device yet. " +
+      "Open the <a href='/app/mock'>mock draft room</a>, run a draft, then " +
+      "hit “Draft board”.</p>";
+    return;
+  }
+  var b = null;
+  try { b = JSON.parse(raw); } catch (e) {}
+  if (!b || !b.grid) {
+    root.innerHTML = "<p class='empty'>That saved board could not be read. " +
+      "Run the draft again from the <a href='/app/mock'>mock draft room</a>.</p>";
+    return;
+  }
+  document.getElementById('boardcss').textContent = b.css || '';
+  /* The room's theme travels with the board, so a Cowboys-mode draft
+     opens in Cowboys mode instead of snapping back to light. */
+  if (b.theme) { document.documentElement.dataset.theme = b.theme; }
+  document.title = 'Fantasy Sports Bible — ' + (b.title || 'draft board');
+
+  var head = document.createElement('div');
+  head.className = 'bhead';
+  var h1 = document.createElement('h1');
+  h1.textContent = b.title || 'Draft board';
+  var sub = document.createElement('p');
+  sub.className = 'sub';
+  sub.textContent = b.sub || '';
+  head.appendChild(h1);
+  head.appendChild(sub);
+
+  var grid = document.createElement('div');
+  grid.innerHTML = b.grid;
+
+  root.innerHTML = '';
+  root.appendChild(head);
+  root.appendChild(grid);
+
+  /* Phones have no hover, so the pick details were unreachable there.
+     Tapping a cell opens its details; tapping another closes the first. */
+  grid.addEventListener('click', function (ev) {
+    var cell = ev.target;
+    while (cell && cell !== grid && String(cell.className).indexOf('cell') < 0) {
+      cell = cell.parentNode;
+    }
+    var open = grid.querySelector('.cell.tapped');
+    if (open && open !== cell) {
+      open.className = open.className.replace(' tapped', '');
+    }
+    if (cell && cell !== grid && String(cell.className).indexOf('tapped') < 0) {
+      cell.className += ' tapped';
+    }
+  });
+}());
+"""
+
+
+# The page /app/mock/board serves. Deliberately script-only: the board is
+# the visitor's own simulated draft, so it is never sent to the server and
+# never stored there -- the room leaves it in localStorage and this page
+# reads it back. That is also what makes refresh, back/forward and
+# reopening the tab work, which writing into an about:blank popup could
+# not: that tab had no document of its own, so a reload went white
+# (owner, Aug 21).
+BOARD_PAGE = (
+    "<!doctype html><html><head><meta charset='utf-8'>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    "<title>Fantasy Sports Bible \u2014 draft board</title>"
+    + skin.THEME_BOOT
+    + "<style id='boardcss'></style>"
+    "<style>.empty{font-family:Georgia,'Times New Roman',serif;margin:20px;"
+    "font-size:14px}.empty a{color:inherit}</style></head><body>"
+    "<div id='root'><p class='empty'>Loading the board\u2026</p></div>"
+    "<script>" + BOARD_JS + "</script></body></html>"
+)

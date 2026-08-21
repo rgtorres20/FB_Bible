@@ -97,7 +97,15 @@ DST_FIELDS: tuple[tuple[str, str], ...] = (
     ("fum_rec", "Fumble recovery"),
     ("def_st_td", "Defensive / return TD"),
     ("safe", "Safety"),
-    ("fg_blkd", "Blocked kick"),
+    # Yahoo asks for one "Block Kick" number; Sleeper splits blocked
+    # field goals, punts and extra points across three fields. The
+    # reducer sums them into `blk_kick_any` so the editor can keep asking
+    # the one question the settings page asks.
+    ("blk_kick_any", "Blocked kick"),
+    # Scored at 5 in BALLAPALOSA and 0 by Yahoo default, which is exactly
+    # why it is here: at 5 points a stop, leaving it out would understate
+    # a good defense by fifty-odd points a season.
+    ("def_4_and_stop", "4th-down stop"),
     ("def_pass_def", "Pass defensed"),
 )
 
@@ -140,7 +148,8 @@ DEFAULT_DST = {
     "fum_rec": 2.0,
     "def_st_td": 6.0,
     "safe": 2.0,
-    "fg_blkd": 2.0,
+    "blk_kick_any": 2.0,
+    "def_4_and_stop": 0.0,
     "def_pass_def": 0.0,
 }
 DEFAULT_DST_PA = {
@@ -405,7 +414,72 @@ RED_EYE = League(
     qb_boost_override=18.0,
 )
 
-DEFAULTS: tuple[League, ...] = (NDDPL, RED_EYE)
+BALLAPALOSA = League(
+    key="ballapalosa",
+    name="BALLAPALOSA",
+    teams=10,
+    # QB / 3 WR / 2 RB / TE / W-R-T / K / DEF, then six bench. The two IR
+    # slots on the settings page are not draft rounds and are left out --
+    # counting them would tell the mock room to run two rounds longer
+    # than the real draft does.
+    slots=(
+        "QB",
+        "RB",
+        "RB",
+        "WR",
+        "WR",
+        "WR",
+        "TE",
+        "FLX",
+        "K",
+        "DEF",
+        *(("BN",) * 6),
+    ),
+    # Offense: 6-pt passing TDs and a full point per completion, but
+    # market yardage on all three -- so this room pays QBs well above
+    # market without the halved receiving of the other two.
+    pass_td=6.0,
+    pass_yds_per_pt=25.0,
+    pass_completion=1.0,
+    rec_yds_per_pt=10.0,
+    # No IDP at all. This is the team-defense league.
+    idp={},
+    idp_ret_yds_per_pt=0.0,
+    dst={
+        "sack": 1.0,
+        "int": 1.0,  # Yahoo default is 2 -- this league pays 1
+        "fum_rec": 1.0,  # likewise
+        "def_st_td": 6.0,  # "Touchdown" and "Kickoff and Punt Return TD" both 6
+        "safe": 2.0,
+        "blk_kick_any": 2.0,
+        "def_4_and_stop": 5.0,  # Yahoo default 0
+    },
+    dst_pa={
+        "pts_allow_0": 10.0,
+        "pts_allow_1_6": 7.0,
+        "pts_allow_7_13": 4.0,
+        "pts_allow_14_20": 1.0,
+        "pts_allow_28_34": -1.0,
+        "pts_allow_35p": -2.0,  # Yahoo default -4
+    },
+    # Yahoo states three bands (300-399, 400-499, 500+); Sleeper buckets
+    # more finely, so each Yahoo band maps onto the two beneath it.
+    dst_ya={
+        "yds_allow_300_349": -1.0,
+        "yds_allow_350_399": -1.0,
+        "yds_allow_400_449": -2.0,
+        "yds_allow_450_499": -2.0,
+        "yds_allow_500_549": -3.0,
+        "yds_allow_550p": -3.0,
+    },
+    # Deliberately not overridden. The other two carry boosts tuned
+    # against how those rooms actually draft; nobody has watched this one
+    # draft, so it derives its own like any user league would -- and the
+    # editor says "derived, capped" rather than implying a measurement.
+    qb_boost_override=None,
+)
+
+DEFAULTS: tuple[League, ...] = (NDDPL, RED_EYE, BALLAPALOSA)
 
 
 def defaults() -> list[League]:

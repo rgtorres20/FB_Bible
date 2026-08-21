@@ -224,7 +224,7 @@ def test_the_engine_config_is_generated_not_restated():
     from app import leagues as leagues_mod
 
     cfg = {lg.name: mock.league_config(lg) for lg in mock.ROOM_LEAGUES}
-    assert set(cfg) == {"NDDPL", "RED_EYE"}
+    assert set(cfg) == {"NDDPL", "RED_EYE", "BALLAPALOSA"}
     assert cfg["NDDPL"]["slots"] == [
         *"QB RB RB RB WR WR WR WR TE K".split(),
         *("DB",) * 4,
@@ -246,6 +246,10 @@ def test_the_engine_config_is_generated_not_restated():
     assert cfg["RED_EYE"]["adpLabel"] == "ADP 12tm"
     fourteen = leagues_mod.blank("Big", 14)
     assert mock.league_config(fourteen)["adpLabel"] == "ADP 12tm"
+    # BALLAPALOSA is the team-defense league: one DEF slot, no IDP.
+    assert cfg["BALLAPALOSA"]["dstSlots"] == 1
+    assert cfg["BALLAPALOSA"]["defGroups"] == {}
+    assert cfg["NDDPL"]["dstSlots"] == 0 and cfg["RED_EYE"]["dstSlots"] == 0
 
 
 def test_a_market_scoring_league_makes_no_qb_premium_claim():
@@ -298,3 +302,44 @@ def test_the_room_refuses_to_rank_defenses_from_a_partial_ladder():
     page = mock.build_html(index, _adp(), state, None, NOW, board_leagues=[league])
     assert "1 team defenses" in page
     assert "not on the board yet" not in page
+
+
+def test_the_draft_board_is_a_real_page_so_refresh_works():
+    """It used to be written into an about:blank popup, which gave that
+    tab no document of its own — so a reload went white (owner, Aug 21).
+    Now the room hands the board off through localStorage and opens a
+    real same-origin URL."""
+    from fastapi.testclient import TestClient
+
+    from app import main as main_mod
+
+    room = mock.build_html(_index(), _adp(), _stats(), _capsules(), NOW)
+    assert "window.open('/app/mock/board', '_blank')" in room
+    assert "localStorage.setItem(BOARD_KEY" in room
+    # The old failure mode must not come back.
+    assert "w.document.write" not in room
+
+    page = TestClient(main_mod.app).get("/app/mock/board")
+    assert page.status_code == 200
+    assert "fb_mock_board" in page.text
+    # Nothing about anyone's draft is stored or served: the page is a
+    # reader for what the visitor's own browser saved.
+    assert "No draft board saved on this device yet" in page.text
+
+
+def test_the_board_keeps_its_title_and_round_column_in_view():
+    """On a phone the grid is taller and wider than the screen, and
+    scrolling took the league name, the seat and the "this is a
+    simulation" line away together (owner, Aug 21)."""
+    room = mock.build_html(_index(), _adp(), _stats(), _capsules(), NOW)
+    assert ".bhead{position:sticky" in room
+    assert "td.rnd,th.rnd{position:sticky" in room
+    assert "<tr><th class='rnd'>" in room
+
+
+def test_pick_details_are_reachable_without_a_mouse():
+    """Hover-only tooltips are invisible on a phone, which is where the
+    board is most often read."""
+    room = mock.build_html(_index(), _adp(), _stats(), _capsules(), NOW)
+    assert "td.cell.tapped .tip{display:block}" in room
+    assert "tapped" in mock.BOARD_JS and "addEventListener('click'" in mock.BOARD_JS

@@ -199,7 +199,7 @@ def result(tmp_path_factory) -> dict:
 
 def test_every_league_completes_a_clean_draft(result):
     """The whole board, once each, every starter seated."""
-    assert set(result["leagues"]) == {"NDDPL", "RED_EYE", "Team DEF"}
+    assert set(result["leagues"]) == {"NDDPL", "RED_EYE", "BALLAPALOSA", "Team DEF"}
     for name, lg in result["leagues"].items():
         for run in lg["runs"]:
             where = f"{name} from slot {run['slot']}"
@@ -253,19 +253,36 @@ def test_a_team_defense_league_drafts_one_defense_per_team(result):
     is a starting slot, so every team has to end up with exactly one --
     and no more, because a room hoarding backup defenses would misprice
     every pick made around them."""
-    runs = result["leagues"]["Team DEF"]["runs"]
-    for run in runs:
-        assert run["dstDrafted"] == result["leagues"]["Team DEF"]["teams"]
-        assert run["dstPerTeamMax"] == 1
+    for name in ("BALLAPALOSA", "Team DEF"):
+        league = result["leagues"][name]
+        for run in league["runs"]:
+            # Every team seated, and the bench cap keeps it sane.
+            assert run["dstDrafted"] >= league["teams"]
+            assert 1 <= run["dstPerTeamMax"] <= 2
     # The leagues without a DEF slot must not see one at all: a defense
     # they cannot start is not a draftable asset.
     for name in ("NDDPL", "RED_EYE"):
         assert all(run["dstDrafted"] == 0 for run in result["leagues"][name]["runs"])
 
 
+def test_the_bench_cap_allows_a_second_defense_but_never_a_second_kicker(result):
+    """Owner, Aug 21: streaming defenses by matchup is how the position
+    is played, so a backup D/ST is a real roster move. A second kicker
+    never is -- and a room that benched one would misprice every pick
+    made around it."""
+    for name in ("BALLAPALOSA", "Team DEF"):
+        for run in result["leagues"][name]["runs"]:
+            assert run["dstPerTeamMax"] <= 2
+            assert run["dstDrafted"] >= result["leagues"][name]["teams"]
+    for lg in result["leagues"].values():
+        for run in lg["runs"]:
+            assert run["kPerTeamMax"] <= 1
+
+
 def test_a_defense_pick_states_its_own_league_s_scoring(result):
-    for run in result["leagues"]["Team DEF"]["runs"]:
-        assert run["dstReasons"], "autopilot took no defense"
-        for why in run["dstReasons"]:
-            assert "D/ST scoring" in why
-            assert "Team DEF '25" in why
+    for name in ("BALLAPALOSA", "Team DEF"):
+        for run in result["leagues"][name]["runs"]:
+            assert run["dstReasons"], f"{name}: autopilot took no defense"
+            for why in run["dstReasons"]:
+                assert "D/ST scoring" in why
+                assert f"{name} '25" in why

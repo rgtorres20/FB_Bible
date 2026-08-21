@@ -29,10 +29,14 @@ this repo will not ship (the no-false-positives rule in CLAUDE.md).
   seven-band points-allowed ladder, and (folded away, because almost
   nobody scores it) the nine-band yards-allowed ladder
 
-`DEF` and `D` are different slots and a league can start both. `DEF` is a
-whole team's defense and special teams scored as one unit; `D` is one
-more individual defender of any group the league starts. Owner, Aug 21:
-*"some leagues do Team DEF not just IDP."*
+`DEF` and `D` are different slots. `DEF` is a whole team's defense and
+special teams scored as one unit; `D` is one more individual defender of
+any group the league starts. Owner, Aug 21: *"some leagues do Team DEF
+not just IDP"* — and, *"if DEF is chosen IDP can't be used."* **A league
+uses one or the other**, and the editor refuses a roster with both: it
+would need two rankings for one lineup decision, and the boards would
+show a defender and a whole defense competing for slots that are not
+interchangeable.
 
 ## What the app derives, and shows you deriving
 
@@ -94,6 +98,8 @@ downstream a quiet lie about that user's draft. So:
 - starts a `DEF` slot but scores it nothing → refused, because all 32
   defenses would rank identically at zero and a flat list presented as a
   ranking is the same false positive
+- starts both a `DEF` slot and individual defenders → refused (owner's
+  rule, above)
 
 ## Code map
 
@@ -124,6 +130,16 @@ it (`Actions → Probe endpoint → url + key=DET`) rather than assuming:
   not 32** — the team *offense* entries use the same names for sacks and
   turnovers *given up*. The extractor reads the bare team codes and
   nothing else.
+
+Two more shapes the settings pages force:
+
+- Yahoo asks for one **"Block Kick"** number; Sleeper splits blocked
+  field goals, punts and extra points across three fields. The reducer
+  sums them into `blk_kick_any` so the editor keeps asking the one
+  question the settings page asks.
+- **4th-down stops** are a Yahoo default of 0 and BALLAPALOSA pays **5**.
+  At five points a stop, leaving the field out would understate a good
+  defense by fifty-odd points a season, so it is in.
 
 The points-allowed ladder needs no reconstruction: Sleeper already stores
 how many games each defense finished inside each band, at exactly the
@@ -156,4 +172,15 @@ only visible to a signed-in user whose league has a `DEF` slot.
   scorable, via the same divisor the IDP side uses.
 - **D/ST three-and-outs and forced punts.** Stored by Sleeper
   (`def_3_and_out`, `def_forced_punts`), scored by a small minority of
-  leagues, not in the editor.
+  leagues, not in the editor. (4th-down stops *are* in — BALLAPALOSA
+  pays 5 apiece.)
+- **"Extra point returned."** BALLAPALOSA scores it 2. Sleeper's
+  `def_2pt` has only two holders across the whole dump, so which
+  population it belongs to was not verifiable from the census alone and
+  it is left out rather than guessed. Worth at most a couple of points a
+  season.
+- **Offense bonus thresholds** (4 pts at 400 passing yards, 4 at 175
+  rushing/receiving, 40+ yard TD bonuses) and the non-yardage offense
+  categories (INT, fumbles lost, 2-pt). The offense half of a League only
+  drives the QB premium and the ADP column — player ranks come from
+  market ADP — so these change nothing the app computes today.

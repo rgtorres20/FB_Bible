@@ -106,11 +106,18 @@ PLAYER_FIELDS = (
 # `sack`/`int`/`ff`/`fum_rec`/`td`/`qb_hit` appear on the team OFFENSE
 # entries too (turnovers *given up*), so these are read from the bare
 # keys and nowhere else, and the ambiguous `td` is not read at all.
+# Yahoo asks for one "Block Kick" value; Sleeper splits it three ways.
+# Summed into `blk_kick_any` at reduce time so the scoring stays a plain
+# dot product and the editor keeps asking the one question the settings
+# page asks.
+BLOCK_FIELDS = ("fg_blkd", "punt_blkd", "xp_blkd")
+
 DEFENSE_FIELDS = (
     "gp",
     "pts_allow",
     "yds_allow",
-    *(f for f, _ in leagues_mod.DST_FIELDS),
+    *(f for f, _ in leagues_mod.DST_FIELDS if f != "blk_kick_any"),
+    *BLOCK_FIELDS,
     "int_ret_yd",
     "fum_ret_yd",
     *(f for f, _ in leagues_mod.DST_PA_TIERS),
@@ -119,8 +126,9 @@ DEFENSE_FIELDS = (
 
 # Bump when PLAYER_FIELDS / TEAM_FIELDS change shape: stale() then refetches
 # even inside the weekly window, so a deploy that adds fields does not wait
-# a week for the store to carry them. v2: the idp_* block. v3: team defenses.
-STATS_VERSION = 3
+# a week for the store to carry them. v2: the idp_* block. v3: team
+# defenses. v4: 4th-down stops and the summed blocked-kick field.
+STATS_VERSION = 4
 
 # Sleeper says WAS; every const in the page says WSH.
 _PAGE_CODES = {"WAS": "WSH"}
@@ -196,6 +204,9 @@ def reduce(raw: dict) -> dict:
             kept = {f: entry[f] for f in DEFENSE_FIELDS if isinstance(entry.get(f), int | float)}
             if not kept.get("gp"):
                 continue
+            blocks = sum(kept.get(f, 0) for f in BLOCK_FIELDS)
+            if blocks:
+                kept["blk_kick_any"] = blocks
             banded = sum(kept.get(f, 0) for f, _ in leagues_mod.DST_PA_TIERS)
             if banded == kept["gp"]:
                 pa_buckets_tally += 1

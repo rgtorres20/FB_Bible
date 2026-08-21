@@ -107,14 +107,62 @@ Straight from the owner, superseding the earlier D-slot open question:
   RED_EYE D slot an elite sack artist would have to out-point a
   tackle-machine LB to claim).
 
-### Neither of these leagues starts a team defense
+## BALLAPALOSA — ID# 963878
 
-Both are IDP — 8 individual defenders each, no `DEF` slot. That is worth
-recording because plenty of leagues are the other way round, and the app
-now supports both: `/app/leagues` has a `DEF` slot and full D/ST scoring
-(docs/LEAGUE_SETTINGS.md), and a league that starts one gets a Team
-defenses table on `/app/idp` and drafts one in the mock room. The owner's
-two see none of that, correctly.
+Source: the league's own Yahoo **Scoring & Settings** page, provided by
+the owner **Aug 21, 2026**. The third verified league, and the one that
+exercises the team-defense path on real numbers.
+
+| | |
+|---|---|
+| Teams | **10** |
+| Scoring | Head-to-head, fractional, negative points allowed |
+| Draft | Offline draft |
+| Waivers | **None** — no maximum acquisitions, continual rolling list |
+| Trades | Allowed, commissioner review, deadline Nov 28 2026 |
+| Playoffs | 6 teams, weeks 15–17 |
+| Roster | QB · WR×3 · RB×2 · TE · **W/R/T flex** · K · **DEF** · BN×6 · IR×2 |
+
+The two **IR slots are not draft rounds** and are deliberately excluded
+from `app/leagues.py` — counting them would run the mock room two rounds
+past the real draft.
+
+Offense vs Yahoo default:
+
+- Passing: **1 pt per completion (default 0)** · 25 yds/pt · **Pass TD 6**
+  (default 4) · **INT −2** (default −1) · bonus 4 at 400 yards
+- Rushing / Receiving: 10 yds/pt each · TD 6 · bonus 4 at 175 yards
+- Receptions: **1.0 PPR** (default 0.5) — and **receiving yardage is NOT
+  halved here**, unlike NDDPL and RED_EYE
+- Return TDs 6 · 2-pt 2 · fumbles lost −2 · offensive fumble return TD 6
+- **40+ yard passing / rushing / receiving TDs: 4 each** (default 0)
+
+Kickers: FG 3/3/3/4/5 by distance, PAT 1.
+
+**Defense/Special Teams** (this is the D/ST league):
+
+- Sack 1 · **INT 1** (default 2) · **Fumble recovery 1** (default 2) ·
+  TD 6 · Safety 2 · Block kick 2 · **Kickoff and punt return TDs 6**
+- **4th-down stops 5** (default 0) — the biggest departure from Yahoo's
+  defaults, and worth ~55 points a season to a good defense
+- Points allowed: 0→**10** · 1-6→7 · 7-13→4 · 14-20→1 · 21-27→0 ·
+  28-34→−1 · **35+→−2** (default −4)
+- Yards allowed: 300-399→−1 · 400-499→−2 · 500+→−3 (all default 0)
+- Extra point returned 2
+
+**QBs are premium here too** — 25.2 pts/game above market, almost all of
+it the point per completion. Unlike the other two, that boost is
+**derived and capped**, not tuned: nobody has watched this room draft, so
+it gets the same honest estimate a user's own league would.
+
+### Neither NDDPL nor RED_EYE starts a team defense
+
+Both are IDP — 8 individual defenders each, no `DEF` slot. BALLAPALOSA is
+the other way round: one `DEF` slot and no individual defenders at all.
+
+**A league uses one or the other, never both** (owner's rule, Aug 21).
+`/app/leagues` refuses a roster with both, and all three built-ins obey
+the same rule they are held to.
 
 ### Interpretation edge (stated on the IDP board too)
 

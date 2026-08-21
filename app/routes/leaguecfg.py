@@ -131,6 +131,16 @@ def league_from_form(form, key: str) -> tuple[leagues_mod.League | None, str]:
             idp[field_name] = value
 
     starts_defenders = any(s in {"DB", "LB", "DL", "D"} for s in slots)
+    # Owner's rule, Aug 21: a league picks one kind of defense. A roster
+    # with both would need two rankings for one lineup decision, and the
+    # boards would show a defender and a whole defense competing for
+    # slots that are not actually interchangeable.
+    if "DEF" in slots and starts_defenders:
+        return None, (
+            "Pick one kind of defense: a team D/ST slot (DEF), or "
+            "individual defenders (DL/LB/DB/D) — not both. Set the ones "
+            "you don't use to zero."
+        )
     if starts_defenders and not idp:
         return None, (
             "You start defenders but score them nothing — fill in the IDP "
@@ -392,7 +402,12 @@ def _form(lg: leagues_mod.League | None, key: str = "") -> str:
         f"max='{leagues_mod.MAX_TEAMS}' step='1' id='teams' name='teams' "
         f"value='{base.teams}'></div>"
         "</div>"
-        "<fieldset><legend>Starting lineup &amp; bench</legend>" + _lineup(lg) + "</fieldset>"
+        "<fieldset><legend>Starting lineup &amp; bench</legend>"
+        "<p class='read'><b>DEF</b> is a whole team defense; <b>DL/LB/DB/D</b> "
+        "are individual defenders (IDP). A league uses one or the other — "
+        "fill in whichever your league starts and leave the rest at zero.</p>"
+        + _lineup(lg)
+        + "</fieldset>"
         "<fieldset><legend>Offense scoring</legend>"
         f"<div class='grid'>{offense}</div></fieldset>"
         "<fieldset><legend>Defensive players (IDP)</legend>"
@@ -402,9 +417,9 @@ def _form(lg: leagues_mod.League | None, key: str = "") -> str:
         f"<div class='grid'>{idp}</div></fieldset>"
         "<fieldset><legend>Team defense (D/ST)</legend>"
         "<p class='read'>For a <b>DEF</b> slot — a whole team's defense and "
-        "special teams, scored as one. Separate from the IDP values above: "
-        "a league can start both, one, or neither. Prefilled with Yahoo's "
-        "defaults when you add a DEF slot; leave them at zero otherwise.</p>"
+        "special teams, scored as one. Use these <i>instead of</i> the IDP "
+        "values above, not alongside them. Prefilled with Yahoo's defaults; "
+        "leave them at zero if your league starts individual defenders.</p>"
         f"<div class='grid'>{dst_events}</div>"
         "<p class='read' style='margin-top:10px'><b>Points allowed</b>, per "
         "game finished inside the band.</p>"
