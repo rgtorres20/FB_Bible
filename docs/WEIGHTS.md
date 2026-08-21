@@ -289,6 +289,8 @@ real view filter is a design-side change; the panel currently labels them
 `not wired`, which is at least honest.
 
 **4. The escape hatch survives, but ADP comes out of the blend.**
+*(Partly superseded by decision 6 — the "my tiers only" half is gone;
+removal replaces it. The ADP-out-of-the-blend half stands.)*
 
 Today `srcWeight → 0` ("My tiers only") zeroes ADP, which conflates two
 different questions:
@@ -336,6 +338,67 @@ position, and the ones I never ranked are marked as such
 ```
 
 If that fails, the escape hatch is broken whatever the sliders say.
+
+**6. Weights tilt the board; removal is the only way to exclude a list.**
+
+Owner, Aug 21: *"The only thing that should be weighted is the Draft
+analyzer weights ... I never want to fully influence the boards, should
+be a combination of all at all times ... you should be able to remove a
+list at any time."*
+
+**This amends decision 4.** That one kept "My tiers only" — every market
+list at weight 0. This says no list may ever dominate: the board is a
+combination of everything enabled, always. The two cannot both hold.
+
+The resolution is one control per intent, which is the better design:
+
+- **Weight** tilts the share. It can never reach zero and never reach
+  total. Every enabled list keeps some pull.
+- **Removal** is the only way to take a list out. It is a deliberate act
+  with a visible result, not a slider quietly parked at the end of its
+  travel.
+
+Testable form: *with any set of lists enabled, every enabled list has a
+non-zero share of the blend, and no single list has all of it.* The
+coverage floor from decision 4 still stands — a player no enabled list
+ranks is ordered by ADP and labelled, never silently sunk.
+
+**7. Lists go stale, and the app must show it.**
+
+Owner: *"these can get outdated once season starts."* Correct, and it is
+the repo's own no-stale-data rule pointed at a new surface. A preseason
+top-300 used in week 8 is stale data wearing no label.
+
+So every list carries an **as-of date**, shown wherever its weight is.
+Once real games are behind us a preseason list should read as aged rather
+than current — and this is measurable rather than a matter of taste: the
+scorecard already grades calls against real box scores, so it can
+eventually answer *which lists decayed fastest*, and the ageing can be
+earned instead of assumed.
+
+**8. New lists come in by upload, not by pointing at a URL.**
+
+Recommendation, owner asked for thoughts. Against a general "point the
+app at a website" scraper:
+
+- **Terms.** [LICENSING.md](LICENSING.md) already records that selling
+  this needs permission from Yahoo, and that redistributing their data is
+  constrained. A scraper aimed at ESPN or Yahoo ranking pages walks
+  straight into the thing that blocks the commercial path. The user
+  fetching a page themselves is a different act from our service
+  fetching it for them.
+- **Silent breakage.** Every site's markup differs and changes without
+  notice. A generic scraper degrades to "no rows", which looks exactly
+  like "the list did not change" — the failure class this repo keeps
+  paying for.
+
+The upload path already exists: `/app/mine` accepts `.txt/.csv/.md/.json`
+per user, 12 documents, 200KB each. A ranking list is a document. It is
+exactly what the user pasted, stamped with when they pasted it, and it
+breaks loudly or not at all.
+
+Where a source publishes a real API, a **named adapter** is fine — FFC
+already is one. That is a small verified set, not a general scraper.
 
 ## Still open
 
