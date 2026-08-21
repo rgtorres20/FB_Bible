@@ -1,9 +1,11 @@
 # FB Bible — the vault
 
-This folder is both the project's docs and an **Obsidian vault**. Open
-`FB_Bible/docs` as a vault and these pages are the wiki; browse the same
-folder on GitHub and they are ordinary markdown. Both have to keep working,
-which is the only real constraint on how pages are written (see *Conventions*).
+This folder is the wiki. The **Obsidian vault is the repo root**, one level
+up — the Git plugin wants a git repo at the vault root, so `.obsidian/` lives
+there (setup: [OBSIDIAN.md](OBSIDIAN.md)). These pages are the wiki inside it,
+and the same files browse as ordinary markdown on GitHub. Both have to keep
+working, which is the only real constraint on how pages are written
+(see *Conventions*).
 
 The schema for the whole thing is [../CLAUDE.md](../CLAUDE.md) — the rules
 that bind code, and the pointer to every page below.
@@ -27,6 +29,7 @@ that bind code, and the pointer to every page below.
 - [GAP_REVIEW.md](GAP_REVIEW.md) — known gaps and the fixes already made
 
 **Operations**
+- [OBSIDIAN.md](OBSIDIAN.md) — free two-way sync between here and your machine
 - [ACCESS.md](ACCESS.md) — login gate, invites, passkeys
 - [YAHOO_SETUP.md](YAHOO_SETUP.md) · [YAHOO_APPLICATION.md](YAHOO_APPLICATION.md)
 - [RESUME.md](RESUME.md) — live state, and what is blocked on what

@@ -31,8 +31,11 @@ venv/
 .coverage
 htmlcov/
 
-# Obsidian vault (docs/). The settings we agree on are committed; the
-# per-machine UI state churns on every pane you open, so it is not.
-docs/.obsidian/workspace*.json
-docs/.obsidian/cache
-docs/.obsidian/plugins/*/data.json
+# Obsidian vault. The vault root is the REPO root, not docs/, so that the
+# Obsidian Git plugin sees a git repo at the vault root -- its README does
+# not promise support for a vault nested inside a repo, and an unverified
+# setting is not something to build a sync on.
+# The settings we agree on are committed; per-machine UI state is not.
+.obsidian/workspace*.json
+.obsidian/cache
+.obsidian/plugins/*/data.json
