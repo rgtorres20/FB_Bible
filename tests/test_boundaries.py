@@ -53,7 +53,7 @@ COMPOSERS = frozenset({"main", "feeds", "league", "leaguecfg", "userdata", "acce
 
 DATA_UNITS: dict[str, frozenset[str]] = {
     "wire": frozenset({"poller", "rss", "rotoworld", "impact", "injury"}),
-    "adp": frozenset({"adp", "board"}),
+    "adp": frozenset({"adp", "board", "ranklists"}),
     "usage": frozenset({"stats", "depth"}),
     "odds": frozenset({"vegas"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
