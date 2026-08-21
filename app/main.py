@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import leagues
 from .config import get_settings
 from .feeds import board, page, previews, stats, vegas
 from .feeds.store import FeedStore
@@ -219,6 +220,16 @@ if _FRONTEND_READY:
                 html, covered = board.inject(html, (stored.get("adp") or {}).get("state"))
                 if covered:
                     logging.getLogger(__name__).info("board: %d rows carry live ADP", covered)
+                # The design document ships 205 rows against a 300-pick draft
+                # that starts 96 individual defenders, so the board could not
+                # seat the starting lineups (docs/BOARD_EXPECTED.md). Depth
+                # comes from the live player index, marked as index depth
+                # rather than given an invented scouting note.
+                html, deepened = board.deepen(html, await store.load_players(), leagues.defaults())
+                if deepened:
+                    logging.getLogger(__name__).info(
+                        "board: appended %d rows of index depth", deepened
+                    )
                 # Team-intel usage reads: the measured '25 pass rate and
                 # red-zone run share replace the curated estimates, labelled
                 # as such -- all 32 teams or nothing (see stats.usage_reads).

@@ -91,8 +91,29 @@ stored, verified live), not from this board, so it is not a shortfall.
 `max(teams x rounds)`. `RAW_BOARD` is **not** fixed here: it ships from
 the design project, so a deeper board is a design-side change
 ([DESIGN_CONTRACT.md](DESIGN_CONTRACT.md)).
-`tests/test_board_depth.py` holds the shortfalls as a ratchet — they can
-only shrink, and a resync that ships a shallower board fails.
+### Fixed server-side, Aug 21
+
+Owner: *"we are staying here lets do it"* — so the gap is closed here
+rather than waiting on a resync. `board.deepen()` appends rows from the
+live player index until the board seats the deepest league: 205 -> 300
+rows, defenders 49 -> 138 against a requirement of 96, kickers 6 -> 12.
+
+Three properties make it honest rather than just longer:
+
+- **Appended rows say what they are.** Tier 20 (the committed board uses
+  1–18, so they sort last and stay identifiable) and the note *"Depth
+  from the live player index — no scouting read yet."* Inventing a
+  capsule for a round-22 linebacker would be fabrication; the row admits
+  it has none.
+- **The requirement is derived, never configured.** `board.required()`
+  reads `app/leagues.py`, so editing a roster at `/app/leagues` moves the
+  target and the two cannot disagree.
+- **No index, no depth.** With no player index it returns the committed
+  page unchanged — every overlay in this app degrades to what shipped.
+
+`tests/test_board_depth.py` keeps the shortfalls as a ratchet describing
+the *committed* board, so a resync that ships something shallower still
+fails, and proves `deepen()` closes them.
 
 Board composition, counted from the committed file:
 

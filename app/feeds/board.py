@@ -202,3 +202,155 @@ def inject(html: str, adp_state: dict | None) -> tuple[str, int]:
     for old, new in _CONSUMERS:
         patched = patched.replace(old, new, 1)
     return patched, len(matched)
+
+
+# --- deepening the board ---------------------------------------------------
+# The design document ships 205 rows. The deepest league this app serves is
+# RED_EYE at 12 teams x 25 roster slots = 300 picks, and it starts eight
+# individual defenders per team -- 96 of them -- against 49 on the board.
+# So the board could not seat the starting lineups, let alone fill the draft
+# (docs/BOARD_EXPECTED.md).
+#
+# Rather than wait for a design resync, the server appends the depth from the
+# live player index. Appended rows carry an honest note saying what they are:
+# index depth, not a scouting read. Inventing a capsule for a round-22
+# linebacker would be exactly the fabrication this repo has a rule against.
+
+# The committed board uses tiers 1-18. Appended rows take a tier above all
+# of them so they sort last AND stay identifiable -- a test can find them,
+# and the page could style them differently without guessing.
+DEPTH_TIER = 20
+DEPTH_NOTE = "Depth from the live player index — no scouting read yet."
+
+# Sleeper positions that map onto a fantasy slot. Team defences are not here:
+# they come from /api/defenses, not this board.
+_OFFENSE_POS = ("QB", "RB", "WR", "TE", "K")
+
+
+def required(leagues_list) -> dict[str, int]:
+    """How many of each position group the deepest league needs started.
+
+    Derived from the roster -- `League.rounds` is starters plus bench -- so
+    a league edited at /app/leagues moves its own requirement and the two
+    can never disagree (owner, Aug 21).
+    """
+    from collections import Counter
+
+    idp_slots = {"DL", "LB", "DB", "D"}
+    need: dict[str, int] = {"_total": 0}
+    for lg in leagues_list:
+        counts = Counter(s for s in lg.slots if s != "BN")
+        idp = sum(n for s, n in counts.items() if s in idp_slots) * lg.teams
+        if idp:
+            need["IDP"] = max(need.get("IDP", 0), idp)
+        for pos in _OFFENSE_POS:
+            want = counts.get(pos, 0) * lg.teams
+            if want:
+                need[pos] = max(need.get(pos, 0), want)
+        need["_total"] = max(need["_total"], lg.teams * lg.rounds)
+    return need
+
+
+def _existing(html: str) -> tuple[list[str], dict[str, int]]:
+    """Names already on the board, and what it carries by position group."""
+    from collections import Counter
+
+    block = _RAW_BOARD.search(html)
+    if not block:
+        return [], {}
+    rows = re.findall(r'\[\d+,"([^"]+)","([^"]+)"', block.group(1))
+    have: Counter = Counter()
+    for _name, meta in rows:
+        pos = meta.split("·")[0].strip()
+        have["IDP" if pos in ("LB", "DB", "DL", "WR/DB") else pos] += 1
+    have["_total"] = len(rows)
+    return [match_key(n) for n, _ in rows], dict(have)
+
+
+def _candidates(index: dict | None, group: str, taken: set[str]) -> list[dict]:
+    """Index players for one group, best search rank first.
+
+    Rank is Sleeper's fantasy search rank: popularity leaks in, so it orders
+    the tail rather than deciding it. Good enough for depth nobody has
+    scouted -- and the row says exactly that.
+    """
+    players = (index or {}).get("players") or {}
+    out = []
+    for p in players.values():
+        if not p.get("team") or p.get("rank") is None:
+            continue
+        pos = p.get("idp") if group == "IDP" else p.get("position")
+        if group == "IDP":
+            if not p.get("idp"):
+                continue
+        elif p.get("position") != group:
+            continue
+        if match_key(p.get("name") or "") in taken:
+            continue
+        out.append({**p, "_slot": pos})
+    out.sort(key=lambda p: p["rank"])
+    return out
+
+
+def deepen(html: str, index: dict | None, leagues_list) -> tuple[str, int]:
+    """Append index depth until the board can seat the deepest league.
+
+    The design document ships 205 rows against a 300-pick draft that starts
+    96 individual defenders (docs/BOARD_EXPECTED.md). This closes the gap
+    server-side rather than waiting on a resync. Appended rows are marked as
+    index depth: no invented scouting note, no invented tier.
+    """
+    block = _RAW_BOARD.search(html)
+    if not block or not (index or {}).get("players"):
+        return html, 0
+
+    taken_keys, have = _existing(html)
+    taken = set(taken_keys)
+    need = required(leagues_list)
+
+    added: list[str] = []
+    counters = dict(have)
+    for group in ("IDP", "K", "TE", "QB", "RB", "WR"):
+        short = need.get(group, 0) - have.get(group, 0)
+        if short <= 0:
+            continue
+        for p in _candidates(index, group, taken)[:short]:
+            slot = p["_slot"] or group
+            counters[group] = counters.get(group, 0) + 1
+            name = (p.get("name") or "").replace('"', "")
+            added.append(
+                f'  [{DEPTH_TIER},"{name}","{slot} · {p["team"]}",'
+                f'"{slot}{counters[group]}","{DEPTH_NOTE}",0],'
+            )
+            taken.add(match_key(name))
+
+    # Then fill the remaining total with the best of whatever is left, so a
+    # deep bench draft does not run dry even after every slot is covered.
+    total_short = need["_total"] - (have.get("_total", 0) + len(added))
+    if total_short > 0:
+        pool: list[dict] = []
+        for group in ("RB", "WR", "TE", "QB", "IDP", "K"):
+            pool.extend(_candidates(index, group, taken))
+        pool.sort(key=lambda p: p["rank"])
+        for p in pool[:total_short]:
+            slot = p["_slot"] or p.get("position") or "FLX"
+            counters[slot] = counters.get(slot, 0) + 1
+            name = (p.get("name") or "").replace('"', "")
+            if match_key(name) in taken:
+                continue
+            added.append(
+                f'  [{DEPTH_TIER},"{name}","{slot} · {p["team"]}",'
+                f'"{slot}{counters[slot]}","{DEPTH_NOTE}",0],'
+            )
+            taken.add(match_key(name))
+
+    if not added:
+        return html, 0
+    body = block.group(1).rstrip()
+    if not body.endswith(","):
+        body += ","
+    return html.replace(
+        block.group(0),
+        "const RAW_BOARD = [" + body + "\n" + "\n".join(added) + "\n];",
+        1,
+    ), len(added)
