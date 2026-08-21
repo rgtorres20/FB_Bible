@@ -162,6 +162,7 @@ def _render(
         "personal layer on the shared app — notes, rankings, lists. Only you "
         "see this page's contents; it follows your sign-in across devices. "
         f"Up to {MAX_DOCS} documents, {MAX_DOC_BYTES // 1000}KB each · "
+        "<a href='/app/leagues'>league settings</a> · "
         "<a href='/app/'>back to the app</a></p>"
         + (f"<div class='err'>{html_mod.escape(err)}</div>" if err else "")
         + _passkey_card(pk_list or [])

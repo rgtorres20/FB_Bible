@@ -270,6 +270,21 @@ def main() -> int:
     mine_page = get("/app/mine").decode("utf-8", errors="replace")
     check("my-stuff page serves", "My stuff" in mine_page)
 
+    # League settings: same rule as /app/mine -- the watchdog has no
+    # session, so it must get the honest ask-to-sign-in page rather than
+    # anybody's league. And the built-ins must still be described as the
+    # owner's verified settings, not silently editable.
+    lg_page = get("/app/leagues").decode("utf-8", errors="replace")
+    check("league settings page serves", "League settings" in lg_page)
+    check(
+        "league settings ask for a sign-in rather than guessing",
+        "Sign in" in lg_page and "Add a league" not in lg_page,
+    )
+    # The boards fall back to the owner's verified two for a visitor with
+    # no leagues of their own -- which is exactly what the watchdog is.
+    check("IDP board keeps its verified columns", "NDDPL '25" in idp_page)
+    check("mock room offers the verified leagues", '"NDDPL"' in mock_page)
+
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)

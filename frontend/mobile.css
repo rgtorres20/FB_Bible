@@ -189,8 +189,10 @@ aside > div:nth-child(2) {
   color: var(--color-bg, #fff);
 }
 
-/* The Draft analyzer's link into the mock draft room (mobile.js). */
-#fb-mock-link {
+/* The Draft analyzer's links into the mock draft room and league
+ * settings (mobile.js). */
+#fb-mock-link,
+#fb-leagues-link {
   display: block;
   margin-bottom: 8px;
   padding: 6px 10px;

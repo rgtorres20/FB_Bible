@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import html as html_mod
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -66,6 +67,22 @@ def qb_note(lg: leagues_mod.League) -> str:
     if lg.pass_completion != leagues_mod.MARKET_PASS_COMPLETION:
         bits.append(f"{_fmt(lg.pass_completion)}/completion")
     return ", ".join(bits)
+
+
+def room_names(room: Sequence[leagues_mod.League]) -> list[tuple[str, leagues_mod.League]]:
+    """Display names for the picker, made unique.
+
+    The engine keys its league config by name, and nothing stops a user
+    calling their league NDDPL. A collision would silently draft one
+    league's roster with another's scoring, so the duplicate gets a
+    number rather than the first one getting overwritten.
+    """
+    seen: dict[str, int] = {}
+    out = []
+    for lg in room:
+        seen[lg.name] = seen.get(lg.name, 0) + 1
+        out.append((lg.name if seen[lg.name] == 1 else f"{lg.name} ({seen[lg.name]})", lg))
+    return out
 
 
 def league_config(lg: leagues_mod.League) -> dict:
@@ -162,7 +179,12 @@ def offense_pool(
 DEF_POOL = 400  # deep enough that 12 teams x 4 DBs never runs the well dry
 
 
-def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | None) -> list[dict]:
+def defense_pool(
+    index: dict | None,
+    stats_state: dict | None,
+    capsules: dict | None,
+    board_leagues: Sequence[leagues_mod.League] | None = None,
+) -> list[dict]:
     """The IDP board's rows, cut deeper than the board's page (the room
     must seat every group for a 12-team RED_EYE draft). Same scoring,
     same source, so /app/mock and /app/idp can never disagree.
@@ -170,8 +192,9 @@ def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | 
     Each league contributes its own score and rank keys, named after the
     league -- the engine reads them through `defKey`/`defRankKey`, so a
     third league needs no change here."""
+    board = list(board_leagues if board_leagues is not None else ROOM_LEAGUES)
     out = []
-    for r in idp.rows(index, stats_state, top=DEF_POOL, board_leagues=ROOM_LEAGUES):
+    for r in idp.rows(index, stats_state, top=DEF_POOL, board_leagues=board):
         entry = {
             "id": r["id"],
             "name": r["name"],
@@ -181,7 +204,7 @@ def defense_pool(index: dict | None, stats_state: dict | None, capsules: dict | 
             "inj": r["injury"],
             "cap": _capsule_text(capsules, r["id"]),
         }
-        for lg in ROOM_LEAGUES:
+        for lg in board:
             entry[lg.key] = r[lg.key]
             entry[f"{lg.key}_rank"] = r.get(f"{lg.key}_rank")
         out.append(entry)
@@ -256,7 +279,16 @@ def build_html(
     stats_state: dict | None,
     capsules: dict | None,
     now: datetime,
+    board_leagues: Sequence[leagues_mod.League] | None = None,
 ) -> str:
+    """The room, for whichever leagues it is being asked about.
+
+    `board_leagues` is how a signed-in user's own leagues (/app/leagues)
+    reach the room: the same League dataclass, so the engine cannot tell
+    them apart from the built-in two.
+    """
+    room = list(board_leagues if board_leagues is not None else ROOM_LEAGUES)
+    named = room_names(room)
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
     head = (
         "<!doctype html><meta charset='utf-8'>"
@@ -268,7 +300,7 @@ def build_html(
     )
 
     offense = offense_pool(index, adp_state, capsules)
-    defense = defense_pool(index, stats_state, capsules)
+    defense = defense_pool(index, stats_state, capsules, board_leagues=room)
     if not offense:
         return (
             head + "<p class='sub'>Player index unavailable — the hourly sync "
@@ -280,7 +312,7 @@ def build_html(
     data = {
         "offense": offense,
         "defense": defense,
-        "leagues": {lg.name: league_config(lg) for lg in ROOM_LEAGUES},
+        "leagues": {name: league_config(lg) for name, lg in named},
         "generated": stamp,
     }
     # "</" would close the script tag from inside a player name or capsule.
@@ -302,13 +334,13 @@ def build_html(
         f"{len(offense)} offense players carry live ADP · {len(defense)} "
         f"defenders league-scored · {with_cap} AI angles · generated "
         f"{html_mod.escape(stamp)} · data: Sleeper, FantasyFootballCalculator"
-        "</p>"
+        " · <a href='/app/leagues'>drafting a league that isn't listed? "
+        "add its settings</a></p>"
         "<div class='bar'>"
         "League <select id='lg'>"
         + "".join(
-            f"<option value='{html_mod.escape(lg.name, quote=True)}'>"
-            f"{html_mod.escape(lg.name)}</option>"
-            for lg in ROOM_LEAGUES
+            f"<option value='{html_mod.escape(name, quote=True)}'>{html_mod.escape(name)}</option>"
+            for name, _lg in named
         )
         + "</select>"
         "Your slot <select id='slot'></select>"

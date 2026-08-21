@@ -131,14 +131,44 @@ def rows(
     return out[:top]
 
 
-def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> str:
+def _scoring_note(lg: leagues_mod.League) -> str:
+    """One league's IDP terms in its own numbers, for the caption."""
+    values = lg.idp
+    bits = []
+    for stat_field, label in (("idp_sack", "sack"), ("idp_int", "INT")):
+        if values.get(stat_field):
+            bits.append(f"{values[stat_field]:g}/{label}")
+    groups = "/".join(sorted(lg.idp_groups)) or "no defenders"
+    starts = sum(1 for s in lg.slots if s in {"DB", "LB", "DL", "D"})
+    return (
+        f"<b>{html_mod.escape(lg.name)}</b> pays "
+        + (" &amp; ".join(bits) or "no sack or INT points")
+        + f" and starts {starts} ({groups})"
+    )
+
+
+def build_html(
+    index: dict | None,
+    stats_state: dict | None,
+    now: datetime,
+    board_leagues: Sequence[leagues_mod.League] | None = None,
+) -> str:
+    """The board, with one score column per league.
+
+    `board_leagues` is how a signed-in user's own leagues (/app/leagues)
+    get scored here: same dataclass, same code path, so their 4-a-sack
+    league ranks defenders its own way rather than the owner's.
+    """
+    board_ls = list(board_leagues if board_leagues is not None else BOARD_LEAGUES)
+    board_ls = [lg for lg in board_ls if lg.starts_idp] or list(BOARD_LEAGUES)
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    title = " &amp; ".join(html_mod.escape(lg.name) for lg in board_ls)
     head = (
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — IDP draft board</title>"
         f"<style>{_STYLE}</style>"
-        "<h1>IDP draft board — NDDPL &amp; RED_EYE</h1>"
+        f"<h1>IDP draft board — {title}</h1>"
     )
 
     if not has_idp_stats(stats_state):
@@ -148,7 +178,7 @@ def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> s
             f"Checked {html_mod.escape(stamp)}.</p>"
         )
 
-    board = rows(index, stats_state)
+    board = rows(index, stats_state, board_leagues=board_ls)
     if not board:
         return (
             head + "<p class='sub'>Player index unavailable — the hourly sync "
@@ -157,11 +187,15 @@ def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> s
 
     body_rows = []
     for i, r in enumerate(board, 1):
-        nddpl = (
-            f"{r['nddpl']:.1f} <span class='grp'>{html_mod.escape(r.get('nddpl_rank', ''))}</span>"
-            if r["nddpl"] is not None
-            else "<span class='na'>— no DL slot</span>"
-        )
+        cells = []
+        for lg in board_ls:
+            if r[lg.key] is None:
+                # Arithmetically scoreable, practically unrosterable. The
+                # dash says which, and why.
+                cells.append(f"<td class='n'><span class='na'>— no {r['group']} slot</span></td>")
+            else:
+                rank = html_mod.escape(r.get(f"{lg.key}_rank", ""))
+                cells.append(f"<td class='n'>{r[lg.key]:.1f} <span class='grp'>{rank}</span></td>")
         body_rows.append(
             f"<tr><td class='n'>{i}</td>"
             f"<td>{html_mod.escape(r['name'])}"
@@ -174,27 +208,31 @@ def build_html(index: dict | None, stats_state: dict | None, now: datetime) -> s
             f"<td class='n'>{r['solo']:.0f}/{r['ast']:.0f}</td>"
             f"<td class='n'>{r['sack']:.0f}</td>"
             f"<td class='n'>{r['int']:.0f}</td>"
-            f"<td class='n'>{r['pd']:.0f}</td>"
-            f"<td class='n'>{nddpl}</td>"
-            f"<td class='n'>{r['red_eye']:.1f} "
-            f"<span class='grp'>{html_mod.escape(r.get('red_eye_rank', ''))}</span></td></tr>"
+            f"<td class='n'>{r['pd']:.0f}</td>" + "".join(cells) + "</tr>"
         )
 
-    return (
-        head + f"<p class='sub'>Top {len(board)} defenders by '25 season totals, scored "
-        "with each league's own verified settings (docs/LEAGUES.md): NDDPL pays "
-        "3/sack &amp; 2/INT and starts 4 DB + 4 LB (no DL slot); RED_EYE pays "
-        "2/sack &amp; 3/INT and starts 4 D + 4 DB. Last season's finals wearing "
-        "that label — a draft-prep ranking, not a projection · generated "
-        f"{html_mod.escape(stamp)} · stats &amp; injury flags: Sleeper</p>"
+    heads = "".join(f"<th>{html_mod.escape(lg.name)} '25</th>" for lg in board_ls)
+    owner_read = (
         "<p class='sub'><b>Owner's read (Aug 20):</b> RED_EYE's D slots go to "
         "LBs in practice and DBs fill the DB slots — so both leagues draft to "
         "the same shape, 4 LB + 4 DB. Tackles rule this scoring, which makes "
         "every-down MIKE linebackers the premium picks; the '25 point totals "
         "below agree, since solo+assist volume dominates them.</p>"
-        "<table><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Grp</th>"
+        if [lg.key for lg in board_ls] == [lg.key for lg in BOARD_LEAGUES]
+        else ""
+    )
+
+    return (
+        head + f"<p class='sub'>Top {len(board)} defenders by '25 season totals, scored "
+        "with each league's own settings: "
+        + "; ".join(_scoring_note(lg) for lg in board_ls)
+        + ". Last season's finals wearing that label — a draft-prep ranking, "
+        "not a projection · generated "
+        f"{html_mod.escape(stamp)} · stats &amp; injury flags: Sleeper</p>"
+        + owner_read
+        + "<table><thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Grp</th>"
         "<th>Team</th><th>GP</th><th>Solo/Ast</th><th>Sk</th><th>Int</th>"
-        "<th>PD</th><th>NDDPL '25</th><th>RED_EYE '25</th></tr></thead>"
+        f"<th>PD</th>{heads}</tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody></table>"
         "<p class='sub' style='margin-top:12px'>One interpretation edge, stated "
         "rather than papered over: positions here are <b>Sleeper's</b> "

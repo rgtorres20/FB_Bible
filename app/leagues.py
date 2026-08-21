@@ -20,7 +20,10 @@ adjustment rather than an invented one.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field, replace
+
+_log = logging.getLogger(__name__)
 
 # What "the market" means -- the scoring ADP is built on.
 MARKET_PASS_TD = 4.0
@@ -43,6 +46,36 @@ POINTS_PER_ROUND = 3.0
 MAX_DERIVED_QB_BOOST = 24.0
 
 IDP_GROUPS = ("DB", "LB", "DL")
+
+# Roster slots, in the order a lineup card reads them. A league is
+# defined by how many of each it starts; this order is what turns those
+# counts back into the slot tuple. "FLX" is any of WR/RB/TE, "D" is any
+# defensive group the league starts, "BN" is bench.
+SLOT_ORDER = ("QB", "RB", "WR", "TE", "FLX", "K", "DL", "LB", "DB", "D", "BN")
+
+# The IDP events a league can price, with the label the editor shows.
+# Keyed by the Sleeper stat fields -- every one verified against the live
+# dump's field census before it was trusted (probe run 5, 2026-08-20).
+IDP_FIELDS: tuple[tuple[str, str], ...] = (
+    ("idp_tkl_solo", "Solo tackle"),
+    ("idp_tkl_ast", "Assisted tackle"),
+    ("idp_sack", "Sack"),
+    ("idp_int", "Interception"),
+    ("idp_ff", "Forced fumble"),
+    ("idp_fum_rec", "Fumble recovery"),
+    ("idp_def_td", "Defensive TD"),
+    ("idp_safe", "Safety"),
+    ("idp_pass_def", "Pass defensed"),
+    ("idp_blk_kick", "Blocked kick"),
+)
+
+# Bounds the editor enforces. Not arbitrary: the mock room seats every
+# team from one live player pool, so a 40-team league would simply run
+# the pool dry mid-draft and a 60-round one would draft kickers to the
+# bench. Refusing is honest; drafting air is not.
+MIN_TEAMS = 4
+MAX_TEAMS = 20
+MAX_ROUNDS = 40
 
 
 @dataclass(frozen=True)
@@ -254,6 +287,44 @@ DEFAULTS: tuple[League, ...] = (NDDPL, RED_EYE)
 
 def defaults() -> list[League]:
     return list(DEFAULTS)
+
+
+def user_leagues(data: dict | None) -> list[League]:
+    """One user's own leagues, rebuilt from their stored blob.
+
+    Anything unreadable is dropped rather than raised. Stored settings
+    outlive the code that wrote them, and a board that 500s the morning
+    of a draft is worse than one missing a league.
+    """
+    out = []
+    for raw in (data or {}).get("leagues") or []:
+        try:
+            out.append(League.from_dict(raw))
+        except Exception:  # noqa: BLE001 - a bad blob must not blank the page
+            _log.warning("league settings: dropped an unreadable stored league")
+    return out
+
+
+def for_user(data: dict | None) -> list[League]:
+    """The owner's verified two, then whatever this user defined. What
+    every league-aware surface should render for a given sign-in."""
+    return defaults() + user_leagues(data)
+
+
+def slots_from_counts(counts: dict) -> tuple[str, ...]:
+    """A lineup card's counts as the slot tuple everything else reads."""
+    out: list[str] = []
+    for slot in SLOT_ORDER:
+        try:
+            n = int(counts.get(slot) or 0)
+        except (TypeError, ValueError):
+            n = 0
+        out.extend([slot] * max(0, n))
+    return tuple(out)
+
+
+def counts_from_slots(slots: tuple[str, ...]) -> dict[str, int]:
+    return {slot: sum(1 for s in slots if s == slot) for slot in SLOT_ORDER}
 
 
 def blank(name: str = "My league", teams: int = 10) -> League:

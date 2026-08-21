@@ -203,28 +203,37 @@
     }
   }
 
-  /* The Draft analyzer gains a link to the mock draft room (owner request,
-   * Aug 20: simulate the draft from their exact slot). Anchored on the
-   * screen's own "My team" header so it only ever renders there; opens in
-   * a new tab because in-shell navigation strands the PWA (see above). */
-  function linkMockRoom() {
+  /* The Draft analyzer gains links to the mock draft room (owner request,
+   * Aug 20: simulate the draft from their exact slot) and to league
+   * settings (Aug 21: let users adjust their own league). Anchored on the
+   * screen's own "My team" header so they only ever render there; both
+   * open in a new tab because in-shell navigation strands the PWA (see
+   * above). */
+  var DRAFT_LINKS = [
+    ['fb-mock-link', '/app/mock', 'Mock draft room — simulate from your slot →'],
+    ['fb-leagues-link', '/app/leagues', 'League settings — score with your own rules →']
+  ];
+
+  function linkDraftTools() {
     if (document.getElementById('fb-mock-link')) return;
     var headers = document.querySelectorAll('div[style*="0.14em"]');
     for (var i = 0; i < headers.length; i++) {
       if (headers[i].textContent.indexOf('My team') !== 0) continue;
-      var a = document.createElement('a');
-      a.id = 'fb-mock-link';
-      a.href = '/app/mock';
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = 'Mock draft room — simulate from your slot →';
-      headers[i].parentElement.insertBefore(a, headers[i]);
+      DRAFT_LINKS.forEach(function (spec) {
+        var a = document.createElement('a');
+        a.id = spec[0];
+        a.href = spec[1];
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = spec[2];
+        headers[i].parentElement.insertBefore(a, headers[i]);
+      });
       return;
     }
   }
 
   function decorate() {
-    linkMockRoom();
+    linkDraftTools();
     if (!data) return;
     badgeNews();
     stampInjury();

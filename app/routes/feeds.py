@@ -17,10 +17,12 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from .. import authn
+from .. import leagues as leagues_mod
 from ..config import Settings, get_settings
 from ..feeds import (
     adp,
@@ -124,6 +126,27 @@ async def draft_cheatsheet(store: FeedStore = Depends(get_feed_store)) -> HTMLRe
     return HTMLResponse(cheatsheet.build_html(state, index, datetime.now(UTC)))
 
 
+async def _leagues_for(
+    request: Request, settings: Settings, store: FeedStore
+) -> list[leagues_mod.League]:
+    """The leagues this visitor's boards should be scored with.
+
+    The owner's verified two, plus whatever the signed-in user defined at
+    /app/leagues. Read here rather than through the settings router so
+    the two do not import each other; `authn` is the leaf both share.
+    Nobody signed in (or the gate switched off) sees the built-ins alone,
+    which is exactly what shipped before.
+    """
+    email = authn.read_session(request.cookies.get(authn.SESSION_COOKIE), settings.session_secret)
+    if not email:
+        return leagues_mod.defaults()
+    try:
+        return leagues_mod.for_user(await store.load_user(email))
+    except Exception as exc:  # noqa: BLE001 - a broken store must not blank the board
+        log.warning("league settings unavailable, falling back to the built-ins: %s", exc)
+        return leagues_mod.defaults()
+
+
 @router.get("/app/alerts300", include_in_schema=False, response_class=HTMLResponse)
 async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
     """The top-300 alert board: every ranked player's latest wire word and
@@ -148,21 +171,37 @@ async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLRespo
 
 
 @router.get("/app/idp", include_in_schema=False, response_class=HTMLResponse)
-async def idp_board(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+async def idp_board(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> HTMLResponse:
     """The IDP draft board: every indexed defender scored with each league's
-    own verified settings (docs/LEAGUES.md). Declared before the /app static
-    mount so it wins; zero scripts, same as the cheat sheet."""
+    own settings — the owner's verified two (docs/LEAGUES.md) plus any the
+    signed-in user entered at /app/leagues, one column each. Declared before
+    the /app static mount so it wins; zero scripts, same as the cheat sheet."""
     try:
         stored = await store.load()
         index = await store.load_players()
     except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
         log.warning("idp board: store unavailable: %s", exc)
         stored, index = {}, None
-    return HTMLResponse(idp.build_html(index, stored.get("stats"), datetime.now(UTC)))
+    return HTMLResponse(
+        idp.build_html(
+            index,
+            stored.get("stats"),
+            datetime.now(UTC),
+            board_leagues=await _leagues_for(request, settings, store),
+        )
+    )
 
 
 @router.get("/app/mock", include_in_schema=False, response_class=HTMLResponse)
-async def mock_draft_room(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+async def mock_draft_room(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> HTMLResponse:
     """The mock draft room: the owner picks a league and a slot, the other
     nine teams autopick from the live pool (see app/feeds/mock.py for the
     honesty rules). Declared before the /app static mount so it wins."""
@@ -179,6 +218,7 @@ async def mock_draft_room(store: FeedStore = Depends(get_feed_store)) -> HTMLRes
             stored.get("stats"),
             stored.get("capsules") or {},
             datetime.now(UTC),
+            board_leagues=await _leagues_for(request, settings, store),
         )
     )
 

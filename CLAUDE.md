@@ -60,7 +60,9 @@ from Sleeper. Neither blocks personal single-user use.
   `[tool.vercel]`). That means: no reliance
   on local disk, no in-process caches that assume a long-lived process, no
   background tasks — those wait for Phase 3.
-- **League facts live in `app/leagues.py`,** nowhere else. One `League`
+- **League facts live in `app/leagues.py`,** nowhere else, and users can
+  edit their own at `/app/leagues`
+  ([docs/LEAGUE_SETTINGS.md](docs/LEAGUE_SETTINGS.md)). One `League`
   dataclass carries a league's size, roster slots and every scoring value;
   the IDP board's per-event dicts and the mock room's JS config are both
   *generated* from it. Which defensive groups a league can start is derived
@@ -132,7 +134,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-465 tests green — 449 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+483 tests green — 467 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -164,8 +166,11 @@ allowlist at `/app/access` with one-time invite links — built, tested, and
 hatch). Sessions are signed cookies, invites are stored hashed, the
 allowlist lives in its own Redis key so no sync can clobber it, and the
 runner/watchdog pass with X-Sync-Token. `/api/*` deliberately stays open
-(GAP_REVIEW #11). On top of it: `/app/mine` gives each signed-in user
-their own private layer (named text/CSV documents, per-email Redis key),
+(GAP_REVIEW #11). On top of it: `/app/leagues` lets each user describe
+their own league — full custom scoring, not presets — and the mock room
+and IDP board then score with it (docs/LEAGUE_SETTINGS.md); `/app/mine`
+gives each signed-in user their own private layer (named text/CSV
+documents, per-email Redis key),
 and adding a user can email them the invite + app intro + league links
 when SMTP env is set. **Passkeys** (Face ID / Touch ID) layer on top:
 register from `/app/mine` after a normal sign-in, then the login page
