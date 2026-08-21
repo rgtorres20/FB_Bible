@@ -341,6 +341,7 @@ def build_html(
         f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
         f"{_THEME_BOOT}"
+        f"{skin.home_bar('Mock draft room')}"
         "<h1>Mock draft room</h1>"
     )
 
@@ -1184,6 +1185,7 @@ BOARD_PAGE = (
     + "<style id='boardcss'></style>"
     "<style>.empty{font-family:Georgia,'Times New Roman',serif;margin:20px;"
     "font-size:14px}.empty a{color:inherit}</style></head><body>"
-    "<div id='root'><p class='empty'>Loading the board\u2026</p></div>"
+    + skin.home_bar("Draft board")
+    + "<div id='root'><p class='empty'>Loading the board\u2026</p></div>"
     "<script>" + BOARD_JS + "</script></body></html>"
 )

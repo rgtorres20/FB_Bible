@@ -30,7 +30,7 @@ import html as html_mod
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from . import board, impact, render
+from . import board, impact, render, skin
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -128,6 +128,7 @@ def build_html(
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — top-300 alert board</title>"
         f"<style>{_STYLE}</style>"
+        f"{skin.home_bar('Alert board')}"
         "<h1>Top-300 alert board</h1>"
     )
 

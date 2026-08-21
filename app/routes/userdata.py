@@ -176,7 +176,7 @@ def _render(
     )
 
     return _page(
-        "<h1>My stuff</h1>"
+        skin.home_bar("My stuff") + "<h1>My stuff</h1>"
         f"<p class='sub'>Signed in as <b>{html_mod.escape(email)}</b> · your "
         "personal layer on the shared app — notes, rankings, lists. Only you "
         "see this page's contents; it follows your sign-in across devices. "

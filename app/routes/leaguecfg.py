@@ -477,7 +477,7 @@ def render(email: str, data: dict, err: str = "", editing: str = "") -> HTMLResp
         )
 
     return _page(
-        "<h1>League settings</h1>"
+        skin.home_bar("League settings") + "<h1>League settings</h1>"
         f"<p class='sub'>Signed in as <b>{html_mod.escape(email)}</b> · your "
         "leagues, your scoring. The draft board, the IDP rankings and the mock "
         "draft room all score with whatever you enter here — a league that pays "

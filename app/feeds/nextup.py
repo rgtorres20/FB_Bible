@@ -112,7 +112,7 @@ def build_html(
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — next man up</title>"
         f"{skin.FAVICON}<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        "<main><h1>Next man up</h1>"
+        f"<main>{skin.home_bar('Next man up')}<h1>Next man up</h1>"
     )
 
     rows = depth.next_man_up(index, stats_state)

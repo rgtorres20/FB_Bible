@@ -54,7 +54,8 @@ def build_html(state: dict, index: dict | None, now: datetime) -> str:
     if not board:
         return (
             "<!doctype html><meta charset='utf-8'><title>Fantasy Sports Bible cheat sheet</title>"
-            f"<style>{_STYLE}</style><h1>Draft cheat sheet</h1>"
+            f"<style>{_STYLE}</style>{skin.home_bar('Cheat sheet')}"
+            "<h1>Draft cheat sheet</h1>"
             "<p class='sub'>No live ADP board yet — the hourly sync fills this in. "
             f"Checked {html.escape(stamp)}.</p>"
         )
@@ -96,6 +97,7 @@ def build_html(state: dict, index: dict | None, now: datetime) -> str:
         "<title>Fantasy Sports Bible cheat sheet</title>"
         f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
+        f"{skin.home_bar('Cheat sheet')}"
         "<h1>Draft cheat sheet — NDDPL (10tm) &amp; RED_EYE (12tm)</h1>"
         f"<p class='sub'>Live ADP from real PPR mock drafts — read the 10tm column "
         f"for NDDPL and the 12tm column for RED_EYE · ★ = position-adjusted "

@@ -109,3 +109,35 @@ FAVICON = (
     "<link rel='apple-touch-icon' href='/app/assets/fsb-icon.svg'>"
     "<meta name='theme-color' content='#0B1A36'>"
 )
+
+
+def home_bar(here: str = "") -> str:
+    """A way back to the app, on every page this server renders.
+
+    Owner, Aug 21: after picking a team on /app/mine there was no way
+    back to the homepage. The link existed there, buried mid-sentence in
+    a paragraph of 12px grey text — and on six other pages (the mock
+    room, the boards, the cheat sheet, next-man-up, the scorecard) there
+    was no way back at all. In the installed PWA there is no address bar
+    and no browser chrome either, so a missed text link is a dead end
+    with no exit.
+
+    Deliberately self-contained: styles are inline and the print rule
+    rides in its own tag, because these pages do not share one
+    stylesheet — the cheat sheet and the IDP board carry their own — and
+    a nav that only works on half of them is the bug again.
+    """
+    label = f" · {here}" if here else ""
+    return (
+        "<style>@media print{.fsb-home{display:none}}</style>"
+        "<a class='fsb-home' href='/app/' style=\"display:inline-flex;"
+        "align-items:center;gap:8px;margin:0 0 14px;padding:6px 10px 6px 8px;"
+        "font-family:'Archivo',system-ui,sans-serif;font-size:11px;"
+        "font-weight:800;letter-spacing:0.08em;text-transform:uppercase;"
+        "text-decoration:none;color:inherit;border:2px solid currentColor;"
+        'border-radius:0">'
+        "<span aria-hidden='true'>&#8592;</span>"
+        "<img src='/app/assets/fsb-mark.svg' alt='' width='26' height='20' "
+        "style='display:block'>"
+        f"<span>Fantasy Sports Bible{label}</span></a>"
+    )

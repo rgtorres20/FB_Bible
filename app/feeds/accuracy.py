@@ -81,7 +81,7 @@ def build_html(
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — scorecard</title>"
         f"{skin.FAVICON}<style>{_STYLE}</style>{skin.THEME_BOOT}"
-        "<main><h1>Scorecard</h1>"
+        f"<main>{skin.home_bar('Scorecard')}<h1>Scorecard</h1>"
     )
 
     intro = (

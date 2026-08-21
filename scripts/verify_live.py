@@ -355,6 +355,29 @@ def main() -> int:
     check("IDP board keeps its verified columns", "NDDPL '25" in idp_page)
     check("mock room offers the verified leagues", '"NDDPL"' in mock_page)
 
+    # Every board must offer a way back. In the installed PWA there is no
+    # address bar, so a page whose only exit is a buried text link is a
+    # dead end -- the owner hit exactly that after picking a club theme
+    # (Aug 21). The unit test covers what the app RENDERS; this covers
+    # what it actually SERVES, which is a different claim: a page can
+    # render its bar and still be broken by a route or a gate.
+    for path in (
+        "/app/mine",
+        "/app/leagues",
+        "/app/mock",
+        "/app/mock/board",
+        "/app/nextup",
+        "/app/scorecard",
+        "/app/idp",
+        "/app/cheatsheet",
+        "/app/alerts300",
+    ):
+        page = get(path).decode("utf-8", errors="replace")
+        check(
+            f"way back to the app from {path}",
+            "class='fsb-home' href='/app/'" in page,
+        )
+
     # Team defenses. The D/ST board only renders for a signed-in user
     # whose league starts a DEF slot, which the watchdog can never be --
     # so what it checks is the thing underneath: that the weekly stats

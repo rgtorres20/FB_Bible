@@ -98,6 +98,10 @@ from Sleeper. Neither blocks personal single-user use.
   the real shape.
 - `/api/raw/{path}` is the escape hatch for exploring unmodelled resources.
   Prefer adding an extractor over letting the browser app consume raw shapes.
+- **Every served page carries `skin.home_bar()`.** Installed as a PWA the
+  app has no address bar, so a page whose only exit is a text link is a
+  dead end. `tests/test_navigation.py` walks a list of every server-rendered
+  page — add a page, add it to that list.
 - **No stale data.** Every user-facing surface is live-polled, the owner's
   own judgement, or curated facts wearing an honest as-of stamp — nothing
   claims freshness it does not have. The audit and the plan for what is
@@ -158,7 +162,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-561 tests green — 545 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+581 tests green — 565 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

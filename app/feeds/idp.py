@@ -261,6 +261,7 @@ def build_html(
         f"<title>Fantasy Sports Bible — {kind}</title>"
         f"{skin.FAVICON}"
         f"<style>{_STYLE}</style>"
+        f"{skin.home_bar('Defense board')}"
         f"<h1>{kind} — {title}</h1>"
     )
 
