@@ -217,6 +217,42 @@ aside > div:nth-child(2) {
   color: inherit;
 }
 
+/* The one-time "pick your team" ask (mobile.js). Sits above the sync
+ * footer, out of the menu button's way, and never comes back once the
+ * user answers it either way. */
+#fb-team-ask {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, 94vw);
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 2px solid var(--color-text);
+  box-shadow: 3px 3px 0 var(--color-text);
+  background: var(--color-bg, #fff);
+  color: var(--color-text);
+}
+#fb-team-ask a {
+  font-weight: 800;
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+#fb-team-ask button {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--color-neutral-400);
+}
+
 /* Beta deploys announce themselves (injected by the server on preview
  * stages only -- see app_page). Fixed bottom-right, clear of the menu
  * button and the sync footer. */

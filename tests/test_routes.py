@@ -221,29 +221,56 @@ def test_probe_reports_list_and_scalar_shapes():
     assert "..." in describe({"long": "x" * 200})
 
 
-def test_titans_mode_joins_cowboys_mode():
-    """Two team modes, owner's call: Cowboys exactly as shipped, Titans
-    beside it. Serve-time edits only -- the file on disk keeps a single
-    cowboys mode -- and the skin follows whichever starred mode is active.
-    Token blocks ride the injected stylesheet."""
+def test_the_mode_picker_is_my_team_dark_light():
+    """Owner's call, Aug 21: three modes — the user's own club, Dark,
+    Light — replacing the hand-written Cowboys and Titans pair. Those
+    two were the first of the 32 clubs; they are not special any more,
+    and `data-team` decides which palette applies.
+
+    Serve-time edits only: the file on disk keeps its own picker, so a
+    design resync cannot silently revert this and cannot silently break
+    it either (a changed literal just misses)."""
     from pathlib import Path
 
     served = client.get("/app/").text
-    assert '<option value="titans">★ Titans mode</option>' in served
-    assert '<option value="cowboys">★ Cowboys mode</option>' in served
-    assert 'skin: s.theme === "titans" ? "titans" : "cowboys",' in served
-    assert 'th === "titans"' in served  # stored choice survives reload
+    assert '<option value="team">★ My team</option>' in served
+    assert '<option value="dark">◐ Dark mode</option>' in served
+    assert '<option value="light">○ Light mode</option>' in served
+    assert '<option value="cowboys">' not in served
+    assert 'themeLabel: s.theme === "team" ? "★ My team"' in served
+    # A browser still holding a retired value is translated, not reset.
+    assert 'th === "cowboys" || th === "titans"' in served
 
     on_disk = Path("frontend/index.html").read_text(encoding="utf-8")
-    assert "titans" not in on_disk
+    assert '<option value="cowboys">★ Cowboys mode</option>' in on_disk
     assert 'skin: "cowboys",' in on_disk
 
+
+def test_every_club_has_a_palette_and_the_app_opens_in_one():
+    """32 clubs plus the house navy, served as one cacheable sheet — and
+    the app opens in the club theme rather than Light (owner, Aug 21:
+    "home page should be the dark blue not light mode")."""
+    from app.feeds import teams
+
+    css = client.get("/app/teams.css")
+    assert css.status_code == 200
+    assert css.headers["content-type"].startswith("text/css")
+    for code in teams.all_codes():
+        assert f'[data-team="{code}"]' in css.text, code
+    # No club picked yet still gets a palette rather than falling through
+    # to the light one.
+    assert ':root[data-theme="team"]:not([data-team])' in css.text
+
+    served = client.get("/app/").text
+    assert "localStorage.getItem('ww_theme')||'team'" in served
+    assert "/app/teams.css" in served
+
+
+def test_the_titans_watermark_still_rides_the_stylesheet():
+    """The one piece of the old team modes that was never about colour:
+    the owner's club mark (see the LICENSING.md note on swapping it
+    before any sale)."""
     css = client.get("/app/mobile.css").text
-    assert '[data-skin="titans"]' in css
-    assert '[data-skin="titans"][data-theme="titans"]' in css
-    assert '[data-skin="titans"][data-theme="dark"]' in css
-    # Titans mode carries its watermark -- the owner-supplied sword mark
-    # (see the LICENSING.md note on swapping it before any sale).
     assert "assets/titans-sword.png" in css and 'div[style*="logo.png"]' in css
 
 

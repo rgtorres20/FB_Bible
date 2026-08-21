@@ -245,3 +245,33 @@ def test_http_transport_posts_to_resend(monkeypatch):
     assert seen["auth"] == "Bearer re_abc"
     assert seen["body"]["from"] == "invites@example.com"
     assert seen["body"]["to"] == ["owner@example.com"]
+
+
+async def test_a_user_can_set_their_club_in_settings(client):
+    """Owner, Aug 21: "allow for user team to be set in settings" — and
+    saved against the sign-in, so it follows them to their phone."""
+    c, store = client
+    _sign_in_owner(c)
+    page = c.get("/app/mine").text
+    assert "Your team" in page and "Kansas City" not in page  # names, not cities
+    assert "Chiefs" in page and "Fantasy Sports Bible" in page
+
+    r = c.post("/app/mine/team", data={"team": "KC"}, follow_redirects=False)
+    assert r.status_code == 303
+    # The redirect carries the club: the server cannot write localStorage,
+    # and without this the colours would not change until the next visit.
+    assert r.headers["location"] == "/app/mine?team=KC"
+    assert (await store.load_user("owner@example.com"))["team"] == "KC"
+
+    # And the page comes back seeded, so a device that has never seen the
+    # app still opens in the right colours.
+    assert "localStorage.getItem('fb_team')||'KC'" in c.get("/app/mine").text
+
+
+def test_a_club_that_is_not_a_club_is_refused(client):
+    c, _ = client
+    _sign_in_owner(c)
+    assert (
+        "one of the 32 clubs"
+        in c.post("/app/mine/team", data={"team": "NOTATEAM"}, follow_redirects=True).text
+    )

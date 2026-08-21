@@ -9,6 +9,8 @@ mode the app itself is in.
 
 from __future__ import annotations
 
+from . import teams
+
 TOKENS_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800;900&display=swap');
 :root {
@@ -53,14 +55,48 @@ body { font-family: 'Archivo', system-ui, sans-serif; margin: 18px;
        font-size: 14px; line-height: 1.45; }
 """
 
-# Applied before first paint so pages never flash the wrong mode; same key
-# and same accepted values as the served page (plus titans, which the
-# serve-time patch adds there).
+# The stylesheet holding all 33 team palettes, linked rather than inlined
+# so a browser fetches it once for every page in the app.
+THEME_LINK = "<link rel='stylesheet' href='/app/teams.css'>"
+
+# Applied before first paint so pages never flash the wrong mode.
+#
+# Three modes now (owner, Aug 21): the user's club, Dark, Light -- and
+# the app opens in the club theme rather than Light, which for someone
+# who has not picked one is the house navy. `light` is the bare :root
+# palette, so it is the one mode that sets no attribute at all.
+#
+# Neither storage key may be renamed (CLAUDE.md), so the pre-club values
+# are translated instead of dropped: whoever picked Cowboys mode in
+# August still gets Dallas.
 THEME_BOOT = (
-    "<script>try{var t=localStorage.getItem('ww_theme');"
-    "if(['dark','cowboys','titans'].indexOf(t)>=0)"
-    "document.documentElement.dataset.theme=t;}catch(e){}</script>"
+    "<script>try{"
+    "var t=localStorage.getItem('ww_theme')||'team';"
+    "var club=localStorage.getItem('fb_team')||'';"
+    "var legacy={cowboys:'DAL',titans:'TEN'};"
+    "if(legacy[t]){club=club||legacy[t];t='team';}"
+    "if(['team','dark','light'].indexOf(t)<0)t='team';"
+    "if(t!=='light')document.documentElement.dataset.theme=t;"
+    "if(t==='team'&&club)document.documentElement.dataset.team=club;"
+    "}catch(e){}</script>"
 )
+
+
+def theme_boot(club: str = "") -> str:
+    """The boot script, optionally seeded with the club this signed-in
+    user saved.
+
+    The seed is what makes a club follow someone to a new device: the
+    theme still renders from localStorage so there is no flash, but on a
+    browser that has never seen this app the stored choice fills in
+    instead of falling back to the house navy.
+    """
+    seed = club if club in {*teams.CLUBS, teams.HOUSE} else ""
+    return THEME_BOOT.replace(
+        "localStorage.getItem('fb_team')||''",
+        f"localStorage.getItem('fb_team')||'{seed}'",
+        1,
+    )
 
 
 # Every page this app serves points at the same icon. SVG favicons are
@@ -69,7 +105,7 @@ THEME_BOOT = (
 # reads, and it is deliberately the same file rather than a second
 # rendering that could drift from it.
 FAVICON = (
-    "<link rel='icon' type='image/svg+xml' href='/app/assets/fsb-icon.svg'>"
+    THEME_LINK + "<link rel='icon' type='image/svg+xml' href='/app/assets/fsb-icon.svg'>"
     "<link rel='apple-touch-icon' href='/app/assets/fsb-icon.svg'>"
     "<meta name='theme-color' content='#0B1A36'>"
 )

@@ -280,6 +280,14 @@ def main() -> int:
     # introduce the app to a stranger (docs/BRAND.md).
     check("sign-in page leads with the mark", "/app/assets/fsb-logo.svg" in login_page)
     check("sign-in page says what the app is", "What this is" in login_page)
+    # Club themes. The stylesheet is linked by every page, so a 404 here
+    # is 33 broken themes and a light-mode app (docs/BRAND.md).
+    team_css = get("/app/teams.css").decode("utf-8", errors="replace")
+    club_blocks = team_css.count('[data-theme="team"][data-team=')
+    check("team themes serve", club_blocks >= 32, f"{club_blocks} palettes")
+    check("no club picked still has a palette", ":not([data-team])" in team_css)
+    check("app opens on the club theme", "'ww_theme')||'team'" in served_login_probe)
+
     icon = get("/app/assets/fsb-icon.svg").decode("utf-8", errors="replace")
     check("app icon serves", "</svg>" in icon)
     check("app page carries the icon", "/app/assets/fsb-icon.svg" in served_login_probe)

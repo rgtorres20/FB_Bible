@@ -17,7 +17,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -38,6 +38,7 @@ from ..feeds import (
     previews,
     render,
     stats,
+    teams,
     vegas,
 )
 from ..feeds.store import FeedStore
@@ -220,6 +221,22 @@ async def mock_draft_room(
             datetime.now(UTC),
             board_leagues=await _leagues_for(request, settings, store),
         )
+    )
+
+
+@router.get("/app/teams.css", include_in_schema=False)
+async def team_themes() -> Response:
+    """All 33 team palettes as one cacheable stylesheet.
+
+    Generated from `app/feeds/teams.py` rather than hand-written: 33
+    palettes x 15 tokens is not something anyone keeps consistent by
+    hand, and the contrast guarantees are computed there and tested.
+    Declared before the /app static mount so it wins.
+    """
+    return Response(
+        teams.stylesheet(),
+        media_type="text/css",
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 

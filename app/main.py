@@ -157,7 +157,13 @@ if _FRONTEND_READY:
             '<script src="mobile.js" defer></script>'
             # The brand mark, serve-time like everything else here, so a
             # design-project resync cannot drop it (docs/BRAND.md).
-            f"{skin.FAVICON}</head>",
+            f"{skin.FAVICON}"
+            # The club palette, applied to <html> before first paint. The
+            # page's own token blocks are [data-skin][data-theme] pairs
+            # on its runtime's element; "team" matches none of them, so
+            # these :root values inherit straight through instead of
+            # fighting it (docs/BRAND.md).
+            f"{skin.THEME_BOOT}</head>",
             1,
         )
         # FFBets, per the owner (Aug 15): Predictions is the landing mode and
@@ -183,34 +189,46 @@ if _FRONTEND_READY:
         if deduped:
             logging.getLogger(__name__).info("board: dropped duplicate rows for %s", deduped)
         html = html.replace('gdMode: "build",', 'gdMode: "predict",', 1)
-        # Two team modes, owner's call (Aug 19): Cowboys stays exactly as
-        # shipped, Titans joins beside it. The picker gains a fourth
-        # option, the skin follows whichever starred mode is active, and
-        # the titans token blocks live in mobile.css -- so a design resync
-        # that changes any of these literals misses cleanly and the page
-        # simply stays all-cowboys rather than breaking.
-        html = html.replace(
-            'skin: "cowboys",',
-            'skin: s.theme === "titans" ? "titans" : "cowboys",',
-            1,
-        )
+        # The mode picker, rebuilt (owner, Aug 21): the user's club, Dark,
+        # Light — with the club being whichever of the 32 they chose, and
+        # the house navy until they choose one. Cowboys and Titans modes
+        # were the first two of those 32; they are not special any more,
+        # so the hand-written pair comes out and `data-team` decides.
+        #
+        # Serve-time string edits, like everything else here, so a design
+        # resync that changes any of these literals misses cleanly and the
+        # page keeps its own picker rather than breaking.
         html = html.replace(
             '<option value="cowboys">★ Cowboys mode</option>',
-            '<option value="cowboys">★ Cowboys mode</option>'
-            '<option value="titans">★ Titans mode</option>',
+            '<option value="team">★ My team</option>',
             1,
         )
+        # The label follows the same three values.
         html = html.replace(
             'themeLabel: s.theme === "cowboys" ? "★ Cowboys mode"',
-            'themeLabel: s.theme === "titans" ? "★ Titans mode" : '
-            's.theme === "cowboys" ? "★ Cowboys mode"',
+            'themeLabel: s.theme === "team" ? "★ My team"',
             1,
         )
-        # The restore guard whitelists stored themes; let "titans" survive
-        # a reload like the others do.
+        # The restore guard whitelists stored themes. "team" joins it;
+        # the two retired names stay accepted so a browser still holding
+        # one is translated rather than reset (skin.THEME_BOOT does the
+        # translating).
         html = html.replace(
             'if (th === "dark" || th === "light" || th === "cowboys")',
-            'if (th === "dark" || th === "light" || th === "cowboys" || th === "titans")',
+            'if (th === "dark" || th === "light" || th === "team" ||'
+            ' th === "cowboys" || th === "titans")',
+            1,
+        )
+        # The page's own skin hook. It only ever knew "cowboys"; the club
+        # palettes come from /app/teams.css via data-team instead, so this
+        # just stops the page forcing a Dallas skin on everyone.
+        # Owner, Aug 21: "home page should be the dark blue not light
+        # mode". The page's own default state was light; it opens on the
+        # club theme now, which is the house navy until a club is picked.
+        html = html.replace('theme: "light"', 'theme: "team"', 1)
+        html = html.replace(
+            'skin: "cowboys",',
+            'skin: s.theme === "team" ? "team" : "none",',
             1,
         )
         html = html.replace(

@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
-from ..feeds import skin
+from ..feeds import skin, teams
 from ..feeds.store import FeedStore
 from .access import session_email
 from .feeds import get_feed_store
@@ -82,21 +82,39 @@ button.pk { width: 100%; font-size: 13.5px; padding: 10px 14px; }
          gap: 10px; border-bottom: 1px solid var(--color-neutral-300);
          padding: 5px 0; font-size: 12.5px; }
 .pkmsg { font-size: 12px; margin-top: 8px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.sw { width: 16px; height: 16px; border: 2px solid; display: inline-block; }
+select { width: 100%; font-family: inherit; font-size: 13px; padding: 7px;
+         color: var(--color-text); background: var(--color-bg);
+         border: 2px solid var(--color-text); border-radius: 0; }
 a { color: inherit; }
 """
 )
 
 
-def _page(body: str) -> HTMLResponse:
+def _page(body: str, club: str = "") -> HTMLResponse:
     return HTMLResponse(
         "<!doctype html><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>Fantasy Sports Bible — my stuff</title>"
         + skin.FAVICON
-        + f"<style>{_STYLE}</style>{skin.THEME_BOOT}"
+        + f"<style>{_STYLE}</style>{skin.theme_boot(club)}"
         f"<main>{body}</main>"
         f"<script>{passkeys.BROWSER_JS}</script>"
         "<script>"
+        # A save cannot reach localStorage from the server, so the
+        # redirect carries the club and the page writes it on arrival.
+        # Without this the colours would not change until the next visit.
+        "var q = new URLSearchParams(location.search).get('team');"
+        "if (q) {"
+        "  try { localStorage.setItem('fb_team', q);"
+        "        localStorage.setItem('ww_theme', 'team'); } catch (e) {}"
+        "  document.documentElement.dataset.theme = 'team';"
+        "  document.documentElement.dataset.team = q;"
+        "  var tm = document.getElementById('teammsg');"
+        "  if (tm) { tm.textContent = 'Saved — the app is wearing it now.'; }"
+        "  history.replaceState({}, '', '/app/mine');"
+        "}"
         "var pkcard = document.getElementById('pkcard');"
         "if (pkcard && FBPK.supported) {"
         "  pkcard.hidden = false;"
@@ -166,9 +184,11 @@ def _render(
         "<a href='/app/leagues'>league settings</a> · "
         "<a href='/app/'>back to the app</a></p>"
         + (f"<div class='err'>{html_mod.escape(err)}</div>" if err else "")
+        + _team_card(data.get("team") or teams.HOUSE)
         + _passkey_card(pk_list or [])
         + add_form
-        + ("".join(cards) or "<p class='quiet'>Nothing saved yet.</p>")
+        + ("".join(cards) or "<p class='quiet'>Nothing saved yet.</p>"),
+        club=data.get("team") or "",
     )
 
 
@@ -202,6 +222,40 @@ def _passkey_card(pk_list: list[dict]) -> str:
         + "<button class='pk' id='pkbtn' style='margin-top:12px'>"
         "Set up on this device</button>"
         "<div class='pkmsg quiet' id='pkmsg'></div></div>"
+    )
+
+
+def _team_card(current: str) -> str:
+    """Pick a club and the whole app wears it (owner request, Aug 21).
+
+    Saved against the sign-in rather than only in this browser, so the
+    choice follows the user to their phone — the theme still renders from
+    localStorage, so there is no flash, but a device that has never seen
+    the app fills in from here.
+    """
+    options = "".join(
+        f"<option value='{html_mod.escape(code, quote=True)}'"
+        + (" selected" if code == current else "")
+        + f">{html_mod.escape(teams.name(code))}</option>"
+        for code in teams.all_codes()
+    )
+    swatches = "".join(
+        f"<span class='sw' title='{html_mod.escape(teams.name(code))}' "
+        f"style='background:{teams.colours(code)[0]};"
+        f"border-color:{teams.colours(code)[1]}'></span>"
+        for code in teams.all_codes()
+    )
+    return (
+        "<div class='card'><h2>Your team</h2>"
+        "<p class='meta'>Pick a club and the app wears its colours — the "
+        "boards, the mock room, all of it. The mode switch on the app page "
+        "then reads <b>My team / Dark / Light</b>. Until you pick one, "
+        "“My team” is the app's own navy.</p>"
+        f"<div class='swatches'>{swatches}</div>"
+        "<form method='post' action='/app/mine/team'>"
+        f"<label for='team'>Club</label><select id='team' name='team'>{options}</select>"
+        "<button>Save team</button></form>"
+        "<div class='pkmsg quiet' id='teammsg'></div></div>"
     )
 
 
@@ -267,6 +321,33 @@ async def mine_save(
     # spirit: personal data stays out of logs).
     log.info("mine: saved a doc, user now holds %d", len(docs))
     return RedirectResponse("/app/mine", status_code=303)
+
+
+@router.post("/app/mine/team", include_in_schema=False)
+async def mine_team(
+    request: Request,
+    team: str = Form(...),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Save the club whose colours this user's app wears.
+
+    Stored against the email so it follows them across devices; the
+    browser also keeps it in localStorage, which is what actually paints
+    the page before first render.
+    """
+    email = session_email(request, settings)
+    if not email:
+        return _signin_needed()
+    if team not in {*teams.CLUBS, teams.HOUSE}:
+        data = await store.load_user(email)
+        return _render(email, data, "That isn't one of the 32 clubs.")
+    data = await store.load_user(email)
+    await store.save_user(email, {**data, "team": team})
+    # The redirect carries the choice so the page can write localStorage
+    # on arrival -- the server cannot reach it, and without this the
+    # theme would not change until the next visit.
+    return RedirectResponse(f"/app/mine?team={team}", status_code=303)
 
 
 @router.post("/app/mine/delete", include_in_schema=False)

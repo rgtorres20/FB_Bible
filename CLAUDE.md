@@ -46,6 +46,14 @@ icon SVG, so they get regenerated whenever it changes.
 [docs/BRAND.md](docs/BRAND.md) has the palette and the swap procedure for
 dropping in different artwork.
 
+The app wears **one of 32 club themes, Dark, or Light**, and opens on the
+club theme (the house navy until someone picks a club). The palettes are
+*generated* from each club's two published marks in `app/feeds/teams.py`
+and served as `/app/teams.css`; the generator guarantees the contrast
+rather than assuming it, and the tests assert it for all 33. `ww_theme`
+and `fb_team` are immutable storage keys, and the retired `cowboys` /
+`titans` values are translated, never reset.
+
 ## Commercial posture
 
 This may be sold. That reverses the app's original "doesn't care about
@@ -150,7 +158,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-522 tests green — 506 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+534 tests green — 518 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

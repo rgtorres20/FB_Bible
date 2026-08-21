@@ -67,6 +67,47 @@ wider face pushed the words straight through them).
 Converting the two text runs to paths would fix the letterforms and cost
 a few KB. Worth doing before any printed use; not worth it for a web app.
 
+## Themes — the 32 clubs, Dark, Light
+
+Owner request, Aug 21. The mode switch reads **My team / Dark / Light**,
+and the app **opens on the club theme**, which for someone who has not
+picked one is the house navy — not Light.
+
+- A club is chosen at `/app/mine` ("Your team"), and offered once on the
+  app page to anyone who has never picked. Dismissing that ask counts as
+  a choice (the house theme), so it does not come back every visit.
+- The choice is saved **against the sign-in**, so it follows the user to
+  another device, and mirrored into `localStorage` because that is what
+  paints the page before first render.
+- Storage keys: `ww_theme` ∈ `team` / `dark` / `light`, `fb_team` = the
+  club code. Neither may be renamed. The pre-club values `cowboys` and
+  `titans` are **translated** to Dallas and Tennessee rather than reset.
+
+### How a club becomes a palette
+
+`app/feeds/teams.py` holds each club's two published marks and generates
+the full token set; `/app/teams.css` serves all 33 as one cacheable
+stylesheet. Two rules make that safe:
+
+- **Every club theme is a dark theme.** Club colours are not a palette —
+  half are a dark ground and a bright mark, half the reverse, and a few
+  (Miami's aqua, Green Bay's gold) would put grey text on a highlighter
+  if used as a page ground. Each theme takes the **darker** mark as its
+  ground and the **brighter** one as its accent.
+- **Contrast is computed, not hoped for.** Text clears 7:1 (AAA) against
+  its ground and accents clear 3:1. Where a club's second mark cannot —
+  Buffalo's red on Buffalo's navy is 2.8:1 — it is lifted in small steps
+  until it does, so a colour that already works is untouched. Buttons get
+  `--color-on-accent`, chosen against the *true* accent, which is what
+  lets the accent stay the club's colour instead of fading to a pastel of
+  it. `tests/test_teams.py` asserts all three thresholds for all 33.
+
+The palettes land on `<html>` as
+`:root[data-theme="team"][data-team="KC"]`. The design document's own
+token blocks are `[data-skin][data-theme]` pairs on its runtime's
+element, and `team` matches none of them — so the club values inherit
+straight through rather than fighting it.
+
 ## Where it appears
 
 Every page this app serves carries `skin.FAVICON` — the app itself, the

@@ -232,7 +232,46 @@
     }
   }
 
+  /* Club themes (owner, Aug 21). The page owns its own theme state and
+   * writes ww_theme; this mirrors that choice onto <html>, where the
+   * club palettes in /app/teams.css live, so switching modes repaints
+   * immediately instead of on the next load. Also offers the club
+   * chooser once, to someone who has never picked one. */
+  function applyTeamTheme() {
+    var t, club;
+    try {
+      t = localStorage.getItem('ww_theme') || 'team';
+      club = localStorage.getItem('fb_team') || '';
+    } catch (e) { return; }
+    var legacy = { cowboys: 'DAL', titans: 'TEN' };
+    if (legacy[t]) { club = club || legacy[t]; t = 'team'; }
+    var root = document.documentElement;
+    if (t === 'light') { delete root.dataset.theme; } else { root.dataset.theme = t; }
+    if (t === 'team' && club) { root.dataset.team = club; } else { delete root.dataset.team; }
+  }
+
+  function offerTeamPicker() {
+    var picked;
+    try { picked = localStorage.getItem('fb_team'); } catch (e) { return; }
+    if (picked || document.getElementById('fb-team-ask')) return;
+    var bar = document.createElement('div');
+    bar.id = 'fb-team-ask';
+    bar.innerHTML = "<span>Pick your team and the app wears its colours.</span>" +
+      "<a href='/app/mine'>Choose a team →</a>" +
+      "<button type='button' aria-label='Dismiss'>&#215;</button>";
+    bar.querySelector('button').onclick = function () {
+      /* Remembered as the house theme, so the ask does not come back
+         every visit for someone who does not want a club. */
+      try { localStorage.setItem('fb_team', 'FSB'); } catch (e) {}
+      bar.remove();
+      applyTeamTheme();
+    };
+    document.body.appendChild(bar);
+  }
+
   function decorate() {
+    applyTeamTheme();
+    offerTeamPicker();
     linkDraftTools();
     if (!data) return;
     badgeNews();
