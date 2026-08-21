@@ -420,6 +420,9 @@ async def access_add(
             await run_in_threadpool(mailer.send_invite, email, link, base, settings)
             mail_note = "Invite emailed to them — the same link, as a backup:"
             log.info("access: invite emailed")
+        except mailer.MailError as exc:
+            mail_note = f"Emailing failed — {exc} Send it yourself:"
+            log.warning("access: invite email failed: %s", type(exc).__name__)
         except Exception as exc:  # noqa: BLE001 - the page reports it; the link still works
             mail_note = f"Emailing failed ({type(exc).__name__}) — send it yourself:"
             log.warning("access: invite email failed: %s", type(exc).__name__)

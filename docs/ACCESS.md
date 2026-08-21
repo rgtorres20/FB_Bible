@@ -77,30 +77,46 @@ How it behaves, deliberately:
 
 Adding an email can also send the invite for you — the message carries
 the one-time link, a short intro to the app, and both league links
-(`app/mailer.py` is the template). Configure any SMTP in Vercel env;
-the free path with a Gmail account:
+(`app/mailer.py` is the template).
 
-1. Google Account → Security → 2-Step Verification (must be on) → App
-   passwords → create one for "Mail".
-2. Vercel env: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
-   `SMTP_USER=you@gmail.com`, `SMTP_PASS=<the app password>`
-   (optional `SMTP_FROM` if different).
+> **SMTP does not work on Vercel.** Learned the hard way, Aug 21: the
+> serverless sandbox hangs outbound SMTP connections, so a completely
+> correct iCloud or Gmail configuration still times out in production.
+> No port, password or provider fixes it there. Mail has to go over
+> HTTPS instead. SMTP remains supported and is the simplest option for
+> local or self-hosted runs, where it works fine.
 
-**iCloud works too** — arguably better if you already have an Apple ID:
-`SMTP_HOST=smtp.mail.me.com`, `SMTP_PORT=587`, `SMTP_USER=` your full
-iCloud address, `SMTP_PASS=` an **app-specific password** from
-appleid.apple.com → Sign-In and Security → App-Specific Passwords. Your
-normal Apple password will fail; iCloud requires the app-specific one and
-only supports 587/STARTTLS, never 465.
+**The transport that works on Vercel — Resend over HTTPS:**
+
+1. Sign up at resend.com (free tier: 3,000 emails/month) and create an
+   API key.
+2. Vercel env: `RESEND_API_KEY=re_...`
+3. **To email anyone but yourself, verify a domain** at
+   resend.com/domains and set `MAIL_FROM=invites@yourdomain`. Until
+   then the default sender (`onboarding@resend.dev`) can only reach the
+   address on your own Resend account — enough to prove the pipe works,
+   not enough to invite testers. This is the real reason the custom
+   domain sits at step 1 of docs/PRODUCTIZE.md.
+
+**SMTP, for local and self-hosted runs.** Gmail: an app password from
+Google Account → Security → 2-Step Verification → App passwords, then
+`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS`.
+iCloud: `SMTP_HOST=smtp.mail.me.com`, `SMTP_PORT=587`, your full iCloud
+address, and an **app-specific password** from appleid.apple.com →
+Sign-In and Security. The normal Apple password will not authenticate,
+and iCloud supports only 587/STARTTLS, never 465.
 
 Unset, the access page simply shows you the link to send yourself; a
 failed send falls back to the same, honestly labelled. Nothing about a
 link is ever logged either way.
 
-**Checking it works:** `/health` reports `invite_email: "on" | "off"`, and
-`/app/access` has a **Send myself a test** button once SMTP is set — it
-reports the real failure reason (auth vs. blocked port) rather than a
-shrug, because "I never got one" has several possible causes.
+**Checking it works:** `/health` reports `invite_email` as the actual
+transport — `"http"`, `"smtp"` or `"off"` — so "smtp" on a Vercel
+deploy is visibly the doomed combination rather than a mystery. The
+watchdog prints it and says so. `/app/access` has a **Send myself a
+test** button that reports the real reason on failure: an app-password
+problem, an unverified Resend domain, and a sandbox that blocks the
+socket all need different fixes and now say which one happened.
 
 ## Each user's own data — /app/mine ("My stuff")
 

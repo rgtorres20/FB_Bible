@@ -8,6 +8,8 @@ with the link still shown on the page as the fallback either way.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -191,3 +193,55 @@ def test_owner_can_send_themselves_a_test_email(client, monkeypatch):
     monkeypatch.setattr(mailer, "send_test", boom)
     page = c.post("/app/access/test-mail", follow_redirects=True).text
     assert "Send failed: TimeoutError" in page
+
+
+def test_smtp_timeout_names_the_platform_not_the_port():
+    """The failure this actually hit: a correct SMTP config that hangs
+    because Vercel will not open the socket. Telling the owner to check
+    the port sends them somewhere there is no fix."""
+    s = get_settings()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(s, "resend_api_key", "", raising=False)
+        mp.setattr(s, "smtp_host", "smtp.mail.me.com", raising=False)
+        mp.setattr(s, "smtp_user", "me@icloud.com", raising=False)
+        mp.setattr(s, "smtp_pass", "pw", raising=False)
+
+        def hang(*a, **k):
+            raise TimeoutError("timed out")
+
+        mp.setattr(mailer.smtplib, "SMTP", hang)
+        with pytest.raises(mailer.MailError) as caught:
+            mailer.send_test("me@icloud.com", "https://x/", s)
+    assert "Vercel" in str(caught.value) and "RESEND_API_KEY" in str(caught.value)
+
+
+def test_http_transport_posts_to_resend(monkeypatch):
+    """HTTP is the transport that works on Vercel -- stdlib, no SDK."""
+    s = get_settings()
+    monkeypatch.setattr(s, "resend_api_key", "re_abc", raising=False)
+    monkeypatch.setattr(s, "mail_from", "invites@example.com", raising=False)
+    seen = {}
+
+    class _Resp:
+        def read(self):
+            return b"{}"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        seen["url"] = req.full_url
+        seen["auth"] = req.headers.get("Authorization")
+        seen["body"] = json.loads(req.data)
+        return _Resp()
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", fake_urlopen)
+    mailer.send_test("owner@example.com", "https://x/", s)
+
+    assert seen["url"] == mailer.RESEND_ENDPOINT
+    assert seen["auth"] == "Bearer re_abc"
+    assert seen["body"]["from"] == "invites@example.com"
+    assert seen["body"]["to"] == ["owner@example.com"]

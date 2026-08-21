@@ -114,7 +114,7 @@ async def health() -> dict:
         # assumed: an unconfigured SMTP is a silent no-op from the
         # outside, and "I never got one" should be answerable in one
         # request instead of a guess (docs/ACCESS.md).
-        "invite_email": "on" if settings.email_configured else "off",
+        "invite_email": settings.mail_transport,
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
         "league_keys": settings.league_keys,

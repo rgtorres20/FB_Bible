@@ -12,10 +12,20 @@ trouble never strands an invite. The link is never logged either way.
 
 from __future__ import annotations
 
+import json
 import smtplib
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 
 from .config import Settings
+
+RESEND_ENDPOINT = "https://api.resend.com/emails"
+
+
+class MailError(RuntimeError):
+    """A send that failed, carrying a reason a person can act on."""
+
 
 # The leagues' own pages (docs/LEAGUES.md). Yahoo's league URLs are
 # public routing, not user data.
@@ -58,7 +68,7 @@ def send_invite(to_email: str, invite_link: str, app_base: str, settings: Settin
     """Raises on failure -- the caller shows the link as the fallback."""
     msg = EmailMessage()
     msg["Subject"] = SUBJECT
-    msg["From"] = settings.smtp_from or settings.smtp_user
+    msg["From"] = settings.mail_from_address
     msg["To"] = to_email
     msg.set_content(invite_body(invite_link, app_base))
     _send(msg, settings)
@@ -76,7 +86,7 @@ def send_test(to_email: str, app_base: str, settings: Settings) -> None:
     """
     msg = EmailMessage()
     msg["Subject"] = TEST_SUBJECT
-    msg["From"] = settings.smtp_from or settings.smtp_user
+    msg["From"] = settings.mail_from_address
     msg["To"] = to_email
     msg.set_content(
         "This is a test from the Fantasy Bible.\n\n"
@@ -88,12 +98,78 @@ def send_test(to_email: str, app_base: str, settings: Settings) -> None:
 
 
 def _send(msg: EmailMessage, settings: Settings) -> None:
-    if settings.smtp_port == 465:
-        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=20) as server:
-            server.login(settings.smtp_user, settings.smtp_pass)
-            server.send_message(msg)
+    """Dispatch by whichever transport is configured.
+
+    HTTP wins when present because it is the only one that works on
+    Vercel: the serverless sandbox hangs outbound SMTP connections, so a
+    correct SMTP config still times out there. SMTP stays for local and
+    self-hosted runs, where it is fine and needs no third party.
+    """
+    if settings.resend_api_key:
+        _send_http(msg, settings)
     else:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_pass)
-            server.send_message(msg)
+        _send_smtp(msg, settings)
+
+
+def _send_http(msg: EmailMessage, settings: Settings) -> None:
+    """Resend's HTTP API, over 443. stdlib only -- no SDK, no new dep."""
+    payload = json.dumps(
+        {
+            "from": settings.mail_from_address,
+            "to": [msg["To"]],
+            "subject": msg["Subject"],
+            "text": msg.get_content(),
+        }
+    ).encode()
+    request = urllib.request.Request(
+        RESEND_ENDPOINT,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = (json.loads(exc.read() or b"{}") or {}).get("message", "")
+        except Exception:  # noqa: BLE001 - the status alone is still useful
+            pass
+        if exc.code == 403 and "domain" in detail.lower():
+            raise MailError(
+                "Resend will only mail your own address until a domain is "
+                "verified — see docs/ACCESS.md."
+            ) from exc
+        raise MailError(f"Resend refused it ({exc.code}). {detail}".strip()) from exc
+    except Exception as exc:  # noqa: BLE001 - network trouble, reported as-is
+        raise MailError(f"Could not reach Resend ({type(exc).__name__}).") from exc
+
+
+def _send_smtp(msg: EmailMessage, settings: Settings) -> None:
+    try:
+        if settings.smtp_port == 465:
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=20) as server:
+                server.login(settings.smtp_user, settings.smtp_pass)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
+                server.starttls()
+                server.login(settings.smtp_user, settings.smtp_pass)
+                server.send_message(msg)
+    except smtplib.SMTPAuthenticationError as exc:
+        raise MailError(
+            "SMTP rejected the login — iCloud and Gmail both need an "
+            "app-specific password, not the account password."
+        ) from exc
+    except (TimeoutError, OSError) as exc:
+        # The failure this project actually hit: a correct config that
+        # hangs because the host will not open the socket.
+        raise MailError(
+            "SMTP timed out. Vercel's sandbox blocks outbound SMTP, so no "
+            "port or password will fix this there — set RESEND_API_KEY and "
+            "mail goes over HTTPS instead (docs/ACCESS.md)."
+        ) from exc

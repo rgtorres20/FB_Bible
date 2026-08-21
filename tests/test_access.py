@@ -120,16 +120,21 @@ def test_health_and_login_stay_outside_the_gate(client):
     assert "Owner sign-in" in c.get("/login").text
 
 
-def test_health_reports_whether_invite_mail_can_send(client, monkeypatch):
-    """Unconfigured SMTP is invisible from outside -- the owner asking
-    'why did nobody get an email' deserves a one-request answer."""
+def test_health_reports_which_mail_transport_is_wired(client, monkeypatch):
+    """Not just on/off: SMTP is configured-but-doomed on Vercel, so the
+    transport itself is the answer the owner needs in one request."""
     c, _ = client
-    assert c.get("/health").json()["invite_email"] == "off"
     s = get_settings()
-    monkeypatch.setattr(s, "smtp_host", "smtp.example.com", raising=False)
-    monkeypatch.setattr(s, "smtp_user", "me@example.com", raising=False)
-    monkeypatch.setattr(s, "smtp_pass", "app-password", raising=False)
-    assert c.get("/health").json()["invite_email"] == "on"
+    assert c.get("/health").json()["invite_email"] == "off"
+
+    monkeypatch.setattr(s, "smtp_host", "smtp.mail.me.com", raising=False)
+    monkeypatch.setattr(s, "smtp_user", "me@icloud.com", raising=False)
+    monkeypatch.setattr(s, "smtp_pass", "app-specific", raising=False)
+    assert c.get("/health").json()["invite_email"] == "smtp"
+
+    # An API key wins: it is the only transport that works on Vercel.
+    monkeypatch.setattr(s, "resend_api_key", "re_test", raising=False)
+    assert c.get("/health").json()["invite_email"] == "http"
 
 
 def test_sync_token_passes_the_gate_for_the_watchdog(client):

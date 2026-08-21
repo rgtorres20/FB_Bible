@@ -72,9 +72,35 @@ class Settings(BaseSettings):
     smtp_pass: str = ""
     smtp_from: str = ""
 
+    # Vercel's sandbox hangs outbound SMTP, so on that target mail has to
+    # go over HTTPS instead. Setting this switches transports; the SMTP
+    # settings above stay for local and self-hosted runs, where they work.
+    resend_api_key: str = ""
+    # The From: address. Resend requires a verified domain to send to
+    # anyone but yourself -- until then its test sender only reaches the
+    # Resend account's own address (docs/ACCESS.md).
+    mail_from: str = "onboarding@resend.dev"
+
+    @property
+    def mail_transport(self) -> str:
+        """ "http", "smtp", or "off" -- which sender is actually wired."""
+        if self.resend_api_key:
+            return "http"
+        if self.smtp_host and self.smtp_user and self.smtp_pass:
+            return "smtp"
+        return "off"
+
+    @property
+    def mail_from_address(self) -> str:
+        """The From: header, per transport. SMTP must send as the account
+        that authenticated; HTTP sends as whatever domain is verified."""
+        if self.mail_transport == "http":
+            return self.mail_from
+        return self.smtp_from or self.smtp_user
+
     @property
     def email_configured(self) -> bool:
-        return bool(self.smtp_host and self.smtp_user and self.smtp_pass)
+        return self.mail_transport != "off"
 
     @property
     def auth_state(self) -> str:

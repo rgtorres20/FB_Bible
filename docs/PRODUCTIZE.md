@@ -180,9 +180,19 @@ So the earlier ~$15/mo line in the cost table was pessimistic and has
 been corrected to $0. The dependency stands, though: **this needs the
 domain**, which is why it is step 2 in the order below and not step 1.
 
-**What changes in code:** almost nothing. `app/mailer.py` is plain SMTP
-over stdlib, and Resend speaks SMTP — so this is four environment
-variables and a DNS record set, not a rewrite. Worth keeping that way.
+**Correction, Aug 21.** This section first said "Resend speaks SMTP, so
+no code change." That was wrong, and the owner found it by hitting the
+test button: **Vercel's sandbox hangs outbound SMTP**, so a correct
+iCloud config timed out in production. Mail on this platform has to go
+over HTTPS. `app/mailer.py` now carries both transports — stdlib
+`urllib` to Resend's API when `RESEND_API_KEY` is set, SMTP otherwise
+for local and self-hosted runs — so the code side is done.
+
+**What remains is the domain, and it is now blocking rather than
+cosmetic.** Resend will only deliver to your own account address until a
+domain is verified. So automated invites to the five testers are not
+available at any price until the domain exists. That moves email from
+"nice polish" to a hard dependency of step 1.
 
 ## Mobile: do the app stores actually help?
 

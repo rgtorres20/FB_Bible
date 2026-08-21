@@ -250,7 +250,11 @@ def main() -> int:
     )
     gate = health.get("app_auth", "?")
     print(f"  INFO  app login gate: {gate}")
-    print(f"  INFO  invite email: {health.get('invite_email', '?')}")
+    # "http" works on Vercel; "smtp" is configured but will hang there.
+    mail = health.get("invite_email", "?")
+    print(f"  INFO  invite email transport: {mail}")
+    if mail == "smtp" and stage != "local":
+        print("  INFO  (SMTP cannot send from Vercel -- set RESEND_API_KEY)")
     if gate == "on":
         # Closed means closed: a stranger with no session and no sync
         # token must be turned away from the app itself, not merely told
