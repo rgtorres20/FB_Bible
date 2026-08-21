@@ -192,7 +192,8 @@ aside > div:nth-child(2) {
 /* The Draft analyzer's links into the mock draft room and league
  * settings (mobile.js). */
 #fb-mock-link,
-#fb-leagues-link {
+#fb-leagues-link,
+#fb-nextup-link {
   display: block;
   margin-bottom: 8px;
   padding: 6px 10px;

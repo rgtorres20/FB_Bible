@@ -93,10 +93,34 @@ Ordered by how much staleness actually costs.
    until games are played. Plan: Phase 3, compute from nflverse play-by-play
    once there is a database; until then the Data health rows keep calling
    them estimates.
+   *Superseded for the backup question, Aug 21:* the owner flagged these
+   as guesses ("backup running list / usage splits not live estimates")
+   and asked for the latest wire post on whoever needs picking up after a
+   starter goes down. **`/app/nextup` answers both from measured data.**
+   `app/feeds/depth.py` orders every team's skill positions by Sleeper's
+   '25 opportunity (carries + targets) — usage the stats reducer had been
+   storing since August that nothing had ever joined up. The board pairs
+   each flagged-out starter with the man behind him, the workload coming
+   loose, and the **real newest polled item** about the replacement.
+   Injury flags and wire posts are live; depth order and workload are
+   measured '25 and labelled so on every row; nothing is projected.
+   Remaining: the **CUFFS table on the app page still shows its curated
+   numbers** — the measured ones live on the new board, and folding them
+   back into that table's 32 hand-written rows is the next step.
 6. **weekrev / Team intel / FFBets salaries** — curated estimates, already
    labelled "estimates / no live sheet" in Data health. Plan: revisit when
    the season starts (weekrev is a September feature); salaries have no
    free live source — the honest label stays.
+   *Owner flagged Aug 21 ("FFBets salary bets and projection are not
+   live").* Confirmed, and it splits into two different answers.
+   **DFS salaries cannot go live:** DraftKings and FanDuel publish no
+   open API, and scraping their slates is both against their terms and
+   fragile — the honest label is the ceiling here. Build-a-team is
+   already shelved at serve time, which is why those numbers are not on
+   screen. **Projections can:** Sleeper serves
+   `/v1/projections/nfl/regular/{season}/{week}` (probed live Aug 21 —
+   HTTP 200, same field vocabulary as the season stats). Not built yet;
+   it is the largest remaining honest win on that tab.
    *Partially resolved Aug 20:* weekrev's **games** are live — the
    sync-feeds runner pushes ESPN's current-week scoreboard (scores,
    FINAL/clock/kickoff status, broadcast as the only note) to

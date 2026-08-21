@@ -158,7 +158,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-534 tests green — 518 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+545 tests green — 529 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -182,6 +182,15 @@ analyzer links to it via mobile.js. The room wears the app's own modes
 seats, and its "Draft board ⧉" button opens the snake grid with hover
 details in a new tab. The page's news overlay reads newest-first — impact
 selects what shows, chronology orders it (owner call, Aug 20).
+
+`/app/nextup` is the pickup board (owner request, Aug 21): every starter
+flagged out, the player measured to be behind him, how much work comes
+loose, and the real latest wire post about the replacement. Depth is
+computed in `app/feeds/depth.py` from Sleeper's '25 opportunity — usage
+the stats reducer had been storing and nothing had joined up — so the
+numbers are measured rather than the curated guesses the handcuff table
+shipped with. Flags and wire posts live, workload labelled '25, nothing
+projected.
 
 The login gate (owner request, Aug 20): `/login` + an owner-managed email
 allowlist at `/app/access` with one-time invite links — built, tested, and

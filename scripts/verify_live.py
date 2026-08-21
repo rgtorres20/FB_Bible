@@ -271,6 +271,20 @@ def main() -> int:
     mine_page = get("/app/mine").decode("utf-8", errors="replace")
     check("my-stuff page serves", "My stuff" in mine_page)
 
+    # The pickup board. It renders whatever the live injury flags say, so
+    # an empty board is a legitimate answer -- what must never happen is
+    # the page failing to serve, or serving without saying which half of
+    # it is measured rather than live.
+    nextup_page = get("/app/nextup").decode("utf-8", errors="replace")
+    check("next-man-up board serves", "Next man up" in nextup_page)
+    check(
+        "next-man-up says which half is live",
+        "Nothing here is projected" in nextup_page
+        or "No starter is currently flagged out" in nextup_page,
+    )
+    flagged = nextup_page.count("class='row'")
+    print(f"  INFO  starters flagged out right now: {flagged}")
+
     # League settings: same rule as /app/mine -- the watchdog has no
     # session, so it must get the honest ask-to-sign-in page rather than
     # anybody's league. And the built-ins must still be described as the
@@ -321,9 +335,14 @@ def main() -> int:
     # --- the served page carries tonight's fixes --------------------------
     served = get("/app/").decode("utf-8", errors="replace")
     check("mobile stylesheet injected", 'href="mobile.css"' in served)
+    # The mode picker is My team / Dark / Light now (owner, Aug 21). The
+    # hand-written Cowboys and Titans options are gone on purpose -- they
+    # were the first two of the 32 clubs and stopped being special.
     check(
-        "Titans mode offered beside Cowboys mode",
-        "★ Titans mode" in served and "★ Cowboys mode" in served,
+        "mode picker offers My team, Dark and Light",
+        '<option value="team">' in served
+        and '<option value="dark">' in served
+        and '<option value="light">' in served,
     )
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)

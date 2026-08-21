@@ -211,7 +211,8 @@
    * above). */
   var DRAFT_LINKS = [
     ['fb-mock-link', '/app/mock', 'Mock draft room — simulate from your slot →'],
-    ['fb-leagues-link', '/app/leagues', 'League settings — score with your own rules →']
+    ['fb-leagues-link', '/app/leagues', 'League settings — score with your own rules →'],
+    ['fb-nextup-link', '/app/nextup', 'Next man up — who to grab when a starter is out →']
   ];
 
   function linkDraftTools() {

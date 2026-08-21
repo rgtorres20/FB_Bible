@@ -33,6 +33,7 @@ from ..feeds import (
     idp,
     injury,
     mock,
+    nextup,
     players,
     poller,
     previews,
@@ -220,6 +221,28 @@ async def mock_draft_room(
             stored.get("capsules") or {},
             datetime.now(UTC),
             board_leagues=await _leagues_for(request, settings, store),
+        )
+    )
+
+
+@router.get("/app/nextup", include_in_schema=False, response_class=HTMLResponse)
+async def next_man_up_board(store: FeedStore = Depends(get_feed_store)) -> HTMLResponse:
+    """The pickup board: every starter flagged out, who is behind him, and
+    the real latest wire item about the replacement (see app/feeds/nextup.py
+    for what is live and what is measured). Declared before the /app static
+    mount so it wins; zero scripts, same as the other boards."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("next man up: store unavailable: %s", exc)
+        stored, index = {}, None
+    return HTMLResponse(
+        nextup.build_html(
+            index,
+            stored.get("stats"),
+            stored.get("items", []),
+            datetime.now(UTC),
         )
     )
 
