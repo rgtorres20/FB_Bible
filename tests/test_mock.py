@@ -257,3 +257,44 @@ def test_a_market_scoring_league_makes_no_qb_premium_claim():
     assert mock.qb_note(leagues_mod.NDDPL) == "6-pt pass TDs, 20 pass yds/pt"
     assert mock.qb_note(leagues_mod.RED_EYE).endswith("1/completion")
     assert mock.qb_note(leagues_mod.blank()) == ""
+
+
+def test_the_room_refuses_to_rank_defenses_from_a_partial_ladder():
+    """Consistent with the board: an order built from an incomplete
+    points-allowed ladder is still an order, and the room would present
+    it as one. The DEF slot stays visibly empty and the caption says why."""
+    from dataclasses import replace
+
+    from app import leagues as leagues_mod
+
+    league = replace(
+        leagues_mod.blank("D/ST League", 10),
+        slots=("QB", "RB", "WR", "TE", "K", "DEF", "BN"),
+        dst=dict(leagues_mod.DEFAULT_DST),
+        dst_pa=dict(leagues_mod.DEFAULT_DST_PA),
+    )
+    index = _index()
+    index["players"]["DET"] = {
+        "id": "DET",
+        "name": "Detroit Lions",
+        "position": "DEF",
+        "team": "DET",
+        "rank": None,
+        "dst": True,
+    }
+    state = _stats()
+    state["defenses"] = {"DET": {"gp": 17, "sack": 49, "pts_allow_21_27": 8}}
+    state["coverage"]["defenses"] = 1
+    state["coverage"]["defense_pa_complete"] = 0  # 8 of 17 games banded
+
+    assert mock.dst_pool(index, state, None, board_leagues=[league]) == []
+    page = mock.build_html(index, _adp(), state, None, NOW, board_leagues=[league])
+    assert "team defenses are not on the board yet" in page
+
+    # With the ladder complete, the same room drafts them and says so.
+    state["defenses"]["DET"].update({"pts_allow_21_27": 17})
+    state["coverage"]["defense_pa_complete"] = 1
+    assert len(mock.dst_pool(index, state, None, board_leagues=[league])) == 1
+    page = mock.build_html(index, _adp(), state, None, NOW, board_leagues=[league])
+    assert "1 team defenses" in page
+    assert "not on the board yet" not in page

@@ -198,7 +198,11 @@ def dst_pool(
     room = [
         lg for lg in (board_leagues if board_leagues is not None else ROOM_LEAGUES) if lg.starts_dst
     ]
-    if not room:
+    if not room or not idp.has_dst_stats(stats_state):
+        # Same refusal the board makes, for the same reason: an order
+        # built from a partial points-allowed ladder is an order, and the
+        # room would present it as one. The DEF slot stays visibly empty
+        # instead, and the caption says why.
         return []
     out = []
     for r in idp.dst_rows(index, stats_state, board_leagues=room):
@@ -348,6 +352,15 @@ def build_html(
             f"refreshes it; try again shortly. Checked {html_mod.escape(stamp)}.</p>"
         )
 
+    wants_dst = any(lg.starts_dst for lg in room)
+    dst_gap = (
+        " · <b>team defenses are not on the board yet</b> — the stored season "
+        "stats don't carry a complete points-allowed ladder for all 32, and an "
+        "order built from a partial one would still look like an order. The "
+        "weekly stats refetch fills it in"
+        if wants_dst and not dst
+        else ""
+    )
     with_adp = sum(1 for p in offense if p["a10"] is not None)
     with_cap = sum(1 for p in offense + defense + dst if p["cap"])
     data = {
@@ -374,7 +387,8 @@ def build_html(
         "prediction of what your actual leaguemates will do. AI capsule lines "
         f"render labelled, same as the top-300 board · {with_adp} of "
         f"{len(offense)} offense players carry live ADP · {len(defense)} "
-        f"defenders league-scored · {with_cap} AI angles · generated "
+        f"defenders league-scored · {len(dst)} team defenses · {with_cap} AI "
+        f"angles{dst_gap} · generated "
         f"{html_mod.escape(stamp)} · data: Sleeper, FantasyFootballCalculator"
         " · <a href='/app/leagues'>drafting a league that isn't listed? "
         "add its settings</a></p>"
