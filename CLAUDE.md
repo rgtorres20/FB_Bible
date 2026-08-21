@@ -170,3 +170,12 @@ fantasy-access approval (see docs/RESUME.md), not on code.
 Phase 3 (cron jobs polling feeds on their budget intervals, a database, and web
 push for the Settings rules) builds on this service — hence the Dockerfile and
 the store interface.
+
+Phase 4 is **Productize** — the transition from "owner + 5 testers, free" to
+something sellable: [docs/PRODUCTIZE.md](docs/PRODUCTIZE.md) has the real
+costs (~$21/mo floor: Vercel Pro, since Hobby is non-commercial, plus a
+~$10/yr domain), the licensing blockers, and the *order*. **Planning only —
+do not build from it without the owner asking.** One item there is
+time-sensitive rather than money-sensitive: passkeys are bound to the
+hostname, so the custom domain should be bought and pointed before more
+people register Face ID, or they all re-register.

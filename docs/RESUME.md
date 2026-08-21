@@ -1,5 +1,39 @@
 # Resume here
 
+## Aug 21 — Phase 4 written down (planning only)
+
+Owner asked what a domain would cost "for future reference" and to make
+productizing a phase. [docs/PRODUCTIZE.md](PRODUCTIZE.md) now holds the
+real numbers (verified Aug 21: .com ~$10.44/yr at Cloudflare, at-cost
+with no renewal jump; Vercel Pro $20/mo is the actual floor since Hobby
+is licensed non-commercial → ~$21/mo to sell), the licensing blockers
+already in LICENSING.md, the GAP_REVIEW items that only bite with paying
+users, and the sequence.
+
+The sequencing point worth not losing: **buy and point the domain before
+more people register passkeys.** Credentials are bound to the hostname,
+so a later move to a custom domain silently invalidates every Face ID
+registration. $10 now vs. everyone re-registering later.
+
+Also answered there, at the owner's ask: **is the current setup legal**
+(yes — non-commercial, six private users, feeds consumed as headlines +
+links, Sleeper attribution shown, per-user isolation done; the one real
+exposure is the Titans club mark, near-zero risk at this scale but must
+swap before anything public) and **how hard are the app stores**:
+
+- The PWA already installs to a home screen on iOS and Android for $0 —
+  that is the "app icon" half, and it is done.
+- Google Play is easy: TWA via Bubblewrap, $25 one-time, needs the
+  custom domain for Digital Asset Links.
+- Apple rejects web wrappers outright (guideline 4.2 / 4.2.2); an iOS
+  listing means a genuinely native build, $99/yr.
+- Selling on the web with Stripe avoids store commissions (15/30%)
+  entirely — Apple's external-link rules were struck down in the US in
+  2025 but the replacement fee is still unresolved as of Aug 2026, so
+  web-first is the stable answer either way.
+
+NOT a licence to build any of it — the repo is still Phase 2.
+
 ## Aug 21 — the gate goes live, and passkeys
 
 - **Owner activated the login gate.** OWNER_EMAIL is
