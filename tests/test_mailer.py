@@ -1,0 +1,233 @@
+"""Invite mail: what goes in the message, and how failures are reported.
+
+Untested until Aug 21, which is the wrong state for the one module that
+puts a **sign-in link** in an email. Two things worth holding down:
+
+1. **The message never carries a secret it should not.** The invite link
+   is the credential, so it goes to exactly one address and nowhere else
+   — not in a log line, not in a subject, not to a second recipient.
+2. **A failure says what to actually do about it.** This project lost
+   real time to a correct SMTP config that timed out because Vercel's
+   sandbox will not open the socket. "It didn't work" sends nobody
+   anywhere; the module knows the difference between that, a bad
+   password, and an unverified Resend domain, and the reasons are what
+   the owner sees on screen.
+
+No sockets are opened here — the repo's conftest fence blocks them — so
+every transport is faked at the boundary the module actually calls.
+"""
+
+from __future__ import annotations
+
+import json
+import smtplib
+import urllib.error
+from email.message import EmailMessage
+
+import pytest
+
+from app import mailer
+
+TO = "guest@example.com"
+LINK = "https://fb.example/login?invite=super-secret-token-value"
+BASE = "https://fb.example/"
+
+
+class _Settings:
+    """Only the fields mailer reads. A stand-in rather than the real
+    Settings so a test cannot accidentally pick up a developer's env."""
+
+    def __init__(self, **kw):
+        self.resend_api_key = kw.get("resend_api_key", "")
+        self.mail_from_address = kw.get("mail_from_address", "bible@example.com")
+        self.smtp_host = kw.get("smtp_host", "smtp.example.com")
+        self.smtp_port = kw.get("smtp_port", 587)
+        self.smtp_user = kw.get("smtp_user", "user")
+        self.smtp_pass = kw.get("smtp_pass", "pass")
+
+
+# --- what the invite says -----------------------------------------------
+
+
+def test_the_invite_carries_the_link_and_says_it_is_one_time():
+    body = mailer.invite_body(LINK, BASE)
+    assert LINK in body
+    assert "works once" in body
+    assert "7 days" in body
+
+
+def test_the_invite_points_at_the_app_and_the_leagues():
+    """Owner ask, Aug 21: the invite doubles as the intro. A link with no
+    context reads like phishing."""
+    body = mailer.invite_body(LINK, BASE)
+    assert f"{BASE}app/" in body
+    for name, url in mailer.LEAGUE_LINKS:
+        assert name in body
+        assert url in body
+
+
+def test_the_invite_goes_to_exactly_one_address(monkeypatch):
+    """The link is the credential. A second recipient is a second
+    account."""
+    sent = {}
+    monkeypatch.setattr(mailer, "_send", lambda msg, settings: sent.update(msg=msg))
+    mailer.send_invite(TO, LINK, BASE, _Settings())
+    msg = sent["msg"]
+    assert msg["To"] == TO
+    assert msg["Cc"] is None and msg["Bcc"] is None
+
+
+def test_the_link_is_not_in_the_subject():
+    """Subjects turn up in notification previews, lock screens and mail
+    logs. The body is the only place the token belongs."""
+    assert LINK not in mailer.SUBJECT
+    assert "invite" not in mailer.SUBJECT.lower() or "token" not in mailer.SUBJECT.lower()
+
+
+def test_the_test_email_never_contains_an_invite_link(monkeypatch):
+    """It exists to prove the transport works, and is sent to whoever the
+    owner types. It must not carry a credential."""
+    sent = {}
+    monkeypatch.setattr(mailer, "_send", lambda msg, settings: sent.update(msg=msg))
+    mailer.send_test(TO, BASE, _Settings())
+    body = sent["msg"].get_content()
+    assert "invite=" not in body
+    assert f"{BASE}app/access" in body
+
+
+# --- choosing a transport ------------------------------------------------
+
+
+def test_an_api_key_wins_over_smtp(monkeypatch):
+    """HTTP is the only transport that works on Vercel — the sandbox
+    hangs outbound SMTP — so a configured key must take precedence over a
+    complete SMTP config rather than sit unused behind it."""
+    calls = []
+    monkeypatch.setattr(mailer, "_send_http", lambda msg, s: calls.append("http"))
+    monkeypatch.setattr(mailer, "_send_smtp", lambda msg, s: calls.append("smtp"))
+    mailer._send(EmailMessage(), _Settings(resend_api_key="re_live_key"))
+    mailer._send(EmailMessage(), _Settings())
+    assert calls == ["http", "smtp"]
+
+
+# --- failures that say what to do ----------------------------------------
+
+
+def _http_error(code: int, payload: dict) -> urllib.error.HTTPError:
+    import io
+
+    return urllib.error.HTTPError(
+        mailer.RESEND_ENDPOINT, code, "err", {}, io.BytesIO(json.dumps(payload).encode())
+    )
+
+
+def test_an_unverified_resend_domain_is_named_as_such(monkeypatch):
+    """The 403 everyone hits first. Resend will only mail your own address
+    until a domain is verified, and the raw status says none of that."""
+
+    def boom(*a, **k):
+        raise _http_error(403, {"message": "The domain is not verified"})
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+    assert "domain is verified" in str(exc.value)
+    assert "ACCESS.md" in str(exc.value)
+
+
+def test_another_resend_refusal_reports_its_status_and_reason(monkeypatch):
+    def boom(*a, **k):
+        raise _http_error(422, {"message": "Invalid `to` field"})
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+    assert "422" in str(exc.value)
+    assert "Invalid `to` field" in str(exc.value)
+
+
+def test_a_failure_message_never_repeats_the_api_key(monkeypatch):
+    """Repo rule: never log or return a token. These strings are rendered
+    on the owner's screen."""
+
+    def boom(*a, **k):
+        raise _http_error(401, {"message": "bad key"})
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_super_secret"))
+    assert "re_super_secret" not in str(exc.value)
+
+
+def test_a_failure_message_never_repeats_the_invite_link(monkeypatch):
+    """Same rule, sharper: the link IS the credential, and an error is
+    the most likely thing to be copied into a bug report."""
+
+    def boom(*a, **k):
+        raise OSError("connection reset")
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+    assert "super-secret-token-value" not in str(exc.value)
+
+
+def test_a_bad_smtp_password_says_it_needs_an_app_specific_one(monkeypatch):
+    """iCloud and Gmail both refuse the account password, and the raw
+    error does not say so."""
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise smtplib.SMTPAuthenticationError(535, b"nope")
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", Boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings())
+    assert "app-specific password" in str(exc.value)
+
+
+def test_an_smtp_timeout_names_the_real_cause(monkeypatch):
+    """The failure this project actually hit: a correct config that hangs
+    because Vercel will not open the socket. No port or password fixes
+    it, so the message has to say to stop trying them."""
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise TimeoutError("timed out")
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", Boom)
+    with pytest.raises(mailer.MailError) as exc:
+        mailer.send_invite(TO, LINK, BASE, _Settings())
+    assert "Vercel" in str(exc.value)
+    assert "RESEND_API_KEY" in str(exc.value)
+
+
+def test_port_465_uses_implicit_tls_and_anything_else_starts_tls(monkeypatch):
+    """Getting this backwards is a silent plaintext send on 465 or a
+    hang on 587."""
+    used = []
+
+    class Rec:
+        def __init__(self, host, port, timeout=None):
+            used.append(("ssl" if self.ssl else "plain", port))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            used.append(("starttls", None))
+
+        def login(self, *a):
+            pass
+
+        def send_message(self, msg):
+            pass
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP_SSL", type("S", (Rec,), {"ssl": True}))
+    monkeypatch.setattr(mailer.smtplib, "SMTP", type("P", (Rec,), {"ssl": False}))
+    mailer.send_invite(TO, LINK, BASE, _Settings(smtp_port=465))
+    mailer.send_invite(TO, LINK, BASE, _Settings(smtp_port=587))
+    assert used == [("ssl", 465), ("plain", 587), ("starttls", None)]

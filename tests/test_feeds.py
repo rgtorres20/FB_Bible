@@ -308,3 +308,77 @@ def test_merge_does_not_mutate_the_fresh_input():
     fresh = item("a")
     poller.merge({}, [fresh], NOW)
     assert "first_seen" not in fresh
+
+
+# --- rotoworld's remaining edges --------------------------------------------
+# The happy path and pure junk were covered; these are the shapes a real
+# page degrades into, where a partial block must be skipped rather than
+# emitted half-built or allowed to raise.
+
+
+def test_rotoworld_shares_the_rss_cleaner_so_the_escaping_fix_covers_it():
+    """`rotoworld` imports `_clean` from `rss`, so the Aug 21 fix — strip
+    and unescape alternately, so nothing that becomes a tag survives —
+    protects both wires. This pins that they stay one implementation: two
+    cleaners is how one of them stays broken."""
+    from app.feeds import rotoworld, rss
+
+    assert rotoworld._clean is rss._clean
+    html = (
+        '<h2 class="PlayerNewsPost-name"><span class="PlayerNewsPost-firstName">Geno'
+        '</span> <span class="PlayerNewsPost-lastName">Smith</span></h2>'
+        '<h3 class="PlayerNewsPost-headline">Smith out '
+        "&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;</h3>"
+    )
+    items = rotoworld.parse(html)
+    assert items, "the fixture has to actually parse, or this proves nothing"
+    for item in items:
+        assert "<script" not in item["title"]
+
+
+def test_rotoworld_skips_a_block_with_no_headline():
+    """A block that parsed but carries no headline is not a news item.
+    Emitting it would put a blank row on the wire."""
+    from app.feeds import rotoworld
+
+    html = (
+        '<h2 class="PlayerNewsPost-name"><span class="PlayerNewsPost-firstName">Omar'
+        '</span> <span class="PlayerNewsPost-lastName">Cooper</span></h2>'
+    )
+    assert rotoworld.parse(html) == []
+
+
+def test_rotoworld_keeps_a_headline_with_no_player_attached():
+    """The other direction: a real headline with no name block is still
+    news, and dropping it would silently thin the wire."""
+    from app.feeds import rotoworld
+
+    html = (
+        '<h2 class="PlayerNewsPost-name"></h2>'
+        '<h3 class="PlayerNewsPost-headline">Bills sign a kicker</h3>'
+    )
+    items = rotoworld.parse(html)
+    assert len(items) == 1
+    assert items[0]["title"] == "Bills sign a kicker"
+    assert items[0]["link"] == rotoworld.URL, "falls back to the wire's own page"
+
+
+def test_rotoworld_ids_are_stable_across_parses():
+    """The dedupe upstream is by id. An id that changed per fetch would
+    re-announce every story every hour."""
+    from pathlib import Path
+
+    from app.feeds import rotoworld
+
+    html = Path("tests/fixtures/rotoworld_sample.html").read_text(encoding="utf-8")
+    assert [i["id"] for i in rotoworld.parse(html)] == [i["id"] for i in rotoworld.parse(html)]
+
+
+def test_rotoworld_ids_distinguish_different_players():
+    from pathlib import Path
+
+    from app.feeds import rotoworld
+
+    html = Path("tests/fixtures/rotoworld_sample.html").read_text(encoding="utf-8")
+    ids = [i["id"] for i in rotoworld.parse(html)]
+    assert len(ids) == len(set(ids)), "two stories collapsing into one id would hide news"

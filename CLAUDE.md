@@ -188,7 +188,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-934 tests green — 918 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+986 tests green — 970 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -232,6 +232,20 @@ the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table
 shipped with. Flags and wire posts live, workload labelled '25, nothing
 projected.
+
+Six modules that had no tests of their own now do (Aug 21). `authn` and
+`mailer` were the ones that mattered: the first is every signed cookie
+and one-time invite in the app, the second puts a **sign-in link** in an
+email. Both are tested for how they say *no* — a tampered or
+foreign-signed cookie, an expired session, a reused invite, an email
+whose removal must also kill its pending invites, and a failure message
+that never repeats the API key or the invite token. `config.stage` is
+pinned because the beta project's own Vercel deploy reports itself as
+production, so trusting Vercel alone serves an unbadged preview that
+looks like prod; `deps.get_store` because a missing setting has to read
+as a named 503 rather than a bare 500. `rotoworld` gained its degraded
+shapes and a test that it still shares one cleaner with `rss` — two
+cleaners is how one of them stays broken.
 
 The mock room's **QB draft boost stopped counting points that move
 nobody** (Aug 21). A league's QB premium was measured against the market,
