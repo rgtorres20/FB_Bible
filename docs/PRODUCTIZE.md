@@ -249,6 +249,61 @@ avoids the whole question.**
 on the web with Stripe → Google Play via TWA as cheap extra distribution
 → treat iOS App Store as a separate, later, genuinely-native decision.
 
+## What 1,000 users would cost
+
+Modelled Aug 21, at the owner's ask. Headline: **about $25/month**, and
+the reason is architectural rather than lucky.
+
+**Almost nothing here is per-user.** The expensive work — polling seven
+wires, the Sleeper index, FFC ADP, the Vegas slate, two AI calls — runs
+**once an hour globally** whether one person or a thousand are reading.
+GitHub Actions carries it, unmetered on a public repo. So the AI bill,
+the feed bill and the runner bill are all *flat*. What scales is only:
+Redis reads, bandwidth, and function invocations.
+
+At 1,000 users and 10 sessions/day each (a heavy in-season month —
+30,000 sessions/day):
+
+| Line | Cost | Headroom |
+|---|---|---|
+| Vercel Pro | $20.00 | bandwidth 9 GB of 1,000; invocations 1.27M vs 1M included |
+| Upstash overage | ~$3.35 | 2.2M commands, free tier covers 500K, then $0.20/100K |
+| Domain | $0.87 | amortized |
+| Resend | $0.00 | 1,000 invites is one-time and inside the 3,000/mo free tier |
+| Google AI | $0.00 | flat — two calls an hour regardless of users |
+| GitHub Actions | $0.00 | flat — public repo |
+| **Total** | **~$24/mo** | |
+
+Bandwidth is the surprise: even at 30k sessions/day it is ~9 GB against
+Vercel Pro's included 1 TB. The app is a single HTML document plus a
+32 KB JSON overlay, and the service worker caches the static half after
+first visit.
+
+### The one thing that should be fixed before that day
+
+The login gate calls `request_allowed` on **every** `/app/*` request, and
+for anyone who is not the owner that means building a Redis client and
+reading the allowlist — including for every CSS, JS, icon and `_ds` file.
+The owner never sees it because the owner short-circuits on an env
+comparison before touching Redis.
+
+Measured effect: it inflates Redis traffic roughly **3.6×**, from ~600K
+commands a month to ~2.2M at the volume above. In dollars that is $3
+instead of $0.20, so it is not urgent — but it is latency on every asset
+fetch as well as cost, and there are two clean fixes:
+
+1. **Skip the gate for genuinely static assets** (`mobile.css`,
+   `mobile.js`, icons, `_ds/`). They carry no league data. The page
+   itself and `data/feeds.json` stay gated. This alone removes ~15 Redis
+   reads per cold load and changes no security property.
+2. **Cache the allowlist check briefly** (say 60s) — cheap, but it trades
+   away the current guarantee that removing an email locks someone out on
+   their *very next* request. That is a real property worth keeping;
+   prefer fix 1, and only take fix 2 if the numbers ever demand it.
+
+Neither is worth doing at six users. Both are worth doing before an
+audience, and fix 1 is worth doing purely for page speed.
+
 ## Buying and wiring the domain — the runbook
 
 Registrar: **Cloudflare**, on price integrity rather than features —
