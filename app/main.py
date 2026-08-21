@@ -79,6 +79,22 @@ async def app_access_gate(request: Request, call_next):
     s = get_settings()
     path = request.url.path
     if s.app_auth_enabled and (path == "/app" or path.startswith("/app/")):
+        # The sign-in page is public but its artwork is not, and that is
+        # a contradiction the gate used to enforce: /login rendered fine
+        # while the mark, the favicon and the theme stylesheet all came
+        # back 401, because every one of them lives under /app. The page
+        # looked broken to exactly the people it exists for -- anyone not
+        # signed in yet.
+        #
+        # A tight allowlist rather than "static files are public": these
+        # four carry brand art and colour tokens and no user data of any
+        # kind. Everything else under /app stays behind the gate.
+        if (
+            path.startswith(("/app/assets/", "/app/icons/"))
+            or path == "/app/teams.css"
+            or path == "/app/manifest.webmanifest"
+        ):
+            return await call_next(request)
         if not await access.request_allowed(request, s):
             if "text/html" in request.headers.get("accept", ""):
                 return RedirectResponse("/login", status_code=303)

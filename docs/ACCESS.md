@@ -143,3 +143,27 @@ hardening if this ever goes beyond friends
 Set `APP_AUTH` to `off` (or blank) in Vercel and redeploy — the gate is
 env-controlled, so you can never be locked out for longer than one
 redeploy.
+
+## What the gate deliberately does not cover
+
+`/app/*` is gated, with a **tight allowlist of four public paths**:
+
+    /app/assets/…            the brand mark and favicon
+    /app/icons/…             the home-screen icons
+    /app/teams.css           the club colour tokens
+    /app/manifest.webmanifest
+
+These carry brand art and colour values and no user data of any kind.
+They are public because **the sign-in page is public and references
+them** — without this, `/login` rendered while its logo, its favicon and
+its theme all returned 401, so the page looked broken to exactly the
+people it exists for. Anyone not signed in yet.
+
+That bug survived the watchdog for a day: every check sends the sync
+token and therefore walks through the gate, so they proved the files
+*existed* while a signed-out visitor could not fetch them. `verify-live`
+now checks these four **anonymously**, and separately asserts the
+allowlist opened nothing else.
+
+`/api/*` also stays outside the gate, for a different reason (the
+annotate runner's work-list GETs) — recorded as GAP_REVIEW #11.

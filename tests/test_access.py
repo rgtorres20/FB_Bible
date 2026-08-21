@@ -240,3 +240,37 @@ def test_the_brand_assets_are_served_and_are_real_svg(client):
         assert r.status_code == 200, name
         assert r.text.lstrip().startswith(("<!--", "<svg")), name
         assert "</svg>" in r.text
+
+
+def test_a_signed_out_visitor_can_load_the_sign_in_page_artwork(client):
+    """The bug this test exists for: /login is public and every asset it
+    references lived under /app, so the page rendered while the mark, the
+    favicon and the theme stylesheet all came back 401 — broken for
+    exactly the people the page is for. The watchdog missed it because it
+    sends a sync token and walks through the gate."""
+    c, _ = client
+    for asset in (
+        "/app/assets/fsb-logo.svg",
+        "/app/assets/fsb-icon.svg",
+        "/app/teams.css",
+        "/app/icons/icon-192.png",
+        "/app/manifest.webmanifest",
+    ):
+        assert c.get(asset, follow_redirects=False).status_code == 200, asset
+
+
+def test_the_artwork_allowlist_opens_nothing_else(client):
+    """A tight allowlist, not "static files are public". Brand art and
+    colour tokens carry no user data; everything else stays shut."""
+    c, _ = client
+    for guarded in (
+        "/app/",
+        "/app/mine",
+        "/app/leagues",
+        "/app/mock",
+        "/app/nextup",
+        "/app/scorecard",
+        "/app/mobile.js",
+        "/app/data/feeds.json",
+    ):
+        assert c.get(guarded, follow_redirects=False).status_code in (303, 401), guarded

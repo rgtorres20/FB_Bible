@@ -322,6 +322,26 @@ def main() -> int:
 
     icon = get("/app/assets/fsb-icon.svg").decode("utf-8", errors="replace")
     check("app icon serves", "</svg>" in icon)
+
+    # Anonymously, which is the only way this means anything. Every check
+    # above sends the sync token and therefore walks through the login
+    # gate -- so they proved these files EXIST while a signed-out visitor
+    # got 401 for the mark, the favicon and the theme stylesheet, and the
+    # sign-in page rendered unstyled and logo-less for exactly the people
+    # it is for. Existing is not the property that matters here; being
+    # fetchable by someone who has not signed in is.
+    for label, asset in (
+        ("mark", "/app/assets/fsb-logo.svg"),
+        ("favicon", "/app/assets/fsb-icon.svg"),
+        ("theme stylesheet", "/app/teams.css"),
+        ("home-screen icon", "/app/icons/icon-192.png"),
+    ):
+        code = anon_status(asset)
+        check(f"sign-in page can load its {label}", code == 200, f"HTTP {code}")
+    # And the allowlist must not have opened anything else.
+    for guarded in ("/app/", "/app/mine", "/app/mobile.js", "/app/data/feeds.json"):
+        code = anon_status(guarded)
+        check(f"still gated: {guarded}", code in (303, 401, 307), f"HTTP {code}")
     check("app page carries the icon", "/app/assets/fsb-icon.svg" in served_login_probe)
 
     lg_page = get("/app/leagues").decode("utf-8", errors="replace")
