@@ -105,9 +105,9 @@ from Sleeper. Neither blocks personal single-user use.
   app also has no address bar, so a page whose only exit is a text link is
   a dead end. `tests/test_navigation.py` walks a list of every
   server-rendered page, signed in *and* signed out — add a page, add it to
-  that list. The ten: `/app/mine`, `/app/leagues`, `/app/mock`,
+  that list. The eleven: `/app/mine`, `/app/leagues`, `/app/mock`,
   `/app/mock/board`, `/app/nextup`, `/app/scorecard`, `/app/idp`,
-  `/app/cheatsheet`, `/app/alerts300`, `/app/access`. `scripts/lint_docs.py`
+  `/app/scoring`, `/app/cheatsheet`, `/app/alerts300`, `/app/access`. `scripts/lint_docs.py`
   fails if that list and this one disagree.
 - **Units have fences, and the fence is a test.** `app/` is a layer
   stack — kernel, data units, surfaces, composers — and
@@ -187,7 +187,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-895 tests green — 879 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+919 tests green — 903 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -231,6 +231,24 @@ the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table
 shipped with. Flags and wire posts live, workload labelled '25, nothing
 projected.
+
+`/app/scoring` is the scoring board (owner ask, Aug 21): every player's
+stored stat line run through **each league's own scoring values**, ranked.
+Every other board in the app orders by an opinion — ADP, a cheat sheet, a
+blend — and this one orders by arithmetic, which is what finally makes a
+league's quirks an ordering instead of prose: RED_EYE's point per
+completion is worth 400 points to a 400-completion quarterback, and
+BALLAPALOSA's unhalved receiving is worth 75 to a 1500-yard receiver.
+Season total is the headline (it is what wins a league), per game sits
+beside it (a total is also what makes a half-season look finished), and
+the numbers are raw points — points-above-replacement needs a defensible
+baseline per slot per league and is deliberately not guessed. A league
+that cannot start a player shows a dash naming the missing slot, never a
+zero, and team defenses are ranked in their own table because a D/ST is
+not comparable to a player on volume. BALLAPALOSA's column is labelled a
+**floor**: its per-game bonuses (`League.per_game_bonuses`, verified from
+its settings page) cannot be recovered from a season aggregate, so the
+page names what is missing rather than reading quietly short.
 
 The Draft analyzer says **how its average is made** (owner ask, Aug 21).
 Ranking lists are blended with **no weights at all** — every list that is

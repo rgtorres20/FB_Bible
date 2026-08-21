@@ -309,11 +309,17 @@ def test_it_offers_the_way_to_change_the_set(rendered):
 
 
 def test_the_draft_tool_links_render(rendered):
-    """Four links into the mock room, league settings, Next man up and the
-    scorecard. They hang off the analyzer's "My team" header, which the
-    design project owns."""
+    """Links into the mock room, league settings, Next man up, the
+    scorecard and the scoring board. They hang off the analyzer's "My
+    team" header, which the design project owns."""
     ids = [x["id"] for x in rendered["links"]]
-    assert set(ids) == {"fb-mock-link", "fb-leagues-link", "fb-nextup-link", "fb-score-link"}
+    assert set(ids) == {
+        "fb-mock-link",
+        "fb-leagues-link",
+        "fb-nextup-link",
+        "fb-score-link",
+        "fb-scoring-link",
+    }
 
 
 def test_the_draft_tool_links_open_outside_the_shell(rendered):

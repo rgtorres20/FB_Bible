@@ -61,7 +61,17 @@ DATA_UNITS: dict[str, frozenset[str]] = {
 }
 
 SURFACES = frozenset(
-    {"page", "render", "idp", "mock", "nextup", "accuracy", "cheatsheet", "alerts300"}
+    {
+        "page",
+        "render",
+        "idp",
+        "mock",
+        "nextup",
+        "topscorers",
+        "accuracy",
+        "cheatsheet",
+        "alerts300",
+    }
 )
 
 UNIT_OF = {mod: unit for unit, mods in DATA_UNITS.items() for mod in mods}

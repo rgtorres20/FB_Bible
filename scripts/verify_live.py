@@ -225,6 +225,34 @@ def main() -> int:
     reads = sum(1 for e in scout if "AI read:" in str(e.get("text", "")))
     print(f"  INFO  AI reads on the ADP mover cards: {reads}")
 
+    # The scoring board (owner, Aug 21: "who would score the most points in
+    # each league"). It is arithmetic over stored stats, so the failure
+    # that matters is a table of zeroes -- which happens when the stored
+    # blob predates the offensive fields and reads as a finding rather than
+    # a gap. The page refuses to render one; this checks it did not have to.
+    scoring_page = get("/app/scoring").decode("utf-8", errors="replace")
+    check("scoring board serves", "Scoring board" in scoring_page)
+    check(
+        "scoring board is not sitting on stale stat fields",
+        "predate the scoring fields" not in scoring_page,
+        "stored stats predate pass_cmp -- the sync has not refetched",
+    )
+    scoring_rows = max(scoring_page.count("<tr>") - 1, 0)
+    check("scoring board is populated", scoring_rows > 0, f"{scoring_rows} rows")
+    check(
+        "scoring board says the numbers are not a projection",
+        "not a projection" in scoring_page,
+    )
+    # The whole claim of the page: the columns differ because the leagues
+    # do. Identical columns would mean the per-league scoring is not being
+    # applied -- which would look completely normal on screen.
+    per_league = re.findall(r"<th>([A-Z_]+)</th>", scoring_page)
+    check(
+        "scoring board carries a column per league",
+        len(per_league) >= 2,
+        ", ".join(per_league) or "none",
+    )
+
     # The mock draft room: the page must serve with its embedded pool and
     # its honesty framing -- simulated picks are labelled, never sold as a
     # prediction of the real room.

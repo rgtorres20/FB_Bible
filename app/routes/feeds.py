@@ -42,6 +42,7 @@ from ..feeds import (
     scorecard,
     stats,
     teams,
+    topscorers,
     vegas,
 )
 from ..feeds.store import FeedStore
@@ -261,6 +262,36 @@ async def next_man_up_board(store: FeedStore = Depends(get_feed_store)) -> HTMLR
             stored.get("stats"),
             stored.get("items", []),
             datetime.now(UTC),
+        )
+    )
+
+
+@router.get("/app/scoring", include_in_schema=False, response_class=HTMLResponse)
+async def scoring_board(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> HTMLResponse:
+    """Who actually scores the most, in each league's own currency.
+
+    Owner ask, Aug 21: "see who would score the most points in each
+    league." Every other board here ranks by somebody's opinion; this one
+    ranks by arithmetic — real stat lines through each league's real
+    scoring values (app/feeds/topscorers.py). Declared before the /app
+    static mount so it wins; zero scripts, same as the other boards.
+    """
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("scoring board: store unavailable: %s", exc)
+        stored, index = {}, None
+    return HTMLResponse(
+        topscorers.build_html(
+            index,
+            stored.get("stats"),
+            datetime.now(UTC),
+            board_leagues=await _leagues_for(request, settings, store),
         )
     )
 

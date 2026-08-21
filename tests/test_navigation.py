@@ -42,6 +42,7 @@ SERVED_PAGES = (
     "/app/nextup",
     "/app/scorecard",
     "/app/idp",
+    "/app/scoring",
     "/app/cheatsheet",
     "/app/alerts300",
     # Owner-only, and missed by the first pass of this list -- the docs

@@ -223,6 +223,13 @@ class League:
     # derives it from the scoring above; the two verified leagues carry
     # values tuned against real draft behaviour instead.
     qb_boost_override: float | None = None
+    # Bonuses this league pays for a single game's line -- 4 points at 400
+    # passing yards, and so on. They are real scoring and they are NOT in
+    # `score_offense`, because a season aggregate cannot tell one 175-yard
+    # game from two 90-yard games. Kept as descriptions rather than values
+    # so a surface can name what it is missing instead of implying a
+    # number it does not have; a league carrying any reads as a floor.
+    per_game_bonuses: tuple[str, ...] = ()
 
     @property
     def idp_groups(self) -> frozenset[str]:
@@ -283,6 +290,11 @@ class League:
             return self.qb_boost_override
         derived = self.qb_premium_per_game / POINTS_PER_ROUND * self.teams
         return round(min(derived, MAX_DERIVED_QB_BOOST), 1)
+
+    @property
+    def has_per_game_bonuses(self) -> bool:
+        """Whether a season total under-reads this league's real scoring."""
+        return bool(self.per_game_bonuses)
 
     @property
     def receiving_is_halved(self) -> bool:
@@ -379,6 +391,7 @@ class League:
             "dst_ya": dict(self.dst_ya),
             "dst_ret_yds_per_pt": self.dst_ret_yds_per_pt,
             "qb_boost_override": self.qb_boost_override,
+            "per_game_bonuses": list(self.per_game_bonuses),
         }
 
     @classmethod
@@ -388,6 +401,7 @@ class League:
         known = {f for f in cls.__dataclass_fields__ if f != "slots"}
         kwargs = {k: v for k, v in (raw or {}).items() if k in known}
         kwargs["slots"] = tuple(raw.get("slots") or ())
+        kwargs["per_game_bonuses"] = tuple(raw.get("per_game_bonuses") or ())
         kwargs.setdefault("key", "league")
         kwargs.setdefault("name", "League")
         kwargs.setdefault("teams", 10)
@@ -538,6 +552,13 @@ BALLAPALOSA = League(
     # draft, so it derives its own like any user league would -- and the
     # editor says "derived, capped" rather than implying a measurement.
     qb_boost_override=None,
+    # From the settings page, Aug 21. The only league of the three that
+    # pays them, and the reason its season totals read as a floor.
+    per_game_bonuses=(
+        "4 pts at 400 passing yards",
+        "4 pts at 175 rushing or receiving yards",
+        "4 pts for a 40-plus yard touchdown",
+    ),
 )
 
 DEFAULTS: tuple[League, ...] = (NDDPL, RED_EYE, BALLAPALOSA)
