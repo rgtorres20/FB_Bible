@@ -128,6 +128,20 @@ async def request_allowed(request: Request, settings: Settings) -> bool:
     return authn.is_allowed(auth, email, settings.owner_email)
 
 
+def _public_base(request: Request) -> str:
+    """The externally visible base URL, for minting invite links.
+
+    Behind Vercel's proxy the ASGI scope can report `http`, which would
+    put a real invite link on the wrong scheme; `x-forwarded-proto` is
+    the authority whenever the proxy sets it.
+    """
+    base = str(request.base_url)
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if proto == "https" and base.startswith("http://"):
+        base = "https://" + base[len("http://") :]
+    return base
+
+
 def _set_session(response: RedirectResponse, email: str, settings: Settings) -> None:
     response.set_cookie(
         authn.SESSION_COOKIE,
@@ -317,7 +331,8 @@ async def access_add(
     auth = await store.load_auth()
     updated, token = authn.mint_invite(auth, email)
     await store.save_auth(updated)
-    link = f"{request.base_url}login/invite/{token}"
+    base = _public_base(request)
+    link = f"{base}login/invite/{token}"
     # The link itself is never logged (repo rule) -- count only.
     log.info("access: invite minted, %d pending", len(updated.get("invites") or {}))
 
@@ -328,9 +343,7 @@ async def access_add(
     mail_note = "Email isn't configured (docs/ACCESS.md), so send it yourself:"
     if settings.email_configured:
         try:
-            await run_in_threadpool(
-                mailer.send_invite, email, link, str(request.base_url), settings
-            )
+            await run_in_threadpool(mailer.send_invite, email, link, base, settings)
             mail_note = "Invite emailed to them — the same link, as a backup:"
             log.info("access: invite emailed")
         except Exception as exc:  # noqa: BLE001 - the page reports it; the link still works

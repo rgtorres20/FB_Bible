@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
@@ -50,6 +51,24 @@ def get(path: str) -> bytes:
 
 def get_json(path: str) -> dict:
     return json.loads(get(path))
+
+
+def anon_status(path: str) -> int:
+    """Status code for a request carrying NO sync token, redirects not
+    followed -- the only way to prove the login gate actually closes for
+    a stranger rather than merely reporting that it is on."""
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):  # noqa: D102
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirect)
+    req = urllib.request.Request(BASE + path, headers={"User-Agent": "FBBible-verify/1.0"})
+    try:
+        with opener.open(req, timeout=60) as resp:
+            return resp.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
 
 
 def main() -> int:
@@ -200,7 +219,18 @@ def main() -> int:
     # "misconfigured" is a half-enable worth seeing in the log.
     login_page = get("/login").decode("utf-8", errors="replace")
     check("login page serves", "Owner sign-in" in login_page)
-    print(f"  INFO  app login gate: {health.get('app_auth', '?')}")
+    gate = health.get("app_auth", "?")
+    print(f"  INFO  app login gate: {gate}")
+    if gate == "on":
+        # Closed means closed: a stranger with no session and no sync
+        # token must be turned away from the app itself, not merely told
+        # the gate is on. 303 to /login (HTML) or 401 both count.
+        code = anon_status("/app/")
+        check("gate turns strangers away", code in (303, 401, 307), f"HTTP {code}")
+    elif gate == "misconfigured":
+        # Half-set enable: the app stays open by design, but the owner
+        # meant to close it -- surface it rather than passing quietly.
+        check("app_auth not half-configured", False, "APP_AUTH set without its companions")
     # The personal layer: anonymous (the watchdog has no session) must get
     # the honest ask-to-sign-in page, never someone's data.
     mine_page = get("/app/mine").decode("utf-8", errors="replace")

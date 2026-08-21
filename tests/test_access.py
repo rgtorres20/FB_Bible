@@ -169,3 +169,17 @@ def test_partial_enable_stays_open(client, monkeypatch):
     assert get_settings().auth_state == "misconfigured"
     assert c.get("/app/data/feeds.json").status_code == 200
     assert "misconfigured" in c.get("/login").text
+
+
+def test_invite_links_use_https_behind_the_proxy(client):
+    """Vercel's ASGI scope can report http; a real invite must not go out
+    on the wrong scheme. x-forwarded-proto is the authority."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post(
+        "/app/access/add",
+        data={"email": "proxy@example.com"},
+        headers={"x-forwarded-proto": "https"},
+    ).text
+    assert "https://testserver/login/invite/" in page
+    assert "http://testserver/login/invite/" not in page
