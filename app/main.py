@@ -137,6 +137,10 @@ async def health(
             index_state = {
                 "count": len((index or {}).get("players") or {}),
                 "age_hours": round(age / 3600, 1) if age is not None else None,
+                # The reason, not just the symptom. An empty index showed
+                # up as four unrelated empty boards with no cause
+                # reachable from outside Vercel's own logs.
+                "last_error": (await store.load()).get("index_error"),
             }
         except Exception as exc:  # noqa: BLE001 - report the gap, never raise
             logging.getLogger(__name__).warning("health: player index unreadable: %s", exc)

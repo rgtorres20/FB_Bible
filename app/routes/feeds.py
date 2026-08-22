@@ -769,6 +769,7 @@ async def sync(
     # answerable to "does this affect my board". The index is cached because
     # the source dump is ~14MB; a fetch failure degrades to untagged items
     # rather than failing the whole sync.
+    index_error: str | None = None
     index = await store.load_players()
     if players.needs_refresh(index):
         try:
@@ -791,6 +792,13 @@ async def sync(
                 f"{age / 3600:.1f}h" if age is not None else "unknown",
                 exc,
             )
+            # Recorded, not just logged. Vercel's logs are not reachable
+            # from the watchdog, so an outage presented as four empty
+            # boards and no cause -- diagnosing it meant guessing. The
+            # reason and the time go in the feeds blob, and /health
+            # reports them. Type and message only: no URL, no headers,
+            # nothing that could carry a token.
+            index_error = f"{type(exc).__name__}: {str(exc)[:200]}"
     if index:
         players.tag_items(polled["items"], index)
 
@@ -904,6 +912,10 @@ async def sync(
             "mover_reads": mover_reads,
             "previews": preview_state,
             "scores": scores_state,
+            # Why the player index is empty, when it is. Carried forward
+            # from the previous run so a failure that has stopped
+            # recurring still shows until a fetch actually succeeds.
+            "index_error": index_error or (None if index else existing.get("index_error")),
         }
     )
 
@@ -924,6 +936,8 @@ async def sync(
         "adp_players": len(adp_state.get("players", [])),
         "vegas_games": len(vegas_state.get("games", [])),
         "vegas_error": vegas_error,
+        "index_error": index_error,
+        "index_players": len((index or {}).get("players") or {}),
         "stats_teams": len(stats_state.get("teams", {})),
         "stats_usage_complete": stats.usage_reads(stats_state) is not None,
         # Team defenses, and how many carry a full points-allowed ladder.

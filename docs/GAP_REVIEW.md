@@ -31,6 +31,21 @@ checked at review time and may drift.
   boards. `tests/test_player_index_survives.py` reproduces the incident —
   verified failing against the old code.
 
+  **The outage did not clear.** The sync runs every 15 minutes, so by
+  01:40 it had tried four times and the index was still empty — this is a
+  persistently failing Sleeper fetch, not a transient blip landing on the
+  TTL boundary. The carry-forward fix is deployed and correct, but there
+  was nothing left to carry: it protects the *next* copy, not one already
+  lost. Cause unknown as of writing, and unreachable from outside Vercel's
+  own logs, which is why the sync now records the exception type and
+  message in the feeds blob and `/health` reports it as
+  `players.last_error`. The next occurrence names itself.
+
+  **Also caught:** the first version of the watchdog's index check guarded
+  on `age_hours is not None` — which is None exactly when the index is
+  missing, so the check skipped itself silently during the outage it was
+  written for and printed nothing at all. It reports unconditionally now.
+
   **Still open:** nothing labels a carried-forward index as stale on the
   boards themselves. The count and age are in `/health` and the watchdog
   warns past 48h, but a reader looking at the IDP board cannot see that

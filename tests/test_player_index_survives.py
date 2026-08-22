@@ -239,3 +239,60 @@ async def test_health_survives_an_unreadable_store(client, monkeypatch, anyio_ba
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["players"] == {"count": None, "age_hours": None}
+
+
+# --- and the next failure explains itself --------------------------------
+
+
+@pytest.mark.anyio
+async def test_a_failed_fetch_records_why(client, monkeypatch, anyio_backend):
+    """The outage presented as four empty boards and no reachable cause —
+    Vercel's own logs are not visible to the watchdog, so diagnosing it
+    meant guessing. The reason is stored now, and /health reports it."""
+
+    async def boom(*a, **k):
+        raise TimeoutError("sleeper took too long")
+
+    _offline_sync(monkeypatch, index_fetch=boom)
+    body = client.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+    assert "TimeoutError" in body["index_error"]
+    assert client.get("/health").json()["players"]["last_error"] == body["index_error"]
+
+
+@pytest.mark.anyio
+async def test_the_reason_carries_no_secret(client, monkeypatch, anyio_backend):
+    """Repo rule: never log or return a token. This string is served on a
+    public endpoint, so it is the exception type and message only — no
+    URL, no headers, nothing a client could have attached."""
+
+    async def boom(*a, **k):
+        raise RuntimeError("401 for https://api.sleeper.app?key=super-secret-token")
+
+    _offline_sync(monkeypatch, index_fetch=boom)
+    body = client.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+    assert len(body["index_error"]) <= 220, "the message is truncated, not pasted whole"
+
+
+@pytest.mark.anyio
+async def test_a_recovered_index_clears_the_reason(client, monkeypatch, anyio_backend):
+    """A stale error beside a working board is its own false alarm."""
+
+    async def boom(*a, **k):
+        raise RuntimeError("down")
+
+    _offline_sync(monkeypatch, index_fetch=boom)
+    client.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+    assert client.get("/health").json()["players"]["last_error"]
+
+    async def fine(*a, **k):
+        return {
+            "v": players_mod.INDEX_VERSION,
+            "fetched_at": datetime.now(UTC).isoformat(),
+            "by_name": {},
+            "surnames": {},
+            "players": {"1": {"id": "1", "name": "Bijan Robinson", "position": "RB"}},
+        }
+
+    _offline_sync(monkeypatch, index_fetch=fine)
+    client.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+    assert client.get("/health").json()["players"]["last_error"] is None

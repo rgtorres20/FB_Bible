@@ -270,19 +270,29 @@ def main() -> int:
     check("scoring board serves", "Scoring board" in scoring_page)
     # Aug 22: an index outage showed up as four unrelated empty boards and
     # nothing naming the cause. It is one store key, so say so once.
+    # Reported unconditionally. The first version of this guarded on
+    # `age_hours is not None`, which is None precisely when the index is
+    # missing -- so the check skipped itself during the outage it was
+    # written for and printed nothing at all.
     health_players = (get_json("/health") or {}).get("players") or {}
-    if isinstance(health_players, dict) and health_players.get("age_hours") is not None:
-        age_h = health_players["age_hours"]
-        check(
-            "player index is present",
-            bool(health_players.get("count")),
-            f"{health_players.get('count', 0)} players, {age_h}h old",
-        )
+    count = health_players.get("count") if isinstance(health_players, dict) else None
+    age_h = health_players.get("age_hours") if isinstance(health_players, dict) else None
+    check(
+        "player index is present",
+        bool(count),
+        f"{count} players" + (f", {age_h}h old" if age_h is not None else ", age unknown"),
+    )
+    if age_h is not None:
         check(
             "player index is not being carried forward indefinitely",
             age_h < 48,
-            f"{age_h}h since the last successful Sleeper fetch",
+            f"{age_h}h since Sleeper last answered",
         )
+    if isinstance(health_players, dict) and health_players.get("last_error"):
+        # Why it is empty, not just that it is. Reported rather than
+        # checked: the failure is upstream and this is the message that
+        # says which upstream.
+        print(f"  INFO  last index fetch failure: {health_players['last_error']}")
     # `detail` prints on PASS as well as FAIL, so it has to describe what
     # was OBSERVED, never what failure would mean. A green line reading
     # "stored stats predate pass_cmp" is unreadable, and this log is the
