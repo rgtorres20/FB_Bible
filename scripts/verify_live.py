@@ -627,6 +627,17 @@ def main() -> int:
     out_now = sum(1 for v in flags.values() if v.get("out"))
     print(f"  INFO  board injury flags: {len(flags)} carrying one, {out_now} out")
 
+    # Owner's rule, Aug 22: a reserve designation takes a player off the
+    # board; a weekly status leaves him on it. Reported rather than
+    # asserted at a count -- how many are on IR today is the league's
+    # business, not a property of the code.
+    benched = [n for n, v in flags.items() if v.get("flag") in ("IR", "PUP", "NA", "DNR", "Sus")]
+    check(
+        "nobody on a reserve list is still on the board",
+        not (set(benched) & set(board_names)),
+        f"{len(benched)} on a reserve list",
+    )
+
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now

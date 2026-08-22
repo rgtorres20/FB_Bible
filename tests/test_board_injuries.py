@@ -144,3 +144,91 @@ def test_both_edits_land_or_neither_does():
     out, n = board.inject_injuries(without, _index(**{"Brock Bowers": "IR"}))
     assert n == 0
     assert "FB_INJURIES" not in out
+
+
+# --- out for the season comes off the board -----------------------------
+# Owner, Aug 22: "if they are out for season drop off list, if they are
+# only out for a few weeks leave."
+
+
+def _board_rows(html: str) -> list[str]:
+    block = re.search(r"const RAW_BOARD = \[(.*?)\n\];", html, re.S)
+    return re.findall(r'^\s*\[\d+,"([^"]+)"', block.group(1), re.M)
+
+
+COMMITTED = _board_rows(INDEX_HTML)
+
+
+def test_the_split_is_reserve_list_versus_weekly_status():
+    """Sleeper publishes no season-ending field — `injury_status` says
+    what a player is designated as, never for how long. So the line falls
+    where the data draws one: a reserve list carries a multi-week minimum
+    and takes a player off a draft board; a weekly game status does not."""
+    for flag in ("IR", "PUP", "NA", "DNR", "Sus"):
+        assert players_mod.is_reserve(flag), flag
+    for flag in ("Out", "Doubtful", "Questionable"):
+        assert not players_mod.is_reserve(flag), flag
+
+
+def test_a_player_on_ir_leaves_the_board():
+    name = COMMITTED[18]
+    out, dropped = board.drop_reserve(INDEX_HTML, _index(**{name: "IR"}))
+    assert dropped == [name]
+    assert name not in _board_rows(out)
+
+
+def test_a_player_out_for_a_week_stays_on_it():
+    """The other half of the rule, and the one that is easy to get wrong:
+    out this Sunday is still worth drafting in August."""
+    name = COMMITTED[4]
+    out, dropped = board.drop_reserve(INDEX_HTML, _index(**{name: "Out"}))
+    assert dropped == []
+    assert name in _board_rows(out)
+
+
+def test_a_healthy_player_stays():
+    name = COMMITTED[0]
+    _, dropped = board.drop_reserve(INDEX_HTML, _index(**{name: None}))
+    assert dropped == []
+
+
+def test_deepen_does_not_hand_the_row_straight_back():
+    """The bug this hit the first time it was wired. `deepen` backfills
+    from the same index, so it re-added the player the board had just
+    dropped — the log read "dropped 1" and "appended 1" in consecutive
+    lines. Backfill must never seat someone on a reserve list."""
+    from app import leagues as leagues_mod
+
+    index = {
+        "players": {
+            "1": {
+                "id": "1",
+                "name": "Somebody Benched",
+                "position": "WR",
+                "team": "SF",
+                "injury_status": "IR",
+                "rank": 1,
+            }
+        }
+    }
+    out, added = board.deepen(INDEX_HTML, index, leagues_mod.defaults())
+    assert "Somebody Benched" not in _board_rows(out)
+
+
+def test_nothing_is_dropped_without_an_index():
+    """No index is not "everyone is healthy" and it is not "drop
+    everyone" either — it is no information, so the board is untouched."""
+    out, dropped = board.drop_reserve(INDEX_HTML, None)
+    assert dropped == []
+    assert out == INDEX_HTML
+
+
+def test_coming_off_ir_puts_him_back_with_no_list_to_edit():
+    """The whole reason this is safe to automate. The flag is live, so
+    recovery is just the next sync — nobody maintains a return list."""
+    name = COMMITTED[18]
+    hurt, dropped = board.drop_reserve(INDEX_HTML, _index(**{name: "IR"}))
+    assert name not in _board_rows(hurt)
+    healed, dropped_again = board.drop_reserve(INDEX_HTML, _index(**{name: None}))
+    assert dropped_again == []
+    assert name in _board_rows(healed)

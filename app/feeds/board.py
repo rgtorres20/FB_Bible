@@ -280,6 +280,12 @@ def _candidates(index: dict | None, group: str, taken: set[str]) -> list[dict]:
     for p in players.values():
         if not p.get("team") or p.get("rank") is None:
             continue
+        # Never backfill with someone the board just dropped. `deepen`
+        # runs after `drop_reserve` and reads the same index, so without
+        # this it hands the row straight back -- which is exactly what it
+        # did the first time this was wired up.
+        if players_mod.is_reserve(p.get("injury_status")):
+            continue
         pos = p.get("idp") if group == "IDP" else p.get("position")
         if group == "IDP":
             if not p.get("idp"):
@@ -549,3 +555,51 @@ def inject_injuries(html: str, index: dict | None) -> tuple[str, int]:
         1,
     )
     return html, len(table)
+
+
+def drop_reserve(html: str, index: dict | None) -> tuple[str, list[str]]:
+    """Take players on a reserve list off the draft board.
+
+    Owner's rule, Aug 22: *"if they are out for season drop off list, if
+    they are only out for a few weeks leave."*
+
+    Sleeper publishes no season-ending field, so the line falls where the
+    data draws one -- a reserve designation (IR, PUP, NA, DNR, Sus), which
+    carries a multi-week minimum, against a weekly game status (Out,
+    Doubtful, Questionable), which does not. `players.RESERVE_FLAGS` has
+    the full reasoning.
+
+    Only the row goes, never a ranking: the same rule `dedupe` follows.
+    And nothing is permanent -- the flag is live, so a player who comes
+    off IR is back on the board at the next sync with no list to edit.
+    `deepen` runs after this and backfills the gaps, so the board still
+    seats every league's starters.
+    """
+    block = _RAW_BOARD.search(html)
+    if not block:
+        return html, []
+
+    reserve = {
+        player.get("name")
+        for player in ((index or {}).get("players") or {}).values()
+        if player.get("name") and players_mod.is_reserve(player.get("injury_status"))
+    }
+    if not reserve:
+        return html, []
+
+    dropped: list[str] = []
+    kept_lines: list[str] = []
+    for line in block.group(0).split("\n"):
+        match = _ROW_LINE.match(line)
+        if match is None:
+            kept_lines.append(line)
+            continue
+        name = match.group(1)
+        if name in reserve:
+            dropped.append(name)
+            continue
+        kept_lines.append(line)
+
+    if not dropped:
+        return html, []
+    return html.replace(block.group(0), "\n".join(kept_lines), 1), dropped

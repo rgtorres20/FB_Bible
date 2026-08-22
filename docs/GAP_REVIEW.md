@@ -31,6 +31,23 @@ checked at review time and may drift.
   "Bench"`). `mobile.js` already stamps live wire posts onto those rows,
   so it is not silent — but the status text itself is still curated.
 
+- **Season-ending injuries now come off the draft board** (owner's rule,
+  Aug 22: *"if they are out for season drop off list, if they are only
+  out for a few weeks leave"*). The constraint worth recording: **Sleeper
+  publishes no season-ending field.** `injury_status` says what a player
+  is designated as, never for how long, and a player on IR may be
+  season-ending or designated to return. So the line falls where the data
+  draws one — a reserve designation (IR, PUP, NA, DNR, Sus), which
+  carries a multi-week minimum, against a weekly game status (Out,
+  Doubtful, Questionable), which does not. That is the closest faithful
+  reading of the rule rather than a season-ending judgement the app
+  cannot make, and it is self-correcting: the flag is live, so a player
+  coming off IR is back on the board at the next sync with no list to
+  edit. Caught while wiring it: `deepen` backfills from the same index
+  and handed the dropped row straight back — the log read "dropped 1" and
+  "appended 1" on consecutive lines. Backfill now refuses reserve players
+  too, and a test pins it.
+
 - **Nothing re-orders on injury, anywhere.** Checked while answering the
   same question: a player on IR keeps his place on every board. The main
   board sorts by ADP and the blended lists; `/app/scoring` and `/app/idp`

@@ -34,6 +34,36 @@ log = logging.getLogger(__name__)
 # badge a draft row wears. Two copies is how one of them goes stale.
 OUT_FLAGS = frozenset({"Out", "IR", "PUP", "Sus", "NA", "Doubtful", "DNR"})
 
+# Of those, the ones that are a RESERVE DESIGNATION rather than this
+# week's game status. Owner's rule, Aug 22: "if they are out for season
+# drop off list, if they are only out for a few weeks leave."
+#
+# The honest caveat, because it decides how far this can be trusted:
+# **Sleeper publishes no "out for the season" field.** `injury_status`
+# says what a player is designated as, never for how long. A player on
+# IR may be season-ending or may be designated to return; nothing in the
+# data distinguishes them.
+#
+# So the line is drawn where the data actually draws one -- between a
+# reserve list, which in the NFL carries a multi-week minimum and takes a
+# player off a draft board, and a weekly game status, which does not.
+# That is the closest faithful reading of the rule, and it is stated
+# rather than presented as a season-ending judgement the app cannot make.
+#
+# It is also self-correcting: the flag is live, so a player who comes off
+# IR reappears on the next sync without anyone editing a list.
+RESERVE_FLAGS = frozenset({"IR", "PUP", "NA", "DNR", "Sus"})
+
+# The rest are week to week: Out, Doubtful, Questionable. A player out
+# this Sunday is still worth drafting in August, which is the half of the
+# owner's rule that says "leave".
+WEEKLY_FLAGS = OUT_FLAGS - RESERVE_FLAGS
+
+
+def is_reserve(status: str | None) -> bool:
+    """Whether this flag takes a player off the draft board."""
+    return (status or "").strip() in RESERVE_FLAGS
+
 
 def injury_tier(status: str | None) -> str:
     """ "out", "questionable", or "" for a player with no flag at all.

@@ -276,6 +276,17 @@ if _FRONTEND_READY:
                 # at all, while those names wore theirs permanently. The
                 # app has had Sleeper's live status on every sync for
                 # weeks; this is the surface that never read it.
+                # Owner's rule, Aug 22: a player on a reserve list comes
+                # off the board; one who is out for a week or two stays.
+                # Before `deepen`, so the gaps are backfilled and the
+                # board still seats every league's starting lineups.
+                html, benched = board.drop_reserve(html, index)
+                if benched:
+                    logging.getLogger(__name__).info(
+                        "board: dropped %d players on a reserve list: %s",
+                        len(benched),
+                        ", ".join(benched[:5]),
+                    )
                 html, flagged = board.inject_injuries(html, index)
                 if flagged:
                     logging.getLogger(__name__).info(
