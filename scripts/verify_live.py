@@ -605,43 +605,49 @@ def main() -> int:
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
     check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
-    # What the two market columns actually say. The per-league column
-    # only earns its complexity if 10-team and 12-team ADP genuinely
-    # differ -- and after the Aug 22 swap fix (RED_EYE was reading the
-    # 10-team column) it is worth seeing the real spread rather than
-    # assuming it. Reported, never asserted: how far apart the markets
-    # drift is the market's business, not a property of this code.
+    # What the two market columns actually say.
+    #
+    # Probed live 2026-08-22 (probe runs 13/14): FFC echoes the `teams`
+    # parameter in its meta and then serves the SAME pool for both sizes
+    # -- 7,288 drafts, 266 players, identical window, at teams=10 and
+    # teams=12 alike. So the per-league column is real code over an
+    # undifferentiated source, and every player reads the same in both
+    # leagues today. That is the source's business, not a bug here, and
+    # the machinery is right the day FFC does differentiate.
+    #
+    # Reported, never asserted, and deliberately phrased as "columns"
+    # rather than "markets": `live_adp` falls back to the blend for a
+    # size a player is missing from, so a10/a12 are always populated and
+    # a count of them proves nothing about coverage.
     live_adp = re.search(r"const FB_LIVE_ADP = (\{.*?\});\n", served, re.S)
     if live_adp:
         rows = json.loads(live_adp.group(1))
-        both = [
+        pairs = [
             (n, v["a10"], v["a12"])
             for n, v in rows.items()
             if isinstance(v.get("a10"), int | float) and isinstance(v.get("a12"), int | float)
         ]
-        only10 = sum(1 for v in rows.values() if v.get("a12") is None)
-        only12 = sum(1 for v in rows.values() if v.get("a10") is None)
-        print(
-            f"  INFO  live ADP: {len(rows)} players, {len(both)} in both markets, "
-            f"{only10} 10-team only, {only12} 12-team only"
-        )
-        if both:
-            gaps = [b - a for _, a, b in both]
-            mean_gap = sum(gaps) / len(gaps)
-            mean10 = sum(a for _, a, _ in both) / len(both)
-            mean12 = sum(b for _, _, b in both) / len(both)
-            widest = sorted(both, key=lambda r: abs(r[2] - r[1]), reverse=True)[:3]
+        differ = [r for r in pairs if r[1] != r[2]]
+        print(f"  INFO  live ADP: {len(rows)} board players carry a market number")
+        if pairs:
+            mean10 = sum(a for _, a, _ in pairs) / len(pairs)
+            mean12 = sum(b for _, _, b in pairs) / len(pairs)
             print(
-                f"  INFO  mean ADP 10-team {mean10:.1f} vs 12-team {mean12:.1f} "
-                f"(12-team runs {mean_gap:+.1f} spots)"
+                f"  INFO  10-team column mean {mean10:.1f} vs 12-team {mean12:.1f}; "
+                f"{len(differ)} of {len(pairs)} players differ between the two"
             )
-            print(
-                "  INFO  widest league disagreement: "
-                + ", ".join(f"{n} {a:.1f}/{b:.1f}" for n, a, b in widest)
-            )
-    # Team-intel usage reads: measured '25 pass rate and red-zone run share
-    # replace the curated estimates, and the label names the stat -- a
-    # revert to "GL x% run" over estimates is the stale-data failure mode.
+            if differ:
+                widest = sorted(differ, key=lambda r: abs(r[2] - r[1]), reverse=True)[:3]
+                print(
+                    "  INFO  widest league disagreement: "
+                    + ", ".join(f"{n} {a:.1f}/{b:.1f}" for n, a, b in widest)
+                )
+            else:
+                print(
+                    "  INFO  the two columns are identical -- FFC pools one draft "
+                    "set across sizes (probed Aug 22), so no league sees a "
+                    "different number today"
+                )
     check("Team intel usage reads are live", "FB live usage: Sleeper '25 season" in served)
     check("red-zone run share is labelled", "% run share ('25)" in served)
     # A player listed twice appears twice mid-draft, and marking one row

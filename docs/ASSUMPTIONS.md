@@ -165,6 +165,30 @@ injection was written against the three verified leagues and never
 threaded the per-user list through. Worth knowing before you build a
 custom league and wonder why that column is blank.
 
+### The per-league ADP column distinguishes nothing today
+
+Probed live Aug 22 (probe runs 13 and 14). FantasyFootballCalculator
+echoes the `teams` parameter back in its meta — `teams: 10` and
+`teams: 12` — and then serves **the same pool for both**: 7,288 drafts,
+266 players, the same Aug 15–22 window, at either size. So every player
+reads the identical number in the 10-team and 12-team columns, which the
+watchdog now reports rather than assumes.
+
+The machinery is right and it stays: `League.adp_size_key` picks the
+column, `blend()` keeps both, and the day FFC differentiates by size the
+leagues will diverge with no code change. But **the board's per-league
+ADP is currently a distinction without a difference**, and it is worth
+knowing that before reading anything into two leagues showing the same
+market number. It is also why the Aug 22 column swap — RED_EYE reading
+the 10-team column — produced no visible wrong number: both columns
+carried the same value. The bug was real and the fix is right; the
+symptom was invisible.
+
+One caveat on the measurement: `live_adp` falls back to the blend for a
+size a player is missing from, so `a10`/`a12` are always populated and a
+count of them proves nothing about coverage. The watchdog counts how
+many players *differ* between the columns instead.
+
 ### League points are a *column*, not a sort key
 
 The board still orders by ADP and the blended rank lists. Your scoring now
