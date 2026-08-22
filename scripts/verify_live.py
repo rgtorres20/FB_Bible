@@ -616,6 +616,17 @@ def main() -> int:
         n_scored > 0,
         f"{n_scored} players",
     )
+    # The badge on the board's rows was two hand-typed name lists, frozen
+    # (owner, Aug 22: "what happens when a player is put on IR" -- on this
+    # board, nothing). A revert would not error; it would just start
+    # asserting weeks-old statuses again.
+    check("injury badge is not a frozen name list", "const OUT_RED" not in served)
+    check("injury badge reads live status", "FB_INJURIES[name]" in served)
+    hurt = re.search(r"const FB_INJURIES = (\{.*?\});\n", served, re.S)
+    flags = json.loads(hurt.group(1)) if hurt else {}
+    out_now = sum(1 for v in flags.values() if v.get("out"))
+    print(f"  INFO  board injury flags: {len(flags)} carrying one, {out_now} out")
+
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now

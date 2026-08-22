@@ -6,6 +6,42 @@ checked at review time and may drift.
 
 ## Fixed Aug 22
 
+- **The draft board's injury badge was a frozen name list.** Owner:
+  "what happens when a player is put on IR" — and on the board they
+  actually draft from, nothing. The badge came from two hand-typed arrays
+  in the design document, six names in `OUT_RED` and thirteen in
+  `INJ_YELLOW`, frozen at whatever the injury report said the day they
+  were written. Nothing in `app/` ever touched them.
+
+  Both directions were wrong. A player placed on IR got no badge at all,
+  and the nineteen wore theirs permanently whatever their real status —
+  George Kittle reading "PUP / IR" while healthy. The app has carried
+  Sleeper's `injury_status` on every sync for weeks and already uses it
+  on `/app/nextup`, `/app/idp`, `/app/scoring` and in the mock room's
+  display; this board was the one surface still reading the frozen copy.
+
+  It now reads the live index and shows the real word — "IR", "Out",
+  "Questionable" — rather than a category. `OUT_FLAGS` and the tier
+  classification moved to the kernel (`players.py`), since `depth` and
+  `board` need the same answer and two copies is how one goes stale,
+  which is exactly the bug being fixed.
+
+  **Also found, not fixed:** the "Out & returning" tab has its own
+  separate curated injury list (`status: "OUT · SEASON"`, `slot:
+  "Bench"`). `mobile.js` already stamps live wire posts onto those rows,
+  so it is not silent — but the status text itself is still curated.
+
+- **Nothing re-orders on injury, anywhere.** Checked while answering the
+  same question: a player on IR keeps his place on every board. The main
+  board sorts by ADP and the blended lists; `/app/scoring` and `/app/idp`
+  sort by last season's points, which he did score. The mock room reads
+  `inj` only at its two render sites and never in the pick score, so
+  **autopick will draft a player who is on IR** — his own and the
+  opponents'. That is a real gap and it is deliberately left open here
+  rather than fixed quietly: how far an injured player should fall is a
+  judgement, not an arithmetic, and it is the owner's to make.
+
+
 - **The board the owner drafts from carried an invented number.**
   `projFor` in the design document computed a per-position base minus a
   slope times the position rank — `{QB: 24.5, RB: 21.0, ...}` less

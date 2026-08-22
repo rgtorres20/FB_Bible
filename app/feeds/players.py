@@ -28,6 +28,26 @@ import httpx
 
 log = logging.getLogger(__name__)
 
+# Sleeper's injury vocabulary, and what each value means for a lineup.
+# Kernel, because two units need the same answer: `depth` decides whether
+# a starter's absence is a pickup trigger, and `board` decides which
+# badge a draft row wears. Two copies is how one of them goes stale.
+OUT_FLAGS = frozenset({"Out", "IR", "PUP", "Sus", "NA", "Doubtful", "DNR"})
+
+
+def injury_tier(status: str | None) -> str:
+    """ "out", "questionable", or "" for a player with no flag at all.
+
+    An unrecognised value counts as questionable rather than as nothing:
+    Sleeper can add one, and a flag we cannot classify is still a flag.
+    Silently dropping it would be the more confident mistake.
+    """
+    flag = (status or "").strip()
+    if not flag:
+        return ""
+    return "out" if flag in OUT_FLAGS else "questionable"
+
+
 PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl"
 FANTASY_POSITIONS = {"QB", "RB", "WR", "TE", "K"}
 SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}

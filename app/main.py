@@ -270,6 +270,17 @@ if _FRONTEND_READY:
                     logging.getLogger(__name__).info(
                         "board: %d players carry league-scored points per game", scored
                     )
+                # The badge on the board's rows was two hand-typed name
+                # lists frozen at whatever the injury report said the day
+                # they were written -- so a player put on IR got no badge
+                # at all, while those names wore theirs permanently. The
+                # app has had Sleeper's live status on every sync for
+                # weeks; this is the surface that never read it.
+                html, flagged = board.inject_injuries(html, index)
+                if flagged:
+                    logging.getLogger(__name__).info(
+                        "board: %d players carry a live injury flag", flagged
+                    )
                 html, deepened = board.deepen(html, index, leagues.defaults())
                 if deepened:
                     logging.getLogger(__name__).info(

@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import re
 
+from . import players as players_mod
 from .players import normalize
 
 # The page's own board, which is the source of truth for who is on it.
@@ -480,6 +481,71 @@ def inject_league_points(
     html = html.replace(
         _LEAGUE_PTS_ANCHOR,
         f"const FB_LEAGUE_PTS = {json.dumps(table)};\n{_LEAGUE_PTS_ANCHOR}",
+        1,
+    )
+    return html, len(table)
+
+
+# The design document's injury badge: two hand-typed name lists and a
+# lookup against them. Nineteen names, frozen at whatever the injury
+# report said the day they were written. Nothing in `app/` ever touched
+# them, so a player put on IR got no badge at all on the board the owner
+# actually drafts from -- while the nineteen wore theirs permanently,
+# whatever their real status.
+_INJURY_BLOCK = """    const OUT_RED = ["Ricky Pearsall", "George Kittle", "Brian Branch", "Kerby Joseph", "Zach Charbonnet", "Nick Emmanwori"];
+    const INJ_YELLOW = ["Isiah Pacheco", "Luther Burden III", "Puka Nacua", "Emeka Egbuka", "Mike Evans", "Malik Nabers", "Jordyn Tyson", "Alec Pierce", "Patrick Mahomes", "Jeremiah Owusu-Koramoah", "Jalen McMillan", "J.K. Dobbins", "Michael Penix Jr."];
+    const injTag = name => {
+      if (OUT_RED.indexOf(name) !== -1) return { injLabel: "PUP / IR", injBg: "var(--color-accent-200)", injFg: "var(--color-accent-800)", injBd: "var(--color-accent-700)" };
+      if (INJ_YELLOW.indexOf(name) !== -1) return { injLabel: "INJ REPORT", injBg: "oklch(0.93 0.09 90)", injFg: "oklch(0.42 0.11 75)", injBd: "oklch(0.65 0.13 80)" };
+      return { injLabel: "", injBg: "transparent", injFg: "transparent", injBd: "transparent" };
+    };"""  # noqa: E501
+
+# The badge now says the player's real, current flag -- "IR", "Out",
+# "Questionable" -- rather than a category. The status IS the useful word,
+# and it is one fewer translation between the source and the reader.
+_INJURY_REPLACEMENT = """    const injTag = name => {
+      const f = (typeof FB_INJURIES !== "undefined" && FB_INJURIES[name]) || null;
+      if (!f) return { injLabel: "", injBg: "transparent", injFg: "transparent", injBd: "transparent" };
+      if (f.out) return { injLabel: f.flag, injBg: "var(--color-accent-200)", injFg: "var(--color-accent-800)", injBd: "var(--color-accent-700)" };
+      return { injLabel: f.flag, injBg: "oklch(0.93 0.09 90)", injFg: "oklch(0.42 0.11 75)", injBd: "oklch(0.65 0.13 80)" };
+    };"""  # noqa: E501
+
+
+def injuries(index: dict | None) -> dict[str, dict]:
+    """{player name: {"flag": "IR", "out": True}} from the live index.
+
+    Only players carrying a flag, so the map stays small: the badge is
+    absent for everyone else and absence is the common case.
+    """
+    out: dict[str, dict] = {}
+    for player in ((index or {}).get("players") or {}).values():
+        name = player.get("name")
+        flag = (player.get("injury_status") or "").strip()
+        tier = players_mod.injury_tier(flag)
+        if not name or not tier:
+            continue
+        out[name] = {"flag": flag, "out": tier == "out"}
+    return out
+
+
+def inject_injuries(html: str, index: dict | None) -> tuple[str, int]:
+    """Point the board's injury badge at Sleeper's live status.
+
+    The app has had this data on every sync for weeks -- it already drives
+    /app/nextup, /app/idp, /app/scoring and the mock room's display. The
+    main draft board was the one surface still reading a frozen list.
+
+    Both edits land together or neither does: a map injected beside the
+    surviving name lists would change nothing, and replacing the lookup
+    without the map would clear every badge.
+    """
+    table = injuries(index)
+    if _INJURY_BLOCK not in html or _LEAGUE_PTS_ANCHOR not in html:
+        return html, 0
+    html = html.replace(_INJURY_BLOCK, _INJURY_REPLACEMENT, 1)
+    html = html.replace(
+        _LEAGUE_PTS_ANCHOR,
+        f"const FB_INJURIES = {json.dumps(table)};\n{_LEAGUE_PTS_ANCHOR}",
         1,
     )
     return html, len(table)

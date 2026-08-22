@@ -29,10 +29,12 @@ Honesty rules, the same ones the rest of the app runs on:
 
 from __future__ import annotations
 
-# What counts as "this starter is not playing". Sleeper's own vocabulary;
-# Questionable is deliberately absent -- a questionable starter is not a
-# pickup trigger, and treating it as one would cry wolf every week.
-OUT_FLAGS = {"Out", "IR", "PUP", "Sus", "NA", "Doubtful", "DNR"}
+# What counts as "this starter is not playing". Sleeper's own vocabulary,
+# now owned by the kernel because the draft board needs the same answer
+# for its badge. Questionable is deliberately outside it -- a questionable
+# starter is not a pickup trigger, and treating it as one would cry wolf
+# every week.
+from .players import OUT_FLAGS  # noqa: E402
 
 # Which measured field means "opportunity" at each position. A back's
 # workload is carries plus targets; a receiver's is targets; a
