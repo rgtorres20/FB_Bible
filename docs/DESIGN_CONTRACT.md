@@ -26,7 +26,8 @@ Owned by `app/feeds/page.py` — this list is complete for that module:
 
 | Anchor | Why the server needs it |
 | --- | --- |
-| `</head>` | Where the mark, theme boot, mobile.css and mobile.js go |
+| `</head>` | Where the favicon, theme boot, mobile.css and mobile.js go |
+| `{{ screenKicker }}`'s own `<div>` | Where the visible mark goes — the lockup is injected ahead of it, inside `<main>`'s header |
 | `import("./frontend/lib/fbApi.js")` | Rewritten to `./lib/` — the design project's layout is not the served one |
 | `vegas: VEGAS,` | Rebound to the live odds feed |
 | `gdMode: "build",` | FFBets opens on Predictions |

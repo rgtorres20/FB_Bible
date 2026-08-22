@@ -104,6 +104,69 @@ def test_league_names_leave_no_design_document_names_behind(index_html):
         assert stale not in html, f"{stale!r} survived the rename"
 
 
+# --- the mark, visibly, on the app page (owner, Aug 22) ----------------
+
+
+def test_the_app_page_shows_the_mark_itself(index_html):
+    """The design document carried the artwork only as a `logo.png`
+    watermark at `wmOpacity` behind the whole shell — decoration, not
+    identity. The owner asked to actually see their logo, so the full
+    lockup is injected into the page's own header."""
+    served, misses = page.header_mark(index_html)
+    assert not misses
+    assert "/app/assets/fsb-logo.svg" in served
+
+
+def test_the_mark_lands_above_the_screen_title(index_html):
+    """Not just present somewhere: in `<main>`'s header, ahead of the
+    screen kicker and title. That header is the one region every screen
+    shares and the only branded spot a phone can see — the sidebar is an
+    off-canvas drawer under 769px (mobile.css)."""
+    served, _ = page.header_mark(index_html)
+    head = served.index("<header")
+    assert head < served.index("/app/assets/fsb-logo.svg") < served.index("{{ screenKicker }}")
+
+
+def test_the_mark_carries_its_own_navy_panel(index_html):
+    """docs/BRAND.md, "Rules of use": the wordmark is white and gold, so
+    it always sits on navy. On the light theme's cream ground "Fantasy"
+    and "Bible" vanish and the name reads as one gold word; across the 32
+    club themes it would land on 32 grounds it was never drawn against.
+
+    So the panel's colour must be the literal brand navy and must not be
+    a theme token, which is precisely what would follow the theme.
+    """
+    import re
+
+    served, _ = page.header_mark(index_html)
+    # The element wrapping the mark, and nothing else: the last tag opened
+    # before the image.
+    panel = re.search(r"<div[^>]*>(?=\s*<img src=\"/app/assets/fsb-logo\.svg\")", served)
+    assert panel, "the mark is not wrapped in a panel at all"
+    assert "background:#0B1A36" in panel.group(0), (
+        "the mark sits bare on whichever ground the current theme paints"
+    )
+    assert "background:var(" not in panel.group(0), (
+        "a token ground follows the theme, which is the bug this rule exists for"
+    )
+
+
+def test_the_marks_asset_actually_exists():
+    """A transform pointing at a file that is not in the bundle renders a
+    broken image and reports no miss — the anchor was found."""
+    assert (INDEX.parent / "assets" / "fsb-logo.svg").is_file()
+
+
+def test_the_mark_survives_the_whole_registry(index_html):
+    """The later transforms rewrite the wordmark and the league names by
+    literal. `wordmark` replaces the *first* `>FANTASY BIBLE<` only, so an
+    injected panel carrying that literal would steal the rename from the
+    sidebar and leave it saying the old name."""
+    served, _ = page.apply(index_html, page.PRE + page.POST)
+    assert served.count("/app/assets/fsb-logo.svg") == 1
+    assert ">FANTASY SPORTS BIBLE<" in served
+
+
 def test_beta_badge_is_not_applied_by_default(index_html):
     """stage_badge is called only for the preview stage; prod and local
     runs must serve no badge at all (docs/ENVIRONMENTS.md)."""

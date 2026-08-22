@@ -46,6 +46,14 @@ icon SVG, so they get regenerated whenever it changes.
 [docs/BRAND.md](docs/BRAND.md) has the palette and the swap procedure for
 dropping in different artwork.
 
+Two surfaces show the **full lockup**, and both paint their own navy: the
+sign-in page, and — since Aug 22, owner ask — the app page's own header,
+injected by the `header_mark` transform above the screen kicker. The
+design document carried the artwork only as a `logo.png` watermark at
+`wmOpacity` behind the whole shell, which is texture, not identity. The
+header rather than the sidebar because under 769px the sidebar is an
+off-canvas drawer, so a mark placed there is invisible on a phone.
+
 The app wears **one of 32 club themes, Dark, or Light**, and opens on the
 club theme (the house navy until someone picks a club). The palettes are
 *generated* from each club's two published marks in `app/feeds/teams.py`
@@ -204,7 +212,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1099 tests green — 1083 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1106 tests green — 1090 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
