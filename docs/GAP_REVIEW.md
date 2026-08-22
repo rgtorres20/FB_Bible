@@ -56,7 +56,15 @@ checked at review time and may drift.
   boards. `tests/test_player_index_survives.py` reproduces the incident —
   verified failing against the old code.
 
-  **The outage did not clear.** The sync runs every 15 minutes, so by
+  **Resolved 01:45, on its own.** The 03:51 watchdog run reported 7,582
+  players, 2.1h old, and `last_error` cleared — so the Sleeper fetch
+  started succeeding again roughly when the carry-forward fix was being
+  pushed. The fix did not cause the recovery and should not be credited
+  with it: it preserves a copy, it does not go and get one. What it buys
+  is that the *next* multi-hour Sleeper outage costs a stale board rather
+  than an empty one.
+
+  **What the outage looked like while it lasted.** The sync runs every 15 minutes, so by
   01:40 it had tried four times and the index was still empty — this is a
   persistently failing Sleeper fetch, not a transient blip landing on the
   TTL boundary. The carry-forward fix is deployed and correct, but there
