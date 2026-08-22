@@ -434,3 +434,51 @@ def test_defenses_endpoint_is_honest_when_nothing_is_stored():
     body = TestClient(main_mod.app).get("/api/defenses").json()
     assert body["total"] == 0 and body["complete"] == 0
     assert body["defenses"] == {}
+
+
+async def test_a_push_landing_mid_sync_survives_the_save(sync_client, monkeypatch):
+    """The sync loads the blob, spends minutes fetching, then saves it
+    back whole — and the runner pushes the Vegas slate and scoreboard
+    through their own endpoints inside exactly that window (the Vegas
+    push rides the same workflow that triggers the sync). The stale
+    captures must not overwrite the fresher push: the sync re-loads
+    just before saving and prefers the fresh copy of every key it does
+    not itself change."""
+    c, store = sync_client
+    items = [
+        {
+            "id": "a",
+            "title": "Nacua practices",
+            "summary": "",
+            "published": "2026-08-15T02:00:00+00:00",
+        }
+    ]
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll(items))
+    await store.save_players(
+        {
+            "v": players_mod.INDEX_VERSION,
+            "players": {},
+            "by_name": {},
+            "surnames": {},
+        }
+    )
+
+    pushed_slate = {"fetched_at": "2026-08-15T02:30:00+00:00", "games": [{"away": "BUF"}]}
+
+    async def racing_fetch(*args, **kwargs):
+        # A concurrent /internal/vegas + /internal/scores push, landing
+        # while the sync is mid-flight.
+        data = await store.load()
+        data["vegas"] = pushed_slate
+        data["scores"] = {"week_label": "Preseason Week 3"}
+        await store.save(data)
+        raise RuntimeError("FFC down this run")
+
+    monkeypatch.setattr(feeds_route.adp, "fetch", racing_fetch)
+
+    body = c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"}).json()
+    assert body["total"] == 1
+
+    data = await store.load()
+    assert data["vegas"] == pushed_slate, "the fresher pushed slate survives the sync's save"
+    assert data["scores"] == {"week_label": "Preseason Week 3"}

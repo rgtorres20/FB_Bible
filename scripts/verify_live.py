@@ -305,6 +305,14 @@ def main() -> int:
     )
     scoring_rows = max(scoring_page.count("<tr>") - 1, 0)
     check("scoring board is populated", scoring_rows > 0, f"{scoring_rows} rows")
+    # The v5 reducer stored every kicker VALUE and no kicker -- the gate
+    # required a usage field kickers never hold -- so this board scored a
+    # position that did not exist in the data. Six are on the committed
+    # draft board and every league starts one.
+    check(
+        "scoring board lists kickers",
+        "<td>K</td>" in scoring_page,
+    )
     check(
         "scoring board says the numbers are not a projection",
         "not a projection" in scoring_page,
@@ -632,6 +640,14 @@ def main() -> int:
     # (owner, Aug 22: "what happens when a player is put on IR" -- on this
     # board, nothing). A revert would not error; it would just start
     # asserting weeks-old statuses again.
+    # The ADP reader was wired BACKWARDS until Aug 22 -- 12-team RED_EYE
+    # got the 10-team column -- and nothing out here would have noticed,
+    # because every earlier check asserts the helper exists, not which
+    # way it points.
+    check(
+        "RED_EYE reads the 12-team ADP column",
+        's.draftLeague === "RED_EYE" ? b.adp12' in served,
+    )
     check("injury badge is not a frozen name list", "const OUT_RED" not in served)
     check("injury badge reads live status", "FB_INJURIES[name]" in served)
     hurt = re.search(r"const FB_INJURIES = (\{.*?\});\n", served, re.S)

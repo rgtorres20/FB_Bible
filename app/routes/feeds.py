@@ -899,6 +899,29 @@ async def sync(
         except Exception as exc:  # noqa: BLE001 - the ledger must never sink the sync
             log.warning("scorecard: skipped this run: %s", exc)
 
+    # Everything above was captured from a load taken BEFORE minutes of
+    # fetching, and the runner pushes vegas, scores and the AI annotations
+    # through their own endpoints in that same window -- the Vegas push
+    # rides the very workflow that triggers this sync. Saving the stale
+    # captures would overwrite a fresher push with an older copy. So:
+    # re-load now, and prefer the fresh copy of every key this sync does
+    # not itself change. Verdicts re-apply the one change the sync does
+    # make (pruning to surviving items); the slate keeps whichever copy
+    # was fetched later. The window between this load and the save below
+    # is milliseconds instead of minutes -- not a lock, but the ledger's
+    # own-key pattern for everything that cannot ride one.
+    fresh = await store.load()
+    pred_reviews = fresh.get("pred_reviews") or pred_reviews
+    capsule_state = fresh.get("capsules") or capsule_state
+    mover_reads = fresh.get("mover_reads") or mover_reads
+    preview_state = fresh.get("previews") or preview_state
+    scores_state = fresh.get("scores") or scores_state
+    if fresh.get("verdicts"):
+        verdicts = {k: v for k, v in fresh["verdicts"].items() if k in surviving}
+    fresh_vegas = fresh.get("vegas") or {}
+    if (fresh_vegas.get("fetched_at") or "") > ((vegas_state or {}).get("fetched_at") or ""):
+        vegas_state = fresh_vegas
+
     await store.save(
         {
             "items": merged["items"],

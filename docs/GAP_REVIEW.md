@@ -6,14 +6,14 @@ Each of these was proven with a runnable script during the Aug 22 model
 review; they are recorded rather than rushed because each touches the
 sync path or a trade-off the owner should call.
 
-- **The sync's read-modify-write can clobber a fresher runner push.**
-  `/api/feeds/sync` loads the store, spends minutes fetching, then saves
-  the whole blob back — so a `/internal/vegas` or `/internal/scores`
-  push landing in that window is overwritten by the older copy the sync
-  loaded. The scorecard ledger lives in its own key for exactly this
-  reason; `vegas`/`scores`/`capsules`/`previews` still ride the big
-  blob. Fix: re-load those keys immediately before save, or split them
-  out like the ledger.
+- ~~**The sync's read-modify-write can clobber a fresher runner push.**~~
+  **Fixed later the same day**: the sync re-loads immediately before
+  saving and prefers the fresh copy of every key it does not itself
+  change (verdicts re-apply their pruning, the slate keeps whichever
+  copy is fresher). The clobber window went from minutes to
+  milliseconds; splitting the keys out like the ledger remains the full
+  fix if it ever bites again. `test_a_push_landing_mid_sync_survives_the_save`
+  pins it.
 - **`first_seen` can be re-stamped for items trimmed at the 400-item
   cap.** An undated item sorts last, gets trimmed first, and if the
   publisher still carries it the next poll re-adds it as new — a
