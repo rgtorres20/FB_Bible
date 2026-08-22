@@ -1,5 +1,26 @@
 # Gap review — Aug 15 2026
 
+## Found Aug 22 (stale-data audit) — fixed
+
+- **Data health re-stamped the wire feeds with the browser's own Sleeper
+  pull.** Three client sites borrowed `s.live.ts` for any feed budgeted
+  24h or less — News & posts, NBC player news, Alerts — so their real
+  as-of was discarded and each row read minutes old, the nav badge read
+  0, and the summary said "All feeds within budget". On the one tab
+  whose whole job is reporting freshness, and true even if the server
+  wire had not polled in a week. The same bug fixed server-side earlier
+  the same day, surviving on the client: `merge_into_feeds` hands over
+  an honest per-feed stamp in `F.meta` and the page threw it away.
+  `page.data_health_stamps` now lets each feed speak for itself.
+- **The Vegas caption claimed "refreshed with every news sync" with no
+  age gate at all.** Which is how a dead push hid for a day: the slate
+  is served from storage, so it was present, and the watchdog's own
+  check read a string the code wrote unconditionally. `vegas.is_live`
+  gates the caption on a 6-hour budget and `stale_caption` names the
+  real age instead — the last real slate is still worth showing, it just
+  is not live. `verify_live` now subtracts the stamp rather than
+  trusting the label.
+
 ## Found Aug 22 (accuracy review) — real, verified, deliberately not fixed yet
 
 Each of these was proven with a runnable script during the Aug 22 model

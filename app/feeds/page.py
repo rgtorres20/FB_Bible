@@ -365,6 +365,46 @@ def source_truth(html: str) -> tuple[str, list[str]]:
     )
 
 
+_HEALTH_LIVE_OVERRIDE = (
+    "(s.live && s.live.ts && d.maxAgeH <= 24) ? s.live.ts : new Date(d.asOf).getTime()"
+)
+_HEALTH_HONEST = "new Date(d.asOf).getTime()"
+_HEALTH_DECL = "const liveMs = s.live && s.live.ts && d.maxAgeH <= 24 ? s.live.ts : null;"
+_HEALTH_DECL_HONEST = "const liveMs = null;"
+
+
+def data_health_stamps(html: str) -> tuple[str, list[str]]:
+    """Stop Data health re-stamping feeds with the browser's own fetch time.
+
+    Three sites borrowed `s.live.ts` -- the timestamp of the page's OWN
+    Sleeper players/trending pull, which `componentDidMount` fires on
+    nearly every visit -- for any feed budgeted at 24h or less. That is
+    the wire feeds: News & posts, NBC player news, Alerts. Their real
+    `asOf` was discarded and replaced with page-load time, so the row
+    read "2 min · PASS", the nav badge read 0, and the summary said "All
+    feeds within budget" -- on the one tab whose entire job is reporting
+    freshness, and regardless of whether the server wire had polled in a
+    week.
+
+    It is the same bug fixed server-side on Aug 22, surviving on the
+    client: `render.merge_into_feeds` computes an honest per-feed stamp
+    from `polled_at` and hands it over in `F.meta`, and the page threw it
+    away. A Sleeper pull says nothing about when ESPN was last read.
+
+    The server wire already has its own honest row (built from
+    `s.wire.polled_at` just above these), so nothing is lost by letting
+    each feed speak for itself.
+    """
+    return _apply(
+        html,
+        (
+            ("data health nav badge", _HEALTH_LIVE_OVERRIDE, _HEALTH_HONEST, 1),
+            ("data health row stamp", _HEALTH_DECL, _HEALTH_DECL_HONEST, 1),
+            ("data health stale count", _HEALTH_LIVE_OVERRIDE, _HEALTH_HONEST, 1),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -373,6 +413,7 @@ PRE = (
     ffbets_landing,
     mode_picker,
     source_truth,
+    data_health_stamps,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

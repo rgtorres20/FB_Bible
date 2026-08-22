@@ -177,6 +177,21 @@ def _live_slate() -> dict:
     }
 
 
+async def test_a_slate_fetched_just_now_does_read_live(page_client):
+    """The other half: the caption is gated on age, not disabled. A push
+    that actually ran gets the live wording it earns."""
+    from datetime import UTC, datetime
+
+    c, store = page_client
+    fresh = {**_live_slate(), "fetched_at": datetime.now(UTC).isoformat()}
+    await store.save({"items": [], "vegas": fresh})
+
+    served = c.get("/app/").text
+
+    assert "Live via ESPN" in served
+    assert vegas_mod.CURATED_CAPTION not in served
+
+
 async def test_served_page_rebinds_vegas_and_goes_live_when_slate_exists(page_client):
     c, store = page_client
     await store.save({"items": [], "vegas": _live_slate()})
@@ -185,9 +200,13 @@ async def test_served_page_rebinds_vegas_and_goes_live_when_slate_exists(page_cl
 
     # The odds table reads live rows via the feeds.json overlay.
     assert "vegas: (F.vegas || VEGAS)," in served
-    # The caption stops claiming the Aug-14 openers.
-    assert "Live via ESPN" in served
+    # The caption stops claiming the Aug-14 openers -- and, since Aug 22,
+    # stops claiming to be live once the slate is older than its budget.
+    # This fixture's slate is stamped Aug 15, so the honest caption names
+    # the age rather than saying "refreshed with every news sync".
     assert vegas_mod.CURATED_CAPTION not in served
+    assert "Live via ESPN" not in served
+    assert "last refreshed" in served
     # TD leans go live-adjusted, and the schedule swaps in real kickoffs.
     assert "confidence adjusted" in served
     assert "const WEEK1 = [{" in served

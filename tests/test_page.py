@@ -242,3 +242,23 @@ def test_every_source_declares_its_group(index_html):
     assert rows, "no sources parsed"
     ungrouped = [r.strip()[:60] for r in rows if "group:" not in r]
     assert not ungrouped, f"sources with no group: {ungrouped}"
+
+
+def test_data_health_stops_restamping_feeds_with_the_browsers_own_fetch(index_html):
+    """Three sites borrowed `s.live.ts` — the page's OWN Sleeper pull,
+    fired on nearly every visit — for any feed budgeted 24h or less. That
+    is the wire feeds, and their real as-of was discarded: the row read
+    "2 min · PASS", the badge read 0, and the summary said "All feeds
+    within budget", on the tab whose only job is reporting freshness. The
+    server already hands over an honest per-feed stamp in F.meta; the
+    page threw it away."""
+    out, misses = page.data_health_stamps(index_html)
+    assert not misses
+    assert "s.live.ts && d.maxAgeH" not in out, "no site still borrows the Sleeper pull time"
+    assert out.count("new Date(d.asOf).getTime()") == 3, "all three read the feed's own stamp"
+    assert "const liveMs = null;" in out
+
+
+def test_the_data_health_transform_reports_a_miss_rather_than_half_applying():
+    _, misses = page.data_health_stamps("<html>nothing to patch</html>")
+    assert len(misses) == 3

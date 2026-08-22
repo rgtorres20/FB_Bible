@@ -13,6 +13,7 @@ posted odds -- ESPN ships empty odds arrays before books post lines.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -416,3 +417,42 @@ def test_under_leans_shift_confidence_in_the_opposite_direction():
 def test_implied_by_team_skips_a_spread_naming_neither_competitor():
     games = [{"game": "WAS @ PHI", "fav": "WSH -5.5", "total": "46.5"}]
     assert vegas.implied_by_team(games) == {}
+
+
+# --- the caption may not outlive the slate ---------------------------------
+
+
+def test_a_fresh_slate_is_called_live():
+    state = {"fetched_at": datetime(2026, 8, 22, 12, 0, tzinfo=UTC).isoformat()}
+    now = datetime(2026, 8, 22, 14, 0, tzinfo=UTC)
+    assert vegas.is_live(state, now)
+
+
+def test_a_stale_slate_says_when_it_was_last_refreshed_instead_of_live():
+    """The Vegas push died on import for a full day in August and the tab
+    kept reading "Live via ESPN — refreshed with every news sync" over a
+    frozen slate. Nothing checked the age, so nothing noticed. Naming the
+    age beats both alternatives: "live" is false, and dropping the numbers
+    throws away the last real slate anybody has."""
+    state = {"fetched_at": datetime(2026, 8, 20, 12, 0, tzinfo=UTC).isoformat()}
+    now = datetime(2026, 8, 22, 14, 0, tzinfo=UTC)
+    assert not vegas.is_live(state, now)
+    caption = vegas.stale_caption(state)
+    assert "Live via ESPN" not in caption
+    assert "last refreshed" in caption
+
+
+def test_an_unstamped_slate_is_not_live():
+    """The claim needs evidence; the absence of evidence is not evidence."""
+    assert not vegas.is_live({"games": [{"away": "BUF"}]})
+    assert not vegas.is_live(None)
+
+
+def test_the_caption_swap_follows_the_slates_real_age():
+    html = f"<p>{vegas.CURATED_CAPTION}</p>"
+    fresh = {"fetched_at": datetime.now(UTC).isoformat()}
+    stale = {"fetched_at": datetime(2026, 8, 1, tzinfo=UTC).isoformat()}
+    assert vegas.LIVE_CAPTION in vegas.refresh_caption(html, fresh)
+    swapped = vegas.refresh_caption(html, stale)
+    assert vegas.LIVE_CAPTION not in swapped
+    assert vegas.CURATED_CAPTION not in swapped, "the real age replaces the curated claim too"

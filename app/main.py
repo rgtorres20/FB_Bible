@@ -227,7 +227,7 @@ if _FRONTEND_READY:
                 state = stored.get("vegas") or {}
                 games = state.get("games") or []
                 if games:
-                    html = vegas.refresh_caption(html)
+                    html = vegas.refresh_caption(html, state)
                     adjusted = vegas.adjust_predictions(
                         vegas.curated_predictions(),
                         vegas.curated_implied(),

@@ -18,6 +18,9 @@ import re
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+CENTRAL = ZoneInfo("America/Chicago")
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -223,6 +226,24 @@ def main() -> int:
     check(
         "Vegas slate marked live in Data health",
         "live" in meta.get("Vegas lines", {}).get("source", ""),
+    )
+    # The push died on import for a day in August and every check here
+    # still passed: the slate count is served from storage, and the
+    # "marked live" check reads a string the code wrote unconditionally.
+    # Nothing looked at the AGE. Data health now carries the slate's real
+    # fetched_at, so out here it is one subtraction.
+    vegas_as_of = meta.get("Vegas lines", {}).get("asOf") or ""
+    slate_age_h = None
+    if vegas_as_of:
+        try:
+            stamped = datetime.strptime(vegas_as_of, "%Y-%m-%dT%H:%M").replace(tzinfo=CENTRAL)
+            slate_age_h = round((datetime.now(CENTRAL) - stamped).total_seconds() / 3600, 1)
+        except ValueError:
+            slate_age_h = None
+    check(
+        "Vegas slate is actually fresh, not just present",
+        slate_age_h is not None and slate_age_h < 6,
+        f"{slate_age_h}h old" if slate_age_h is not None else f"unreadable stamp {vegas_as_of!r}",
     )
     cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
     check(

@@ -200,9 +200,52 @@ def central_stamp(iso: str | None) -> str:
 CURATED_CAPTION = "DraftKings openers via ESPN — lines move; re-sync before kickoff"
 LIVE_CAPTION = "Live via ESPN — refreshed with every news sync"
 
+# How old a stored slate may be and still be called live. The push runs
+# with the 15-minute sync, so anything past a few hours means it is
+# failing -- which it did, silently, for a day from Aug 21 while the page
+# kept saying "refreshed with every news sync" over a frozen slate. Six
+# hours is the same budget Data health gives the server wire.
+LIVE_MAX_AGE_HOURS = 6.0
 
-def refresh_caption(html: str) -> str:
-    return html.replace(CURATED_CAPTION, LIVE_CAPTION, 1)
+
+def is_live(state: dict | None, now: datetime | None = None) -> bool:
+    """Whether a stored slate is fresh enough to be called live.
+
+    An unstamped slate is not live: the claim needs evidence, and its
+    absence is not evidence.
+    """
+    stamp = (state or {}).get("fetched_at")
+    if not stamp:
+        return False
+    try:
+        fetched = datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return False
+    if fetched.tzinfo is None:
+        fetched = fetched.replace(tzinfo=UTC)
+    now = now or datetime.now(UTC)
+    return (now - fetched).total_seconds() <= LIVE_MAX_AGE_HOURS * 3600
+
+
+def stale_caption(state: dict | None) -> str:
+    """What the caption says when the slate is real but no longer fresh.
+
+    Naming the age beats both alternatives: "live" would be false, and
+    dropping the numbers would throw away a slate that is still the last
+    real one anybody has.
+    """
+    stamp = central_stamp((state or {}).get("fetched_at"))
+    return f"Via ESPN — last refreshed {stamp}" if stamp else "Via ESPN — refresh time unknown"
+
+
+def refresh_caption(html: str, state: dict | None = None) -> str:
+    """Swap the curated caption for one that describes the real slate.
+
+    `state` is optional only so the older call shape keeps working; pass
+    it, or the caption claims a freshness nothing checked.
+    """
+    caption = LIVE_CAPTION if (state is None or is_live(state)) else stale_caption(state)
+    return html.replace(CURATED_CAPTION, caption, 1)
 
 
 # --- live-adjusted TD leans ------------------------------------------------
