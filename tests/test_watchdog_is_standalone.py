@@ -78,3 +78,45 @@ def test_the_watchdog_reads_the_same_pages_the_app_serves():
     exec(compile(ast.Module(tree.body[: cut + 1], []), "verify_live", "exec"), namespace)
     assert namespace["SERVED_PAGES"] == skin.SERVED_PAGES
     assert len(namespace["SERVED_PAGES"]) == 11
+
+
+def test_owner_only_pages_are_checked_by_what_a_watchdog_can_actually_see():
+    """The failure the centralised list surfaced on its first live run.
+
+    `/app/access` is owner-only and correctly bounces anyone else to
+    /login. The watchdog holds a sync token, which passes the middleware
+    gate, but it is not the owner — so it was asserting a home bar on the
+    sign-in page and failing a page that works. It now checks the claim it
+    can actually make: that the page turns others away.
+    """
+    from app.feeds import skin
+
+    source = WATCHDOG.read_text(encoding="utf-8")
+    assert skin.OWNER_ONLY, "something has to be owner-only, or this is dead weight"
+    assert set(skin.OWNER_ONLY) <= set(skin.SERVED_PAGES), (
+        "an owner-only page is still a served page"
+    )
+    assert "OWNER_ONLY" in source
+    assert "owner-only, turns others away" in source
+
+
+def test_the_owner_only_set_is_read_not_copied():
+    """Same rule as the page list: two copies is how one goes stale.
+
+    This also pins that the declaration stays `ast.literal_eval`-able. It
+    was written as `frozenset({...})` first, which is a *call* — the
+    reader raises on it, and the watchdog would have crashed on its next
+    run. Caught here rather than there.
+    """
+    from app.feeds import skin
+
+    namespace: dict = {"__file__": str(WATCHDOG.resolve())}
+    tree = ast.parse(WATCHDOG.read_text(encoding="utf-8"))
+    cut = next(
+        i
+        for i, node in enumerate(tree.body)
+        if isinstance(node, ast.Assign)
+        and any(getattr(t, "id", "") == "OWNER_ONLY" for t in node.targets)
+    )
+    exec(compile(ast.Module(tree.body[: cut + 1], []), "verify_live", "exec"), namespace)
+    assert namespace["OWNER_ONLY"] == frozenset(skin.OWNER_ONLY)

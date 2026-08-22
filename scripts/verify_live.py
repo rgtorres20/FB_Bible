@@ -22,20 +22,20 @@ from datetime import UTC, datetime, timedelta
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-def _served_pages() -> tuple[str, ...]:
-    """The canonical page list, read out of `app/feeds/skin.py` with `ast`.
+def _skin_literal(name: str):
+    """A module-level literal out of `app/feeds/skin.py`, read with `ast`.
 
     Read rather than imported, and that is not fussiness. This script runs
     on a bare runner with nothing pip-installed, so `from app.feeds import
     skin` pulls in `app/feeds/__init__.py`, which imports the poller,
     which imports httpx, which is not there -- it crashed the entire
-    watchdog on the first run after the list was centralised, one second
-    in, before a single check.
+    watchdog on the first run after the page list was centralised, one
+    second in, before a single check.
 
     Being stdlib-only is what lets this check a deployment without
-    building an environment first, so the single source of truth has to
-    be reached without importing the package. `scripts/lint_docs.py`
-    reads the same file the same way for the same reason.
+    building an environment first, so the single source of truth has to be
+    reached without importing the package. `scripts/lint_docs.py` reads
+    the same file the same way for the same reason.
     """
     tree = ast.parse((REPO_ROOT / "app" / "feeds" / "skin.py").read_text(encoding="utf-8"))
     for node in tree.body:
@@ -45,12 +45,13 @@ def _served_pages() -> tuple[str, ...]:
         elif isinstance(node, ast.Assign) and len(node.targets) == 1:
             first = node.targets[0]
             target = first.id if isinstance(first, ast.Name) else None
-        if target == "SERVED_PAGES" and getattr(node, "value", None) is not None:
-            return tuple(str(v) for v in ast.literal_eval(node.value))
-    raise SystemExit("skin.SERVED_PAGES not found -- the served-page list moved")
+        if target == name and getattr(node, "value", None) is not None:
+            return ast.literal_eval(node.value)
+    raise SystemExit(f"skin.{name} not found -- it moved or was renamed")
 
 
-SERVED_PAGES = _served_pages()
+SERVED_PAGES = tuple(str(p) for p in _skin_literal("SERVED_PAGES"))
+OWNER_ONLY = frozenset(str(p) for p in _skin_literal("OWNER_ONLY"))
 
 # Overridable so the same 35 checks can be pointed at a preview deployment.
 # `or` rather than a get() default: an unset workflow input arrives as an
@@ -478,6 +479,17 @@ def main() -> int:
     # not to this one, so the new page rendered its way home and nothing
     # checked that it served one.
     for path in SERVED_PAGES:
+        # An owner-only page bounces this script to /login, because a
+        # watchdog is not the owner. Asserting a home bar there would fail
+        # a page that is working exactly as designed -- and it did, the
+        # first run after the page list was centralised. What is checkable
+        # from out here is that it bounces at all, which is the claim that
+        # matters; the rendered bar is covered signed in and signed out by
+        # tests/test_navigation.py.
+        if path in OWNER_ONLY:
+            code = anon_status(path)
+            check(f"owner-only, turns others away: {path}", code in (303, 307, 401), f"HTTP {code}")
+            continue
         page = get(path).decode("utf-8", errors="replace")
         check(
             f"way back to the app from {path}",

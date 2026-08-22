@@ -140,6 +140,18 @@ SERVED_PAGES: tuple[str, ...] = (
 )
 
 
+# Of those, the ones only the owner may open. They still render a home
+# bar -- `tests/test_navigation.py` proves it, signed in and signed out --
+# but a watchdog cannot check that, because a watchdog is not the owner:
+# the route bounces it to /login, and asserting a home bar on the sign-in
+# page fails for a page that is working correctly. What the watchdog can
+# verify is that it bounces at all, which is the more important claim.
+# A plain literal on purpose: `scripts/verify_live.py` reads this file
+# with `ast.literal_eval`, which cannot evaluate a `frozenset(...)`
+# call. Same reason SERVED_PAGES is a bare tuple.
+OWNER_ONLY: tuple[str, ...] = ("/app/access",)
+
+
 def home_bar(here: str = "") -> str:
     """A way back to the app, on every page this server renders.
 

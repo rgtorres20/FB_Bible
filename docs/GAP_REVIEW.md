@@ -45,6 +45,17 @@ checked at review time and may drift.
   own row shape into the kernel to satisfy a rule would be worse than
   the import.
 
+- **`/app/access` had never been checked live, and could not be checked
+  the way the others are.** Walking the canonical eleven surfaced it
+  immediately: the page is owner-only and correctly bounces anyone else
+  to `/login`, so the watchdog — which holds a sync token but is not the
+  owner — was asserting a home bar on the sign-in page and failing a page
+  that works. `skin.OWNER_ONLY` now marks it, and the live check makes
+  the claim it can actually make: that the page turns others away. The
+  rendered bar stays covered signed in and signed out by
+  `tests/test_navigation.py`. Two checks that had silently never run for
+  a day now run and mean something.
+
 - **Centralising that list then killed the watchdog outright.** Reading
   it as `from app.feeds import skin` executes `app/feeds/__init__.py`,
   which imports the poller, which imports httpx — and the verify-live

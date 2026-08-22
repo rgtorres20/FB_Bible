@@ -581,7 +581,14 @@ def rule_one_served_page_list(root: Path) -> list[Problem]:
                         "defines its own SERVED_PAGES literal — read skin.SERVED_PAGES instead",
                     )
                 )
-        if "skin.SERVED_PAGES" not in text:
+        # Either route to the canonical file counts: importing `skin` and
+        # reading the attribute, or parsing `skin.py` with `ast`. The
+        # watchdog must do the second -- it runs with nothing installed,
+        # so importing the app package crashes it (docs/GAP_REVIEW.md).
+        reads_canonical = "skin.SERVED_PAGES" in text or (
+            "SERVED_PAGES" in text and "skin.py" in text
+        )
+        if not reads_canonical:
             problems.append(
                 Problem(rel, 0, "does not read skin.SERVED_PAGES — it must walk the same list")
             )
