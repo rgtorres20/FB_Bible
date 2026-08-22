@@ -193,7 +193,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1043 tests green — 1027 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1057 tests green — 1041 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -309,6 +309,24 @@ group is now "Board order mix", the analyzer's slider reads **Board
 order** instead of "Source influence", and both point at where the real
 lists live. All four are named transforms in `app/feeds/page.py`
 (`source_truth`), so a design resync that renames an anchor says so.
+
+**The main draft board now answers to league scoring too** (owner ask,
+Aug 22: *"how does my leagues scores influence rankings"* — and on that
+board, it did not). It orders by ADP and the blended rank lists; the
+leagues reached it only through which ADP column it read and how deep it
+went, neither of which is scoring. Its one numeric column was
+`projFor`, a **fabricated linear slope** — a per-position base minus a
+constant times the position rank, no data behind it and no league in it,
+under a header reading "Proj". It now carries **last season's points per
+game under whichever league is picked on that screen**
+(`board.inject_league_points`), so a quarterback reads 27.9 in NDDPL and
+51.4 in RED_EYE instead of occupying the same square. Same honesty rules
+as `/app/scoring`: a league that cannot start a player gets no number and
+a player the stats do not cover gets a dash, never an invention. The
+header is renamed to `'25 P/G` by a named transform — a real number under
+a "Proj" label would swap one wrong claim for another. Both edits land
+together or neither does; a map injected beside a surviving formula would
+keep rendering the invented number.
 
 `/app/scoring` is the scoring board (owner ask, Aug 21): every player's
 stored stat line run through **each league's own scoring values**, ranked.

@@ -4,6 +4,31 @@ Three parallel reviews (product-vs-blueprint, code correctness, ops/robustness)
 over the whole app. Everything verified against the code; line numbers were
 checked at review time and may drift.
 
+## Fixed Aug 22
+
+- **The board the owner drafts from carried an invented number.**
+  `projFor` in the design document computed a per-position base minus a
+  slope times the position rank — `{QB: 24.5, RB: 21.0, ...}` less
+  `n * 0.85` — and rendered it under a column headed "Proj" on the main
+  top-300 board. No data behind it, no league in it, and the comment
+  directly above it claimed both leagues pay quarterbacks above market,
+  which the formula had no way of knowing. It is now each league's real
+  scoring over that player's real stored line, per game, keyed to the
+  league already selected on that screen. The header says `'25 P/G`,
+  because a real number under a "Proj" label is still a wrong claim.
+
+  This also closes the gap named in the same conversation: league
+  scoring reached `/app/scoring`, `/app/idp` and the mock room, but the
+  board most used for drafting only saw league *size* (which ADP column)
+  and league *roster* (how deep to go). Neither is scoring.
+
+  **Still open:** the board's ORDER is unchanged — it still sorts by ADP
+  and the blended lists, with league points as a column to read rather
+  than a sort key. `replacement.py` has the edge-over-replacement figure
+  that would let it sort by the owner's rules instead of the market's;
+  wiring that up is the next step, and it is a bigger one because it
+  changes what the board *is*.
+
 ## Fixed Aug 22 — live incident
 
 - **The player index was the one feed that degraded to nothing.** Twelve

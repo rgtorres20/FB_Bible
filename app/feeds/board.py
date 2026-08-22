@@ -387,3 +387,99 @@ def inject_sources(html: str, payload: list[dict]) -> tuple[str, int]:
         ),
         len(payload),
     )
+
+
+# The design document's own projection. A linear guess -- a per-position
+# base minus a slope times the position rank -- with no data behind it and
+# no league in it, sitting in a column labelled "Proj" on the board the
+# owner actually drafts from. The comment above it even claimed both
+# leagues pay QBs above market, which the formula does not know.
+_PROJ_FORMULA = """    const projFor = b => {
+      if (b.posRank === "FLEX") return "16.2";
+      const n = parseInt(b.posRank.replace(/[^0-9]/g, ""), 10) || 20;
+      const p = b.posRank.replace(/[0-9]/g, "");
+      const bases = { QB: 24.5, RB: 21.0, WR: 20.0, TE: 15.5, LB: 14.5, DB: 12.5 };
+      const slopes = { QB: 0.85, RB: 0.42, WR: 0.32, TE: 0.65, LB: 0.45, DB: 0.35 };
+      const raw = Math.max(4, (bases[p] || 12) - n * (slopes[p] || 0.4));
+      return raw.toFixed(1);
+    };"""
+
+_PROJ_REPLACEMENT = """    const projFor = b => {
+      const byLeague = (typeof FB_LEAGUE_PTS !== "undefined" && FB_LEAGUE_PTS[b.name]) || null;
+      const v = byLeague ? byLeague[s.draftLeague] : null;
+      return typeof v === "number" ? v.toFixed(1) : "\\u2014";
+    };"""
+
+_LEAGUE_PTS_ANCHOR = "const RAW_BOARD = ["
+
+
+def league_points(
+    index: dict | None,
+    stats_state: dict | None,
+    leagues_list,
+) -> dict[str, dict[str, float]]:
+    """{player name: {league name: last season's points per game}}.
+
+    The same arithmetic `/app/scoring` ranks by -- each league's own
+    values over that player's real stored line -- reduced to per game so
+    it fits the board's column and reads like the number people expect
+    there.
+
+    Keyed by the league's display NAME rather than its key, because the
+    page's own `s.draftLeague` holds the name shown on its buttons.
+
+    A player the stats do not cover is simply absent, and the board shows
+    a dash. That is the whole reason this replaces a formula: the formula
+    always had an answer, and the answer was invented.
+    """
+    players = (index or {}).get("players") or {}
+    lines = ((stats_state or {}).get("players") or {}) if stats_state else {}
+    out: dict[str, dict[str, float]] = {}
+    for pid, player in players.items():
+        entry = lines.get(pid)
+        games = (entry or {}).get("gp") or 0
+        name = player.get("name")
+        if not entry or not games or not name:
+            continue
+        group = player.get("idp")
+        per_league: dict[str, float] = {}
+        for lg in leagues_list:
+            total = lg.score_player(entry, group)
+            if total is None:
+                # The league cannot start him. A dash, never a zero.
+                continue
+            per_league[lg.name] = round(total / games, 1)
+        if per_league:
+            out[name] = per_league
+    return out
+
+
+def inject_league_points(
+    html: str,
+    index: dict | None,
+    stats_state: dict | None,
+    leagues_list,
+) -> tuple[str, int]:
+    """Point the board's projection column at each league's real scoring.
+
+    The board the owner drafts from was the one surface their league
+    settings never reached: it orders by ADP and the blended rank lists,
+    and its one numeric column was a fabricated slope. Now the column is
+    last season's points per game under whichever league is selected on
+    that screen, so the same player really does read differently in
+    RED_EYE than in NDDPL.
+
+    Both edits are required together -- a formula left in place beside an
+    injected map would keep rendering the invented number -- so a miss on
+    either leaves the page untouched and reports nothing changed.
+    """
+    table = league_points(index, stats_state, leagues_list)
+    if not table or _PROJ_FORMULA not in html or _LEAGUE_PTS_ANCHOR not in html:
+        return html, 0
+    html = html.replace(_PROJ_FORMULA, _PROJ_REPLACEMENT, 1)
+    html = html.replace(
+        _LEAGUE_PTS_ANCHOR,
+        f"const FB_LEAGUE_PTS = {json.dumps(table)};\n{_LEAGUE_PTS_ANCHOR}",
+        1,
+    )
+    return html, len(table)

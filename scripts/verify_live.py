@@ -597,6 +597,25 @@ def main() -> int:
         bool(board_names) and len(board_names) == len(set(board_names)),
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
+    # The board the owner drafts from finally answers to their scoring
+    # (owner, Aug 22: "how does my leagues scores influence rankings").
+    # Its numeric column was a fabricated slope with no league in it.
+    check(
+        "board's points column is not a fabricated slope",
+        "bases = { QB: 24.5" not in served,
+    )
+    check(
+        "board's points column reads the selected league",
+        "byLeague[s.draftLeague]" in served,
+    )
+    check("board's points column says which season it is", "'25 P/G" in served)
+    scored = re.search(r"const FB_LEAGUE_PTS = (\{.*?\});\n", served, re.S)
+    n_scored = len(json.loads(scored.group(1))) if scored else 0
+    check(
+        "board carries league-scored points per game",
+        n_scored > 0,
+        f"{n_scored} players",
+    )
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now

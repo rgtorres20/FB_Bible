@@ -307,7 +307,37 @@ def source_truth(html: str) -> tuple[str, list[str]]:
     )
 
 
-PRE = (head_tags, client_paths, vegas_binding, ffbets_landing, mode_picker, source_truth)
+def board_points_label(html: str) -> tuple[str, list[str]]:
+    """Rename the board's "Proj" column to what it now holds.
+
+    `board.inject_league_points` rebinds that column from a fabricated
+    slope to last season's points per game under the selected league's
+    own scoring. Leaving the header reading "Proj" would swap one wrong
+    claim for another: it is a measurement of what happened, not a
+    projection of what will.
+    """
+    return _apply(
+        html,
+        (
+            (
+                "board points column header",
+                "<div>Blend</div><div>Proj</div>",
+                "<div>Blend</div><div>'25 P/G</div>",
+                1,
+            ),
+        ),
+    )
+
+
+PRE = (
+    head_tags,
+    client_paths,
+    vegas_binding,
+    ffbets_landing,
+    mode_picker,
+    source_truth,
+    board_points_label,
+)
 
 # Applied after, so a rename also reaches the text the overlays injected.
 POST = (wordmark, league_names)

@@ -257,7 +257,20 @@ if _FRONTEND_READY:
                 # seat the starting lineups (docs/BOARD_EXPECTED.md). Depth
                 # comes from the live player index, marked as index depth
                 # rather than given an invented scouting note.
-                html, deepened = board.deepen(html, await store.load_players(), leagues.defaults())
+                index = await store.load_players()
+                # The one surface the owner's scoring never reached. Its
+                # numeric column was a fabricated slope; it now carries
+                # last season's points per game under whichever league is
+                # picked on that screen, so the same player really does
+                # read differently in RED_EYE than in NDDPL.
+                html, scored = board.inject_league_points(
+                    html, index, stored.get("stats"), leagues.defaults()
+                )
+                if scored:
+                    logging.getLogger(__name__).info(
+                        "board: %d players carry league-scored points per game", scored
+                    )
+                html, deepened = board.deepen(html, index, leagues.defaults())
                 if deepened:
                     logging.getLogger(__name__).info(
                         "board: appended %d rows of index depth", deepened
