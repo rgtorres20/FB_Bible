@@ -193,7 +193,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-989 tests green — 973 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1013 tests green — 997 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -251,6 +251,24 @@ looks like prod; `deps.get_store` because a missing setting has to read
 as a named 503 rather than a bare 500. `rotoworld` gained its degraded
 shapes and a test that it still shares one cleaner with `rss` — two
 cleaners is how one of them stays broken.
+
+`app/feeds/replacement.py` measures **what a starter is worth over the
+man you could have had for free** (owner ask, Aug 21). A season total is
+not an edge: you never receive a starter's points, you receive them minus
+whatever fills that slot otherwise, because somebody does either way. So
+each position's spread between its best player and the first man nobody
+has to start is the only figure that makes positions comparable — and it
+is what decides whether a league's quarterbacks deserve to be drafted
+early. Replacement depth is **derived from the roster, never chosen**:
+`teams x dedicated starters`, then each flex (and RED_EYE's generic D
+slot) handed one at a time to whichever eligible position has the highest
+next-available player in that league's scoring. A position thinner than
+the league starts reports nothing rather than a spread against the last
+man in a short list. This is also the baseline `/app/scoring`
+deliberately would not guess, so points above replacement now has one.
+The measured verdict sits beside the tuned `qb_boost_override` on the
+board rather than replacing it — they are different claims, and
+`scripts/verify_live.py` prints both from real data.
 
 The mock room's **QB draft boost stopped counting points that move
 nobody** (Aug 21). A league's QB premium was measured against the market,

@@ -271,6 +271,37 @@ def main() -> int:
         ", ".join(per_league) or "none",
     )
 
+    # The edge-over-replacement panel, and the reason it exists: the owner
+    # asked whether RED_EYE's quarterbacks deserve their eight-slot head
+    # start over NDDPL's. The answer is per-league and comes off real
+    # stored production, so the log prints it -- this is the one place the
+    # real numbers are visible without a sign-in.
+    check("edge over replacement is measured", "Edge over replacement" in scoring_page)
+    check(
+        "the panel refuses to call a total an edge",
+        "A total is not an edge" in scoring_page,
+    )
+    verdicts = re.findall(
+        r"<p class='note'><b>([A-Z_]+):</b>\s*a starting QB is worth\s*<b>([\d.]+)</b>\s*"
+        r"(more|<i>less</i>)\s*than the best (\w+) edge",
+        scoring_page,
+    )
+    for name, points, sense, rival in verdicts:
+        direction = "above" if sense == "more" else "BELOW"
+        print(f"  INFO  {name} QB edge: {points} {direction} the best {rival} edge")
+    check(
+        "every league gets a QB verdict",
+        len(verdicts) >= 2,
+        f"{len(verdicts)} read off the panel",
+    )
+    slots = re.findall(r"about <b>([\d.]+)</b> draft slots earlier", scoring_page)
+    moves = re.findall(r"mock room moves them <b>([\d.]+)</b> slots", scoring_page)
+    if slots or moves:
+        print(
+            f"  INFO  measured slots: {', '.join(slots) or 'none'}  "
+            f"vs tuned overrides: {', '.join(moves) or 'none'}"
+        )
+
     # The mock draft room: the page must serve with its embedded pool and
     # its honesty framing -- simulated picks are labelled, never sold as a
     # prediction of the real room.

@@ -82,11 +82,23 @@ checked at review time and may drift.
   league editor now says the two numbers apart rather than letting a big
   premium beside a small boost read as a bug.
 
-  **Still open, and now the interesting part:** NDDPL and RED_EYE have
-  *identical* spread premiums — same TD and yardage scoring, differing
-  only by the completion bonus — yet their tuned overrides are 10 and 18.
-  If the spread analysis is right, those rooms should draft QBs the same
-  way and they do not. The likeliest explanation is that the override is
+  **Followed up Aug 21 by measuring it** (`app/feeds/replacement.py`),
+  which corrected this entry twice over. Excluding the completion bonus
+  entirely was an over-swing: QB1 completes materially more passes than
+  the last starter, so the bonus *does* widen the gap — it is just worth
+  far less than the totals imply. And the comparison that decides draft
+  order is not QB-against-market at all, it is **each position's spread
+  over its own replacement**, which is the only figure that makes
+  positions comparable. That is now derived per league from stored
+  production, with flex slots allocated greedily to whichever eligible
+  position has the highest next-available player rather than split by a
+  ratio nobody measured, and reported on `/app/scoring`.
+
+  **Still the owner's call:** whether to move the overrides toward the
+  measured edge. They record how those rooms actually draft, which is
+  what a mock room needs to simulate — you prepare against the room, not
+  against the theory. The measurement says what the scoring justifies;
+  the gap between the two is the owner's edge, not a bug. The likeliest explanation is that the override is
   measuring human behaviour rather than optimal play: RED_EYE's raw QB
   totals look enormous (874 against a WR1's 247 on the scoring board),
   and people draft what the totals look like. Worth the owner's read

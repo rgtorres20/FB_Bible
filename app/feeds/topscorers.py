@@ -58,7 +58,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .. import leagues as leagues_mod
-from . import skin
+from . import replacement, skin
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -144,11 +144,10 @@ def rows(
             "gp": games,
         }
         for lg in board:
-            if group:
-                # A defender only scores where the league starts his group.
-                total = lg.score_idp(entry) if group in lg.idp_groups else None
-            else:
-                total = lg.score_offense(entry)
+            # One dispatch rule, and it lives on the league
+            # (`League.score_player`): offence, or IDP where the league
+            # starts that group, never both and never an invented zero.
+            total = lg.score_player(entry, group)
             row[lg.key] = total
             row[f"{lg.key}_pg"] = _per_game(total, games) if total is not None else None
         if all(row[lg.key] is None for lg in board):
@@ -282,6 +281,72 @@ def _dst_table(
     )
 
 
+def _edge_table(
+    index: dict | None,
+    stats_state: dict | None,
+    board_ls: Sequence[leagues_mod.League],
+) -> str:
+    """What a starter is worth over the man you could have had for free.
+
+    The answer to the owner's Aug 21 question, and the reason the season
+    totals above are not the whole story: you never receive a starter's
+    total, you receive it minus whatever fills that slot otherwise.
+    """
+    rows = []
+    for lg in board_ls:
+        table = replacement.spreads(index, stats_state, lg)
+        if not table:
+            continue
+        ordered = sorted(table.values(), key=lambda s: s.spread, reverse=True)
+        cells = "".join(
+            f"<td class='n'>{s.spread:.0f} <span class='pg'>{html_mod.escape(s.position)}"
+            f"1&#8722;{html_mod.escape(s.position)}{s.depth}</span></td>"
+            for s in ordered[:6]
+        )
+        rows.append(f"<tr><td>{html_mod.escape(lg.name)}</td>{cells}</tr>")
+    if not rows:
+        return ""
+
+    verdicts = []
+    for v in replacement.verdicts(index, stats_state, board_ls):
+        if v.edge is None or v.qb is None or v.rival is None:
+            continue
+        # Said in words because the sign is the whole finding and a bare
+        # signed number gets misread.
+        if v.edge > 0:
+            call = (
+                f"a starting QB is worth <b>{v.edge:.0f}</b> more than the best "
+                f"{html_mod.escape(v.rival.position)} edge — about "
+                f"<b>{v.slots:.0f}</b> draft slots earlier"
+            )
+        else:
+            call = (
+                f"a starting QB is worth <b>{abs(v.edge):.0f}</b> <i>less</i> than the "
+                f"best {html_mod.escape(v.rival.position)} edge — no reach is earned here"
+            )
+        held = (
+            f" The mock room moves them <b>{v.override:g}</b> slots, tuned against how "
+            "that room actually drafts."
+            if v.override is not None
+            else ""
+        )
+        verdicts.append(f"<p class='note'><b>{html_mod.escape(v.league)}:</b> {call}.{held}</p>")
+
+    return (
+        "<h2 style='font-size:15px; margin:22px 0 4px;'>Edge over replacement</h2>"
+        "<p class='sub'>A total is not an edge. You never receive a starter's points — "
+        "you receive them minus whatever fills that slot otherwise, because somebody "
+        "does either way. Below is each position's gap between its best player and the "
+        "first man nobody has to start, which is the only figure that makes positions "
+        "comparable. Replacement depth is derived from the roster: a flex slot goes to "
+        "whichever of RB/WR/TE has the highest next-available player in this league's "
+        "scoring, one slot at a time, rather than split by a ratio nobody measured.</p>"
+        "<table><thead><tr><th>League</th><th colspan='6'>Positions by edge, widest first"
+        "</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>" + "".join(verdicts)
+    )
+
+
 def build_html(
     index: dict | None,
     stats_state: dict | None,
@@ -363,6 +428,7 @@ def build_html(
         f"<th>GP</th>{heads}</tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody></table>"
         + _dst_table(index, stats_state, board_ls)
+        + _edge_table(index, stats_state, board_ls)
         + "<p class='sub' style='margin-top:12px'>A dash means the league cannot "
         "start that player, not that he scored nothing — a defensive lineman in a "
         "league with no DL slot is unrosterable, and a number there would be "

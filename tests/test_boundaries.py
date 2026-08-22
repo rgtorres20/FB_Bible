@@ -57,7 +57,7 @@ DATA_UNITS: dict[str, frozenset[str]] = {
     "usage": frozenset({"stats", "depth"}),
     "odds": frozenset({"vegas"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
-    "scoring": frozenset({"scorecard"}),
+    "scoring": frozenset({"scorecard", "replacement"}),
 }
 
 SURFACES = frozenset(

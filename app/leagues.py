@@ -326,6 +326,26 @@ class League:
         derived = self.qb_spread_premium_per_game / POINTS_PER_ROUND * self.teams
         return round(min(derived, MAX_DERIVED_QB_BOOST), 1)
 
+    def score_player(self, stats: dict, idp_group: str | None = None) -> float | None:
+        """One player's total here, or None when this league cannot start him.
+
+        The dispatch rule, in one place. A player is scored exactly one
+        way -- offence, or as an individual defender -- decided by what
+        the league can actually start, so nobody is counted twice and no
+        unrosterable player gets a number. `None` is the honest answer for
+        "no slot", and callers must render it as a dash rather than a zero:
+        a defensive lineman in a league with no DL slot would score
+        perfectly well and be perfectly undraftable.
+
+        Team defenses go through `score_dst` instead -- they are not
+        players and are not comparable to one on volume.
+        """
+        if idp_group:
+            if idp_group not in self.idp_groups:
+                return None
+            return self.score_idp(stats)
+        return self.score_offense(stats)
+
     @property
     def has_per_game_bonuses(self) -> bool:
         """Whether a season total under-reads this league's real scoring."""

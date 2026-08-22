@@ -346,3 +346,66 @@ def test_the_page_serves_when_the_store_is_empty(client):
     resp = client.get("/app/scoring")
     assert resp.status_code == 200
     assert "Scoring board" in resp.text
+
+
+# --- edge over replacement ---------------------------------------------
+# The panel that answers the owner's Aug 21 question. The arithmetic lives
+# in app/feeds/replacement.py and is tested there; these are about the page
+# saying the right thing about it.
+
+
+def _rich_page():
+    """A pool deep enough to have a replacement level at all — the four-row
+    fixture above cannot, by design."""
+    import sys
+
+    sys.path.insert(0, "tests")
+    from test_replacement import INDEX, STATS
+
+    stats = {**STATS, "coverage": {"players": {"pass_cmp": 1}}}
+    return topscorers.build_html(INDEX, stats, NOW)
+
+
+def test_the_page_says_a_total_is_not_an_edge():
+    """The correction the whole panel exists to make. A season total is
+    the number that misleads: you never receive it, you receive it minus
+    whatever fills the slot otherwise."""
+    page = _rich_page()
+    assert "Edge over replacement" in page
+    assert "A total is not an edge" in page
+
+
+def test_the_panel_names_the_replacement_it_measured_against():
+    """ "QB1−QB13" is checkable; a bare spread is not."""
+    page = _rich_page()
+    assert "QB1&#8722;QB13" in page, "RED_EYE starts one QB across 12 teams"
+
+
+def test_the_panel_says_when_no_reach_is_earned():
+    """An analysis that only ever recommends the position it studies is
+    not an analysis. NDDPL's quarterbacks must be allowed to lose."""
+    assert "no reach is earned here" in _rich_page()
+
+
+def test_the_panel_reports_the_override_beside_the_measurement():
+    """The two are different claims — one is what the room does, one is
+    what the scoring says — and the owner is deciding between them, so
+    they have to be on screen together."""
+    page = _rich_page()
+    assert "mock room moves them <b>18</b> slots" in page
+    assert "tuned against how that room actually drafts" in page
+
+
+def test_the_panel_explains_how_the_flex_was_allocated():
+    """The one place this could quietly invent a number, so it is the one
+    place the page has to show its working."""
+    page = _rich_page()
+    assert "highest next-available player" in page
+    assert "rather than split by a ratio nobody measured" in page
+
+
+def test_no_panel_at_all_when_the_pool_is_too_thin_to_measure():
+    """The four-player fixture cannot support a replacement level, and a
+    spread against the last man in a four-player list would be an
+    artefact. Silence beats an invented baseline."""
+    assert "Edge over replacement" not in topscorers.build_html(_index(), _stats(), NOW)
