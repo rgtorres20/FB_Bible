@@ -409,3 +409,15 @@ def test_no_panel_at_all_when_the_pool_is_too_thin_to_measure():
     spread against the last man in a four-player list would be an
     artefact. Silence beats an invented baseline."""
     assert "Edge over replacement" not in topscorers.build_html(_index(), _stats(), NOW)
+
+
+def test_the_panel_names_its_own_hindsight_bias():
+    """These are last season's finishes, and whoever finished first is
+    partly whoever stayed healthy — which nobody could draft in advance.
+    A panel presenting that as "draft this position first" would be a
+    false positive of exactly the kind the repo rules out. The
+    across-league comparison is the part that survives the bias."""
+    page = _rich_page()
+    assert "Read across leagues, not down the column" in page
+    assert "partly whoever stayed healthy" in page
+    assert "only the scoring differs" in page

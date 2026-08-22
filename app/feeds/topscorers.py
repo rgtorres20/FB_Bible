@@ -341,6 +341,19 @@ def _edge_table(
         "comparable. Replacement depth is derived from the roster: a flex slot goes to "
         "whichever of RB/WR/TE has the highest next-available player in this league's "
         "scoring, one slot at a time, rather than split by a ratio nobody measured.</p>"
+        # The limitation that would otherwise be read straight past. These
+        # are last season's finishes, and the player who finished first is
+        # partly the player who stayed healthy -- which nobody could draft
+        # in advance. It inflates every position's top-end gap, worst at
+        # running back. Comparing one LEAGUE to another is far safer: same
+        # players, same season, only the scoring differs.
+        "<p class='note'><b>Read across leagues, not down the column.</b> These are "
+        "last season's finishes, and whoever finished first is partly whoever stayed "
+        "healthy — which nobody could draft in advance. That inflates the top-end gap "
+        "at every position and most of all at running back, so the widest edge here is "
+        "not an instruction to draft that position first. What <i>is</i> solid is the "
+        "comparison between leagues: same players, same season, only the scoring "
+        "differs, so a gap between two columns is the scoring and nothing else.</p>"
         "<table><thead><tr><th>League</th><th colspan='6'>Positions by edge, widest first"
         "</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>" + "".join(verdicts)
