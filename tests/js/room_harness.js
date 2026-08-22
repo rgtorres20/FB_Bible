@@ -13,12 +13,22 @@ const vm = require('vm');
 
 function el(id) {
   const node = {
-    id, value: '', textContent: '', innerHTML: '', className: '',
+    id, value: '', textContent: '', className: '',
     hidden: false, disabled: false, title: '', style: {},
     dataset: {}, children: [],
     appendChild(child) { this.children.push(child); return child; },
     setAttribute(k, v) { this[k] = v; },
   };
+  // The engine empties a container with innerHTML = '' before refilling
+  // it. A plain property would keep the old children in this stub, so a
+  // list rendered twice would read as one list twice as long -- and a
+  // test observing what the page shows would be observing an artefact
+  // of the stub rather than of the engine.
+  let html = '';
+  Object.defineProperty(node, 'innerHTML', {
+    get() { return html; },
+    set(value) { html = String(value); if (!html) node.children.length = 0; },
+  });
   return node;
 }
 

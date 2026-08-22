@@ -24,6 +24,7 @@ import json
 import re
 import shutil
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -61,6 +62,13 @@ TEAM_DEF_LEAGUE = leagues.League(
     dst=dict(leagues.DEFAULT_DST),
     dst_pa=dict(leagues.DEFAULT_DST_PA),
 )
+
+# A league somebody could really build at /app/leagues: market scoring
+# except that it pays a point per completion. That bonus is worth ~22
+# points a game to every starting quarterback in the room, which moves
+# none of them relative to each other -- so `qb_draft_boost` deliberately
+# excludes it and the engine prices QBs at market here.
+COMPLETIONS_ONLY = replace(leagues.blank("Completions", 12), pass_completion=1.0)
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
@@ -163,17 +171,10 @@ def _pool() -> tuple[dict, dict, dict]:
     return index, adp, stats_state
 
 
-@pytest.fixture(scope="module")
-def result(tmp_path_factory) -> dict:
+def _drive(work: Path, board_leagues: list[leagues.League]) -> dict:
+    """Render the room for these leagues and draft every one of them."""
     index, adp, stats_state = _pool()
-    page = mock.build_html(
-        index,
-        adp,
-        stats_state,
-        None,
-        NOW,
-        board_leagues=[*leagues.defaults(), TEAM_DEF_LEAGUE],
-    )
+    page = mock.build_html(index, adp, stats_state, None, NOW, board_leagues=board_leagues)
 
     scripts = re.findall(r"<script>(.*?)</script>", page, flags=re.S)
     # The theme boot script comes first; the payload and the engine are
@@ -181,7 +182,6 @@ def result(tmp_path_factory) -> dict:
     assert len(scripts) >= 2, "page shape changed: expected a payload and an engine"
     scripts = scripts[-2:]
     assert scripts[0].startswith("const FB_MOCK=")
-    work = tmp_path_factory.mktemp("room")
     # The payload's "</" escaping exists for the HTML parser; undo it so
     # node sees the same JSON the browser's parser reconstructs.
     (work / "payload.js").write_text(scripts[0].replace("<\\/", "</"), encoding="utf-8")
@@ -195,6 +195,20 @@ def result(tmp_path_factory) -> dict:
     )
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
+
+
+@pytest.fixture(scope="module")
+def result(tmp_path_factory) -> dict:
+    return _drive(tmp_path_factory.mktemp("room"), [*leagues.defaults(), TEAM_DEF_LEAGUE])
+
+
+@pytest.fixture(scope="module")
+def completions_only(tmp_path_factory) -> dict:
+    """A room for one league whose only deviation from market scoring is
+    a point per completion -- the case the QB pick reason has to stay
+    quiet about. Its own room, so the four leagues above keep drafting
+    exactly the board they always have."""
+    return _drive(tmp_path_factory.mktemp("completions"), [COMPLETIONS_ONLY])
 
 
 def test_every_league_completes_a_clean_draft(result):
@@ -277,6 +291,50 @@ def test_the_bench_cap_allows_a_second_defense_but_never_a_second_kicker(result)
     for lg in result["leagues"].values():
         for run in lg["runs"]:
             assert run["kPerTeamMax"] <= 1
+
+
+def test_a_bonus_every_quarterback_earns_makes_no_premium_claim(completions_only):
+    """The gap `qbNote` alone cannot close. A point per completion is a
+    deviation from market, so the note is written -- but it adds the same
+    ~22 points a game to the best starter and to the twelfth, and the
+    engine's boost excludes exactly that class of bonus. So the room
+    drafts these quarterbacks at market while the reason would have
+    announced "QBs price above market here": a stated reason for an
+    adjustment that never happened, which is worse than no reason at all
+    because the owner cannot see that nothing moved."""
+    lg = completions_only["leagues"]["Completions"]
+    assert lg["qbNote"] == "1/completion", "the deviation is still described"
+    assert lg["qbBoost"] == 0, "and it still moves nobody"
+    reasons = [why for run in lg["runs"] for why in run["qbReasons"]]
+    assert reasons, "autopilot drafted no QB, so this proves nothing"
+    for why in reasons:
+        assert "above market" not in why
+        assert "completion" not in why
+        # The pick is still explained -- silence is its own failure.
+        assert why.strip()
+
+
+def test_the_position_tabs_offer_only_what_the_league_starts(result):
+    """The tab row is the pool the owner browses. A DL tab in NDDPL, which
+    has no DL slot, either lists players it cannot roster or comes back
+    empty -- and both read as a bug in the board rather than as a fact
+    about the league. Derived from the slots, like everything else."""
+    tabs = {
+        name: lg["runs"][0]["tabs"] for name, lg in result["leagues"].items()
+    }  # identical across slots
+    offense = ["ALL", "QB", "RB", "WR", "TE", "K"]
+    for name, row in tabs.items():
+        assert row[: len(offense)] == offense, name
+
+    # Eight defenders started, in the two groups the roster names.
+    assert sorted(tabs["NDDPL"][len(offense) :]) == ["DB", "LB"]
+    # RED_EYE's generic D slot adds linemen to the same two groups.
+    assert sorted(tabs["RED_EYE"][len(offense) :]) == ["DB", "DL", "LB"]
+    # The team-defense leagues start no individual defenders at all, so
+    # DEF is the only defensive tab they get.
+    for name in ("BALLAPALOSA", "Team DEF"):
+        assert tabs[name][len(offense) :] == ["DEF"], name
+    assert "DEF" not in tabs["NDDPL"] and "DEF" not in tabs["RED_EYE"]
 
 
 def test_a_defense_pick_states_its_own_league_s_scoring(result):

@@ -10,6 +10,8 @@ what the simulation is: labelled machine picks over stated inputs, never
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -146,6 +148,85 @@ def test_kickers_are_pulled_in_when_the_top_slice_has_none(monkeypatch):
     pool = mock.offense_pool(_index(), _adp(), {})
     names = [p["name"] for p in pool]
     assert "Justin Tucker" in names  # rank 999, far past the slice
+
+
+def _kicker_index(count: int = 40) -> dict:
+    """An index deep enough to starve a big room of kickers: every kicker
+    sits past the top slice, exactly as the real board has them."""
+    index = _index()
+    for i in range(count):
+        pid = f"k{i}"
+        index["players"][pid] = {
+            "id": pid,
+            "name": f"Kicker {i}",
+            "position": "K",
+            "team": "DET",
+            "injury_status": None,
+            "rank": 1000 + i,
+        }
+    return index
+
+
+@pytest.fixture
+def shallow_board(monkeypatch):
+    """The real pool takes the top 300 ranked players, past which kickers
+    live. Shrunk here so the fixture does not have to carry 300 names for
+    the top slice to end above them."""
+    monkeypatch.setattr(mock, "OFFENSE_TOP", 5)
+
+
+def test_kicker_supply_follows_the_biggest_room_being_served(shallow_board):
+    """Every team in a league with a K slot drafts one, so a 14-team room
+    needs 14 -- and the pool ships the 12-team floor. A user league at
+    /app/leagues can be any size up to the cap, and a room that runs out
+    of kickers does not fail loudly: the autopick simply takes something
+    else, so the last teams draft a roster the league cannot field and
+    every pick made around them is priced against a draft that could not
+    happen."""
+    index = _kicker_index()
+    floor = [p for p in mock.offense_pool(index, None, {}) if p["pos"] == "K"]
+    assert len(floor) == mock.MIN_KICKERS
+    # Two spare on top of one per team -- the same margin the floor carries.
+    deep = mock.offense_pool(index, None, {}, min_kickers=16)
+    kickers = [p for p in deep if p["pos"] == "K"]
+    assert len(kickers) == 16
+    assert len({p["id"] for p in kickers}) == 16, "the same kicker twice is not supply"
+
+
+def test_the_room_sizes_its_kicker_supply_from_the_leagues_it_serves(shallow_board):
+    """The number is derived from the room, not configured beside it --
+    a floor kept in one place and a league size in another is how a
+    14-team user league gets a 12-team kicker board."""
+    from app import leagues as leagues_mod
+
+    big = leagues_mod.blank("Fourteen", 14)
+    assert "K" in big.slots
+    page = mock.build_html(_kicker_index(), _adp(), _stats(), None, NOW, board_leagues=[big])
+    payload = json.loads(re.search(r"const FB_MOCK=(\{.*?\});</script>", page, re.S).group(1))
+    assert len([p for p in payload["offense"] if p["pos"] == "K"]) == 16
+
+    # The built-in room tops out at 12 seats, so it stays on the floor --
+    # the supply follows the biggest room served, not the last one asked.
+    page = mock.build_html(_kicker_index(), _adp(), _stats(), None, NOW)
+    payload = json.loads(re.search(r"const FB_MOCK=(\{.*?\});</script>", page, re.S).group(1))
+    assert len([p for p in payload["offense"] if p["pos"] == "K"]) == mock.MIN_KICKERS
+
+
+def test_a_league_that_starts_no_kicker_does_not_inflate_the_supply(shallow_board):
+    """Only leagues with a K slot count toward the need. A 20-team room
+    that never starts a kicker would otherwise push twenty of them onto
+    the board and out-rank real players nobody can replace."""
+    from dataclasses import replace
+
+    from app import leagues as leagues_mod
+
+    kickerless = replace(
+        leagues_mod.blank("No kickers", 20),
+        slots=tuple(s for s in leagues_mod.blank("No kickers", 20).slots if s != "K"),
+    )
+    page = mock.build_html(_kicker_index(), _adp(), _stats(), None, NOW, board_leagues=[kickerless])
+    payload = json.loads(re.search(r"const FB_MOCK=(\{.*?\});</script>", page, re.S).group(1))
+    assert len([p for p in payload["offense"] if p["pos"] == "K"]) == mock.MIN_KICKERS
 
 
 def test_defense_pool_carries_each_leagues_scored_totals():

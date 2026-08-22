@@ -422,3 +422,29 @@ def test_an_item_trimmed_at_the_cap_is_not_new_again_when_it_returns():
     assert back["first_seen"] == t0.isoformat(), "its first arrival, not the re-add"
     assert "undated" not in returned["new_ids"]
     assert "undated" not in returned["retired"], "carried items are not also retired"
+
+
+def test_the_memory_of_trimmed_arrivals_is_bounded_and_keeps_the_recent_ones():
+    """That memory is the price of not re-badging returning items NEW, and
+    it is paid in the stored blob: every id ever trimmed, forever,
+    re-serialised on every sync. So it is bounded at MAX_RETIRED -- and
+    bounded *newest-first*, because an item trimmed this week is the one
+    a publisher might still be carrying. Dropping the recent stamps to
+    keep January's would hold the map small while defeating what it is
+    for, and nothing else in the app would notice."""
+    from datetime import UTC, datetime
+
+    from app.feeds import poller
+
+    now = datetime(2026, 8, 22, 12, 0, tzinfo=UTC)
+    # Twice the cap, oldest first, so the trim has exactly one right answer.
+    remembered = {
+        f"gone{n:04d}": datetime(2026, 1, 1, tzinfo=UTC).replace(microsecond=n).isoformat()
+        for n in range(poller.MAX_RETIRED * 2)
+    }
+    kept = poller.merge({"items": [], "retired": remembered}, [], now)["retired"]
+
+    assert len(kept) == poller.MAX_RETIRED
+    # The newest half survives whole; the oldest half is what went.
+    assert set(kept) == set(list(remembered)[poller.MAX_RETIRED :])
+    assert all(kept[k] == remembered[k] for k in kept), "stamps are carried, not restamped"

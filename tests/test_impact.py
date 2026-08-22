@@ -314,3 +314,59 @@ def test_naive_published_stamp_does_not_crash_clustering():
     )
     kept = impact.cluster([impact.score(aware), impact.score(naive)])
     assert len(kept) == 1  # same player, same category: still folds
+
+
+def test_every_word_for_a_player_being_kept_off_the_field_is_severe():
+    """A suspension, a ban and an ineligibility ruling are the same event
+    for a draft board: the player is not playing. They arrive worded
+    differently from different outlets, and a headline that lands in a
+    *different* bucket than its twin cannot fold with it -- the same-player
+    fold is gated on both tellings sharing a category, so one word missing
+    from this bucket is two rows about one story instead of one."""
+    for text in (
+        "Falcons' Pearce suspended 8 games after arrest",
+        "Pearce banned 8 games by the NFL",
+        "Pearce barred from team activities pending review",
+        "Pearce ruled ineligible for the 2026 season",
+    ):
+        assert impact.classify(text) == "severe", text
+
+
+def test_a_possessive_team_name_tokenises_the_same_as_a_plain_one():
+    """Outlets differ on "Falcons' Pearce" vs "Falcons Pearce", and the
+    fold compares word sets. A trailing apostrophe left on the token
+    makes the two spellings disagree on every mention of the team, which
+    drags the overlap under the threshold and splits one story in two."""
+    assert impact._tokens("Jets' Hall carted off") == impact._tokens("Jets Hall carted off")
+    # The apostrophe inside a name is not punctuation to be dropped:
+    # splitting it would make Ja'Marr Chase two tokens, both meaningless.
+    assert "ja'marr" in impact._tokens("Ja'Marr Chase questionable")
+
+
+def test_two_tellings_of_one_suspension_fold_into_a_single_row():
+    """The failure this whole stage exists for, in its Aug 22 form: one
+    outlet writes the possessive, the other calls it a ban. Different
+    words, different apostrophes, one event -- and a draft board that
+    shows it twice is telling the owner two players are gone."""
+    espn = impact.score(
+        item(
+            "Falcons' Pearce suspended 8 games after arrest",
+            players=[PEARCE],
+            source="ESPN NFL",
+            published="2026-08-15T05:00:00+00:00",
+        ),
+        RANKS,
+    )
+    cbs = impact.score(
+        item(
+            "Falcons Pearce banned 8 games after arrest",
+            players=[PEARCE],
+            source="CBS Sports NFL",
+            published="2026-08-15T07:00:00+00:00",
+        ),
+        RANKS,
+    )
+    kept = impact.cluster([espn, cbs])
+    assert len(kept) == 1
+    assert kept[0]["source_name"] == "ESPN NFL"  # first told it
+    assert kept[0]["also_from"] == ["CBS Sports NFL"]
