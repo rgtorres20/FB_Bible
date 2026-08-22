@@ -10,19 +10,47 @@ stdlib only: the job should never fail because of its own dependencies.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import pathlib
 import re
-import sys
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-# Run as a script from anywhere; the canonical page list lives in the app.
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-from app.feeds import skin  # noqa: E402
+
+def _served_pages() -> tuple[str, ...]:
+    """The canonical page list, read out of `app/feeds/skin.py` with `ast`.
+
+    Read rather than imported, and that is not fussiness. This script runs
+    on a bare runner with nothing pip-installed, so `from app.feeds import
+    skin` pulls in `app/feeds/__init__.py`, which imports the poller,
+    which imports httpx, which is not there -- it crashed the entire
+    watchdog on the first run after the list was centralised, one second
+    in, before a single check.
+
+    Being stdlib-only is what lets this check a deployment without
+    building an environment first, so the single source of truth has to
+    be reached without importing the package. `scripts/lint_docs.py`
+    reads the same file the same way for the same reason.
+    """
+    tree = ast.parse((REPO_ROOT / "app" / "feeds" / "skin.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        target = None
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target = node.target.id
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            first = node.targets[0]
+            target = first.id if isinstance(first, ast.Name) else None
+        if target == "SERVED_PAGES" and getattr(node, "value", None) is not None:
+            return tuple(str(v) for v in ast.literal_eval(node.value))
+    raise SystemExit("skin.SERVED_PAGES not found -- the served-page list moved")
+
+
+SERVED_PAGES = _served_pages()
 
 # Overridable so the same 35 checks can be pointed at a preview deployment.
 # `or` rather than a get() default: an unset workflow input arrives as an
@@ -449,7 +477,7 @@ def main() -> int:
     # you would expect: /app/scoring was added to the unit test's copy and
     # not to this one, so the new page rendered its way home and nothing
     # checked that it served one.
-    for path in skin.SERVED_PAGES:
+    for path in SERVED_PAGES:
         page = get(path).decode("utf-8", errors="replace")
         check(
             f"way back to the app from {path}",

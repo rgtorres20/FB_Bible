@@ -45,6 +45,20 @@ checked at review time and may drift.
   own row shape into the kernel to satisfy a rule would be worse than
   the import.
 
+- **Centralising that list then killed the watchdog outright.** Reading
+  it as `from app.feeds import skin` executes `app/feeds/__init__.py`,
+  which imports the poller, which imports httpx — and the verify-live
+  workflow does a checkout and nothing else, on purpose: being
+  stdlib-only is what lets it check a deployment without building an
+  environment first. The run died one second in, before a single check,
+  and the previous run had been green, so only reading the log said so.
+  It now reads `skin.py` with `ast`, the way `scripts/lint_docs.py`
+  already did, keeping both the single source of truth and the
+  standalone property. `tests/test_watchdog_is_standalone.py` is the
+  fence — static, because importing the script to test it would pass on
+  any machine that has the dependencies, which is exactly why CI never
+  saw it.
+
 - **The served-page list was duplicated, and it drifted the same day.**
   `tests/test_navigation.py` and `scripts/verify_live.py` each kept their
   own copy. `/app/scoring` was added to the first and not the second, so
