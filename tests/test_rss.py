@@ -325,3 +325,17 @@ def test_ordinary_double_escaped_text_still_decodes():
 
 def test_a_real_tag_is_still_stripped():
     assert rss._clean("<b>Geno Smith</b> out") == "Geno Smith out"
+
+
+def test_escaped_angle_bracket_prose_survives_the_clean():
+    """ "implied &lt;24 but &gt;20 points" is prose, not markup — browsers
+    render "<24" as text because a tag open needs a letter, "/", "!" or
+    "?". The old any-<...> pattern ate it as a tag, a meaning-changing
+    loss the strip/unescape rounds made in the name of safety. Real tags
+    still die at any escape depth."""
+    assert rss._clean("implied &lt;24 but &gt;20 points") == "implied <24 but >20 points"
+    assert rss._clean("a < b and c > d") == "a < b and c > d"
+    # The property the rounds exist for is untouched:
+    doubled = rss._clean("&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;")
+    assert "<script" not in doubled.lower()
+    assert rss._clean("<svg/onload=alert(1)>hi") == "hi"

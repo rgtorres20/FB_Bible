@@ -23,7 +23,17 @@ from xml.etree import ElementTree
 SUMMARY_LIMIT = 280
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
-_TAG_RE = re.compile(r"<[^>]+>")
+# Only things that are actually tags. HTML tag opens start with an ASCII
+# letter (element), "/" (close), or "!" / "?" (comment, doctype, PI) --
+# browsers render anything else, "<24 but >20" included, as literal
+# text. The old pattern matched ANY <...> span, so the strip/unescape
+# rounds ate legitimate escaped prose: "implied &lt;24 but &gt;20
+# points" came out "implied 20 points", a meaning-changing loss. Every
+# real tag still dies at any escape depth ("< script>" is not a tag to a
+# browser either, per the HTML5 tag-open state), and the page renders
+# item text as React text nodes, never innerHTML, so a literal "<" that
+# survives is display text, not markup.
+_TAG_RE = re.compile(r"<(?:/[^>]*|!--.*?--|[!?a-zA-Z][^>]*)>", re.S)
 _WS_RE = re.compile(r"\s+")
 
 

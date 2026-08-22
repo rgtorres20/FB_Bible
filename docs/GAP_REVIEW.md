@@ -23,10 +23,12 @@ sync path or a trade-off the owner should call.
   preview had none now counts as the line moving, so the lineless
   preview re-queues; still-no-line and line-pulled keep the old
   behaviour.
-- **`rss._clean` eats legitimate escaped angle-bracket prose.** The
-  strip/unescape alternation that stops double-escaped tags also turns
-  "implied &lt;24 but &gt;20 points" into "implied 20 points". The
-  security trade was deliberate; the content loss is now written down.
+- ~~**`rss._clean` eats legitimate escaped angle-bracket prose.**~~
+  **Fixed Aug 22 (owner: "do it")**: the tag pattern now requires a real
+  tag open (letter, `/`, `!`, `?` — the same rule browsers apply), so
+  "&lt;24 but &gt;20 points" survives as prose while every actual tag
+  still dies at any escape depth. Safe because the page renders item
+  text as React text nodes, never innerHTML.
 - ~~**`_rekey_to_page` is last-wins on suffix-folded collisions.**~~
   **Fixed later the same day**: colliding keys decorate nobody — a dash
   is honest, a coin flip is not.
