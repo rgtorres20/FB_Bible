@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
-from ..feeds import ranklists, skin, teams
+from ..feeds import clock, ranklists, skin, teams
 from ..feeds.store import FeedStore
 from .access import session_email
 from .feeds import get_feed_store, get_optional_feed_store
@@ -186,7 +186,7 @@ def _render(
         + (f"<div class='err'>{html_mod.escape(err)}</div>" if err else "")
         + _team_card(data.get("team") or teams.HOUSE)
         + _passkey_card(pk_list or [])
-        + _list_card(data.get("ranklists") or {}, date.today())
+        + _list_card(data.get("ranklists") or {}, clock.today())
         + add_form
         + ("".join(cards) or "<p class='quiet'>Nothing saved yet.</p>"),
         club=data.get("team") or "",
@@ -496,9 +496,9 @@ async def mine_list_save(
     # An as-of the owner did not give is today, not blank: a list with no
     # date cannot be judged for staleness, and every list here will be.
     try:
-        stamp = date.fromisoformat(as_of).isoformat() if as_of else date.today().isoformat()
+        stamp = date.fromisoformat(as_of).isoformat() if as_of else clock.today().isoformat()
     except ValueError:
-        stamp = date.today().isoformat()
+        stamp = clock.today().isoformat()
 
     saved[key] = {
         "name": name,
@@ -587,4 +587,4 @@ async def rank_sources(
             mine = ranklists.user_lists(await store.load_user(email))
         except Exception as exc:  # noqa: BLE001 - the panel must still render
             log.warning("rank sources: user lists unavailable: %s", exc)
-    return ranklists.sources_payload(ranklists.builtins() + mine, date.today())
+    return ranklists.sources_payload(ranklists.builtins() + mine, clock.today())

@@ -18,13 +18,17 @@ Two rules carried from the rest of the project:
   one column and quietly resurrect the bug. The row still sorts (on rank)
   and still shows the owner's own value; only the market number is absent,
   which is the truth.
-- **Per league, not blended.** The page still names its rooms by the old
-  chat-era labels; per verified settings both leagues are 10-team, so the
-  adp12 side is market depth, not a league fit (docs/LEAGUES.md). It was
-  10-team, and a 20% depth difference moves real picks. Both numbers are
-  already stored per player; the column follows the league selector. The
-  blended average stays the fallback when a player appears in only one
-  size's drafts.
+- **Per league, not blended.** NDDPL drafts against the 10-team market
+  and RED_EYE against the 12-team one (owner correction Aug 20,
+  docs/LEAGUES.md) -- a 20% depth difference that moves real picks. Both
+  numbers are already stored per player; the column follows the league
+  selector. The blended average stays the fallback when a player appears
+  in only one size's drafts. The helper had these BACKWARDS until Aug 22
+  -- built from this module's own pre-correction note that "both leagues
+  are 10-team", it handed 12-team RED_EYE the 10-team column and NDDPL
+  the 12-team one, so every ADP figure on the analyzer read from the
+  wrong market. The test now derives the expected wiring from
+  `leagues.adp_size_key` so a future size correction breaks it loudly.
 """
 
 from __future__ import annotations
@@ -33,11 +37,23 @@ import json
 import re
 
 from . import players as players_mod
-from .players import normalize
 
 # The page's own board, which is the source of truth for who is on it.
 _RAW_BOARD = re.compile(r"const RAW_BOARD = \[(.*?)\n\];", re.S)
 _ROW_NAME = re.compile(r'^\s*\[\d+,"([^"]+)"', re.M)
+
+
+def _script_json(value) -> str:
+    """JSON safe to embed inside a <script> block.
+
+    json.dumps does not escape "/", so a name containing "</script>" --
+    rank-list names are typed by users at /app/mine, player names come
+    from Sleeper -- would terminate the script element mid-payload: the
+    page breaks and the rest of the string renders as markup. The same
+    escape the mock room has always used.
+    """
+    return json.dumps(value, separators=(",", ":")).replace("</", "<\\/")
+
 
 # The derived-ADP block this replaces. Matched as a whole so a design-project
 # resync that changes its shape misses cleanly and serves the committed page.
@@ -62,7 +78,7 @@ const BOARD = RAW_BOARD.map((r, i) => {
 _WEIGHT_LINE = "const w = s.srcWeight / 100;"
 _HELPER = (
     _WEIGHT_LINE
-    + '\n    const FBAdp = b => { const n = s.draftLeague === "The Trenches" ? b.adp10 : b.adp12;'
+    + '\n    const FBAdp = b => { const n = s.draftLeague === "The Trenches" ? b.adp12 : b.adp10;'
     + ' return typeof n === "number" ? n : NaN; };'
 )
 
@@ -85,16 +101,11 @@ _CONSUMERS = (
     ),
 )
 
-# Suffixes FFC and the page disagree about often enough to matter.
-_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
-
-
-def match_key(name: str) -> str:
-    """Normalized join key. 'Marvin Harrison Jr.' -> 'marvin harrison'."""
-    tokens = [t for t in normalize(name or "").split() if t]
-    while len(tokens) > 2 and tokens[-1] in _SUFFIXES:
-        tokens.pop()
-    return " ".join(tokens)
+# The join key moved to the kernel (players.match_key) on Aug 22, when a
+# third unit needed it and the scorecard's hand-rolled copy turned out to
+# keep the curly apostrophe. Re-exported here so `ranklists` and every
+# test that reads `board.match_key` keep working.
+match_key = players_mod.match_key
 
 
 def board_names(html: str) -> list[str]:
@@ -190,7 +201,7 @@ def inject(html: str, adp_state: dict | None) -> tuple[str, int]:
     if not matched:
         return html, 0
 
-    replacement = _BOARD_REPLACEMENT % json.dumps(matched, separators=(",", ":"))
+    replacement = _BOARD_REPLACEMENT % _script_json(matched)
     patched, count = _BOARD_BLOCK.subn(lambda _: replacement, html, count=1)
     if not count:
         # The const changed shape under a design resync: serve the page as
@@ -414,7 +425,7 @@ def inject_sources(html: str, payload: list[dict]) -> tuple[str, int]:
     return (
         html.replace(
             _SOURCES_ANCHOR,
-            f"const FB_RANK_SOURCES = {json.dumps(payload)};\n{_SOURCES_ANCHOR}",
+            f"const FB_RANK_SOURCES = {_script_json(payload)};\n{_SOURCES_ANCHOR}",
             1,
         ),
         len(payload),
@@ -443,6 +454,8 @@ _PROJ_REPLACEMENT = """    const projFor = b => {
     };"""
 
 _LEAGUE_PTS_ANCHOR = "const RAW_BOARD = ["
+_PROJ_HEADER = "<div>Blend</div><div>Proj</div>"
+_PROJ_HEADER_REPLACEMENT = "<div>Blend</div><div>'25 P/G</div>"
 
 
 def league_points(
@@ -509,9 +522,15 @@ def inject_league_points(
     if not table or _PROJ_FORMULA not in html or _LEAGUE_PTS_ANCHOR not in html:
         return html, 0
     html = html.replace(_PROJ_FORMULA, _PROJ_REPLACEMENT, 1)
+    # The header rename rides with the rebind, not in the PRE transforms:
+    # applied there it renamed the column even when this injection
+    # no-opped (no stats yet, index outage), which put "'25 P/G" over the
+    # fabricated slope -- a measured-sounding label on an invented number,
+    # worse than the "Proj" it replaced.
+    html = html.replace(_PROJ_HEADER, _PROJ_HEADER_REPLACEMENT, 1)
     html = html.replace(
         _LEAGUE_PTS_ANCHOR,
-        f"const FB_LEAGUE_PTS = {json.dumps(table)};\n{_LEAGUE_PTS_ANCHOR}",
+        f"const FB_LEAGUE_PTS = {_script_json(table)};\n{_LEAGUE_PTS_ANCHOR}",
         1,
     )
     return html, len(table)
@@ -576,7 +595,7 @@ def inject_injuries(html: str, index: dict | None) -> tuple[str, int]:
     html = html.replace(_INJURY_BLOCK, _INJURY_REPLACEMENT, 1)
     html = html.replace(
         _LEAGUE_PTS_ANCHOR,
-        f"const FB_INJURIES = {json.dumps(table)};\n{_LEAGUE_PTS_ANCHOR}",
+        f"const FB_INJURIES = {_script_json(table)};\n{_LEAGUE_PTS_ANCHOR}",
         1,
     )
     return html, len(table)

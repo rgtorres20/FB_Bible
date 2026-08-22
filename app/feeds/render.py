@@ -129,6 +129,7 @@ def merge_into_feeds(
     stats_state: dict | None = None,
     mover_reads: dict[str, str] | None = None,
     scores_state: dict | None = None,
+    polled_at: str | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -228,11 +229,14 @@ def merge_into_feeds(
     # mention. The page's template ignores the key.
     if injury_names:
         stamps = injury.wire_stamps(items, injury_names)
-        if stamps:
-            merged["injury_wire"] = {
-                name: {**stamp, "time": format_time(stamp["published"])}
-                for name, stamp in stamps.items()
-            }
+        # The key is written even when empty: mobile.js prints "no wire
+        # mention in the last 21 days" for a row absent from this map,
+        # and that negative is only a measurement if the check actually
+        # ran. Absent key = never checked; empty dict = checked, quiet.
+        merged["injury_wire"] = {
+            name: {**stamp, "time": format_time(stamp["published"])}
+            for name, stamp in stamps.items()
+        }
 
     merged["updated"] = now.isoformat()
     merged["note"] = (
@@ -246,16 +250,27 @@ def merge_into_feeds(
     # was committed -- understating the freshness the overlay just delivered,
     # which is the same class of dishonesty (in the safe direction) that the
     # hardcoded "live" labels were in the unsafe one.
-    local_now = now.astimezone(CENTRAL)
-    stamp = f"{local_now:%Y-%m-%dT%H:%M}"
+    # Each row's asOf is the DATA's own fetch time, never the request's.
+    # Stamping request time claimed minutes-old data forever if the sync
+    # scheduler died -- fabricated freshness on the one tab that exists
+    # to report it. A row whose feed carries no stamp keeps its committed
+    # asOf rather than borrowing now.
+    def as_of(iso: str | None) -> str | None:
+        if not iso:
+            return None
+        try:
+            return f"{datetime.fromisoformat(iso).astimezone(CENTRAL):%Y-%m-%dT%H:%M}"
+        except ValueError:
+            return None
+
     live_adp_players = bool(((adp_data or {}).get("state") or {}).get("players"))
     meta_rows = []
     for entry in bundled.get("meta", []):
         feed = entry.get("feed")
-        if feed in ("News & posts", "NBC player news"):
+        if feed in ("News & posts", "NBC player news") and as_of(polled_at):
             entry = {
                 **entry,
-                "asOf": stamp,
+                "asOf": as_of(polled_at),
                 "source": "ESPN, Yahoo, Rotowire, PFT, CBS — live wire",
             }
         # Only the draft board actually reads the live blend. The Sleepers
@@ -266,20 +281,21 @@ def merge_into_feeds(
         elif live_adp_players and feed == "Draft board / ADP blend":
             entry = {
                 **entry,
-                "asOf": stamp,
+                "asOf": as_of((adp_data or {}).get("fetched_at")) or entry.get("asOf"),
                 "source": "FFC live drafts, per league size (12tm / 10tm PPR)",
             }
         elif live_vegas and feed == "Vegas lines":
             label = (vegas_state or {}).get("week_label") or "current slate"
             entry = {
                 **entry,
-                "asOf": stamp,
+                "asOf": as_of((vegas_state or {}).get("fetched_at")) or entry.get("asOf"),
                 "source": f"DraftKings via ESPN — live, {label}",
             }
         elif feed == "Week 1 schedule" and any(g.get("kickoff") for g in live_vegas):
             entry = {
                 **entry,
-                "asOf": vegas.central_stamp((vegas_state or {}).get("fetched_at")) or stamp,
+                "asOf": vegas.central_stamp((vegas_state or {}).get("fetched_at"))
+                or entry.get("asOf"),
                 "source": vegas.SCHED_LIVE_SOURCE,
             }
         # Only the usage numbers went live; the '26 win projections on the
@@ -289,7 +305,7 @@ def merge_into_feeds(
         elif feed == "Team intel / projections" and stats.usage_reads(stats_state) is not None:
             entry = {
                 **entry,
-                "asOf": stamp,
+                "asOf": as_of((stats_state or {}).get("fetched_at")) or entry.get("asOf"),
                 "source": (
                     "Pass rate + red-zone run share: Sleeper '25 season "
                     "(measured, all 32 teams) · projections still curated"

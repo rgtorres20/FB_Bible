@@ -205,6 +205,12 @@ class League:
     # scorer says so rather than guessing 3/4/5 by yardage.
     fg_made: float = 3.0
     xp_made: float = 1.0
+    # Kick and punt returns, the "returners score" rule both IDP leagues
+    # carry (docs/LEAGUES.md: 20 yds/pt, return TD 6, Yahoo default 0).
+    # Zero here means the league does not pay them, which is the market
+    # default a blank league starts from.
+    ret_yds_per_pt: float = 0.0
+    ret_td: float = 0.0
     # IDP, keyed by the Sleeper stat fields (verified via the probe's
     # field census before any of them were trusted).
     idp: dict[str, float] = field(default_factory=dict)
@@ -393,6 +399,13 @@ class League:
         pts += two * self.two_pt
         pts += stats.get("fgm", 0) * self.fg_made
         pts += stats.get("xpm", 0) * self.xp_made
+        # Returns -- the hidden value docs/LEAGUES.md point 5 promises
+        # and the scorer silently ignored until Aug 22: a full-time
+        # returner's ~1,000 kick-return yards are 50 real points in the
+        # two 20 yds/pt leagues. Field names verified live (probe run 12).
+        if self.ret_yds_per_pt:
+            pts += (stats.get("kr_yd", 0) + stats.get("pr_yd", 0)) / self.ret_yds_per_pt
+        pts += (stats.get("kr_td", 0) + stats.get("pr_td", 0)) * self.ret_td
         return round(pts, 1)
 
     def score_idp(self, stats: dict) -> float:
@@ -439,6 +452,8 @@ class League:
             "two_pt": self.two_pt,
             "fg_made": self.fg_made,
             "xp_made": self.xp_made,
+            "ret_yds_per_pt": self.ret_yds_per_pt,
+            "ret_td": self.ret_td,
             "idp": dict(self.idp),
             "idp_ret_yds_per_pt": self.idp_ret_yds_per_pt,
             "dst": dict(self.dst),
@@ -506,6 +521,8 @@ NDDPL = League(
     pass_td=6.0,
     pass_yds_per_pt=20.0,
     rec_yds_per_pt=20.0,
+    ret_yds_per_pt=20.0,
+    ret_td=6.0,
     idp=dict(_BASE_IDP),
     idp_ret_yds_per_pt=20.0,
     qb_boost_override=10.0,
@@ -539,6 +556,8 @@ RED_EYE = League(
     pass_yds_per_pt=20.0,
     pass_completion=1.0,
     rec_yds_per_pt=20.0,
+    ret_yds_per_pt=20.0,
+    ret_td=6.0,
     idp={**_BASE_IDP, "idp_sack": 2.0, "idp_int": 3.0},
     idp_ret_yds_per_pt=10.0,
     qb_boost_override=18.0,
@@ -572,6 +591,8 @@ BALLAPALOSA = League(
     pass_yds_per_pt=25.0,
     pass_completion=1.0,
     rec_yds_per_pt=10.0,
+    # Its settings page pays return TDs but no return yardage.
+    ret_td=6.0,
     # No IDP at all. This is the team-defense league.
     idp={},
     idp_ret_yds_per_pt=0.0,
@@ -686,6 +707,8 @@ def blank(name: str = "My league", teams: int = 10) -> League:
         pass_yds_per_pt=MARKET_PASS_YDS_PER_PT,
         pass_completion=MARKET_PASS_COMPLETION,
         rec_yds_per_pt=MARKET_REC_YDS_PER_PT,
+        ret_yds_per_pt=0.0,
+        ret_td=0.0,
         idp={},
         idp_ret_yds_per_pt=0.0,
         # Not inherited: NDDPL's boost was tuned against how that room

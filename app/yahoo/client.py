@@ -41,9 +41,30 @@ class YahooClient:
             raise NotAuthenticated(f"No Yahoo tokens stored for {self._user_key!r}")
         if tokens.expired:
             log.info("Access token expired for %s, refreshing", self._user_key)
-            tokens = await oauth.refresh(self._settings, tokens)
-            await self._store.put(self._user_key, tokens)
+            tokens = await self._refresh(tokens)
         return tokens
+
+    async def _refresh(self, tokens: TokenSet) -> TokenSet:
+        """Refresh, translating failure into what it actually means.
+
+        A 4xx from the token endpoint is Yahoo rejecting the grant -- the
+        stored refresh token is revoked or expired, so the user is
+        functionally not linked any more and the answer is the same 401
+        re-link message a missing token gets. Anything else is Yahoo
+        failing, which is the 502 case. Before this, either one escaped
+        as a bare OAuthError and turned every /api/* call into an
+        unexplained 500.
+        """
+        try:
+            refreshed = await oauth.refresh(self._settings, tokens)
+        except oauth.OAuthError as exc:
+            if exc.status is not None and 400 <= exc.status < 500:
+                raise NotAuthenticated(
+                    f"Yahoo rejected the stored refresh token for {self._user_key!r}"
+                ) from exc
+            raise YahooAPIError(exc.status or 502, str(exc)) from exc
+        await self._store.put(self._user_key, refreshed)
+        return refreshed
 
     async def get(self, path: str, **params: str) -> dict:
         """GET a Fantasy API resource. `path` is relative to /fantasy/v2."""
@@ -62,8 +83,7 @@ class YahooClient:
             # it). One forced refresh, then give up and make the user re-link.
             if response.status_code == 401:
                 log.warning("Yahoo returned 401 for %s, forcing refresh", path)
-                tokens = await oauth.refresh(self._settings, tokens)
-                await self._store.put(self._user_key, tokens)
+                tokens = await self._refresh(tokens)
                 response = await client.get(
                     url,
                     params=params,

@@ -99,6 +99,14 @@ PLAYER_FIELDS = (
     "fgm",
     "fga",
     "xpm",
+    # Returns. Both IDP leagues pay 20 yds/pt on return yardage and 6 per
+    # return TD (docs/LEAGUES.md: "returners score"), and score_offense
+    # could not see any of it. Names verified live 2026-08-22 (probe run
+    # 12: kr_yd 198 holders, pr_yd 100, kr_td 6, pr_td 9).
+    "kr_yd",
+    "pr_yd",
+    "kr_td",
+    "pr_td",
     "def_snp",
     "tm_def_snp",
     "idp_tkl_solo",
@@ -150,7 +158,10 @@ DEFENSE_FIELDS = (
 # a week for the store to carry them. v2: the idp_* block. v3: team
 # defenses. v4: 4th-down stops and the summed blocked-kick field.
 # v5: offense scoring inputs -- passing, fumbles, 2-pt, kickers.
-STATS_VERSION = 5
+# v6: return yardage and TDs, and kickers pass the reduce gate (they
+# hold none of the usage fields, so v5 stored every kicker VALUE and no
+# kicker -- /app/scoring could not show one).
+STATS_VERSION = 6
 
 # Sleeper says WAS; every const in the page says WSH.
 _PAGE_CODES = {"WAS": "WSH"}
@@ -242,7 +253,19 @@ def reduce(raw: dict) -> dict:
             for f in PLAYER_FIELDS:
                 if isinstance(entry.get(f), int | float):
                     coverage_players[f] += 1
-            usage_gate = ("rush_att", "rec_tgt", "pass_att", "idp_tkl", "idp_tkl_solo")
+            # fgm/xpm are here because a kicker holds none of the usage
+            # fields -- without them the reducer counted kickers in
+            # coverage and stored not one, so every league scored a
+            # position that did not exist in the data.
+            usage_gate = (
+                "rush_att",
+                "rec_tgt",
+                "pass_att",
+                "idp_tkl",
+                "idp_tkl_solo",
+                "fgm",
+                "xpm",
+            )
             if any(entry.get(f) for f in usage_gate):
                 players[key] = {
                     f: entry[f] for f in PLAYER_FIELDS if isinstance(entry.get(f), int | float)

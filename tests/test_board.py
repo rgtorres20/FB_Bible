@@ -216,3 +216,31 @@ def test_dedupe_renumbers_nothing_but_shortens_the_board():
     closes the gap rather than leaving a hole."""
     served, _ = board.dedupe(PAGE)
     assert len(board.board_names(served)) == len(board.board_names(PAGE)) - 1
+
+
+def test_each_league_reads_its_own_market_size_derived_not_asserted():
+    """RED_EYE is 12-team and NDDPL is 10-team (owner correction Aug 20,
+    docs/LEAGUES.md), so after the serve-time rename the reader must hand
+    RED_EYE the a12 column and everyone else a10. It had them BACKWARDS
+    until Aug 22 -- codified from this module's own pre-correction note
+    that both leagues were 10-team -- so every ADP figure on the analyzer
+    read from the wrong market. Derived from `adp_size_key` here so a
+    future size correction breaks this test instead of the analyzer.
+    """
+    from app import leagues as leagues_mod
+    from app.feeds import page
+
+    nddpl, red_eye, _ = leagues_mod.defaults()
+    assert (nddpl.adp_size_key, red_eye.adp_size_key) == ("a10", "a12")
+
+    served, _ = board.inject(PAGE, _state([_player("Jahmyr Gibbs", 2.4, s12=2.1, s10=2.7)]))
+    served, misses = page.league_names(served)
+    assert not misses
+    helper = re.search(r"const FBAdp = b => \{[^\n]*", served).group(0)
+    # The renamed page compares against the real league names, and the
+    # 12-team league is the one that gets the 12-team column.
+    # adp_size_key is "a10"/"a12" (the payload keys); the board row
+    # carries them as adp10/adp12.
+    col = lambda lg: "adp" + lg.adp_size_key[1:]  # noqa: E731
+    assert f's.draftLeague === "{red_eye.name}" ? b.{col(red_eye)}' in helper
+    assert f"b.{col(nddpl)}" in helper

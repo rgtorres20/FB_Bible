@@ -19,6 +19,8 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from . import players as players_mod
+
 _FRONTEND_INDEX = Path(__file__).resolve().parent.parent.parent / "frontend" / "index.html"
 
 # The two const arrays are generated markup with a stable literal shape
@@ -46,11 +48,15 @@ def wire_stamps(items: list[dict], names: tuple[str, ...]) -> dict[str, dict]:
     Matches on the items' tagged players, not free text, so "Kittle's backup"
     does not stamp Kittle's row with someone else's story. Timestamps stay ISO
     here; the render layer owns display formatting."""
-    wanted = {name.lower(): name for name in names}
+    # Joined by the kernel's one key, not .lower(): the wire tags players
+    # with Sleeper's spellings (curly apostrophes, Jr/III suffixes) and
+    # the watched names are the page's own. A .lower() join missed those
+    # silently, and the row then claimed "no wire mention" over a real one.
+    wanted = {players_mod.match_key(name): name for name in names}
     best: dict[str, dict] = {}
     for item in items:
         for player in item.get("players") or []:
-            name = wanted.get((player.get("name") or "").lower())
+            name = wanted.get(players_mod.match_key(player.get("name") or ""))
             if name is None:
                 continue
             published = item.get("published") or ""

@@ -86,3 +86,78 @@ def test_parse_roster_extracts_status_and_position():
     assert player["status"] == "Q"
     assert player["selected_position"] == "RB"
     assert player["bye_week"] == "9"
+
+
+def test_an_empty_yahoo_collection_is_empty_not_one_phantom_row():
+    """Yahoo writes an empty collection as {"count": 0} alone -- no digit
+    keys. That has to normalize to [], because the dict branch returned
+    {} and _as_list wrapped it as [{}]: an account with no leagues got
+    one all-None league, a predraft league one all-None draft pick."""
+    assert parse.normalize({"count": 0}) == []
+    payload = {
+        "fantasy_content": {
+            "users": {
+                "0": {
+                    "user": [
+                        {"guid": "X"},
+                        {
+                            "games": {
+                                "0": {"game": [{"game_key": "nfl"}, {"leagues": {"count": 0}}]},
+                                "count": 1,
+                            }
+                        },
+                    ]
+                },
+                "count": 1,
+            }
+        }
+    }
+    assert parse.parse_leagues(payload) == []
+
+
+def test_count_survives_as_data_outside_a_collection():
+    """A roster slot's {"position": "QB", "count": 1} is real data -- how
+    many QBs start. Only the collection-size sibling gets stripped."""
+    slot = {"roster_position": {"position": "QB", "position_type": "O", "count": 1}}
+    assert parse.normalize(slot) == {
+        "roster_position": {"position": "QB", "position_type": "O", "count": 1}
+    }
+
+
+def test_an_empty_list_placeholder_does_not_break_the_entity_merge():
+    """Yahoo writes [] where a metadata field is absent (the team array is
+    the documented case). One placeholder must not leave the whole entity
+    a list -- the row builders call .get on it and 500."""
+    payload = {
+        "fantasy_content": {
+            "team": [
+                [
+                    {"team_key": "nfl.l.192426.t.1"},
+                    [],
+                    {"name": "Gravy Boat"},
+                ],
+                {
+                    "roster": {
+                        "players": {
+                            "0": {
+                                "player": [
+                                    [
+                                        {"player_key": "nfl.p.100"},
+                                        [],
+                                        {"name": {"full": "Christian McCaffrey"}},
+                                        {"display_position": "RB"},
+                                    ],
+                                    {"selected_position": {"position": "RB"}},
+                                ]
+                            },
+                            "count": 1,
+                        }
+                    }
+                },
+            ]
+        }
+    }
+    players = parse.parse_roster(payload)
+    assert len(players) == 1
+    assert players[0]["name"] == "Christian McCaffrey"
+    assert players[0]["selected_position"] == "RB"

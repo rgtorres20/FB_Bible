@@ -36,6 +36,7 @@ from __future__ import annotations
 import logging
 
 from .. import config
+from . import players as players_mod
 
 log = logging.getLogger(__name__)
 
@@ -184,12 +185,20 @@ def grade(
             continue
         pid = ids_by_name.get(_norm(entry.get("name", "")))
         line = (stats.get(pid) or {}) if pid else {}
-        if not line:
+        # "Played" is gp, not the entry existing: Sleeper's dumps carry
+        # rank-only entries for players with no games at all.
+        if not line or not line.get("gp"):
             continue
         field = PROP_FIELDS.get(entry.get("prop", ""))
-        if field is None or field not in line:
+        if field is None:
             continue
-        actual = float(line[field] or 0)
+        # Sleeper omits zero-valued fields (verified live, probe run 12:
+        # 128 pass_att holders, 97 pass_td). A quarterback who played and
+        # threw no touchdown has no pass_td key -- and he is exactly the
+        # game that settles an under. Absent-but-played reads as 0;
+        # requiring the key kept the strongest unders open forever, which
+        # quietly biased every rate this page reports.
+        actual = float(line.get(field) or 0)
         entry["actual"] = actual
         entry["result"] = _resolve(entry, actual)
         settled += 1
@@ -198,8 +207,13 @@ def grade(
     return ledger, settled
 
 
-def _norm(name: str) -> str:
-    return " ".join(name.lower().replace(".", "").replace("'", "").split())
+# The graders join predictions to box scores by name, so they use the
+# kernel's one join key rather than a private cleaner. The private one
+# stripped the straight apostrophe and kept the curly, and Sleeper writes
+# the curly -- so every lean on a Ja'Marr Chase could be recorded and
+# never settled, an entry stuck open forever with the answer sitting in
+# the box score.
+_norm = players_mod.match_key
 
 
 def name_index(index: dict | None) -> dict[str, str]:

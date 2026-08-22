@@ -52,6 +52,8 @@ _OFFENSE_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("pass_completion", "Per completion", "market is 0"),
     ("rec_yds_per_pt", "Receiving yards per point", "market is 10 — higher pays less"),
     ("rush_yds_per_pt", "Rush yards per point", "market is 10"),
+    ("ret_yds_per_pt", "Return yards per point", "0 = returns score nothing (market)"),
+    ("ret_td", "Return TD", "market is 0"),
 )
 
 _SLOT_HELP = {
@@ -183,6 +185,8 @@ def league_from_form(form, key: str) -> tuple[leagues_mod.League | None, str]:
         pass_completion=_num(form, "pass_completion", leagues_mod.MARKET_PASS_COMPLETION),
         rec_yds_per_pt=_num(form, "rec_yds_per_pt", leagues_mod.MARKET_REC_YDS_PER_PT),
         rush_yds_per_pt=_num(form, "rush_yds_per_pt", 10.0),
+        ret_yds_per_pt=_num(form, "ret_yds_per_pt", 0.0),
+        ret_td=_num(form, "ret_td", 0.0),
         idp=idp,
         idp_ret_yds_per_pt=_num(form, "idp_ret_yds_per_pt", 0.0),
         dst=dst,

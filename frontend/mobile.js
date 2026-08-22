@@ -196,8 +196,15 @@
         } else {
           stamp.textContent = text;
         }
-      } else {
+      } else if (data && ('injury_wire' in data)) {
+        /* The negative is only a measurement when the server actually
+         * checked: injury_wire present-but-empty means "checked, quiet",
+         * while an absent key means no poll has run -- claiming 21
+         * quiet days off the bundled file would be an unmeasured
+         * measurement. */
         stamp.textContent = 'No wire mention in the last 21 days';
+      } else {
+        stamp.textContent = 'Wire check pending — no poll yet';
       }
       row.appendChild(stamp);
     }

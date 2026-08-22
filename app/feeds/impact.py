@@ -30,7 +30,8 @@ from datetime import datetime, timedelta
 SEVERE = re.compile(
     r"\b(torn|tore|tears?\b|acl|achilles|mcl\b|pcl\b|fracture[sd]?|broken|"
     r"surgery|season.ending|out for (the )?(season|year)|ruled out|"
-    r"suspend(ed|sion)|arrest(ed)?|carted off|ir\b|injured reserve|pup list|"
+    r"suspend(ed|sion)|bann?ed\b|barred|ineligible|exempt list|"
+    r"arrest(ed)?|carted off|ir\b|injured reserve|pup list|"
     r"waived|released|retir(es?|ing|ement))\b"
 )
 STATUS = re.compile(
@@ -176,7 +177,10 @@ def order(items: list[dict], now: datetime) -> list[dict]:
 
 # --- cross-source dedupe ---------------------------------------------------
 
-_WORD = re.compile(r"[a-z0-9']+")
+# Apostrophes only INSIDE a word: "jets'" must tokenize as "jets", or a
+# possessive in one outlet's headline quietly breaks the overlap with
+# another's and the dedupe misses the same story told twice.
+_WORD = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
 _STOP = frozenset(
     "the a an and or of for to in on at with by vs after before as is are was".split()
 )

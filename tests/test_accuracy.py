@@ -127,7 +127,7 @@ def test_one_open_call_is_counted_in_the_singular():
 def test_a_push_is_excluded_from_the_rate_rather_than_counted_a_win():
     """Allen hits, Henry misses, Mahomes pushes on a whole-number line.
     The honest rate is 1 of 2. A push folded in as a win would read 67%."""
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 0}, "c": {"pass_td": 2}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 0}, "c": {"gp": 1, "pass_td": 2}}
     preds = [
         _pred("Josh Allen", "Passing TDs", "1.5", "OVER", 78),
         _pred("Derrick Henry", "Rushing TDs", "0.5", "OVER", 74),
@@ -144,7 +144,9 @@ def test_an_unplayed_game_is_excluded_rather_than_scored_a_miss():
     """Only Allen's box score exists. Henry and Mahomes did not appear,
     which is not a wrong call about what they would have done -- 100% of
     1 is the truth, 33% of 3 is a punishment for an injury."""
-    page = accuracy.build_html(_ledger(box={"a": {"pass_td": 3}}), {"week_label": "Week 3"}, NOW)
+    page = accuracy.build_html(
+        _ledger(box={"a": {"gp": 1, "pass_td": 3}}), {"week_label": "Week 3"}, NOW
+    )
     assert "100%" in page
     assert "33%" not in page
     assert "awaiting result" in page
@@ -158,7 +160,11 @@ def test_the_page_reports_the_band_it_claimed_against_what_happened():
     confidence, one right. The row has to carry both numbers and the gap
     between them, or the confidence figure is decoration."""
     preds = [_pred(f"P{i}", "Passing TDs", "1.5", "OVER", 78) for i in range(3)]
-    box = {"p0": {"pass_td": 3}, "p1": {"pass_td": 0}, "p2": {"pass_td": 1}}
+    box = {
+        "p0": {"gp": 1, "pass_td": 3},
+        "p1": {"gp": 1, "pass_td": 0},
+        "p2": {"gp": 1, "pass_td": 1},
+    }
     ledger = _ledger(preds, None)
     ledger, _ = scorecard.grade(ledger, box, {f"p{i}": f"p{i}" for i in range(3)}, SEASON, WEEK)
 
@@ -174,14 +180,14 @@ def test_the_page_reports_the_band_it_claimed_against_what_happened():
 def test_empty_confidence_bands_are_left_out_rather_than_shown_as_zero():
     """A band with no calls in it has no rate. Printing 0% for it would
     invent three findings out of one."""
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 1}, "c": {"pass_td": 1}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 1}, "c": {"gp": 1, "pass_td": 1}}
     page = accuracy.build_html(_ledger(box=box), {"week_label": "Week 3"}, NOW)
     assert "80–100%" not in page, "an empty band was rendered"
     assert "70–79%" in page and "50–59%" in page
 
 
 def test_the_by_prop_table_splits_the_record_by_what_was_claimed():
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 0}, "c": {"pass_td": 1}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 0}, "c": {"gp": 1, "pass_td": 1}}
     page = accuracy.build_html(_ledger(box=box), {"week_label": "Week 3"}, NOW)
     assert "By prop" in page
     passing = next(line for line in page.split("<tr>") if "Passing TDs" in line)
@@ -193,7 +199,7 @@ def test_the_by_prop_table_splits_the_record_by_what_was_claimed():
 # --- what is deliberately not scored ---------------------------------------
 
 
-GRADED = (_ledger(box={"a": {"pass_td": 3}}), {"week_label": "Week 3"})
+GRADED = (_ledger(box={"a": {"gp": 1, "pass_td": 3}}), {"week_label": "Week 3"})
 OPEN = (_ledger(), {"week_label": "Week 2"})
 BARE = (None, {"week_label": "Preseason Week 3"})
 

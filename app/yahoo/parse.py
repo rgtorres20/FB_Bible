@@ -18,8 +18,15 @@ from typing import Any
 
 
 def _is_indexed_collection(node: dict) -> bool:
+    # {"count": 0} with no digit keys is how Yahoo writes an EMPTY
+    # collection -- an account with no leagues, a predraft league's draft
+    # results. It has to normalize to [], not fall through to the dict
+    # branch: falling through returned {}, which _as_list wrapped as
+    # [{}], and every extractor then emitted one phantom all-None row.
     keys = set(node) - {"count"}
-    return bool(keys) and all(k.isdigit() for k in keys)
+    if not keys:
+        return "count" in node
+    return all(k.isdigit() for k in keys)
 
 
 def normalize(node: Any) -> Any:
@@ -28,10 +35,18 @@ def normalize(node: Any) -> Any:
         if _is_indexed_collection(node):
             ordered = sorted((k for k in node if k.isdigit()), key=int)
             return [normalize(node[k]) for k in ordered]
-        return {k: normalize(v) for k, v in node.items() if k != "count"}
+        # "count" is only the collection-size sibling INSIDE an indexed
+        # collection. In an ordinary dict it is real data -- a roster
+        # slot's {"position": "QB", "count": 1} says how many QBs start,
+        # and stripping it there was deleting the number.
+        return {k: normalize(v) for k, v in node.items()}
 
     if isinstance(node, list):
-        items = [normalize(item) for item in node]
+        # Yahoo writes [] where a metadata field is absent -- the team
+        # array is the documented case. One placeholder must not stop
+        # the dict merge below, or the whole entity stays a list and a
+        # row builder 500s calling .get on it.
+        items = [normalize(item) for item in node if item != []]
         # A list made only of dicts with no key collisions is Yahoo splitting
         # one object across many entries -- merge it back into one dict.
         if items and all(isinstance(i, dict) for i in items):

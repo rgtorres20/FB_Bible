@@ -29,7 +29,17 @@ STATE_TTL_SECONDS = 600
 
 
 class OAuthError(RuntimeError):
-    """Yahoo rejected the authorization or token request."""
+    """Yahoo rejected the authorization or token request.
+
+    Carries the token endpoint's HTTP status so callers can tell a
+    rejected grant (4xx -- the stored refresh token is dead, the user
+    must re-link) from Yahoo being down (5xx). None for failures with
+    no response at all.
+    """
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 def _sign(secret: str, message: str) -> str:
@@ -88,7 +98,8 @@ async def _post_token(settings: Settings, form: dict[str, str]) -> TokenSet:
 
     if response.status_code != 200:
         raise OAuthError(
-            f"Yahoo token endpoint returned {response.status_code}: {response.text[:400]}"
+            f"Yahoo token endpoint returned {response.status_code}: {response.text[:400]}",
+            status=response.status_code,
         )
     return TokenSet.from_response(response.json())
 

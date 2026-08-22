@@ -179,6 +179,25 @@ def normalize(text: str) -> str:
     return folded.lower().replace("-", " ").replace(".", " ")
 
 
+def match_key(name: str) -> str:
+    """Normalized join key. 'Marvin Harrison Jr.' -> 'marvin harrison'.
+
+    THE way two spellings of a player are matched, kernel because three
+    units need the same answer: `board` keys its injected maps with it,
+    `ranklists` joins rank lists on it, and `scorecard` joins graded box
+    scores on it. It folds what publishers actually disagree on -- curly
+    vs straight apostrophes, accents, punctuation, and the Jr/III
+    suffixes -- which raw string equality does not. The scorecard's
+    grader had its own weaker copy that kept the curly apostrophe, so a
+    lean recorded for Ja'Marr Chase could never settle: two copies is
+    how one of them stays broken.
+    """
+    tokens = [t for t in normalize(name or "").split() if t]
+    while len(tokens) > 2 and tokens[-1] in SUFFIXES:
+        tokens.pop()
+    return " ".join(tokens)
+
+
 def _tokens(text: str) -> list[str]:
     return _WORD_RE.findall(normalize(text))
 

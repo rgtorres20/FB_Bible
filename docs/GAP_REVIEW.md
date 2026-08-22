@@ -1,5 +1,37 @@
 # Gap review — Aug 15 2026
 
+## Found Aug 22 (accuracy review) — real, verified, deliberately not fixed yet
+
+Each of these was proven with a runnable script during the Aug 22 model
+review; they are recorded rather than rushed because each touches the
+sync path or a trade-off the owner should call.
+
+- **The sync's read-modify-write can clobber a fresher runner push.**
+  `/api/feeds/sync` loads the store, spends minutes fetching, then saves
+  the whole blob back — so a `/internal/vegas` or `/internal/scores`
+  push landing in that window is overwritten by the older copy the sync
+  loaded. The scorecard ledger lives in its own key for exactly this
+  reason; `vegas`/`scores`/`capsules`/`previews` still ride the big
+  blob. Fix: re-load those keys immediately before save, or split them
+  out like the ledger.
+- **`first_seen` can be re-stamped for items trimmed at the 400-item
+  cap.** An undated item sorts last, gets trimmed first, and if the
+  publisher still carries it the next poll re-adds it as new — a
+  perpetual NEW badge. Conditional on hitting the cap; in-season volume
+  makes that plausible. Fix needs a bounded memory of trimmed ids.
+- **A preview stored against a dash total never re-queues.**
+  `previews.is_covered` treats an unparseable total as covered, so a
+  matchup previewed before its line posted keeps the lineless preview
+  unless the favorite string also changes.
+- **`rss._clean` eats legitimate escaped angle-bracket prose.** The
+  strip/unescape alternation that stops double-escaped tags also turns
+  "implied &lt;24 but &gt;20 points" into "implied 20 points". The
+  security trade was deliberate; the content loss is now written down.
+- **`_rekey_to_page` is last-wins on suffix-folded collisions.** Two
+  active players folding to one `match_key` (the Byron Murphy II class)
+  would put one player's points or badge on the other's row. No live
+  collision found; worth a collision guard when touched next.
+
 Three parallel reviews (product-vs-blueprint, code correctness, ops/robustness)
 over the whole app. Everything verified against the code; line numbers were
 checked at review time and may drift.

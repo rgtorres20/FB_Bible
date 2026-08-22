@@ -64,7 +64,8 @@ class Spread:
     """One position's gap between the best startable player and free."""
 
     position: str
-    # How deep the position is drafted before replacement -- QB12, WR38.
+    # The replacement's own rank -- QB13 in a 12-team room: twelve
+    # starters drafted, and he is the first man free.
     depth: int
     best: float
     best_name: str

@@ -205,13 +205,36 @@ def test_merge_updates_the_data_health_stamp_for_news_only():
             },
         ],
     }
-    merged = render.merge_into_feeds(bundled, [ITEM], NOW)
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, polled_at="2026-08-15T06:00:00+00:00")
 
     news_meta, sleeper_meta = merged["meta"]
-    assert news_meta["asOf"] == "2026-08-15T01:00"  # 6:00 UTC -> 1:00 AM CDT
+    # The POLL's time, not the request's: a request an hour later must
+    # not make the same poll read an hour fresher.
+    assert news_meta["asOf"] == "2026-08-15T01:00"  # poll 6:00 UTC -> 1:00 AM CDT
     assert "live wire" in news_meta["source"]
     assert news_meta["maxAgeH"] == 24  # budget untouched
     assert sleeper_meta == bundled["meta"][1]  # other feeds untouched
+
+
+def test_news_stamp_stays_committed_when_no_poll_time_is_known():
+    """Freshness the overlay cannot date is not claimed: without a
+    polled_at the row keeps its committed asOf rather than borrowing the
+    request clock -- stamping request time meant a dead sync scheduler
+    kept reporting minutes-old data forever."""
+    bundled = {
+        **BUNDLED,
+        "meta": [
+            {
+                "feed": "News & posts",
+                "asOf": "2026-08-14T18:00",
+                "maxAgeH": 24,
+                "source": "Schefter, Yahoo tracker",
+                "tab": "News & posts",
+            },
+        ],
+    }
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW)
+    assert merged["meta"][0]["asOf"] == "2026-08-14T18:00"
 
 
 def test_merge_with_no_meta_key_still_works():
@@ -252,7 +275,7 @@ def test_nbc_meta_stamp_updates_alongside_news(  # noqa: D103
             },
         ],
     }
-    merged = render.merge_into_feeds(bundled, [ITEM], NOW)
+    merged = render.merge_into_feeds(bundled, [ITEM], NOW, polled_at="2026-08-15T06:00:00+00:00")
     assert merged["meta"][0]["asOf"] == "2026-08-15T01:00"
     assert "live wire" in merged["meta"][0]["source"]
 
@@ -300,9 +323,13 @@ def test_merge_attaches_wire_stamps_for_watched_injury_names():
     assert stamp["source"] == "ESPN NFL"
 
 
-def test_merge_omits_injury_wire_when_nothing_matches():
+def test_injury_wire_is_present_but_empty_when_nothing_matches():
+    """Empty means "checked, quiet" -- mobile.js prints a definitive "no
+    wire mention in 21 days" for rows absent from this map, and that
+    negative is only a measurement if the key proves the check ran. An
+    absent key means no poll yet, and the client says "pending" instead."""
     merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("George Kittle",))
-    assert "injury_wire" not in merged
+    assert merged["injury_wire"] == {}
     assert "injury_wire" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)
 
 

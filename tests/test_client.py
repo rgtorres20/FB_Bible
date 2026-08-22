@@ -199,3 +199,30 @@ async def test_file_store_encrypts_tokens_on_disk(tmp_path):
     assert (await store.get("owner")).refresh_token == "secret-refresh"
     await store.delete("owner")
     assert await store.get("owner") is None
+
+
+@respx.mock
+async def test_a_dead_refresh_token_reads_as_not_linked_not_a_500():
+    """Yahoo rejecting the refresh grant (invalid_grant, 400) means the
+    stored refresh token is revoked or expired -- the user is functionally
+    not linked any more. That has to surface as NotAuthenticated, which
+    the routes turn into the 401 re-link message. It used to escape as a
+    bare OAuthError and become an unexplained 500 on every /api/* call."""
+    store = MemoryStore(expired_token())
+    respx.post(YAHOO_TOKEN_URL).mock(
+        return_value=httpx.Response(400, json={"error": "invalid_grant"})
+    )
+    with pytest.raises(NotAuthenticated) as caught:
+        await YahooClient(SETTINGS, store, "owner").get(PATH)
+    # The message must never carry the token itself.
+    assert "r1" not in str(caught.value)
+
+
+@respx.mock
+async def test_a_token_endpoint_outage_reads_as_yahoo_down():
+    """A 5xx from the token endpoint is Yahoo failing, not the user
+    unlinked -- so it maps to YahooAPIError and the routes' 502."""
+    store = MemoryStore(expired_token())
+    respx.post(YAHOO_TOKEN_URL).mock(return_value=httpx.Response(503, text="maintenance"))
+    with pytest.raises(YahooAPIError):
+        await YahooClient(SETTINGS, store, "owner").get(PATH)

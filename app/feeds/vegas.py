@@ -88,7 +88,7 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
 
 
 def implied(details: str, total: float | None, away: str = "", home: str = "") -> tuple[str, str]:
-    """('BUF -3', 38.5) -> ('BUF -3', 'BUF 20.8 · CAR 17.8').
+    """('BUF -3', 38.5) -> ('BUF -3', 'BUF 20.8 · CAR 17.7').
 
     Returns (fav, implied-points) where implied is '—' whenever the spread
     or total is missing or not a plain point spread. The underdog is named

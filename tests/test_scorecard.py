@@ -124,7 +124,7 @@ def test_an_ungradeable_row_is_not_recorded_at_all():
 
 def test_grading_settles_against_the_real_box_score():
     ledger, _ = scorecard.record(None, _preds(), 2026, 1, "t0")
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 0}, "c": {"pass_td": 1}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 0}, "c": {"gp": 1, "pass_td": 1}}
     ledger, settled = scorecard.grade(ledger, box, _names(), 2026, 1)
     assert settled == 3
     assert {e["name"]: e["result"] for e in ledger["entries"]} == {
@@ -138,7 +138,7 @@ def test_a_player_who_did_not_appear_stays_open():
     """ "Did not play" is not a wrong call about what he would do if he
     did. Scoring it a miss would punish the app for an injury."""
     ledger, _ = scorecard.record(None, _preds(), 2026, 1, "t0")
-    ledger, settled = scorecard.grade(ledger, {"a": {"pass_td": 2}}, _names(), 2026, 1)
+    ledger, settled = scorecard.grade(ledger, {"a": {"gp": 1, "pass_td": 2}}, _names(), 2026, 1)
     assert settled == 1
     assert scorecard.summary(ledger)["open"] == 2
 
@@ -160,7 +160,7 @@ def test_a_push_is_not_a_win():
         1,
         "t0",
     )
-    ledger, _ = scorecard.grade(ledger, {"a": {"pass_td": 2}}, _names(), 2026, 1)
+    ledger, _ = scorecard.grade(ledger, {"a": {"gp": 1, "pass_td": 2}}, _names(), 2026, 1)
     stats = scorecard.summary(ledger)
     assert ledger["entries"][0]["result"] == "push"
     assert stats["pushed"] == 1 and stats["settled"] == 0 and stats["rate"] is None
@@ -168,7 +168,7 @@ def test_a_push_is_not_a_win():
 
 def test_grading_is_idempotent_and_scoped_to_its_week():
     ledger, _ = scorecard.record(None, _preds(), 2026, 1, "t0")
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 0}, "c": {"pass_td": 1}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 0}, "c": {"gp": 1, "pass_td": 1}}
     ledger, first = scorecard.grade(ledger, box, _names(), 2026, 1)
     ledger, second = scorecard.grade(ledger, box, _names(), 2026, 1)
     assert (first, second) == (3, 0)
@@ -197,7 +197,11 @@ def test_calibration_reports_what_was_claimed_against_what_happened():
     ]
     ledger, _ = scorecard.record(None, preds, 2026, 1, "t0")
     names = {f"p{i}": f"p{i}" for i in range(3)}
-    box = {"p0": {"pass_td": 3}, "p1": {"pass_td": 0}, "p2": {"pass_td": 1}}
+    box = {
+        "p0": {"gp": 1, "pass_td": 3},
+        "p1": {"gp": 1, "pass_td": 0},
+        "p2": {"gp": 1, "pass_td": 1},
+    }
     ledger, _ = scorecard.grade(ledger, box, names, 2026, 1)
 
     band = next(b for b in scorecard.summary(ledger)["bands"] if b["n"])
@@ -244,7 +248,7 @@ def test_the_page_waits_rather_than_grading_early():
 
 def test_the_page_reports_the_record_and_the_calibration():
     ledger, _ = scorecard.record(None, _preds(), 2026, 1, "t0")
-    box = {"a": {"pass_td": 3}, "b": {"rush_td": 0}, "c": {"pass_td": 1}}
+    box = {"a": {"gp": 1, "pass_td": 3}, "b": {"gp": 1, "rush_td": 0}, "c": {"gp": 1, "pass_td": 1}}
     ledger, _ = scorecard.grade(ledger, box, _names(), 2026, 1)
     page = accuracy.build_html(ledger, {"week_label": "Week 2"}, NOW)
     assert "67%" in page  # 2 of 3
@@ -262,3 +266,82 @@ def test_the_route_serves_with_no_ledger_at_all():
     r = TestClient(main_mod.app).get("/app/scorecard")
     assert r.status_code == 200
     assert "Scorecard" in r.text
+
+
+def test_grading_joins_across_apostrophe_spellings():
+    """Sleeper writes Ja’Marr with a curly apostrophe; the leans the page
+    records write it straight. The grader's join key must fold them —
+    its private cleaner did not, so such a lean stayed open forever with
+    the answer sitting in the box score.
+    """
+    index = {
+        "players": {"9": {"id": "9", "name": "Ja’Marr Chase", "position": "WR", "team": "CIN"}}
+    }
+    ids = scorecard.name_index(index)
+    ledger, added = scorecard.record(
+        None,
+        [
+            {
+                "name": "Ja'Marr Chase",
+                "prop": "Receiving TDs",
+                "line": 0.5,
+                "lean": "OVER",
+                "conf": 70,
+            }
+        ],
+        season=2026,
+        week=1,
+        stamped_at="2026-09-10T12:00:00Z",
+    )
+    assert added == 1
+    graded, settled = scorecard.grade(
+        ledger, {"players": {"9": {"gp": 1, "rec_td": 1}}}, ids, season=2026, week=1
+    )
+    assert settled == 1
+    assert graded["entries"][0]["result"] == "hit"
+
+
+def test_a_zero_stat_game_settles_the_under_rather_than_staying_open():
+    """Sleeper omits zero-valued fields, so a QB who played and threw no
+    TD has no pass_td key at all. He is exactly the game that settles an
+    under — requiring the key kept the strongest unders open forever."""
+    index = {"players": {"7": {"id": "7", "name": "Sack Magnet", "position": "QB", "team": "NYJ"}}}
+    ledger, _ = scorecard.record(
+        None,
+        [{"name": "Sack Magnet", "prop": "Passing TDs", "line": 1.5, "lean": "UNDER", "conf": 61}],
+        season=2026,
+        week=1,
+        stamped_at="2026-09-10T12:00:00Z",
+    )
+    graded, settled = scorecard.grade(
+        ledger,
+        {"players": {"7": {"gp": 1, "pass_yd": 145}}},
+        scorecard.name_index(index),
+        season=2026,
+        week=1,
+    )
+    assert settled == 1
+    assert graded["entries"][0]["result"] == "hit"
+    assert graded["entries"][0]["actual"] == 0.0
+
+
+def test_a_rank_only_entry_with_no_games_stays_open():
+    """A rank-only entry with no gp is not a played game — "did not play"
+    is still not a wrong call about what he would have done."""
+    index = {"players": {"7": {"id": "7", "name": "Sack Magnet", "position": "QB", "team": "NYJ"}}}
+    ledger, _ = scorecard.record(
+        None,
+        [{"name": "Sack Magnet", "prop": "Passing TDs", "line": 1.5, "lean": "UNDER", "conf": 61}],
+        season=2026,
+        week=1,
+        stamped_at="2026-09-10T12:00:00Z",
+    )
+    graded, settled = scorecard.grade(
+        ledger,
+        {"players": {"7": {"pos_rank_ppr": 400}}},
+        scorecard.name_index(index),
+        season=2026,
+        week=1,
+    )
+    assert settled == 0
+    assert graded["entries"][0]["result"] is None

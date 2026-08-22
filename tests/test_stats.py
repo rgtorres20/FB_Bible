@@ -243,12 +243,16 @@ def test_meta_stamps_team_intel_only_when_usage_reads_are_complete():
     }
     now = datetime(2026, 8, 16, 12, 0, tzinfo=UTC)
 
-    live = render.merge_into_feeds(bundled, [_one_item()], now, stats_state=stats.reduce(_raw()))
+    state = stats.reduce(_raw())
+    # The stamp is the DATA's own fetch time, not the request's -- pin a
+    # known one so the assertion says exactly that.
+    state["fetched_at"] = "2026-08-16T09:30:00+00:00"
+    live = render.merge_into_feeds(bundled, [_one_item()], now, stats_state=state)
     row = live["meta"][0]
     assert "Sleeper '25 season" in row["source"]
     assert "red-zone run share" in row["source"]
     assert "projections still curated" in row["source"]
-    assert row["asOf"].startswith("2026-08-16")
+    assert row["asOf"] == "2026-08-16T04:30"  # the fetch, rendered Central
 
     partial_raw = _raw()
     del partial_raw["TEAM_DET"]

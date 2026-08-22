@@ -8,7 +8,6 @@ Runs two ways from the same module, deliberately:
 from __future__ import annotations
 
 import logging
-from datetime import date
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -18,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, page, previews, ranklists, stats, vegas
+from .feeds import board, clock, page, previews, ranklists, stats, vegas
 from .feeds import players as players_mod
 from .feeds.store import FeedStore
 from .routes import access, auth, feeds, league, leaguecfg, userdata
@@ -306,7 +305,7 @@ if _FRONTEND_READY:
             except Exception as exc:  # noqa: BLE001 - the committed lists still stand
                 log.warning("ranking sources: user lists unavailable: %s", exc)
         html, n_src = board.inject_sources(
-            html, ranklists.sources_payload(ranklists.builtins() + mine, date.today())
+            html, ranklists.sources_payload(ranklists.builtins() + mine, clock.today())
         )
         if n_src:
             log.info("board: %d ranking sources published", n_src)

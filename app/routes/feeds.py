@@ -113,6 +113,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         stats_state=stored.get("stats"),
         mover_reads=stored.get("mover_reads"),
         scores_state=stored.get("scores"),
+        polled_at=stored.get("polled_at"),
     )
     return render.rename_leagues(merged)
 

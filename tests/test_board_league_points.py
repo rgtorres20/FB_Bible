@@ -194,8 +194,19 @@ def test_no_stats_means_no_injection_rather_than_an_empty_table():
 def test_the_header_stops_claiming_a_projection():
     """It is last season's measurement, not a forecast. Renaming the
     column is half the fix — a real number under a wrong label is still a
-    wrong claim."""
-    renamed, misses = page.board_points_label(INDEX_HTML)
-    assert not misses
-    assert "<div>Blend</div><div>'25 P/G</div>" in renamed
-    assert "<div>Proj</div>" not in renamed.split("Latest read")[0]
+    wrong claim. The rename rides WITH the injection since Aug 22: as a
+    standalone PRE transform it fired even when the injection no-opped,
+    which put "'25 P/G" over the fabricated slope during an outage."""
+    out, n = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
+    assert n == 2
+    assert "<div>Blend</div><div>'25 P/G</div>" in out
+    assert "<div>Proj</div>" not in out.split("Latest read")[0]
+
+
+def test_no_injection_keeps_the_proj_header_too():
+    """The other half of both-or-neither: with no stats the fabricated
+    slope survives, so the header must keep calling it a projection."""
+    out, n = board.inject_league_points(INDEX_HTML, _index(), None, leagues_mod.defaults())
+    assert n == 0
+    assert "<div>Blend</div><div>Proj</div>" in out
+    assert "'25 P/G" not in out

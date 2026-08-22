@@ -38,7 +38,12 @@ from . import board, idp, skin
 CENTRAL = ZoneInfo("America/Chicago")
 
 OFFENSE_TOP = 300
-MIN_KICKERS = 14  # a 12-team room needs twelve starters plus margin
+# Floor on kicker supply: enough for a 12-team room plus margin. The pool
+# builder raises it to the biggest room actually being served -- the
+# league editor allows up to 20 teams, and a 20-team draft against 14
+# kickers ends with six teams quietly starting nobody (the forced-fill
+# fallback drafts a non-kicker with no warning when the K pool runs dry).
+MIN_KICKERS = 14
 
 # Positions that are neither startable offense nor IDP in these leagues.
 _EXCLUDED_POSITIONS = {"DEF", "DST", "P", "OL", "LS"}
@@ -118,6 +123,7 @@ def offense_pool(
     index: dict | None,
     adp_state: dict | None,
     capsules: dict | None,
+    min_kickers: int = MIN_KICKERS,
 ) -> list[dict]:
     """Ranked offense joined to the live ADP, best rank first.
 
@@ -138,10 +144,10 @@ def offense_pool(
 
     top = ranked[:OFFENSE_TOP]
     kickers = [p for p in top if p.get("position") == "K"]
-    if len(kickers) < MIN_KICKERS:
+    if len(kickers) < min_kickers:
         have = {p.get("id") for p in top}
         extra = [p for p in ranked[OFFENSE_TOP:] if p.get("position") == "K"]
-        top += [p for p in extra if p.get("id") not in have][: MIN_KICKERS - len(kickers)]
+        top += [p for p in extra if p.get("id") not in have][: min_kickers - len(kickers)]
 
     by_key: dict[str, dict] = {}
     for entry in (adp_state or {}).get("players") or []:
@@ -334,7 +340,11 @@ def build_html(
     stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
     head = skin.head("mock draft room", "Mock draft room", _STYLE) + "<h1>Mock draft room</h1>"
 
-    offense = offense_pool(index, adp_state, capsules)
+    # Kicker supply follows the biggest room being served: every league
+    # with a K slot needs one per team, plus the same two-kicker margin
+    # the 12-team floor carries.
+    need_k = max([MIN_KICKERS] + [lg.teams + 2 for lg in room if "K" in lg.slots])
+    offense = offense_pool(index, adp_state, capsules, min_kickers=need_k)
     defense = defense_pool(index, stats_state, capsules, board_leagues=room)
     dst = dst_pool(index, stats_state, capsules, board_leagues=room)
     if not offense:
@@ -366,7 +376,7 @@ def build_html(
 
     return (
         head + "<p class='sub'>Pick your league and your slot, then draft round by "
-        "round — the other nine teams autopick, or hit Autopilot and the room "
+        "round — the rest of the room autopicks, or hit Autopilot and the room "
         "drafts your picks too, turning the result into a round-by-round plan "
         "from your slot, each pick with its stated reason. <b>Simulated "
         "picks are labelled</b>: live market ADP (FantasyFootballCalculator "
@@ -651,10 +661,14 @@ _ENGINE = r"""
       bits.push(p.posRank + ' by ' + S.lg + " '25 scoring, " + p.pts.toFixed(1) + ' pts');
     } else if (p.dst) {
       bits.push(p.posRank + ' by ' + S.lg + " '25 D/ST scoring, " + p.pts.toFixed(1) +
-        ' pts' + (p.u7 ? '; held ' + p.u7 + ' opponents under a TD' : ''));
-    } else if (p.pos === 'QB' && S.L.qbNote) {
+        ' pts' + (p.u7 ? '; held ' + p.u7 + ' opponents under 7 points' : ''));
+    } else if (p.pos === 'QB' && S.L.qbNote && S.L.qbBoost > 0) {
       // The league's own numbers, not a claim borrowed from another
-      // league: a market-scoring league falls through to plain ADP.
+      // league -- and only when the engine really moved the price:
+      // qbNote fires on any deviation from market (a per-completion
+      // point included) while the boost deliberately excludes bonuses
+      // every starter earns equally, so a completion-only league would
+      // otherwise state a reason for an adjustment that never happened.
       bits.push('QBs price above market here (' + S.L.qbNote + ')' +
         (p.live ? '; ADP ' + p.adp.toFixed(1) : ''));
     } else if (p.pos === 'K') {
@@ -838,9 +852,11 @@ _ENGINE = r"""
   }
 
   function renderTabs() {
-    var tabs = ['ALL','QB','RB','WR','TE','K','LB','DB','DL'];
-    if (!S.L.defGroups.DL) tabs.pop();
-    if (S.L.dstSlots) tabs.splice(6, 0, 'DEF');
+    var tabs = ['ALL','QB','RB','WR','TE','K'];
+    if (S.L.dstSlots) tabs.push('DEF');
+    ['LB','DB','DL'].forEach(function (g) {
+      if (S.L.defGroups[g]) tabs.push(g);
+    });
     var el = document.getElementById('postab');
     el.innerHTML = '';
     tabs.forEach(function (t) {
