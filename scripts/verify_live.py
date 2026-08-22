@@ -496,6 +496,20 @@ def main() -> int:
         code = anon_status(guarded)
         check(f"still gated: {guarded}", code in (303, 401, 307), f"HTTP {code}")
     check("app page carries the icon", "/app/assets/fsb-icon.svg" in served_login_probe)
+    # Owner, Aug 22: the logo has to be visible on the app itself, not
+    # only in the tab. The lockup is injected into the page's header by
+    # `page.header_mark`, and it is white-and-gold artwork, so the check
+    # is both halves: the mark is there AND it is on its own navy ground
+    # (docs/BRAND.md). A missed anchor drops both silently.
+    check("app page shows the mark", "/app/assets/fsb-logo.svg" in served_login_probe)
+    navy = served_login_probe.find("background:#0B1A36")
+    lockup = served_login_probe.find('<img src="/app/assets/fsb-logo.svg"')
+    check(
+        "the app page's mark sits on navy",
+        # No tag opens between the navy ground and the image, so the
+        # navy is the mark's own wrapper rather than something further up.
+        0 <= navy < lockup and "<" not in served_login_probe[navy:lockup],
+    )
 
     lg_page = get("/app/leagues").decode("utf-8", errors="replace")
     check("league settings page serves", "League settings" in lg_page)

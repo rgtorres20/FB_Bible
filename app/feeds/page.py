@@ -84,6 +84,64 @@ def head_tags(html: str) -> tuple[str, list[str]]:
     )
 
 
+# The mark's own ground. The wordmark is white and gold by design, so on
+# the light theme's cream "Fantasy" and "Bible" vanish and the name reads
+# as one gold word -- and on 32 club themes it lands on 32 different
+# colours, none of which the artwork was drawn against. Painting the panel
+# navy in every mode is not a workaround for the light theme, it is how
+# the brand is drawn everywhere else (docs/BRAND.md, "Rules of use"), and
+# it is the same panel the sign-in hero uses. Hard-coded hex on purpose:
+# a token would follow the theme, which is exactly what must not happen.
+_NAVY = "#0B1A36"
+
+_HEADER_MARK = (
+    '<div style="display:inline-block; margin:0 0 12px; padding:9px 14px 11px; '
+    f"background:{_NAVY}; border:2px solid {_NAVY}; "
+    'box-shadow:3px 3px 0 var(--color-text);">'
+    '<img src="/app/assets/fsb-logo.svg" alt=\'Fantasy Sports Bible — draft '
+    'smarter, dominate longer\' width="900" height="420" '
+    'style="display:block; width:210px; max-width:100%; height:auto;"></div>'
+)
+
+
+def header_mark(html: str) -> tuple[str, list[str]]:
+    """The mark, visibly, at the top of the app page (owner, Aug 22).
+
+    The design document carries the artwork exactly once, as a
+    `logo.png` watermark behind the whole shell at `wmOpacity` -- which
+    is decoration, not identity: at that opacity it reads as texture and
+    the owner could not see their own logo on their own app. The sidebar
+    said the name in plain text and the mark itself appeared nowhere.
+
+    So the full lockup goes into `<main>`'s header, above the screen
+    kicker and title. That header is the one region of the page every
+    screen shares *and* the only one visible on a phone -- the sidebar is
+    an off-canvas drawer under 769px (mobile.css), so a mark placed there
+    would be invisible on the form factor the owner mostly uses.
+
+    Reuses `fsb-logo.svg` and the sign-in hero's panel rather than
+    hand-building a wordmark: one asset, one look, and the lockup already
+    carries the tagline. `fsb-logo.svg` paints no ground of its own, so
+    the panel is not optional -- see `_NAVY`.
+    """
+    return _apply(
+        html,
+        (
+            (
+                "app header mark",
+                '<div style="font-size:10px; font-weight:700; letter-spacing:0.16em; '
+                'text-transform:uppercase; color:var(--color-neutral-600);">'
+                "{{ screenKicker }}</div>",
+                _HEADER_MARK
+                + '<div style="font-size:10px; font-weight:700; letter-spacing:0.16em; '
+                'text-transform:uppercase; color:var(--color-neutral-600);">'
+                "{{ screenKicker }}</div>",
+                1,
+            ),
+        ),
+    )
+
+
 def client_paths(html: str) -> tuple[str, list[str]]:
     """The dynamic imports carry the design project's layout.
 
@@ -309,6 +367,7 @@ def source_truth(html: str) -> tuple[str, list[str]]:
 
 PRE = (
     head_tags,
+    header_mark,
     client_paths,
     vegas_binding,
     ffbets_landing,

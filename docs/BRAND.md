@@ -12,7 +12,7 @@ All under `frontend/assets/`, served at `/app/assets/…`.
 
 | File | What it is | Used by |
 |---|---|---|
-| `fsb-logo.svg` | Full lockup — mark, wordmark, tagline | The sign-in page hero |
+| `fsb-logo.svg` | Full lockup — mark, wordmark, tagline | The sign-in page hero; the app page's own header |
 | `fsb-icon.svg` | Square app icon: mark over **FSB** on its own navy ground | Favicon, `apple-touch-icon`, PWA tile |
 | `fsb-mark.svg` | The mark alone, no words | Anywhere the name is already on screen |
 
@@ -112,7 +112,22 @@ straight through rather than fighting it.
 
 Every page this app serves carries `skin.FAVICON` — the app itself, the
 sign-in and access pages, league settings, My stuff, the mock draft room,
-the draft board, the IDP board and the printable cheat sheet. The
-sign-in page is the only surface that shows the full lockup, because it
-is the only one that has to introduce the app to someone who has never
-seen it.
+the draft board, the IDP board and the printable cheat sheet.
+
+Two surfaces show the **full lockup**, both on their own navy panel:
+
+- the sign-in page, which has to introduce the app to someone who has
+  never seen it;
+- the app page's own header (`page.header_mark`, owner ask Aug 22), above
+  the screen kicker and title. The design document carried the artwork
+  only as a `logo.png` watermark behind the whole shell at `wmOpacity`,
+  which is texture rather than identity — the owner could not see their
+  own logo on their own app. The header is the one region every screen
+  shares *and* the only branded spot a phone can see: under 769px the
+  sidebar is an off-canvas drawer (`mobile.css`), so a mark placed there
+  is invisible on the form factor the app is mostly used on.
+
+`fsb-logo.svg` paints no ground of its own, so both panels are
+load-bearing rather than decorative — the navy is a literal hex in each,
+never a theme token, because a token is exactly what would follow the
+theme.
