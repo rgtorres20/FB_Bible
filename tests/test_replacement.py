@@ -264,10 +264,11 @@ def test_the_baseline_differs_by_league():
 def test_the_live_log_can_read_every_verdict_off_the_page():
     """`scripts/verify_live.py` prints the real answer by regex over the
     served page — it is the only place the measured numbers are visible
-    without a sign-in. A pattern that silently matches nothing would
-    report "no verdicts" as easily as a broken page, and the first draft
-    of it missed the positive case: "worth N *more* than" does not match
-    a pattern written around "*less* than".
+    without a sign-in. A pattern that silently matched nothing would
+    report "no verdicts" as readily as a broken page, and the first draft
+    missed the positive case: "worth N *more* than" does not match a
+    pattern written around "*less* than". Rewritten again on Aug 22 when
+    the panel was trimmed, so it is pinned twice over now.
     """
     import re
     from datetime import UTC, datetime
@@ -276,13 +277,12 @@ def test_the_live_log_can_read_every_verdict_off_the_page():
 
     stats = {**STATS, "coverage": {"players": {"pass_cmp": 1}}}
     page = topscorers.build_html(INDEX, stats, datetime(2026, 8, 21, 12, 0, tzinfo=UTC))
-    found = re.findall(
-        r"<p class='note'><b>([A-Z_]+):</b>\s*a starting QB is worth\s*<b>([\d.]+)</b>\s*"
-        r"(more|<i>less</i>)\s*than the best (\w+) edge",
+    calls = re.findall(
+        r"<li><b>([A-Z_]+):</b>\s*(?:a quarterback is your <b>widest edge</b> — worth "
+        r"([\d.]+) more than the best (\w+)|<b>don't reach for a quarterback</b> — the "
+        r"best (\w+) is worth ([\d.]+) more)",
         page,
     )
-    names = {name for name, _, _, _ in found}
-    assert names == {"NDDPL", "RED_EYE", "BALLAPALOSA"}, names
-    senses = {sense for _, _, sense, _ in found}
-    assert senses == {"more", "<i>less</i>"}, "both directions must be readable"
-    assert re.findall(r"mock room moves them <b>([\d.]+)</b> slots", page) == ["10", "18"]
+    assert {c[0] for c in calls} == {"NDDPL", "RED_EYE", "BALLAPALOSA"}
+    assert any(c[1] for c in calls), "the reach case must be readable"
+    assert any(c[4] for c in calls), "the wait case must be readable"

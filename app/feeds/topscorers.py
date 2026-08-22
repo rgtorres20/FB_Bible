@@ -286,77 +286,52 @@ def _edge_table(
     stats_state: dict | None,
     board_ls: Sequence[leagues_mod.League],
 ) -> str:
-    """What a starter is worth over the man you could have had for free.
+    """One line per league: is a quarterback worth reaching for here?
 
-    The answer to the owner's Aug 21 question, and the reason the season
-    totals above are not the whole story: you never receive a starter's
-    total, you receive it minus whatever fills that slot otherwise.
+    Cut back to this on Aug 22, on the owner's call -- the first version
+    put a six-column spread table, a three-part verdict and two caveats on
+    the page, and the owner's read was "I really don't understand it".
+    That is a verdict on the surface, not on the reader: an explanation
+    nobody follows is worth less than the one fact it was wrapped around.
+
+    The measurement is unchanged and still lives in
+    `app/feeds/replacement.py` -- points above replacement needs it, and
+    it is what corrected two wrong readings of the QB question. What is
+    gone is the display of everything except the answer.
+
+    The one fact worth keeping: **a total is not an edge.** You never
+    receive a starter's points, you receive them minus whatever fills that
+    slot otherwise, because somebody does either way.
     """
-    rows = []
-    for lg in board_ls:
-        table = replacement.spreads(index, stats_state, lg)
-        if not table:
-            continue
-        ordered = sorted(table.values(), key=lambda s: s.spread, reverse=True)
-        cells = "".join(
-            f"<td class='n'>{s.spread:.0f} <span class='pg'>{html_mod.escape(s.position)}"
-            f"1&#8722;{html_mod.escape(s.position)}{s.depth}</span></td>"
-            for s in ordered[:6]
-        )
-        rows.append(f"<tr><td>{html_mod.escape(lg.name)}</td>{cells}</tr>")
-    if not rows:
-        return ""
-
-    verdicts = []
+    lines = []
     for v in replacement.verdicts(index, stats_state, board_ls):
         if v.edge is None or v.qb is None or v.rival is None:
             continue
-        # Said in words because the sign is the whole finding and a bare
-        # signed number gets misread.
+        # The sign is the whole answer, so it is said in words. A bare
+        # signed number is exactly the thing that got misread.
         if v.edge > 0:
             call = (
-                f"a starting QB is worth <b>{v.edge:.0f}</b> more than the best "
-                f"{html_mod.escape(v.rival.position)} edge — about "
-                f"<b>{v.slots:.0f}</b> draft slots earlier"
+                f"a quarterback is your <b>widest edge</b> — worth {v.edge:.0f} more "
+                f"than the best {html_mod.escape(v.rival.position)}, so take one early"
             )
         else:
             call = (
-                f"a starting QB is worth <b>{abs(v.edge):.0f}</b> <i>less</i> than the "
-                f"best {html_mod.escape(v.rival.position)} edge — no reach is earned here"
+                f"<b>don't reach for a quarterback</b> — the best "
+                f"{html_mod.escape(v.rival.position)} is worth {abs(v.edge):.0f} more"
             )
-        held = (
-            f" The mock room moves them <b>{v.override:g}</b> slots, tuned against how "
-            "that room actually drafts."
-            if v.override is not None
-            else ""
-        )
-        verdicts.append(f"<p class='note'><b>{html_mod.escape(v.league)}:</b> {call}.{held}</p>")
+        lines.append(f"<li><b>{html_mod.escape(v.league)}:</b> {call}.</li>")
+    if not lines:
+        return ""
 
     return (
-        "<h2 style='font-size:15px; margin:22px 0 4px;'>Edge over replacement</h2>"
-        "<p class='sub'>A total is not an edge. You never receive a starter's points — "
-        "you receive them minus whatever fills that slot otherwise, because somebody "
-        "does either way. Below is each position's gap between its best player and the "
-        "first man nobody has to start, which is the only figure that makes positions "
-        "comparable. Replacement depth is derived from the roster: a flex slot goes to "
-        "whichever of RB/WR/TE has the highest next-available player in this league's "
-        "scoring, one slot at a time, rather than split by a ratio nobody measured.</p>"
-        # The limitation that would otherwise be read straight past. These
-        # are last season's finishes, and the player who finished first is
-        # partly the player who stayed healthy -- which nobody could draft
-        # in advance. It inflates every position's top-end gap, worst at
-        # running back. Comparing one LEAGUE to another is far safer: same
-        # players, same season, only the scoring differs.
-        "<p class='note'><b>Read across leagues, not down the column.</b> These are "
-        "last season's finishes, and whoever finished first is partly whoever stayed "
-        "healthy — which nobody could draft in advance. That inflates the top-end gap "
-        "at every position and most of all at running back, so the widest edge here is "
-        "not an instruction to draft that position first. What <i>is</i> solid is the "
-        "comparison between leagues: same players, same season, only the scoring "
-        "differs, so a gap between two columns is the scoring and nothing else.</p>"
-        "<table><thead><tr><th>League</th><th colspan='6'>Positions by edge, widest first"
-        "</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>" + "".join(verdicts)
+        "<h2 style='font-size:15px; margin:22px 0 4px;'>Quarterback: reach, or wait?</h2>"
+        "<p class='sub'>A big total is not an edge. Everyone starts a quarterback, so "
+        "what you gain is only how far yours beats the free one — and in a league that "
+        "pays every passer well, that gap is smaller than the totals look.</p>"
+        f"<ul class='sub' style='line-height:1.7'>{''.join(lines)}</ul>"
+        "<p class='sub'>Measured from last season under each league's own scoring. "
+        "Comparing one league to another is the solid part: same players, same season, "
+        "only the rules differ.</p>"
     )
 
 

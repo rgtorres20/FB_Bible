@@ -193,7 +193,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1020 tests green — 1004 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1021 tests green — 1005 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -266,9 +266,14 @@ next-available player in that league's scoring. A position thinner than
 the league starts reports nothing rather than a spread against the last
 man in a short list. This is also the baseline `/app/scoring`
 deliberately would not guess, so points above replacement now has one.
-The measured verdict sits beside the tuned `qb_boost_override` on the
-board rather than replacing it — they are different claims, and
-`scripts/verify_live.py` prints both from real data.
+On the board this shows as **one line per league — reach, or wait** —
+trimmed back on Aug 22 from a spread table with verdicts and caveats,
+which the owner could not follow. An explanation nobody follows is worth
+less than the fact it was wrapped around; the measurement is unchanged
+underneath, and `scripts/verify_live.py` still prints the real numbers.
+The tuned `qb_boost_override` stays a mock-room setting and is no longer
+shown as a verdict — it says how a room drafts, not what a player is
+worth.
 
 The mock room's **QB draft boost stopped counting points that move
 nobody** (Aug 21). A league's QB premium was measured against the market,

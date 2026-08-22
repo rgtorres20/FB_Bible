@@ -366,42 +366,63 @@ def _rich_page():
     return topscorers.build_html(INDEX, stats, NOW)
 
 
-def test_the_page_says_a_total_is_not_an_edge():
-    """The correction the whole panel exists to make. A season total is
-    the number that misleads: you never receive it, you receive it minus
-    whatever fills the slot otherwise."""
+def test_the_page_answers_the_only_question_it_is_asked():
+    """Trimmed Aug 22, owner's call: the first version put a spread table,
+    a three-part verdict and two caveats on the page and the owner could
+    not follow it. What survives is the answer — reach, or wait — one line
+    per league, in words.
+
+    The arithmetic behind it is unchanged and tested in
+    tests/test_replacement.py. This is about the page saying the useful
+    part and stopping.
+    """
     page = _rich_page()
-    assert "Edge over replacement" in page
-    assert "A total is not an edge" in page
+    assert "Quarterback: reach, or wait?" in page
+    assert "A big total is not an edge" in page
 
 
-def test_the_panel_names_the_replacement_it_measured_against():
-    """ "QB1−QB13" is checkable; a bare spread is not."""
+def test_it_gives_a_verdict_for_every_league():
     page = _rich_page()
-    assert "QB1&#8722;QB13" in page, "RED_EYE starts one QB across 12 teams"
+    for name in ("NDDPL", "RED_EYE", "BALLAPALOSA"):
+        assert f"<b>{name}:</b>" in page
 
 
-def test_the_panel_says_when_no_reach_is_earned():
+def test_a_league_can_be_told_to_wait():
     """An analysis that only ever recommends the position it studies is
-    not an analysis. NDDPL's quarterbacks must be allowed to lose."""
-    assert "no reach is earned here" in _rich_page()
+    not an analysis. Quarterbacks have to be allowed to lose."""
+    assert "don't reach for a quarterback" in _rich_page()
 
 
-def test_the_panel_reports_the_override_beside_the_measurement():
-    """The two are different claims — one is what the room does, one is
-    what the scoring says — and the owner is deciding between them, so
-    they have to be on screen together."""
+def test_a_league_can_be_told_to_reach():
+    """And the other direction has to be reachable, or the page is a
+    constant wearing a measurement."""
+    assert "widest edge" in _rich_page()
+
+
+def test_the_verdict_is_words_not_a_signed_number():
+    """The sign is the whole answer and a bare signed number is exactly
+    what got misread — twice, by me, before this was measured."""
     page = _rich_page()
-    assert "mock room moves them <b>18</b> slots" in page
-    assert "tuned against how that room actually drafts" in page
+    assert "so take one early" in page or "don't reach" in page
+    assert "-58" not in page and "−58" not in page
 
 
-def test_the_panel_explains_how_the_flex_was_allocated():
-    """The one place this could quietly invent a number, so it is the one
-    place the page has to show its working."""
+def test_it_says_which_half_of_the_comparison_to_trust():
+    """These are last season's finishes, so the position ordering carries
+    survivor bias. The league-to-league comparison does not: same players,
+    same season, only the rules differ."""
     page = _rich_page()
-    assert "highest next-available player" in page
-    assert "rather than split by a ratio nobody measured" in page
+    assert "Comparing one league to another is the solid part" in page
+    assert "only the rules differ" in page
+
+
+def test_the_spread_table_and_its_caveats_are_gone():
+    """The trim has to actually trim. Leaving the table in place while
+    adding a summary would be more page, not less."""
+    page = _rich_page()
+    assert "Edge over replacement" not in page
+    assert "Positions by edge, widest first" not in page
+    assert "mock room moves them" not in page, "the override is a mock-room setting, not a verdict"
 
 
 def test_no_panel_at_all_when_the_pool_is_too_thin_to_measure():
@@ -409,15 +430,3 @@ def test_no_panel_at_all_when_the_pool_is_too_thin_to_measure():
     spread against the last man in a four-player list would be an
     artefact. Silence beats an invented baseline."""
     assert "Edge over replacement" not in topscorers.build_html(_index(), _stats(), NOW)
-
-
-def test_the_panel_names_its_own_hindsight_bias():
-    """These are last season's finishes, and whoever finished first is
-    partly whoever stayed healthy — which nobody could draft in advance.
-    A panel presenting that as "draft this position first" would be a
-    false positive of exactly the kind the repo rules out. The
-    across-league comparison is the part that survives the bias."""
-    page = _rich_page()
-    assert "Read across leagues, not down the column" in page
-    assert "partly whoever stayed healthy" in page
-    assert "only the scoring differs" in page

@@ -305,31 +305,27 @@ def main() -> int:
     # start over NDDPL's. The answer is per-league and comes off real
     # stored production, so the log prints it -- this is the one place the
     # real numbers are visible without a sign-in.
-    check("edge over replacement is measured", "Edge over replacement" in scoring_page)
+    # The quarterback verdict, trimmed to one line per league on Aug 22
+    # after the owner could not follow the fuller panel. The log is still
+    # where the real numbers are visible without a sign-in, so it prints
+    # what the page decided.
+    check("quarterback verdict is on the board", "Quarterback: reach, or wait?" in scoring_page)
     check(
-        "the panel refuses to call a total an edge",
-        "A total is not an edge" in scoring_page,
+        "the board refuses to call a total an edge",
+        "A big total is not an edge" in scoring_page,
     )
-    verdicts = re.findall(
-        r"<p class='note'><b>([A-Z_]+):</b>\s*a starting QB is worth\s*<b>([\d.]+)</b>\s*"
-        r"(more|<i>less</i>)\s*than the best (\w+) edge",
+    calls = re.findall(
+        r"<li><b>([A-Z_]+):</b>\s*(?:a quarterback is your <b>widest edge</b> — worth "
+        r"([\d.]+) more than the best (\w+)|<b>don't reach for a quarterback</b> — the "
+        r"best (\w+) is worth ([\d.]+) more)",
         scoring_page,
     )
-    for name, points, sense, rival in verdicts:
-        direction = "above" if sense == "more" else "BELOW"
-        print(f"  INFO  {name} QB edge: {points} {direction} the best {rival} edge")
-    check(
-        "every league gets a QB verdict",
-        len(verdicts) >= 2,
-        f"{len(verdicts)} read off the panel",
-    )
-    slots = re.findall(r"about <b>([\d.]+)</b> draft slots earlier", scoring_page)
-    moves = re.findall(r"mock room moves them <b>([\d.]+)</b> slots", scoring_page)
-    if slots or moves:
-        print(
-            f"  INFO  measured slots: {', '.join(slots) or 'none'}  "
-            f"vs tuned overrides: {', '.join(moves) or 'none'}"
-        )
+    for name, reach_pts, reach_rival, wait_rival, wait_pts in calls:
+        if reach_pts:
+            print(f"  INFO  {name}: TAKE a QB early — {reach_pts} clear of the best {reach_rival}")
+        else:
+            print(f"  INFO  {name}: WAIT on a QB — the best {wait_rival} is worth {wait_pts} more")
+    check("every league gets a verdict", len(calls) >= 2, f"{len(calls)} read off the board")
 
     # The mock draft room: the page must serve with its embedded pool and
     # its honesty framing -- simulated picks are labelled, never sold as a
