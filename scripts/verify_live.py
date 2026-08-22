@@ -591,6 +591,40 @@ def main() -> int:
     # reading the old derived round.pick string.
     check("draft board carries live ADP", "const FB_LIVE_ADP = " in served)
     check("no consumer reads the derived ADP", "parseFloat(b.adp)" not in served)
+    # What the two market columns actually say. The per-league column
+    # only earns its complexity if 10-team and 12-team ADP genuinely
+    # differ -- and after the Aug 22 swap fix (RED_EYE was reading the
+    # 10-team column) it is worth seeing the real spread rather than
+    # assuming it. Reported, never asserted: how far apart the markets
+    # drift is the market's business, not a property of this code.
+    live_adp = re.search(r"const FB_LIVE_ADP = (\{.*?\});\n", served, re.S)
+    if live_adp:
+        rows = json.loads(live_adp.group(1))
+        both = [
+            (n, v["a10"], v["a12"])
+            for n, v in rows.items()
+            if isinstance(v.get("a10"), int | float) and isinstance(v.get("a12"), int | float)
+        ]
+        only10 = sum(1 for v in rows.values() if v.get("a12") is None)
+        only12 = sum(1 for v in rows.values() if v.get("a10") is None)
+        print(
+            f"  INFO  live ADP: {len(rows)} players, {len(both)} in both markets, "
+            f"{only10} 10-team only, {only12} 12-team only"
+        )
+        if both:
+            gaps = [b - a for _, a, b in both]
+            mean_gap = sum(gaps) / len(gaps)
+            mean10 = sum(a for _, a, _ in both) / len(both)
+            mean12 = sum(b for _, _, b in both) / len(both)
+            widest = sorted(both, key=lambda r: abs(r[2] - r[1]), reverse=True)[:3]
+            print(
+                f"  INFO  mean ADP 10-team {mean10:.1f} vs 12-team {mean12:.1f} "
+                f"(12-team runs {mean_gap:+.1f} spots)"
+            )
+            print(
+                "  INFO  widest league disagreement: "
+                + ", ".join(f"{n} {a:.1f}/{b:.1f}" for n, a, b in widest)
+            )
     # Team-intel usage reads: measured '25 pass rate and red-zone run share
     # replace the curated estimates, and the label names the stat -- a
     # revert to "GL x% run" over estimates is the stale-data failure mode.

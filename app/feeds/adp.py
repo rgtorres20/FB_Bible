@@ -1,11 +1,14 @@
 """Live draft-room ADP, blended for the owner's two leagues.
 
 FantasyFootballCalculator publishes real mock-draft ADP as free JSON, keyed
-by league size and scoring. The owner's leagues (NDDPL and RED_EYE -- see
-docs/LEAGUES.md) are BOTH 10-team full PPR; the 12+10 blend below predates
-the verified settings (Aug 19), which found the old "one 12-team league"
-fact wrong. Kept for now as a market-depth signal -- moving to 10-team-only
-ADP is an open owner decision recorded in docs/LEAGUES.md.
+by league size and scoring. **Both sizes are load-bearing**: NDDPL drafts
+against the 10-team market and RED_EYE against the 12-team one (owner
+correction Aug 20, docs/LEAGUES.md). This docstring said both leagues were
+10-team until Aug 22 -- the Aug 19 settings read, left standing after the
+Aug 20 correction overtook it -- and that stale sentence is what the
+board's column reader was built from, which is how RED_EYE ended up
+reading the 10-team column. The blended average is stored too, as the
+fallback for a player only one size's drafts have seen.
 
 Movement needs memory: FFC reports where the market is today, not where it
 was last week. Each sync stores one snapshot per calendar day in the feed
@@ -32,7 +35,9 @@ from . import players as players_mod
 log = logging.getLogger(__name__)
 
 ADP_URL = "https://fantasyfootballcalculator.com/api/v1/adp/ppr"
-# Both leagues are 10-team; 12-team rides along as market depth (see module docstring).
+# One per league: RED_EYE is 12-team, NDDPL and BALLAPALOSA are 10-team.
+# `League.adp_size_key` is what decides which column a league reads, so
+# adding a size here is the only change a new room needs.
 LEAGUE_SIZES = (12, 10)
 
 # The deepest draft this app serves is RED_EYE: 12 teams x 25 rounds =
