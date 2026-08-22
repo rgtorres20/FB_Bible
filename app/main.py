@@ -258,45 +258,30 @@ if _FRONTEND_READY:
                 # comes from the live player index, marked as index depth
                 # rather than given an invented scouting note.
                 index = await store.load_players()
-                # The one surface the owner's scoring never reached. Its
-                # numeric column was a fabricated slope; it now carries
-                # last season's points per game under whichever league is
-                # picked on that screen, so the same player really does
-                # read differently in RED_EYE than in NDDPL.
-                html, scored = board.inject_league_points(
-                    html, index, stored.get("stats"), leagues.defaults()
-                )
-                if scored:
-                    logging.getLogger(__name__).info(
-                        "board: %d players carry league-scored points per game", scored
-                    )
-                # The badge on the board's rows was two hand-typed name
-                # lists frozen at whatever the injury report said the day
-                # they were written -- so a player put on IR got no badge
-                # at all, while those names wore theirs permanently. The
-                # app has had Sleeper's live status on every sync for
-                # weeks; this is the surface that never read it.
-                # Owner's rule, Aug 22: a player on a reserve list comes
-                # off the board; one who is out for a week or two stays.
-                # Before `deepen`, so the gaps are backfilled and the
-                # board still seats every league's starting lineups.
-                html, benched = board.drop_reserve(html, index)
-                if benched:
-                    logging.getLogger(__name__).info(
+                # Who is on the board, then what the rows say about
+                # them -- `board.decorate` owns that order and explains
+                # why. Both decorations are name-keyed maps, so one built
+                # before `drop_reserve` leaves keys pointing at players
+                # who are gone, and one built before `deepen` never
+                # reaches the third of the board that gets appended.
+                # Both were true until the live watchdog said so.
+                html, marks = board.decorate(html, index, stored.get("stats"), leagues.defaults())
+                log = logging.getLogger(__name__)
+                if marks["benched"]:
+                    log.info(
                         "board: dropped %d players on a reserve list: %s",
-                        len(benched),
-                        ", ".join(benched[:5]),
+                        len(marks["benched"]),
+                        ", ".join(marks["benched"][:5]),
                     )
-                html, flagged = board.inject_injuries(html, index)
-                if flagged:
-                    logging.getLogger(__name__).info(
-                        "board: %d players carry a live injury flag", flagged
+                if marks["deepened"]:
+                    log.info("board: appended %d rows of index depth", marks["deepened"])
+                if marks["scored"]:
+                    log.info(
+                        "board: %d players carry league-scored points per game",
+                        marks["scored"],
                     )
-                html, deepened = board.deepen(html, index, leagues.defaults())
-                if deepened:
-                    logging.getLogger(__name__).info(
-                        "board: appended %d rows of index depth", deepened
-                    )
+                if marks["flagged"]:
+                    log.info("board: %d players carry a live injury flag", marks["flagged"])
                 # Team-intel usage reads: the measured '25 pass rate and
                 # red-zone run share replace the curated estimates, labelled
                 # as such -- all 32 teams or nothing (see stats.usage_reads).

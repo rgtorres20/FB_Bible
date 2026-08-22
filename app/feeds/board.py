@@ -629,3 +629,35 @@ def drop_reserve(html: str, index: dict | None) -> tuple[str, list[str]]:
     if not dropped:
         return html, []
     return html.replace(block.group(0), "\n".join(kept_lines), 1), dropped
+
+
+def decorate(
+    html: str, index: dict | None, stats_state: dict | None, leagues_list
+) -> tuple[str, dict[str, object]]:
+    """Settle who is on the board, then decorate the rows that survived.
+
+    The order is the whole point, and it is here rather than in `main` so
+    a test can pin it. Both decorations are **maps keyed by name**, looked
+    up at runtime by exact match, so each one is only correct for the rows
+    that exist at the moment it is built:
+
+    - `drop_reserve` removes rows, so a decoration built before it leaves
+      keys pointing at players who are no longer there;
+    - `deepen` appends rows, so a decoration built before it never reaches
+      the appended players at all.
+
+    Both were happening. The live watchdog caught the first on its first
+    run -- five scored players matched no row -- and the second was the
+    bigger half silently: roughly a third of the served board is appended
+    index depth, and none of it carried a points figure or an injury
+    badge. Membership first, decoration second.
+
+    Returns the patched page and the counts `main` logs.
+    """
+    counts: dict[str, object] = {}
+    html, benched = drop_reserve(html, index)
+    counts["benched"] = benched
+    html, counts["deepened"] = deepen(html, index, leagues_list)
+    html, counts["scored"] = inject_league_points(html, index, stats_state, leagues_list)
+    html, counts["flagged"] = inject_injuries(html, index)
+    return html, counts

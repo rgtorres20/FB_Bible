@@ -48,6 +48,19 @@ mode `CLAUDE.md` warns about. `scripts/verify_live.py` now asserts that
 every key in `FB_LEAGUE_PTS` and `FB_INJURIES` matches a row that exists,
 which catches the class rather than the instance.
 
+**It failed on its first run**, and on something the re-keying had not
+fixed. Both decorations were being built *before* the board's membership
+was settled: `drop_reserve` then removes rows (five scored players matched
+no row) and `deepen` then appends them — and the appended rows are about a
+third of the served board, none of which carried a points figure or an
+injury badge. Silent in both directions, live, for a day. `board.decorate`
+now owns the order — membership first, decoration second — and
+`tests/test_board_decorate.py` pins it.
+
+Both instances have the same shape: **a name-keyed map is only correct for
+the rows that exist at the moment it is built.** That is the rule worth
+carrying forward, not the two fixes.
+
 ## Rules interpreted, not asked
 
 ### "Out for season → drop; out a few weeks → leave"
@@ -173,6 +186,25 @@ reserve designation and a weekly status clearly should not cost the same.
 This is also in [GAP_REVIEW.md](GAP_REVIEW.md); it is repeated here
 because it is the largest gap between what a surface shows and what it
 acts on.
+
+### Appended depth rows carry no live ADP
+
+The third instance of the map-keyed-too-early class, and the one **not**
+fixed. `board.inject` builds the live-ADP map before `deepen` appends its
+rows, so every appended player shows a dash in the ADP column. It predates
+Aug 22, and unlike the other two it is arguably fine — these are round-20+
+depth rows carrying an explicit "no scouting read yet" note. Left alone
+rather than swept into an unrelated commit; say the word and it moves.
+
+### During an index outage the board shows no injury badges at all
+
+`inject_injuries` replaces the committed name lists whether or not the
+index answered, so a missing index means every badge is cleared — which
+reads as "everybody is healthy". Deliberate, because the alternative is
+asserting hand-typed statuses from weeks ago, which is the bug this
+replaced. But "no badges" is still a claim, and the honest third option —
+saying status is unavailable — does not exist. The index went down for
+several hours on Aug 22, so this is not hypothetical.
 
 ### Nothing anywhere labels a carried-forward index as stale on the board itself
 
