@@ -925,6 +925,10 @@ async def sync(
     await store.save(
         {
             "items": merged["items"],
+            # The trimmed items' arrival stamps -- what stops a story that
+            # fell off the 400-item cap from wearing a NEW badge forever
+            # when the publisher still carries it.
+            "retired": merged["retired"],
             "sources": polled["sources"],
             "polled_at": polled["polled_at"],
             "adp": {"state": adp_state, "history": adp_history},

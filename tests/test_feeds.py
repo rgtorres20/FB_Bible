@@ -382,3 +382,43 @@ def test_rotoworld_ids_distinguish_different_players():
     html = Path("tests/fixtures/rotoworld_sample.html").read_text(encoding="utf-8")
     ids = [i["id"] for i in rotoworld.parse(html)]
     assert len(ids) == len(set(ids)), "two stories collapsing into one id would hide news"
+
+
+def test_an_item_trimmed_at_the_cap_is_not_new_again_when_it_returns():
+    """Undated items sort last and are trimmed first at the 400-item cap.
+    If the publisher still carries one, the next poll re-added it as
+    brand new -- first_seen restamped, NEW badge forever. The merge now
+    remembers trimmed arrivals (bounded) and restores them."""
+    from datetime import UTC, datetime
+
+    from app.feeds import poller
+
+    t0 = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+    t1 = datetime(2026, 8, 20, 13, 0, tzinfo=UTC)
+    old_item = {"id": "undated", "title": "No date on this one", "summary": "", "published": ""}
+    first = poller.merge({}, [old_item], t0)
+    assert first["items"][0]["first_seen"] == t0.isoformat()
+
+    # Fill the store past the cap with dated items so the undated one is trimmed.
+    flood = [
+        {
+            "id": f"i{n}",
+            "title": f"story {n}",
+            "summary": "",
+            "published": f"2026-08-20T{10 + n % 12:02d}:{n % 60:02d}:00+00:00",
+        }
+        for n in range(poller.MAX_ITEMS + 5)
+    ]
+    capped = poller.merge({"items": first["items"], "retired": first.get("retired")}, flood, t0)
+    assert all(i["id"] != "undated" for i in capped["items"]), "trimmed at the cap"
+    assert capped["retired"]["undated"] == t0.isoformat()
+
+    # The publisher still carries it; it comes back on the next poll,
+    # once the flood has aged out enough to leave room on the board.
+    returned = poller.merge(
+        {"items": capped["items"][:50], "retired": capped["retired"]}, [old_item], t1
+    )
+    back = next(i for i in returned["items"] if i["id"] == "undated")
+    assert back["first_seen"] == t0.isoformat(), "its first arrival, not the re-add"
+    assert "undated" not in returned["new_ids"]
+    assert "undated" not in returned["retired"], "carried items are not also retired"

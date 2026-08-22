@@ -14,23 +14,22 @@ sync path or a trade-off the owner should call.
   milliseconds; splitting the keys out like the ledger remains the full
   fix if it ever bites again. `test_a_push_landing_mid_sync_survives_the_save`
   pins it.
-- **`first_seen` can be re-stamped for items trimmed at the 400-item
-  cap.** An undated item sorts last, gets trimmed first, and if the
-  publisher still carries it the next poll re-adds it as new — a
-  perpetual NEW badge. Conditional on hitting the cap; in-season volume
-  makes that plausible. Fix needs a bounded memory of trimmed ids.
-- **A preview stored against a dash total never re-queues.**
-  `previews.is_covered` treats an unparseable total as covered, so a
-  matchup previewed before its line posted keeps the lineless preview
-  unless the favorite string also changes.
+- ~~**`first_seen` can be re-stamped for items trimmed at the 400-item
+  cap.**~~ **Fixed later the same day**: the merge keeps a bounded
+  memory of trimmed arrivals (`retired`, capped at 800) and restores a
+  returning item's original stamp instead of badging it NEW forever.
+- ~~**A preview stored against a dash total never re-queues.**~~
+  **Fixed later the same day**: a real total arriving where the stored
+  preview had none now counts as the line moving, so the lineless
+  preview re-queues; still-no-line and line-pulled keep the old
+  behaviour.
 - **`rss._clean` eats legitimate escaped angle-bracket prose.** The
   strip/unescape alternation that stops double-escaped tags also turns
   "implied &lt;24 but &gt;20 points" into "implied 20 points". The
   security trade was deliberate; the content loss is now written down.
-- **`_rekey_to_page` is last-wins on suffix-folded collisions.** Two
-  active players folding to one `match_key` (the Byron Murphy II class)
-  would put one player's points or badge on the other's row. No live
-  collision found; worth a collision guard when touched next.
+- ~~**`_rekey_to_page` is last-wins on suffix-folded collisions.**~~
+  **Fixed later the same day**: colliding keys decorate nobody — a dash
+  is honest, a coin flip is not.
 
 Three parallel reviews (product-vs-blueprint, code correctness, ops/robustness)
 over the whole app. Everything verified against the code; line numbers were

@@ -279,10 +279,25 @@ def _rekey_to_page(table: dict, html: str) -> dict:
     players. The drop was the worst of it: a season-ending rule that
     quietly did not apply.
     """
-    by_key = {match_key(name): value for name, value in table.items()}
+    by_key: dict[str, object] = {}
+    collided: set[str] = set()
+    for name, value in table.items():
+        key = match_key(name)
+        if key in by_key:
+            # Two active players folding to one key (the suffix strip
+            # makes Byron Murphy and Byron Murphy II the same key).
+            # Last-wins would put one player's points or badge on the
+            # other's row -- a wrong number wearing a right one's
+            # clothes -- so neither gets decorated. A dash is honest;
+            # a coin flip is not.
+            collided.add(key)
+        by_key[key] = value
     out = {}
     for page_name in board_names(html):
-        hit = by_key.get(match_key(page_name))
+        key = match_key(page_name)
+        if key in collided:
+            continue
+        hit = by_key.get(key)
         if hit is not None:
             out[page_name] = hit
     return out

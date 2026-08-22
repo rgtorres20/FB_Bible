@@ -297,3 +297,18 @@ def test_a_player_not_on_the_board_is_simply_absent():
     out, _ = board.inject_injuries(INDEX_HTML, _index(**{"Nobody On This Board": "IR"}))
     table = json.loads(re.search(r"const FB_INJURIES = (\{.*?\});\n", out, re.S).group(1))
     assert table == {}
+
+
+def test_two_players_folding_to_one_key_decorate_nobody():
+    """match_key strips suffixes, so Byron Murphy and Byron Murphy II are
+    the same key. Last-wins would put one player's badge on the other's
+    row — a wrong number wearing a right one's clothes — so a collision
+    decorates neither. A dash is honest; a coin flip is not."""
+    import re as re_mod
+
+    block = re_mod.search(
+        r'^\s*\[\d+,"([^"]+)"', INDEX_HTML.split("const RAW_BOARD = [")[1], re_mod.M
+    )
+    on_board = block.group(1)
+    table = {on_board: {"flag": "Out"}, f"{on_board} II": {"flag": "Questionable"}}
+    assert board._rekey_to_page(table, INDEX_HTML) == {}

@@ -55,10 +55,22 @@ def is_covered(preview: dict | None, row: dict) -> bool:
         return False
     if (preview.get("fav") or "") != (row.get("fav") or ""):
         return False
-    try:
-        stored, current = float(preview.get("total") or ""), float(row.get("total") or "")
-    except ValueError:
-        # No parseable line on either side: nothing moved that we can see.
+
+    def _total(value) -> float | None:
+        try:
+            return float(value or "")
+        except ValueError:
+            return None
+
+    stored, current = _total(preview.get("total")), _total(row.get("total"))
+    if stored is None and current is not None:
+        # The preview was written before the book posted a line; a real
+        # total arriving IS the line moving. Treating "unparseable on
+        # either side" as covered kept the lineless preview forever.
+        return False
+    if stored is None or current is None:
+        # Still no line, or the line was pulled: nothing moved that we
+        # can see.
         return True
     return abs(stored - current) < REFRESH_TOTAL_DELTA
 
