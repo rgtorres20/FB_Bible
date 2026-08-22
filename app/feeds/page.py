@@ -405,6 +405,142 @@ def data_health_stamps(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- paging the two long feeds ---------------------------------------------
+# Owner ask, Aug 22: "when I get to bottom of Alerts or news, be able to go
+# to the next page."
+#
+# Two different problems wearing one sentence. Alerts already pages at eight
+# a screen -- but its only Prev/Next sit ABOVE the list, so reaching the end
+# means scrolling back up past everything just read, which on a phone is the
+# whole screen twice. News does not page at all: it renders every item the
+# overlay carries (MAX_LIVE_ITEMS is 40, plus whatever curated rows the wire
+# has not already said), so the tab is one long scroll with no way to move
+# through it.
+#
+# So: give Alerts a second pager at the foot of its list, and give News the
+# paging it never had. Both foot pagers scroll back to the top of the list on
+# the way through -- landing at the bottom of a fresh page is how a pager
+# feels broken even when the arithmetic is right.
+
+_ALERT_IIFE = """      ...(() => {
+        const PAGE = 8;"""
+
+# Same handlers the head pager already binds, plus a scroll. Kept beside the
+# originals rather than replacing them: the head pager is already where the
+# eye is on arrival, and it should not start moving the page.
+_ALERT_IIFE_PAGED = """      ...(() => {
+        const PAGE = 8;
+        const toTop = () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } };"""  # noqa: E501
+
+_ALERT_RETURN = """          alertPrev: () => this.setState({ alertPage: Math.max(0, page - 1) }),
+          alertNext: () => this.setState({ alertPage: Math.min(pages - 1, page + 1) })"""
+
+_ALERT_RETURN_PAGED = """          alertPrev: () => this.setState({ alertPage: Math.max(0, page - 1) }),
+          alertNext: () => this.setState({ alertPage: Math.min(pages - 1, page + 1) }),
+          alertPrevFoot: () => { this.setState({ alertPage: Math.max(0, page - 1) }); toTop(); },
+          alertNextFoot: () => { this.setState({ alertPage: Math.min(pages - 1, page + 1) }); toTop(); }"""  # noqa: E501
+
+# The foot of the alerts list: the rule that closes it is the anchor.
+_ALERT_LIST_END = """          </sc-for>
+          <div style="border-top:2px solid var(--color-text);"></div>"""
+
+
+def _pager(label: str, prev: str, next_: str, prev_dim: str, next_dim: str) -> str:
+    """One Prev/Next row. Same shape as the design document's own."""
+    button = (
+        'style="padding:5px 12px; font-size:12px; font-weight:800; cursor:pointer; '
+        "border:1px solid var(--color-neutral-400); background:transparent; "
+        'color:var(--color-text); opacity:{dim};" '
+        'style-hover="border-color:var(--color-accent);"'
+    )
+    return (
+        '<div style="display:flex; align-items:center; justify-content:flex-end; '
+        'gap:var(--space-4); padding:var(--space-4) 0 0;">'
+        f'<span style="font-size:11px; color:var(--color-neutral-600);">{{{{ {label} }}}}</span>'
+        f'<button onClick="{{{{ {prev} }}}}" '
+        + button.format(dim=f"{{{{ {prev_dim} }}}}")
+        + ">← Prev</button>"
+        f'<button onClick="{{{{ {next_} }}}}" '
+        + button.format(dim=f"{{{{ {next_dim} }}}}")
+        + ">Next →</button>"
+        "</div>"
+    )
+
+
+_ALERT_LIST_END_PAGED = (
+    """          </sc-for>
+          """
+    + _pager("alertPageLabel", "alertPrevFoot", "alertNextFoot", "alertPrevDim", "alertNextDim")
+    + """
+          <div style="border-top:2px solid var(--color-text);"></div>"""
+)
+
+_NEWS_STATE = "    alertPage: 0,"
+_NEWS_STATE_PAGED = "    alertPage: 0,\n    newsPage: 0,"
+
+_NEWS_BINDING = """      news: NEWS.map(n => Object.assign({}, n, {
+        tagBg: n.kind === "Post" ? "transparent" : N2,
+        tagFg: n.kind === "Post" ? N6 : "var(--color-neutral-800)",
+        tagBd: "var(--color-neutral-400)"
+      })),"""
+
+_NEWS_BINDING_PAGED = """      ...(() => {
+        const NPAGE = 12;
+        const nToTop = () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } };
+        const npages = Math.max(1, Math.ceil(NEWS.length / NPAGE));
+        const npage = Math.min(s.newsPage || 0, npages - 1);
+        return {
+          news: NEWS.slice(npage * NPAGE, npage * NPAGE + NPAGE).map(n => Object.assign({}, n, {
+            tagBg: n.kind === "Post" ? "transparent" : N2,
+            tagFg: n.kind === "Post" ? N6 : "var(--color-neutral-800)",
+            tagBd: "var(--color-neutral-400)"
+          })),
+          newsPageLabel: "Page " + (npage + 1) + " of " + npages + " \\u00b7 " + NEWS.length + " posts",
+          newsPrevDim: npage === 0 ? "0.25" : "1",
+          newsNextDim: npage >= npages - 1 ? "0.25" : "1",
+          newsPrev: () => { this.setState({ newsPage: Math.max(0, npage - 1) }); nToTop(); },
+          newsNext: () => { this.setState({ newsPage: Math.min(npages - 1, npage + 1) }); nToTop(); }
+        };
+      })(),"""  # noqa: E501
+
+_NEWS_LIST_END = """          </sc-for>
+        </div>
+        <div style="padding:var(--space-4) var(--space-6) var(--space-8);">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Feeds watched</div>"""  # noqa: E501
+
+_NEWS_LIST_END_PAGED = (
+    """          </sc-for>
+          """
+    + _pager("newsPageLabel", "newsPrev", "newsNext", "newsPrevDim", "newsNextDim")
+    + """
+        </div>
+        <div style="padding:var(--space-4) var(--space-6) var(--space-8);">
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--color-neutral-600);">Feeds watched</div>"""  # noqa: E501
+)
+
+
+def feed_paging(html: str) -> tuple[str, list[str]]:
+    """Prev/Next at the foot of Alerts, and paging for News at all.
+
+    Five edits, and they are all-or-nothing in practice: a foot pager
+    bound to handlers that were never added would render two dead
+    buttons, and a sliced News list with no pager would hide items with
+    no way to reach them. Each reports its own miss, and the test asserts
+    the set fires together against the committed document.
+    """
+    return _apply(
+        html,
+        (
+            ("alerts foot-pager handlers", _ALERT_IIFE, _ALERT_IIFE_PAGED, 1),
+            ("alerts foot-pager bindings", _ALERT_RETURN, _ALERT_RETURN_PAGED, 1),
+            ("alerts foot pager", _ALERT_LIST_END, _ALERT_LIST_END_PAGED, 1),
+            ("news page state", _NEWS_STATE, _NEWS_STATE_PAGED, 1),
+            ("news paging", _NEWS_BINDING, _NEWS_BINDING_PAGED, 1),
+            ("news foot pager", _NEWS_LIST_END, _NEWS_LIST_END_PAGED, 1),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -414,6 +550,7 @@ PRE = (
     mode_picker,
     source_truth,
     data_health_stamps,
+    feed_paging,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

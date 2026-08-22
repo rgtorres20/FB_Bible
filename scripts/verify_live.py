@@ -750,6 +750,17 @@ def main() -> int:
         f"{len(stray_inj)} keys match no row" + (f": {stray_inj[:3]}" if stray_inj else ""),
     )
 
+    # Owner ask, Aug 22: a way onward at the FOOT of the two long feeds.
+    # Alerts paged already but only from above, and News never paged at
+    # all. Both halves are checked because they fail differently: a foot
+    # pager with no handler renders dead buttons, and a sliced list with
+    # no pager hides posts with no way to reach them.
+    check("alerts has a pager at the foot of the list", "{{ alertNextFoot }}" in served)
+    check("news pages rather than running forever", "{{ newsNext }}" in served)
+    news_pages = re.search(r"Page \d+ of (\d+) \u00b7 (\d+) posts", served)
+    if news_pages:
+        print(f"  INFO  news feed: {news_pages.group(2)} posts across {news_pages.group(1)} pages")
+
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now
