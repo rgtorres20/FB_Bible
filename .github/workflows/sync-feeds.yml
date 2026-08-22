@@ -74,5 +74,12 @@ jobs:
           FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          python3 -m pip install --quiet httpx
+          # push_vegas imports app.feeds.vegas, and vegas reads
+          # config.SEASON_YEAR (Aug 21) -- which pulls pydantic. The
+          # runner installed only httpx, so this step died on import
+          # every 15 minutes from Aug 21 22:27 to Aug 22 18:00 while the
+          # stored slate kept serving under a request-time stamp that
+          # made it look fresh. Install what the import chain actually
+          # needs; the sync curl above is independent and kept working.
+          python3 -m pip install --quiet httpx pydantic pydantic-settings
           python3 scripts/push_vegas.py
