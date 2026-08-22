@@ -205,3 +205,93 @@ def test_the_route_serves_without_a_store():
     r = TestClient(main_mod.app).get("/app/nextup")
     assert r.status_code == 200
     assert "Next man up" in r.text
+
+
+# --- defenders are on the board too -------------------------------------
+# Owner, Aug 22: "IDPs should be — all draft should be monitored for
+# injuries." Both verified leagues start EIGHT defensive players, and the
+# pickup board watched none of them: depth.chart() filtered to
+# ("QB", "RB", "WR", "TE").
+
+
+def _idp_room():
+    """A real Ravens linebacker room: the starter out, one man behind."""
+    index = {
+        "v": players_mod.INDEX_VERSION,
+        "by_name": {},
+        "surnames": {},
+        "players": {
+            "1": {
+                "id": "1",
+                "name": "Roquan Smith",
+                "position": "ILB",
+                "team": "BAL",
+                "injury_status": "Out",
+                "rank": 400,
+                "idp": "LB",
+            },
+            "2": {
+                "id": "2",
+                "name": "Trenton Simpson",
+                "position": "ILB",
+                "team": "BAL",
+                "injury_status": None,
+                "rank": 900,
+                "idp": "LB",
+            },
+        },
+    }
+    lines = {
+        "v": 5,
+        "players": {
+            "1": {"gp": 17, "idp_tkl_solo": 100, "idp_tkl_ast": 45, "idp_sack": 2},
+            "2": {"gp": 17, "idp_tkl_solo": 30, "idp_tkl_ast": 15},
+        },
+    }
+    return index, lines
+
+
+def test_an_injured_starting_defender_reaches_the_board():
+    """The gap. A third of an IDP roster was unwatched."""
+    index, lines = _idp_room()
+    rows = depth.next_man_up(index, lines)
+    assert [r["starter"]["name"] for r in rows] == ["Roquan Smith"]
+    assert rows[0]["replacement"]["name"] == "Trenton Simpson"
+
+
+def test_defenders_are_grouped_the_way_a_league_starts_them():
+    """A league rosters linebackers, not MIKEs and WILLs. The man behind
+    an injured LB is the next LB, so the chart is keyed by group."""
+    index, lines = _idp_room()
+    assert depth.next_man_up(index, lines)[0]["position"] == "LB"
+
+
+def test_a_defenders_workload_is_tackles_not_carries():
+    """Reporting his carries would report zeros about the wrong thing —
+    and would have sorted every defender to the bottom of the board."""
+    index, lines = _idp_room()
+    row = depth.next_man_up(index, lines)[0]
+    assert row["vacated"] == 145, "100 solo + 45 assisted"
+    assert row["starter"]["usage"]["idp_tkl_solo"] == 100
+    assert "rush_att" not in row["starter"]["usage"]
+
+
+def test_the_defenders_real_line_reaches_the_page():
+    index, lines = _idp_room()
+    html = nextup.build_html(index, lines, [], NOW)
+    assert "Trenton Simpson" in html
+    assert "100</b> solo + <b>45</b> assisted tackles" in html
+    # Scoped to the card: the page footer legitimately mentions carries
+    # when explaining that the two sides use different units.
+    card = html[html.index("Trenton Simpson") : html.index("</div></div>")]
+    assert "carries" not in card, "a linebacker has no carries to report"
+    assert "targets" not in card
+
+
+def test_the_page_says_the_two_sides_are_different_currencies():
+    """Tackles and touches are not the same unit, and one sorted list
+    mixing them would read as a ranking it is not."""
+    index, lines = _idp_room()
+    html = nextup.build_html(index, lines, [], NOW)
+    assert "offence and defenders alike" in html
+    assert "different currencies" in html

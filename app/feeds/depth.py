@@ -36,16 +36,31 @@ OUT_FLAGS = {"Out", "IR", "PUP", "Sus", "NA", "Doubtful", "DNR"}
 
 # Which measured field means "opportunity" at each position. A back's
 # workload is carries plus targets; a receiver's is targets; a
-# quarterback's is attempts.
+# quarterback's is attempts; a defender's is tackles.
+#
+# Defenders were left out entirely until Aug 22, which meant the pickup
+# board ignored a third of the roster: both verified IDP leagues start
+# EIGHT defensive players (docs/LEAGUES.md), and an injured starting
+# linebacker is exactly as much of a hole as an injured running back.
+# Tackles are the right measure for the same reason the IDP board says
+# so -- solo plus assist volume dominates that scoring.
 _OPPORTUNITY = {
     "RB": ("rush_att", "rec_tgt"),
     "FB": ("rush_att", "rec_tgt"),
     "WR": ("rec_tgt",),
     "TE": ("rec_tgt",),
     "QB": ("pass_att",),
+    "DB": ("idp_tkl_solo", "idp_tkl_ast"),
+    "LB": ("idp_tkl_solo", "idp_tkl_ast"),
+    "DL": ("idp_tkl_solo", "idp_tkl_ast"),
 }
 
 SKILL_POSITIONS = ("QB", "RB", "WR", "TE")
+
+# Defenders are grouped the way a league starts them -- DB/LB/DL -- not
+# by their listed position. A league rosters linebackers, not MIKEs and
+# WILLs separately, so the man behind an injured LB is the next LB.
+IDP_GROUPS = ("DB", "LB", "DL")
 
 
 def opportunity(entry: dict | None, position: str) -> float:
@@ -62,6 +77,19 @@ def usage(entry: dict | None) -> dict:
     """
     if not entry:
         return {}
+    solo = entry.get("idp_tkl_solo", 0) or 0
+    assisted = entry.get("idp_tkl_ast", 0) or 0
+    if solo or assisted:
+        # A defender's workload is tackles, and reporting his carries
+        # would be reporting zeros about the wrong thing.
+        return {
+            "gp": entry.get("gp"),
+            "idp_tkl_solo": solo,
+            "idp_tkl_ast": assisted,
+            "idp_sack": entry.get("idp_sack", 0) or 0,
+            "idp_int": entry.get("idp_int", 0) or 0,
+            "idp_pass_def": entry.get("idp_pass_def", 0) or 0,
+        }
     carries = entry.get("rush_att", 0) or 0
     targets = entry.get("rec_tgt", 0) or 0
     touches = carries + targets
@@ -99,9 +127,13 @@ def chart(index: dict | None, stats_state: dict | None) -> dict[tuple[str, str],
     out: dict[tuple[str, str], list[dict]] = {}
 
     for pid, player in _players(index).items():
-        position = (player.get("position") or "").upper()
+        # A defender competes for his GROUP's slots, so that is the depth
+        # chart he belongs on -- his listed position (MIKE, WILL, CB, FS)
+        # is finer than any league rosters.
+        group = player.get("idp")
+        position = group or (player.get("position") or "").upper()
         team = player.get("team") or ""
-        if position not in SKILL_POSITIONS or not team or player.get("dst"):
+        if position not in (*SKILL_POSITIONS, *IDP_GROUPS) or not team or player.get("dst"):
             continue
         entry = stats.get(pid)
         rank = player.get("rank")

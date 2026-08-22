@@ -87,6 +87,21 @@ def _nums(label: str, player_usage: dict) -> str:
     bits = []
     if player_usage.get("gp") is not None:
         bits.append(f"<b>{player_usage['gp']:.0f}</b> games")
+    # A defender's line is tackles. Reporting his carries would report
+    # zeros about the wrong thing -- and both IDP leagues start eight of
+    # them, so this is a third of the board, not an edge case.
+    if player_usage.get("idp_tkl_solo") or player_usage.get("idp_tkl_ast"):
+        solo = player_usage.get("idp_tkl_solo", 0)
+        assisted = player_usage.get("idp_tkl_ast", 0)
+        bits.append(f"<b>{solo:.0f}</b> solo + <b>{assisted:.0f}</b> assisted tackles")
+        for field, word in (
+            ("idp_sack", "sacks"),
+            ("idp_int", "interceptions"),
+            ("idp_pass_def", "passes defensed"),
+        ):
+            if player_usage.get(field):
+                bits.append(f"<b>{player_usage[field]:.0f}</b> {word}")
+        return f"{label}: " + " · ".join(bits)
     if player_usage.get("rush_att"):
         bits.append(f"<b>{player_usage['rush_att']:.0f}</b> carries")
     if player_usage.get("rec_tgt"):
@@ -184,7 +199,12 @@ def build_html(
 
     return (
         head + f"<p class='sub'><b>{len(rows)}</b> starters are flagged out right now, "
-        "and this is who is behind each of them. <b>The flags and the wire posts are "
+        "and this is who is behind each of them — <b>offence and defenders alike</b>, "
+        "since both IDP leagues start eight defensive players and an injured "
+        "linebacker is as much of a hole as an injured back. Defensive rows are "
+        "ordered and measured by <b>tackles</b>; offensive rows by carries and "
+        "targets. Those are different currencies, so read the ranking within a side "
+        "of the ball rather than across it. <b>The flags and the wire posts are "
         "live</b> — Sleeper's index on every sync, and the real newest polled item "
         "about the replacement, linked. <b>The depth order and the workload numbers "
         "are measured from last season</b> and labelled '25: no free source publishes "

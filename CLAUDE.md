@@ -193,7 +193,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1035 tests green — 1019 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1040 tests green — 1024 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -231,7 +231,16 @@ can reset the history to "no evidence".
 
 `/app/nextup` is the pickup board (owner request, Aug 21): every starter
 flagged out, the player measured to be behind him, how much work comes
-loose, and the real latest wire post about the replacement. Depth is
+loose, and the real latest wire post about the replacement. **Defenders
+included** (owner, Aug 22: *"IDPs should be — all draft should be
+monitored for injuries"*) — it watched only QB/RB/WR/TE until then, which
+ignored a third of an IDP roster, since both verified leagues start eight
+defensive players. A defender is charted by the group a league actually
+starts (DB/LB/DL, not MIKE or WILL) and measured in **tackles**, the same
+volume that dominates IDP scoring; reporting his carries would report
+zeros about the wrong thing. Tackles and touches are different
+currencies, so the page says to read the ranking within a side of the
+ball rather than across it. Depth is
 computed in `app/feeds/depth.py` from Sleeper's '25 opportunity — usage
 the stats reducer had been storing and nothing had joined up — so the
 numbers are measured rather than the curated guesses the handcuff table

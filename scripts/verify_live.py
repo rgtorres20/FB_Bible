@@ -401,6 +401,18 @@ def main() -> int:
     )
     flagged = nextup_page.count("class='row'")
     print(f"  INFO  starters flagged out right now: {flagged}")
+    # Owner, Aug 22: "IDPs should be — all draft should be monitored for
+    # injuries." Both verified leagues start eight defenders and this
+    # board watched none of them. Whether one is hurt today is luck;
+    # whether the board can SEE them is what to check.
+    covers_idp = "offence and defenders alike" in nextup_page
+    check(
+        "pickup board covers defenders, not just offence",
+        covers_idp or "No starter is currently flagged out" in nextup_page,
+        "" if covers_idp else "no rows today, so the copy is not on the page",
+    )
+    idp_rows = nextup_page.count("assisted tackles") // 2
+    print(f"  INFO  defensive rows on the pickup board: {idp_rows}")
 
     # The scorecard. Its whole value is that it refuses to show a number
     # it cannot back, so the check is that it never prints a rate before
