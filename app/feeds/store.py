@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import time
 from pathlib import Path
 from typing import Protocol
 
@@ -25,7 +24,11 @@ def _current_version(index: dict) -> bool:
 
 _PLAYER_KEY = "fbbible:players"
 # Sleeper asks callers not to pull the 14MB dump more than once a day.
-PLAYER_TTL_SECONDS = 20 * 60 * 60
+# How long a stored index is kept at all. Deliberately far longer than the
+# refresh interval (`players.FRESH_SECONDS`): this is a backstop, not an
+# expiry, so that a run of failed refetches degrades to a stale board that
+# says so rather than to no board at all.
+PLAYER_RETENTION_SECONDS = 14 * 24 * 60 * 60
 
 
 _AUTH_KEY = "fbbible:auth"
@@ -84,11 +87,15 @@ class FileFeedStore:
         return self._path.with_name("players.index.json")
 
     async def load_players(self) -> dict | None:
+        """The stored index, however old. Age is the caller's business.
+
+        This used to return None past the TTL, which made "stale" and
+        "absent" the same answer -- so a failed refetch served empty
+        boards rather than yesterday's players (Aug 22 incident,
+        docs/GAP_REVIEW.md). Freshness is now `players.needs_refresh`.
+        """
         path = self._player_path
         if not path.exists():
-            return None
-        age = time.time() - path.stat().st_mtime
-        if age > PLAYER_TTL_SECONDS:
             return None
         try:
             index = json.loads(path.read_text(encoding="utf-8"))
@@ -192,8 +199,14 @@ class RedisFeedStore:
         return index if _current_version(index) else None
 
     async def save_players(self, index: dict) -> None:
-        # TTL does the expiry, so a stale index can never be served.
-        await self._redis.set(_PLAYER_KEY, json.dumps(index), ex=PLAYER_TTL_SECONDS)
+        # Retention, not expiry. The TTL used to be the freshness rule,
+        # which meant the index simply vanished every 20 hours and any
+        # sync whose refetch failed left every board empty -- the one feed
+        # in the app that degraded to nothing instead of to yesterday's
+        # copy. It is now a long backstop against an abandoned deployment;
+        # `players.needs_refresh` decides when to fetch, and a failed
+        # fetch keeps what is already here.
+        await self._redis.set(_PLAYER_KEY, json.dumps(index), ex=PLAYER_RETENTION_SECONDS)
 
     async def load_auth(self) -> dict:
         raw = await self._redis.get(_AUTH_KEY)

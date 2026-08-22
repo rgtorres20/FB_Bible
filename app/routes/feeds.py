@@ -770,13 +770,27 @@ async def sync(
     # the source dump is ~14MB; a fetch failure degrades to untagged items
     # rather than failing the whole sync.
     index = await store.load_players()
-    if index is None:
+    if players.needs_refresh(index):
         try:
-            index = await players.fetch_index()
-            await store.save_players(index)
+            fresh = await players.fetch_index()
+            await store.save_players(fresh)
+            index = fresh
         except Exception as exc:  # noqa: BLE001
-            log.warning("player index unavailable, items will be untagged: %s", exc)
-            index = None
+            # Keep whatever is already stored. Before Aug 22 this set the
+            # index to None, which made a single failed fetch empty the
+            # top-300 board, the scoring board, the IDP board and the mock
+            # room's pool all at once -- the only feed here that degraded
+            # to nothing instead of to yesterday's copy, while ADP and
+            # Vegas a few lines below both carry forward on the same rule.
+            # An empty board does not read as stale, it reads as "no
+            # players exist", which is a false statement rather than an
+            # old one.
+            age = players.age_seconds(index)
+            log.warning(
+                "player index refetch failed, keeping the stored copy (age %s): %s",
+                f"{age / 3600:.1f}h" if age is not None else "unknown",
+                exc,
+            )
     if index:
         players.tag_items(polled["items"], index)
 

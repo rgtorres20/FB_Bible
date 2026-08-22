@@ -13,7 +13,7 @@ import time
 from app.config import Settings
 from app.feeds import players
 from app.feeds.store import (
-    PLAYER_TTL_SECONDS,
+    PLAYER_RETENTION_SECONDS,
     FileFeedStore,
     RedisFeedStore,
     build_feed_store,
@@ -82,34 +82,38 @@ async def test_player_index_is_absent_before_first_save(tmp_path):
     assert await store_at(tmp_path).load_players() is None
 
 
-async def test_player_index_is_served_while_inside_the_ttl(tmp_path):
+async def test_a_stored_index_is_served_however_old_it_is(tmp_path):
+    """Changed Aug 22 after a live incident. This used to return None past
+    a 20-hour TTL, which made "stale" and "absent" the same answer — so a
+    single failed refetch emptied the top-300 board, the scoring board,
+    the IDP board and the mock room's pool at once.
+
+    Age is the caller's business now (`players.needs_refresh`), and the
+    store's job is to still have the thing.
+    """
     store = store_at(tmp_path)
     await store.save_players(INDEX)
 
-    # One hour short of expiry.
     path = tmp_path / "players.index.json"
-    fresh = time.time() - (PLAYER_TTL_SECONDS - 3600)
-    os.utime(path, (fresh, fresh))
+    ancient = time.time() - 10 * 24 * 60 * 60
+    os.utime(path, (ancient, ancient))
 
     assert await store.load_players() == INDEX
 
 
-async def test_player_index_expires_past_the_ttl(tmp_path):
-    """Otherwise injury_status on every tag silently goes stale."""
-    store = store_at(tmp_path)
-    await store.save_players(INDEX)
-
-    path = tmp_path / "players.index.json"
-    old = time.time() - (PLAYER_TTL_SECONDS + 60)
-    os.utime(path, (old, old))
-
-    assert await store.load_players() is None
+async def test_retention_is_long_enough_to_survive_failed_refetches(tmp_path):
+    """It is a backstop against an abandoned deployment, not an expiry.
+    Set anywhere near the refresh interval and the incident comes back."""
+    assert PLAYER_RETENTION_SECONDS > 7 * 24 * 60 * 60
 
 
-async def test_ttl_is_under_a_day(tmp_path):
-    """Sleeper asks for no more than one dump per day; a TTL of 24h+ would
-    drift past that as sync times shift."""
-    assert PLAYER_TTL_SECONDS < 24 * 60 * 60
+async def test_the_index_is_still_refetched_about_daily(tmp_path):
+    """Sleeper asks for no more than one dump per day. Retention got
+    longer; the polite fetch rate must not — that constraint moved to
+    `players.FRESH_SECONDS`, it was not dropped."""
+    from app.feeds import players as players_mod
+
+    assert players_mod.FRESH_SECONDS < 24 * 60 * 60
 
 
 async def test_corrupt_player_index_is_treated_as_absent(tmp_path):

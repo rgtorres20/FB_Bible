@@ -4,6 +4,39 @@ Three parallel reviews (product-vs-blueprint, code correctness, ops/robustness)
 over the whole app. Everything verified against the code; line numbers were
 checked at review time and may drift.
 
+## Fixed Aug 22 — live incident
+
+- **The player index was the one feed that degraded to nothing.** Twelve
+  watchdog checks failed at once: the top-300 board, the scoring board,
+  the IDP board and the mock room's pool all came back empty, while news,
+  Vegas, ADP and team defenses were fine. The board also fell from 300
+  rows to 204, because `deepen()` draws its extra rows from the index.
+
+  The index was stored under a 20-hour TTL and refetched in exactly one
+  place, only when `load_players()` returned `None`. So "stale" and
+  "absent" were the same answer, and the TTL expiring in the same hour as
+  a failed Sleeper fetch left nothing stored — every player-backed surface
+  serving empty until some later sync happened to succeed. A few lines
+  below it in the same function, ADP and Vegas both carry forward on
+  exactly the opposite reasoning ("yesterday's ADP is still a usable draft
+  board"). An empty board does not read as stale; it reads as *no players
+  exist*, which is a false statement rather than an old one.
+
+  Now: the index carries a `fetched_at` stamp, `players.needs_refresh`
+  decides when to fetch (still under a day, since Sleeper asks for at most
+  one dump daily), Redis retention is a 14-day backstop rather than an
+  expiry, and a failed refetch keeps what is stored and logs its age.
+  `/health` reports the index count and age, so the next outage names
+  itself in one request instead of appearing as four unrelated empty
+  boards. `tests/test_player_index_survives.py` reproduces the incident —
+  verified failing against the old code.
+
+  **Still open:** nothing labels a carried-forward index as stale on the
+  boards themselves. The count and age are in `/health` and the watchdog
+  warns past 48h, but a reader looking at the IDP board cannot see that
+  its injury flags are two days old. That is the remaining half of the
+  no-stale-data rule for this feed.
+
 ## Fixed Aug 21
 
 - **`rss._clean` could be made to emit a live script tag.** It stripped

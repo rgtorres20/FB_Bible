@@ -268,6 +268,21 @@ def main() -> int:
     # a gap. The page refuses to render one; this checks it did not have to.
     scoring_page = get("/app/scoring").decode("utf-8", errors="replace")
     check("scoring board serves", "Scoring board" in scoring_page)
+    # Aug 22: an index outage showed up as four unrelated empty boards and
+    # nothing naming the cause. It is one store key, so say so once.
+    health_players = (get_json("/health") or {}).get("players") or {}
+    if isinstance(health_players, dict) and health_players.get("age_hours") is not None:
+        age_h = health_players["age_hours"]
+        check(
+            "player index is present",
+            bool(health_players.get("count")),
+            f"{health_players.get('count', 0)} players, {age_h}h old",
+        )
+        check(
+            "player index is not being carried forward indefinitely",
+            age_h < 48,
+            f"{age_h}h since the last successful Sleeper fetch",
+        )
     # `detail` prints on PASS as well as FAIL, so it has to describe what
     # was OBSERVED, never what failure would mean. A green line reading
     # "stored stats predate pass_cmp" is unreadable, and this log is the

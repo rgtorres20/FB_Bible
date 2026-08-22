@@ -22,6 +22,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import httpx
 
@@ -241,7 +242,55 @@ def build_index(raw: dict) -> dict:
         if pid in players and surname not in by_name:
             surnames[surname] = pid
 
-    return {"v": INDEX_VERSION, "by_name": by_name, "surnames": surnames, "players": players}
+    return {
+        "v": INDEX_VERSION,
+        # When this dump was reduced. The index is the one feed that used
+        # to vanish on a failed refetch instead of carrying forward, so it
+        # now survives -- and a surviving copy has to be able to say how
+        # old it is (Aug 22, docs/GAP_REVIEW.md).
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "by_name": by_name,
+        "surnames": surnames,
+        "players": players,
+    }
+
+
+# How old the index may be before the sync tries to replace it. Not an
+# expiry: past this it is refetched, and if that fetch fails the previous
+# copy is kept and labelled rather than dropped.
+FRESH_SECONDS = 20 * 60 * 60
+
+
+def fetched_at(index: dict | None) -> datetime | None:
+    """When this index was built, or None if it predates the stamp."""
+    raw = (index or {}).get("fetched_at")
+    if not raw:
+        return None
+    try:
+        stamp = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
+
+
+def age_seconds(index: dict | None, now: datetime | None = None) -> float | None:
+    stamp = fetched_at(index)
+    if stamp is None:
+        return None
+    return ((now or datetime.now(UTC)) - stamp).total_seconds()
+
+
+def needs_refresh(index: dict | None, now: datetime | None = None) -> bool:
+    """Whether the sync should try for a newer copy.
+
+    Missing, wrong-version, or unstamped all count -- an unstamped index
+    predates this scheme and its age cannot be judged, so it is treated as
+    due rather than trusted.
+    """
+    if not index or not index.get("players"):
+        return True
+    age = age_seconds(index, now)
+    return age is None or age > FRESH_SECONDS
 
 
 def find_players(text: str, index: dict, limit: int = 6) -> list[dict]:

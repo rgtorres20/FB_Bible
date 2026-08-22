@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from . import leagues
 from .config import get_settings
 from .feeds import board, page, previews, ranklists, stats, vegas
+from .feeds import players as players_mod
 from .feeds.store import FeedStore
 from .routes import access, auth, feeds, league, leaguecfg, userdata
 
@@ -116,9 +117,29 @@ async def root() -> RedirectResponse:
 
 
 @app.get("/health", tags=["meta"], summary="Liveness plus configuration state")
-async def health() -> dict:
+async def health(
+    store: FeedStore | None = Depends(feeds.get_optional_feed_store),
+) -> dict:
     """Deliberately reports config problems rather than just 'ok', so a bad
-    deploy is visible without reading logs."""
+    deploy is visible without reading logs.
+
+    Since Aug 22 it also reports the player index. That outage showed up
+    as four unrelated boards coming back empty with nothing naming the
+    cause -- it is one store key, and one request should say so.
+    """
+    # Never let a store problem take /health down: it is the endpoint you
+    # reach for *because* something is wrong.
+    index_state: dict = {"count": None, "age_hours": None}
+    if store is not None:
+        try:
+            index = await store.load_players()
+            age = players_mod.age_seconds(index)
+            index_state = {
+                "count": len((index or {}).get("players") or {}),
+                "age_hours": round(age / 3600, 1) if age is not None else None,
+            }
+        except Exception as exc:  # noqa: BLE001 - report the gap, never raise
+            logging.getLogger(__name__).warning("health: player index unreadable: %s", exc)
     return {
         "status": "ok",
         "stage": settings.stage,
@@ -139,6 +160,10 @@ async def health() -> dict:
         "league_keys": settings.league_keys,
         "frontend_ready": _FRONTEND_READY,
         "frontend_missing": _FRONTEND_MISSING,
+        # How many players the boards can see, and how long since Sleeper
+        # last answered. A count of 0 is the Aug 22 incident; a rising age
+        # with a healthy count is the carry-forward working.
+        "players": index_state,
     }
 
 

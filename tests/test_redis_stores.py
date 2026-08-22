@@ -13,7 +13,7 @@ from cryptography.fernet import Fernet
 
 from app.feeds import store as feed_store_mod
 from app.feeds.players import INDEX_VERSION
-from app.feeds.store import PLAYER_TTL_SECONDS, RedisFeedStore
+from app.feeds.store import PLAYER_RETENTION_SECONDS, RedisFeedStore
 from app.store.base import TokenSet
 from app.store.crypto import TokenCipher
 from app.store.redis_store import RedisTokenStore
@@ -130,12 +130,18 @@ async def test_feed_corrupt_json_reads_as_empty():
     assert await store.load() == {}
 
 
-async def test_player_index_saved_with_ttl():
-    # Sleeper asks for at most one dump a day; the TTL is what enforces the
-    # cache actually expiring rather than serving a stale index forever.
+async def test_player_index_is_kept_far_longer_than_it_is_refreshed():
+    """Retention is a backstop, not an expiry. It was the expiry until
+    Aug 22, which meant the index vanished every 20 hours and any sync
+    whose refetch failed served empty boards — the one feed that degraded
+    to nothing rather than to yesterday's copy."""
+    from app.feeds import players as players_mod
+
     store, fake = _feed_store()
     await store.save_players({"v": INDEX_VERSION, "players": {}})
-    assert fake.ttls[feed_store_mod._PLAYER_KEY] == PLAYER_TTL_SECONDS
+    ttl = fake.ttls[feed_store_mod._PLAYER_KEY]
+    assert ttl == PLAYER_RETENTION_SECONDS
+    assert ttl > players_mod.FRESH_SECONDS * 10, "a short TTL brings the incident back"
 
 
 async def test_player_index_version_gate():
