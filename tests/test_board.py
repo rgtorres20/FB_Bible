@@ -183,6 +183,57 @@ def test_the_injected_page_is_still_valid_javascript():
         assert result.returncode == 0, result.stderr
 
 
+# --- embedding in a <script> block -----------------------------------------
+
+
+def test_a_list_name_a_user_typed_cannot_close_the_data_script():
+    """Rank-list names are typed by hand at /app/mine and injected into the
+    Draft analyzer as JS source. `json.dumps` escapes quotes but not "/",
+    so a name containing "</script>" ends the script element early: the
+    board's own code never runs and the rest of the payload renders as
+    markup on the page. The escape has to happen on the way in -- the
+    browser's parser is not going to give the string back."""
+    payload = [
+        {
+            "key": "mine",
+            "name": "My sheet </script><h1>gotcha",
+            "n": 3,
+            "asOf": "2026-08-22",
+            "age": 0,
+            "scope": "overall",
+            "active": True,
+        }
+    ]
+    served, count = board.inject_sources(PAGE, payload)
+    assert count == 1
+
+    literal = re.search(r"const FB_RANK_SOURCES = (\[.*?\]);\n", served, re.S).group(1)
+    assert "</script>" not in literal
+    assert "<\\/script>" in literal
+    # Escaped for the HTML parser only: the name the owner typed is the
+    # name the panel shows, so this must not silently mangle their text.
+    assert json.loads(literal.replace("<\\/", "</"))[0]["name"] == payload[0]["name"]
+
+
+def test_every_map_this_module_injects_goes_through_the_one_escaper():
+    """Four maps land in the same script element -- live ADP, the rank
+    sources, league points and the injury flags -- and the way one of them
+    stays unescaped is by having a second escaper. Same rule the wire
+    cleaners are held to: two of a thing is how one of them stays broken.
+    So `json.dumps` is called in exactly one place here, and it is the
+    place that escapes."""
+    import inspect
+
+    source = inspect.getsource(board)
+    assert source.count("json.dumps(") == 1
+    assert "json.dumps(" in inspect.getsource(board._script_json)
+
+    # And it really escapes, at whatever depth the payload nests it.
+    assert board._script_json({"Player </script>": ["</b>"]}) == (
+        '{"Player <\\/script>":["<\\/b>"]}'
+    )
+
+
 # --- duplicate rows --------------------------------------------------------
 
 

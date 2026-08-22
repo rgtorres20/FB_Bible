@@ -29,6 +29,10 @@ Object.keys(room.LEAGUES).forEach(function (name) {
     const mine = S.log.filter((e) => e.me);
     perSlot.push({
       slot,
+      // The position tabs the room actually offers. A tab for a slot the
+      // league does not start is an invitation to draft an unrosterable
+      // player, and the filter behind it would come back empty.
+      tabs: document.getElementById('postab').children.map((b) => b.textContent),
       done: S.done,
       rounds: S.rounds,
       picks: S.log.length,
