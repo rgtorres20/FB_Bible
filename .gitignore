@@ -39,3 +39,10 @@ htmlcov/
 .obsidian/workspace*.json
 .obsidian/cache
 .obsidian/plugins/*/data.json
+
+# Agent worktrees. The harness checks the whole repo out again under
+# .claude/worktrees/ so a background agent can work on an isolated copy,
+# and removes it when that agent finishes. Committing one would nest a
+# duplicate of the repo inside itself -- several megabytes per agent, and
+# stale the moment it lands.
+.claude/worktrees/
