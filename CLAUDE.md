@@ -137,6 +137,17 @@ from Sleeper. Neither blocks personal single-user use.
   section beats an invented one. When a call is genuinely uncertain, ask
   the owner instead of guessing. The standing list of known gaps and the
   fixes already made: [docs/GAP_REVIEW.md](docs/GAP_REVIEW.md).
+- **A number chosen rather than measured gets written down.** Not every
+  value can be derived — a retention window, a flex-fill model, where the
+  line between "out for the season" and "out a few weeks" falls in a feed
+  that publishes neither. Those are the owner's to overrule, which they
+  cannot do if the choice is invisible.
+  [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) records each one with what
+  changes if it is wrong. It also carries the standing rule the Aug 22
+  keying bug bought: **any map injected into the page is re-keyed onto
+  the board's own spelling first** (`board._rekey_to_page`) — an exact
+  string match at runtime misses in silence, and a watchdog check written
+  as a set intersection passes by finding nothing.
 - **Two stages, one codebase.** `main` deploys prod; the `beta` branch
   deploys a stable Vercel preview that wears a BETA badge and reads (never
   writes) the shared feed store. See
@@ -193,7 +204,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1077 tests green — 1061 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1082 tests green — 1066 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

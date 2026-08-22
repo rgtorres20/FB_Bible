@@ -616,6 +616,18 @@ def main() -> int:
         n_scored > 0,
         f"{n_scored} players",
     )
+    # Aug 22: three injections shipped keyed by Sleeper's spelling of each
+    # name while the page looks them up by the design document's -- and
+    # the two disagree on the apostrophe in names like Ja'Marr Chase. Every
+    # such lookup missed in silence. A map key that matches no row on the
+    # board is exactly that failure, and it is visible from out here
+    # without knowing which spelling is right.
+    stray_pts = sorted(set(json.loads(scored.group(1))) - set(board_names)) if scored else []
+    check(
+        "every scored player is a row the board can look up",
+        not stray_pts,
+        f"{len(stray_pts)} keys match no row" + (f": {stray_pts[:3]}" if stray_pts else ""),
+    )
     # The badge on the board's rows was two hand-typed name lists, frozen
     # (owner, Aug 22: "what happens when a player is put on IR" -- on this
     # board, nothing). A revert would not error; it would just start
@@ -636,6 +648,15 @@ def main() -> int:
         "nobody on a reserve list is still on the board",
         not (set(benched) & set(board_names)),
         f"{len(benched)} on a reserve list",
+    )
+    # The check above is a set intersection, so a badge keyed by a spelling
+    # the board does not use makes it pass by finding nothing -- which is
+    # how the keying bug stayed green. Assert the keys land first.
+    stray_inj = sorted(set(flags) - set(board_names))
+    check(
+        "every injury flag is keyed to a row that exists",
+        not stray_inj,
+        f"{len(stray_inj)} keys match no row" + (f": {stray_inj[:3]}" if stray_inj else ""),
     )
 
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)

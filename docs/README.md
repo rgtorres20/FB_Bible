@@ -28,6 +28,7 @@ that bind code, and the pointer to every page below.
 **Standing audits — these are lint reports written by hand**
 - [STALE_DATA.md](STALE_DATA.md) — what is live, what is still curated
 - [GAP_REVIEW.md](GAP_REVIEW.md) — known gaps and the fixes already made
+- [ASSUMPTIONS.md](ASSUMPTIONS.md) — every value chosen rather than measured, and what changes if it is wrong
 
 **Operations**
 - [AI.md](AI.md) — what the AI layer writes, and the long list of things it does not touch
