@@ -140,7 +140,12 @@ def test_the_fabricated_formula_is_gone():
     """`bases = { QB: 24.5, RB: 21.0, ... }` minus a slope. No data behind
     it, no league in it, rendered under a header saying "Proj"."""
     out, n = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
-    assert n == 3
+    # Two of the three fixture players, not three: since Aug 22 the map is
+    # re-keyed onto the board's own spelling, so it carries only players
+    # the page will actually look up. Myles Garrett is in the index and
+    # not on the committed board, so he contributes no key -- which is
+    # right, and the old count was measuring the wrong thing.
+    assert n == 2
     assert "bases = { QB: 24.5" not in out
     assert "slopes = { QB: 0.85" not in out
 

@@ -232,3 +232,68 @@ def test_coming_off_ir_puts_him_back_with_no_list_to_edit():
     healed, dropped_again = board.drop_reserve(INDEX_HTML, _index(**{name: None}))
     assert dropped_again == []
     assert name in _board_rows(healed)
+
+
+# --- the join must use the board's own spelling -------------------------
+# Found in review, Aug 22, and it had shipped three times: league points,
+# injury badges and the reserve drop all keyed their maps by Sleeper's
+# spelling while the page looks them up by its own. `live_adp` had always
+# re-keyed ("keyed by the page's spelling so the injected lookup needs no
+# normalization at runtime"); the new injections did not.
+
+
+def _sleeper_spelling(page_name: str) -> str:
+    """Sleeper writes a curly apostrophe; the design document a straight
+    one. `match_key` folds them — raw string equality does not."""
+    return page_name.replace("'", "’")
+
+
+CURLY = next(n for n in COMMITTED if "'" in n)
+
+
+def test_the_two_spellings_really_are_the_same_player():
+    assert board.match_key(CURLY) == board.match_key(_sleeper_spelling(CURLY))
+    assert CURLY != _sleeper_spelling(CURLY)
+
+
+def test_the_injury_badge_survives_a_different_apostrophe():
+    out, _ = board.inject_injuries(INDEX_HTML, _index(**{_sleeper_spelling(CURLY): "IR"}))
+    table = json.loads(re.search(r"const FB_INJURIES = (\{.*?\});\n", out, re.S).group(1))
+    assert CURLY in table, "the map must be keyed by what the page will look up"
+
+
+def test_the_reserve_drop_survives_a_different_apostrophe():
+    """The worst of the three: a season-ending rule that silently did not
+    apply to a subset of players, looking exactly like they were healthy."""
+    _, dropped = board.drop_reserve(INDEX_HTML, _index(**{_sleeper_spelling(CURLY): "IR"}))
+    assert dropped == [CURLY]
+
+
+def test_league_points_survive_a_different_apostrophe():
+    from app import leagues as leagues_mod
+
+    index = {
+        "players": {
+            "1": {
+                "id": "1",
+                "name": _sleeper_spelling(CURLY),
+                "position": "WR",
+                "team": "CIN",
+                "injury_status": None,
+                "rank": 5,
+            }
+        }
+    }
+    stats = {"players": {"1": {"gp": 17, "rec": 110, "rec_yd": 1500, "rec_td": 10}}}
+    out, n = board.inject_league_points(INDEX_HTML, index, stats, leagues_mod.defaults())
+    assert n == 1
+    table = json.loads(re.search(r"const FB_LEAGUE_PTS = (\{.*?\});\n", out, re.S).group(1))
+    assert CURLY in table
+
+
+def test_a_player_not_on_the_board_is_simply_absent():
+    """Re-keying maps the SOURCE onto the page, so someone the board does
+    not carry contributes nothing rather than a key nobody looks up."""
+    out, _ = board.inject_injuries(INDEX_HTML, _index(**{"Nobody On This Board": "IR"}))
+    table = json.loads(re.search(r"const FB_INJURIES = (\{.*?\});\n", out, re.S).group(1))
+    assert table == {}

@@ -252,6 +252,31 @@ def required(leagues_list) -> dict[str, int]:
     return need
 
 
+def _rekey_to_page(table: dict, html: str) -> dict:
+    """Re-key a Sleeper-keyed map by the board's own spelling of each name.
+
+    Injected lookups are exact string matches at runtime -- the page does
+    `FB_LEAGUE_PTS[b.name]` -- so a map keyed by the source's spelling
+    misses silently whenever the two differ. Sleeper writes "Ja’Marr
+    Chase" with a curly apostrophe and the design document writes a
+    straight one; `match_key` folds them, raw equality does not.
+
+    `live_adp` has always done this ("keyed by the page's spelling so the
+    injected lookup needs no normalization at runtime"). The three
+    injections added Aug 22 -- league points, injury badges, and the
+    reserve-list drop -- did not, and all three failed silently for those
+    players. The drop was the worst of it: a season-ending rule that
+    quietly did not apply.
+    """
+    by_key = {match_key(name): value for name, value in table.items()}
+    out = {}
+    for page_name in board_names(html):
+        hit = by_key.get(match_key(page_name))
+        if hit is not None:
+            out[page_name] = hit
+    return out
+
+
 def _existing(html: str) -> tuple[list[str], dict[str, int]]:
     """Names already on the board, and what it carries by position group."""
     from collections import Counter
@@ -480,7 +505,7 @@ def inject_league_points(
     injected map would keep rendering the invented number -- so a miss on
     either leaves the page untouched and reports nothing changed.
     """
-    table = league_points(index, stats_state, leagues_list)
+    table = _rekey_to_page(league_points(index, stats_state, leagues_list), html)
     if not table or _PROJ_FORMULA not in html or _LEAGUE_PTS_ANCHOR not in html:
         return html, 0
     html = html.replace(_PROJ_FORMULA, _PROJ_REPLACEMENT, 1)
@@ -545,7 +570,7 @@ def inject_injuries(html: str, index: dict | None) -> tuple[str, int]:
     surviving name lists would change nothing, and replacing the lookup
     without the map would clear every badge.
     """
-    table = injuries(index)
+    table = _rekey_to_page(injuries(index), html)
     if _INJURY_BLOCK not in html or _LEAGUE_PTS_ANCHOR not in html:
         return html, 0
     html = html.replace(_INJURY_BLOCK, _INJURY_REPLACEMENT, 1)
@@ -580,10 +605,11 @@ def drop_reserve(html: str, index: dict | None) -> tuple[str, list[str]]:
         return html, []
 
     reserve = {
-        player.get("name")
+        match_key(player.get("name") or "")
         for player in ((index or {}).get("players") or {}).values()
         if player.get("name") and players_mod.is_reserve(player.get("injury_status"))
     }
+    reserve.discard("")
     if not reserve:
         return html, []
 
@@ -595,7 +621,7 @@ def drop_reserve(html: str, index: dict | None) -> tuple[str, list[str]]:
             kept_lines.append(line)
             continue
         name = match.group(1)
-        if name in reserve:
+        if match_key(name) in reserve:
             dropped.append(name)
             continue
         kept_lines.append(line)
