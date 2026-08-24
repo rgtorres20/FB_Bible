@@ -23,9 +23,11 @@ Shape, sized to this deployment:
     the device's secure enclave, so this store holds nothing that can
     impersonate anyone.
 
-Bound to the domain: credentials are scoped to the site's hostname (the
-"RP ID"). Moving to a custom domain means everyone re-registers -- stated
-in docs/ACCESS.md rather than discovered later.
+Bound to the domain: credentials are scoped to an "RP ID", the hostname
+by default. Moving to a different domain means everyone re-registers --
+stated in docs/ACCESS.md rather than discovered later. PASSKEY_RP_ID
+pins it to the registrable domain instead, so apex-to-subdomain moves
+inside one domain are free; see `rp_id_for`.
 """
 
 from __future__ import annotations
@@ -80,12 +82,46 @@ def read_challenge(cookie: str | None, secret: str, now_ts: float | None = None)
         return None
 
 
-def rp_from_request(request) -> tuple[str, str]:
+def rp_id_for(hostname: str, configured: str = "") -> str:
+    """The RP ID to register and verify against, for this hostname.
+
+    Default (blank config) is the hostname itself, which is what shipped.
+    That is correct until the day the app moves between the apex and a
+    subdomain: an RP ID of `fantasysportsbible.com` and one of
+    `app.fantasysportsbible.com` are different relying parties, so every
+    passkey registered under the first is dead under the second. Pinning
+    the registrable domain up front costs nothing and keeps that move
+    from being a re-registration for everybody.
+
+    Why configured rather than computed: deriving "the registrable
+    domain" from a hostname needs the Public Suffix List -- a naive
+    "last two labels" is wrong for co.uk and a hundred others, and being
+    wrong here means WebAuthn refuses every registration. An env var is
+    explicit and cannot be subtly wrong about somebody else's TLD.
+
+    WebAuthn requires the RP ID be the host or a registrable suffix of
+    it, so a value that is neither is REFUSED BY THE BROWSER, not by us:
+    the failure would be every sign-in, on a value nobody re-reads after
+    setting it. Hence the suffix check, and the fall back to the
+    hostname -- a typo degrades to the behaviour that already worked.
+    """
+    want = (configured or "").strip().lower().lstrip(".")
+    if not want or want == hostname:
+        return hostname
+    if hostname.endswith("." + want):
+        return want
+    return hostname
+
+
+def rp_from_request(request, configured: str = "") -> tuple[str, str]:
     """(rp_id, expected_origin) for this deployment.
 
-    Derived from the request rather than configured, so a domain change
-    needs no env edit -- and read from the proxy headers, because behind
-    Vercel the ASGI scope reports neither the public host nor https.
+    The origin stays the full request host -- it is what the browser puts
+    in the client data and must match exactly. Only the RP ID may be
+    broadened, and only to a domain the host sits under.
+
+    Read from the proxy headers, because behind Vercel the ASGI scope
+    reports neither the public host nor https.
     """
     host = (
         request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
@@ -96,7 +132,7 @@ def rp_from_request(request) -> tuple[str, str]:
     proto = proto or request.url.scheme
     if hostname in ("localhost", "127.0.0.1"):
         return hostname, f"{proto}://{host}"  # dev keeps its port
-    return hostname, f"https://{hostname}"
+    return rp_id_for(hostname, configured), f"https://{hostname}"
 
 
 # --- credential storage (inside the auth blob, so syncs can never touch it) ---

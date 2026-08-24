@@ -126,6 +126,28 @@ How it behaves, deliberately:
   Hello. The button only appears where the browser supports it; the
   owner code and invite links keep working everywhere as the fallback.
 
+### Pinning the RP ID before you move again
+
+A passkey is scoped to an **RP ID**, which defaults to the hostname. That
+makes `fantasysportsbible.com` and `app.fantasysportsbible.com` two
+different relying parties: every credential registered under one is dead
+under the other. Moving between them is a re-registration for everybody,
+and doing this afterwards does not un-break them.
+
+Set **`PASSKEY_RP_ID=fantasysportsbible.com`** in Vercel env and a
+credential registered at the apex keeps working on any subdomain you add
+later. Leave it blank and behaviour is exactly what shipped.
+
+It is a setting rather than something derived because working out "the
+registrable domain" from a hostname needs the Public Suffix List — a
+naive last-two-labels is wrong for `.co.uk` and a hundred others, and
+being wrong makes WebAuthn refuse every registration. A value the host
+does not actually sit under is ignored and the hostname is used instead,
+so a typo degrades to the old behaviour rather than breaking sign-in.
+
+The origin is never widened, only the RP ID — it still has to match the
+browser exactly.
+
 ## Emailing invites automatically (optional)
 
 Adding an email can also send the invite for you — the message carries

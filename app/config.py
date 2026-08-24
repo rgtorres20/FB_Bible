@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     app_auth: bool = False
     owner_email: str = ""
     app_owner_code: str = ""
+    # WebAuthn RP ID. Blank derives it from the request hostname, which is
+    # what shipped and what local dev needs. Set it to the registrable
+    # domain (fantasysportsbible.com) and a passkey registered at the apex
+    # keeps working on any subdomain later -- see passkeys.rp_from_request.
+    # A value that is not a suffix of the request host is ignored, so a
+    # typo degrades to the old behaviour instead of breaking sign-in.
+    passkey_rp_id: str = ""
 
     # --- Invite email (optional) --------------------------------------------
     # When set, adding an email on /app/access sends the invite by mail;

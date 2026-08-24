@@ -660,7 +660,7 @@ async def passkey_register_options(
     if not email:
         return JSONResponse({"detail": "Sign in first, then add a passkey."}, status_code=401)
     auth = await store.load_auth()
-    rp_id, _ = passkeys.rp_from_request(request)
+    rp_id, _ = passkeys.rp_from_request(request, settings.passkey_rp_id)
     options = generate_registration_options(
         rp_id=rp_id,
         rp_name=passkeys.RP_NAME,
@@ -700,7 +700,7 @@ async def passkey_register_verify(
     if not challenge:
         return JSONResponse({"detail": "That took too long — try again."}, status_code=400)
     body = await request.json()
-    rp_id, origin = passkeys.rp_from_request(request)
+    rp_id, origin = passkeys.rp_from_request(request, settings.passkey_rp_id)
     try:
         verified = verify_registration_response(
             credential=body.get("credential"),
@@ -735,7 +735,7 @@ async def passkey_login_options(
 ) -> Response:
     if not PASSKEYS_READY:
         return JSONResponse({"detail": "Passkeys are unavailable here."}, status_code=503)
-    rp_id, _ = passkeys.rp_from_request(request)
+    rp_id, _ = passkeys.rp_from_request(request, settings.passkey_rp_id)
     # No allow-list of credential ids: the passkey is discoverable, so the
     # device offers the right one and nobody has to type an email. It also
     # means this endpoint reveals nothing about who has an account.
@@ -773,7 +773,7 @@ async def passkey_login_verify(
     if not authn.is_allowed(auth, email, settings.owner_email):
         return JSONResponse({"detail": "That access has been removed."}, status_code=403)
 
-    rp_id, origin = passkeys.rp_from_request(request)
+    rp_id, origin = passkeys.rp_from_request(request, settings.passkey_rp_id)
     try:
         verified = verify_authentication_response(
             credential=credential,

@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1208 tests green — 1192 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1215 tests green — 1199 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -425,8 +425,9 @@ when SMTP env is set. **Passkeys** (Face ID / Touch ID) layer on top:
 register from `/app/mine` after a normal sign-in, then the login page
 signs you in with a face or fingerprint — discoverable credentials, user
 verification required, public keys only, and the allowlist still governs
-(revoking an email deletes its passkeys). Bound to the hostname, so a
-custom-domain move means re-registering. All of it in docs/ACCESS.md.
+(revoking an email deletes its passkeys). Bound to an RP ID — the hostname
+unless `PASSKEY_RP_ID` pins the registrable domain, which makes a later
+apex-to-subdomain move free instead of a re-registration for everybody. All of it in docs/ACCESS.md.
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.

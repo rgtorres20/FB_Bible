@@ -204,3 +204,76 @@ def test_login_page_offers_the_passkey_button(client):
     c, _ = client
     page = c.get("/login").text
     assert "Sign in with Face ID" in page and "FBPK" in page
+
+
+# --- RP ID pinning (Aug 24, ahead of the custom-domain move) -----------------
+# A passkey is scoped to an RP ID. `fantasysportsbible.com` and
+# `app.fantasysportsbible.com` are DIFFERENT relying parties, so every
+# credential registered under one is dead under the other. Pinning the
+# registrable domain before anyone registers makes that move free; doing it
+# afterwards does not un-break the credentials.
+
+
+def test_blank_config_keeps_the_hostname_as_it_always_did():
+    assert passkeys.rp_id_for("fantasysportsbible.com") == "fantasysportsbible.com"
+    assert passkeys.rp_id_for("fb-bible-torro2.vercel.app") == "fb-bible-torro2.vercel.app"
+
+
+def test_a_subdomain_registers_against_the_pinned_domain():
+    assert (
+        passkeys.rp_id_for("app.fantasysportsbible.com", "fantasysportsbible.com")
+        == "fantasysportsbible.com"
+    )
+
+
+def test_the_apex_itself_is_allowed():
+    assert (
+        passkeys.rp_id_for("fantasysportsbible.com", "fantasysportsbible.com")
+        == "fantasysportsbible.com"
+    )
+
+
+def test_a_value_the_host_does_not_sit_under_is_ignored():
+    """WebAuthn refuses an RP ID that is not a suffix of the origin's host,
+    and it refuses it in the BROWSER -- so a typo here would break every
+    registration and every sign-in, on a setting nobody re-reads. Falling
+    back to the hostname degrades to the behaviour that already worked."""
+    assert passkeys.rp_id_for("fantasysportsbible.com", "example.com") == "fantasysportsbible.com"
+    # The classic near-miss: a suffix by string, not by label.
+    assert (
+        passkeys.rp_id_for("notfantasysportsbible.com", "fantasysportsbible.com")
+        == "notfantasysportsbible.com"
+    )
+
+
+def test_leading_dots_whitespace_and_case_are_tolerated():
+    for value in (" fantasysportsbible.com ", ".fantasysportsbible.com", "FantasySportsBible.COM"):
+        assert (
+            passkeys.rp_id_for("app.fantasysportsbible.com", value) == "fantasysportsbible.com"
+        ), value
+
+
+def test_the_origin_is_never_broadened_only_the_rp_id():
+    """The origin must match the browser's client data exactly. Widening it
+    to the pinned domain would make a credential from any subdomain verify
+    against any other, which is the check doing the opposite of its job."""
+
+    class _Req:
+        headers = {"x-forwarded-host": "app.fantasysportsbible.com", "x-forwarded-proto": "https"}
+        url = type("U", (), {"netloc": "app.fantasysportsbible.com", "scheme": "https"})()
+
+    rp_id, origin = passkeys.rp_from_request(_Req(), "fantasysportsbible.com")
+
+    assert rp_id == "fantasysportsbible.com"
+    assert origin == "https://app.fantasysportsbible.com"
+
+
+def test_localhost_ignores_the_pin_and_keeps_its_port():
+    class _Req:
+        headers = {"host": "localhost:8000"}
+        url = type("U", (), {"netloc": "localhost:8000", "scheme": "http"})()
+
+    assert passkeys.rp_from_request(_Req(), "fantasysportsbible.com") == (
+        "localhost",
+        "http://localhost:8000",
+    )
