@@ -255,39 +255,52 @@ def main() -> int:
         slate_age_h is not None and slate_age_h < 6,
         f"{slate_age_h}h old" if slate_age_h is not None else f"unreadable stamp {vegas_as_of!r}",
     )
-    # Aug 24: vegas.py pinned week=1 unconditionally, so once the regular
-    # season starts ESPN keeps answering with Week 1 and the slate reads
-    # fresh while describing games already played -- fresh stamp, wrong
-    # games, which the age check above cannot see. The fetch now asks
-    # unpinned and pins only in preseason; the live proof is that the week
-    # the page names matches ESPN's own idea of the current week.
-    espn_week = None
-    try:
-        raw = urllib.request.urlopen(
-            urllib.request.Request(
-                "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
-                headers={"User-Agent": "FBBible-verify/1.0"},
-            ),
-            timeout=30,
-        ).read()
-        espn = json.loads(raw)
-        espn_week = (espn.get("week") or {}).get("number")
-        espn_pre = (espn.get("season") or {}).get("type") == 1
-    except Exception as exc:  # noqa: BLE001 - a probe failure is not a page failure
-        print(f"  INFO  could not read ESPN's current week: {exc}")
-        espn_pre = False
-    served_src = meta.get("Vegas lines", {}).get("source") or ""
-    served_week = re.search(r"Week (\d+)", served_src)
-    if espn_week is not None and served_week:
-        want = 1 if espn_pre else int(espn_week)
+    # Aug 24: vegas.py pinned week=1 on every fetch, so from Week 2 on ESPN
+    # would keep answering with Week 1 and the slate would carry a current
+    # stamp over games already played -- fresh timestamp, wrong games, which
+    # the age check above cannot see because the FETCH really was recent.
+    #
+    # First written as a second call to ESPN's scoreboard, comparing its week
+    # number to the served one. That was wrong twice over: ESPN 403s the
+    # GitHub runner (so the check skipped, and a skipped check reads as
+    # green), and asking the same API the app asks proves only that two
+    # calls agree, not that the games are current.
+    #
+    # The slate's own kickoff timestamps are the better oracle. They are the
+    # thing that would be stale, they need no third party, and they fail the
+    # way the bug fails: a Week 1 slate served in October is a list of games
+    # whose kickoffs are all weeks in the past.
+    kicks = []
+    for row in vegas_rows:
+        raw = (row.get("kickoff") or "").replace("Z", "+00:00")
+        try:
+            kicks.append(datetime.fromisoformat(raw))
+        except ValueError:
+            continue
+    if kicks:
+        newest = max(kicks)
+        if newest.tzinfo is None:
+            newest = newest.replace(tzinfo=UTC)
+        days = (datetime.now(UTC) - newest).total_seconds() / 86400
+        # A slate is a whole week, so its LAST game is normally ahead of us.
+        # The window allows for the hours between a Monday night finish and
+        # ESPN rolling over to the next week -- but not for a slate that has
+        # been over for a week, which is the bug.
         check(
-            "Vegas slate is the current week, not a pinned Week 1",
-            int(served_week.group(1)) == want,
-            f"page says Week {served_week.group(1)}, ESPN is on week {espn_week}"
-            + (" (preseason)" if espn_pre else ""),
+            "the Vegas slate is games still ahead, not a pinned Week 1",
+            days < 3,
+            f"newest kickoff on the slate was {days:.1f} days ago ({newest:%Y-%m-%d})",
         )
+        print(f"  INFO  slate: {len(kicks)} kickoffs, newest {newest:%Y-%m-%d %H:%MZ}")
     else:
-        print(f"  INFO  Vegas week check skipped (served={served_src!r}, espn={espn_week})")
+        # Not a pass. The odds table ignores `kickoff`, so it could go empty
+        # without any other check noticing, and this one would then be
+        # quietly unable to run -- the skipped-check failure again.
+        check(
+            "the Vegas slate carries kickoff times to check",
+            False,
+            f"{len(vegas_rows)} games, none with a readable kickoff",
+        )
 
     cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
     check(
