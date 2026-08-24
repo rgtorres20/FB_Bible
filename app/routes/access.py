@@ -338,11 +338,49 @@ async def owner_login(
 
 
 @router.get("/login/invite/{token}", include_in_schema=False)
-async def accept_invite(
+async def open_invite(
     token: str,
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Show the invite; do NOT spend it.
+
+    Accepting on GET meant anything that fetches a link could burn it
+    before the invitee touched it -- mail clients and chat apps prefetch
+    to build previews, and corporate mail scanners open every link to
+    check it. The invitee then arrives at "already used" with no idea
+    why, which is exactly the report that produced this. A GET is
+    supposed to be safe and repeatable anyway.
+    """
+    email = authn.peek_invite(await store.load_auth(), token)
+    if not email:
+        return RedirectResponse("/login?e=2", status_code=303)
+    return _page(
+        "your invite",
+        "<div class='hero'>"
+        "<img src='/app/assets/fsb-logo.svg' alt='Fantasy Sports Bible — "
+        "draft smarter, dominate longer' width='900' height='420'>"
+        "</div>"
+        "<div class='card'><h2>You're invited</h2>"
+        f"<p class='sub'>This link signs in <b>{html_mod.escape(email)}</b> "
+        "on this device and keeps you signed in for "
+        f"{authn.SESSION_DAYS} days. No password, and nothing to install.</p>"
+        "<form method='post' action='/login/invite'>"
+        f"<input type='hidden' name='token' value='{html_mod.escape(token, quote=True)}'>"
+        "<button>Sign me in</button></form>"
+        "<p class='sub' style='margin:10px 0 0'>The link works once, so "
+        "finish here rather than saving it for later. Once you're in, open "
+        "<b>My stuff</b> and hit <b>Set up on this device</b> — after that "
+        "your face or fingerprint is the whole sign-in.</p></div>",
+    )
+
+
+@router.post("/login/invite", include_in_schema=False)
+async def accept_invite(
+    token: str = Form(...),
     settings: Settings = Depends(get_settings),
     store: FeedStore = Depends(get_feed_store),
 ) -> RedirectResponse:
+    """Spend the invite. Only a real click reaches here."""
     auth = await store.load_auth()
     updated, email = authn.accept_invite(auth, token)
     if not email:

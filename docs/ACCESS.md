@@ -14,8 +14,21 @@ nothing by itself.
   server mints a **one-time invite link**, shown to you exactly once
   (the server keeps only its hash, so it can never be shown again).
   Send it however you like — text, email, carrier pigeon. Opening it
-  signs that email in on that device for 30 days and burns the link.
-  Unused links expire after 7 days.
+  shows a **confirm page**; the button on that page is what signs them
+  in, for 30 days on that device, and burns the link. Unused links
+  expire after 7 days.
+- **Opening a link does not spend it — clicking the button does.** Mail
+  clients and chat apps fetch links to build previews, and corporate
+  mail scanners open every link to check it, all of them with a GET. A
+  one-time link that accepted on GET could be burned before the invitee
+  ever touched it, and they would arrive at "already used" with no way
+  to know why. It is also simply what HTTP says a GET is for.
+- **One link, one device.** The session is a cookie, so it lives in the
+  browser that accepted it. Someone who wants the app on a phone *and*
+  a laptop needs a link for each — mint the second with **New link**.
+  The way to stop that recurring is a passkey: once they are in on a
+  device, `/app/mine` → "Set up on this device" makes their face or
+  fingerprint the sign-in there, and they never need you again on it.
 - **Lost the link before you copied it?** Every unused invite has a
   **New link** button beside it. It mints a replacement in one click —
   no retyping the address — and **supersedes the old one**, so use it

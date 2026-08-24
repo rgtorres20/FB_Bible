@@ -13,6 +13,7 @@ secret. Each of those failing open is the whole gate failing open.
 from __future__ import annotations
 
 import base64
+import json
 import time
 
 from app import authn
@@ -302,3 +303,30 @@ def test_superseding_is_per_person_and_case_folded():
     assert still_good == "someone.else@example.com", "an unrelated invite survives"
     _, live = authn.accept_invite(auth, mine_again, now_ts=NOW)
     assert live == "tester@example.com"
+
+
+def test_peeking_at_an_invite_leaves_it_exactly_as_it_was():
+    """`peek_invite` is what lets the link be opened safely. If it
+    mutated anything — or if a peek could be mistaken for an accept —
+    the whole two-step would be theatre."""
+    auth = {}
+    auth, token = authn.mint_invite(auth, "buddy@example.com", now_ts=NOW)
+    before = json.dumps(auth, sort_keys=True)
+
+    for _ in range(5):
+        assert authn.peek_invite(auth, token, now_ts=NOW) == "buddy@example.com"
+
+    assert json.dumps(auth, sort_keys=True) == before, "a peek changes nothing"
+    assert not (auth.get("allow") or {}), "and allowlists nobody"
+    # The accept still works afterwards, exactly once.
+    auth, who = authn.accept_invite(auth, token, now_ts=NOW)
+    assert who == "buddy@example.com"
+    assert authn.peek_invite(auth, token, now_ts=NOW) is None, "spent is spent"
+
+
+def test_peek_refuses_an_expired_or_unknown_token():
+    auth = {}
+    auth, token = authn.mint_invite(auth, "buddy@example.com", now_ts=NOW)
+    assert authn.peek_invite(auth, token, now_ts=NOW + authn.INVITE_DAYS * 86400 + 1) is None
+    assert authn.peek_invite(auth, "not-a-real-token", now_ts=NOW) is None
+    assert authn.peek_invite(auth, "", now_ts=NOW) is None

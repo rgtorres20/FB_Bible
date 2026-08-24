@@ -154,9 +154,15 @@ def test_invite_flow_end_to_end_then_revocation(client):
     assert match, "the minted link must be shown to the owner exactly once"
     token = match.group(1)
 
-    # The buddy signs in on their own browser via the link.
+    # The buddy opens the link on their own browser. Opening it only
+    # SHOWS the invite -- see test_opening_an_invite_does_not_spend_it.
     buddy = TestClient(main.app)
-    r = buddy.get(f"/login/invite/{token}", follow_redirects=False)
+    shown = buddy.get(f"/login/invite/{token}")
+    assert shown.status_code == 200
+    assert "buddy@example.com" in shown.text
+
+    # Clicking the button is what signs them in.
+    r = buddy.post("/login/invite", data={"token": token}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/app/"
     assert buddy.get("/app/data/feeds.json").status_code == 200
 
@@ -301,10 +307,17 @@ def test_the_new_link_button_mints_a_replacement_and_burns_the_lost_one(client):
     stale = TestClient(main.app)
     r = stale.get(f"/login/invite/{lost}", follow_redirects=False)
     assert r.headers["location"] == "/login?e=2"
+    assert (
+        stale.post("/login/invite", data={"token": lost}, follow_redirects=False).headers[
+            "location"
+        ]
+        == "/login?e=2"
+    ), "and cannot be forced past the confirm page either"
     assert stale.get("/app/data/feeds.json").status_code == 401
 
     invited = TestClient(main.app)
-    r = invited.get(f"/login/invite/{fresh}", follow_redirects=False)
+    assert invited.get(f"/login/invite/{fresh}").status_code == 200
+    r = invited.post("/login/invite", data={"token": fresh}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/app/"
     assert invited.get("/app/data/feeds.json").status_code == 200
 
@@ -364,3 +377,64 @@ def test_the_sign_in_page_leads_with_the_invite_path(client):
     page = c.get("/login").text
     assert "open it on this device and you're in" in page
     assert page.index("open it on this device") < page.index("Owner sign-in")
+
+
+def test_opening_an_invite_does_not_spend_it(client):
+    """The reason this is two steps. Mail clients and chat apps fetch
+    links to build previews, and corporate mail scanners open every link
+    to check it for malware — all GETs. When GET accepted the invite,
+    any one of those burned it before the invitee touched it, and they
+    arrived at "already used" with no way to know why.
+
+    A GET is supposed to be safe and repeatable. Ten previews must leave
+    the link exactly as usable as none.
+    """
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+
+    scanner = TestClient(main.app)
+    for _ in range(10):
+        peek = scanner.get(f"/login/invite/{token}")
+        assert peek.status_code == 200
+    # No session was handed out on the way past, either.
+    assert scanner.get("/app/data/feeds.json").status_code == 401
+
+    # And the real invitee still gets in.
+    invitee = TestClient(main.app)
+    r = invitee.post("/login/invite", data={"token": token}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/app/"
+    assert invitee.get("/app/data/feeds.json").status_code == 200
+
+
+def test_the_confirm_page_says_who_it_signs_in_and_what_to_do_next(client):
+    """An invitee should know whose account they are opening before they
+    open it — and be told about the passkey, because registering one is
+    what stops them needing a fresh link on that device in 30 days."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+
+    shown = TestClient(main.app).get(f"/login/invite/{token}").text
+    assert "buddy@example.com" in shown
+    assert "Sign me in" in shown
+    assert "Set up on this device" in shown
+    assert "30 days" in shown
+
+
+async def test_an_expired_invite_never_reaches_the_confirm_page(client):
+    """Better to say so on arrival than after a click."""
+    c, store = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+
+    auth = await store.load_auth()
+    for entry in (auth.get("invites") or {}).values():
+        entry["expires"] = 0
+    await store.save_auth(auth)
+
+    r = TestClient(main.app).get(f"/login/invite/{token}", follow_redirects=False)
+    assert r.headers["location"] == "/login?e=2"

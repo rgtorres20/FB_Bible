@@ -99,6 +99,28 @@ def mint_invite(auth: dict, email: str, now_ts: float | None = None) -> tuple[di
     return {**auth, "invites": invites}, token
 
 
+def peek_invite(auth: dict, token: str, now_ts: float | None = None) -> str | None:
+    """The email a live invite is for, WITHOUT consuming it.
+
+    Opening the link must not spend it. Mail clients, chat apps and
+    security scanners fetch links to build previews or check them for
+    malware, and every one of those fetches is a GET -- so a one-time
+    link that accepts on GET can be burned before the invitee ever
+    taps it, and they arrive at "this link has already been used" with
+    no idea why.
+
+    Which is also just what HTTP says: a GET is safe and repeatable, and
+    consuming a token is neither. The link now lands on a confirmation
+    page built from this, and only the POST accepts.
+    """
+    now_ts = time.time() if now_ts is None else now_ts
+    digest = hashlib.sha256((token or "").encode()).hexdigest()
+    entry = (auth.get("invites") or {}).get(digest)
+    if not entry or entry.get("expires", 0) < now_ts:
+        return None
+    return normalize_email(entry.get("email", "")) or None
+
+
 def accept_invite(auth: dict, token: str, now_ts: float | None = None) -> tuple[dict, str | None]:
     """(updated auth blob, email) when the token is live; (auth, None)
     otherwise. Accepting consumes the invite and allowlists the email."""
