@@ -1,5 +1,27 @@
 # Gap review — Aug 15 2026
 
+## Found Aug 24 — measured, needs an owner decision
+
+- **The 15-minute sync actually runs about every 80 minutes.** Measured
+  over 38 hours: 30 scheduled runs, one every **1.32h** against a cron
+  asking for one every **0.25h**, longest gap **3.6h**. GitHub drops
+  roughly four in five scheduled runs under load. Every run that does
+  fire succeeds, so nothing is red and nothing is diagnosable from the
+  Actions tab — this is absence, not failure, and the workflow's own
+  "best effort" note had no number behind it until now.
+
+  Consequences, both real and neither dishonest: the wire can be ~3.5h
+  behind between polls, and the player index (refetched only once past
+  20h) sits over its threshold until a run happens — which is why
+  `/health` showed `age_hours: 20.7` with `last_error: null`. Nothing
+  claims otherwise; Data health stamps each feed from its own fetch
+  time. The app is simply less live than the cron implies.
+
+  The fix is a scheduler that is not GitHub's free tier — Vercel Pro
+  cron, or any small always-on runner hitting `/internal/sync`. That is
+  a cost decision (docs/PRODUCTIZE.md puts the Pro floor at ~$21/mo),
+  so it is recorded rather than chosen.
+
 ## Found Aug 22 (stale-data audit) — fixed
 
 - **Data health re-stamped the wire feeds with the browser's own Sleeper

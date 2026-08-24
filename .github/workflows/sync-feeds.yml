@@ -6,8 +6,19 @@ name: Sync feeds
 # the deployment.
 #
 # Two caveats, both documented in docs/HOSTING.md:
-#  - Timing is best effort. GitHub delays or drops scheduled runs under load,
-#    worst around the top of each hour.
+#  - Timing is best effort, and "best effort" turned out to mean a fifth of
+#    what is asked for. MEASURED Aug 24 over 38 hours: 30 scheduled runs,
+#    one every 1.32h on average against a cron asking for one every 0.25h,
+#    with gaps as long as 3.6h. GitHub drops roughly four out of five runs
+#    under load. Every run succeeds -- this is not a failure anybody can
+#    see in the Actions tab, it is absence.
+#
+#    What it costs: the wire is up to ~3.5h behind between polls, and the
+#    player index (refetched only past 20h) can sit a couple of hours over
+#    its threshold waiting for a run. Nothing lies about it -- Data health
+#    stamps each feed from its own fetch time -- but the app is less live
+#    than the 15-minute cron implies. Fixing it means a scheduler that is
+#    not GitHub's free tier (docs/GAP_REVIEW.md).
 #  - On a public repo, scheduled workflows are disabled automatically after
 #    60 days with no repository activity.
 
