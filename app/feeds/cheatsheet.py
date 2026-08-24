@@ -22,6 +22,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import adp as adp_mod
+from . import players as players_mod
 from . import skin
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -49,7 +50,9 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; }
 
 def build_html(state: dict, index: dict | None, now: datetime) -> str:
     board = (state or {}).get("players") or []
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
 
     if not board:
         return (

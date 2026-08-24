@@ -34,6 +34,7 @@ from zoneinfo import ZoneInfo
 
 from .. import leagues as leagues_mod
 from . import board, idp, skin
+from . import players as players_mod
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -337,7 +338,9 @@ def build_html(
     """
     room = list(board_leagues if board_leagues is not None else ROOM_LEAGUES)
     named = room_names(room)
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
     head = skin.head("mock draft room", "Mock draft room", _STYLE) + "<h1>Mock draft room</h1>"
 
     # Kicker supply follows the biggest room being served: every league

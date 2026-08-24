@@ -122,20 +122,60 @@ async def test_fetch_labels_the_week():
     assert state["games"][0]["game"] == "CAR @ BUF"
 
 
-async def test_fetch_asks_espn_for_regular_season_week_1():
-    """The tab claims the Week 1 slate; the fetch must pin it rather than
-    take whatever week the calendar is on (preseason, in August)."""
-    seen = {}
+def _board(season_type: int | None, week: int) -> dict:
+    """A scoreboard stamped with whichever week ESPN says it is."""
+    board = {"week": {"number": week}, "events": [_event("CAR", "BUF", "BUF -3", 38.5)]}
+    if season_type is not None:
+        board["season"] = {"type": season_type}
+    return board
+
+
+async def test_in_preseason_the_tab_pins_the_week_one_draft_slate():
+    """Nobody wants a preseason betting slate on a draft-prep tab, so
+    while the season is still ahead, Week 1 is the right board."""
+    calls = []
 
     def record(req):
-        seen.update(dict(req.url.params))
-        return httpx.Response(200, json=PAYLOAD)
+        calls.append(dict(req.url.params))
+        # Unpinned asks get the live preseason week; a pinned ask gets W1.
+        return httpx.Response(200, json=_board(2, 1) if "week" in req.url.params else _board(1, 3))
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
-        await vegas.fetch(client)
+        state = await vegas.fetch(client)
 
-    assert seen["seasontype"] == "2"
-    assert seen["week"] == "1"
+    assert state["week_label"] == "Week 1"
+    assert len(calls) == 2, "it asks what week it is, then pins Week 1"
+    assert calls[1]["seasontype"] == "2" and calls[1]["week"] == "1"
+
+
+async def test_once_the_season_starts_the_slate_follows_the_real_week():
+    """The bug this replaces. WEEK was pinned to 1 permanently, so from
+    the September opener onward the tab would have served a finished
+    Week 1 under a "Live via ESPN" caption -- and been more wrong every
+    week of the season, with nothing in the app to notice."""
+    calls = []
+
+    def record(req):
+        calls.append(dict(req.url.params))
+        return httpx.Response(200, json=_board(2, 7))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        state = await vegas.fetch(client)
+
+    assert state["week_label"] == "Week 7"
+    assert len(calls) == 1, "no second pinned request once the season is live"
+    assert "week" not in calls[0], "and the live week is not overridden"
+
+
+async def test_the_playoffs_are_followed_too():
+    """Derived from season.type rather than a date, so January needs no
+    edit either."""
+
+    def record(req):
+        return httpx.Response(200, json=_board(3, 2))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        assert (await vegas.fetch(client))["week_label"] == "Week 2"
 
 
 # --- /internal/vegas push endpoint -----------------------------------------

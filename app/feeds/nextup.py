@@ -33,6 +33,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import depth, skin
+from . import players as players_mod
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -121,7 +122,9 @@ def build_html(
     items: list[dict] | None,
     now: datetime,
 ) -> str:
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
     head = skin.head("next man up", "Next man up", _STYLE) + "<main><h1>Next man up</h1>"
 
     rows = depth.next_man_up(index, stats_state)

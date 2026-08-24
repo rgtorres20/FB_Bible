@@ -35,9 +35,18 @@ import httpx
 from .. import config
 
 URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
-# Regular season week 1 -- the draft-prep slate the tab claims to show.
+# The draft-prep slate: regular-season Week 1. Used only WHILE it is still
+# ahead of us -- `fetch` asks ESPN what week it actually is and follows it
+# once the season starts. Pinned unconditionally until Aug 24, which would
+# have served a finished Week 1 under a "Live via ESPN" caption from the
+# Sep 9 opener onward, getting more wrong every week of the season.
+#
+# Derived from the API rather than a calendar constant: ESPN stamps every
+# scoreboard with season.type (1 preseason, 2 regular, 3 post) and
+# week.number, and both this module and `weekrev` already read them. A date
+# in the code would need editing every August; this does not.
 SEASON_TYPE = 2
-WEEK = 1
+PREP_WEEK = 1
 YEAR = config.SEASON_YEAR
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -64,9 +73,16 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
             headers={"User-Agent": "FBBible/1.0 (personal draft tool, hourly)"},
         )
     try:
-        response = await client.get(
-            URL, params={"seasontype": SEASON_TYPE, "week": WEEK, "dates": YEAR}
-        )
+        # Ask what week it is before deciding which one to show.
+        response = await client.get(URL)
+        response.raise_for_status()
+        live = response.json()
+        if (live.get("season") or {}).get("type") == 1:
+            # Preseason: nobody wants a preseason betting slate on a draft
+            # tab, so show the Week 1 board everyone is drafting against.
+            response = await client.get(
+                URL, params={"seasontype": SEASON_TYPE, "week": PREP_WEEK, "dates": YEAR}
+            )
         response.raise_for_status()
         payload = response.json()
     finally:

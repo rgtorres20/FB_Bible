@@ -25,6 +25,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .. import leagues as leagues_mod
+from . import players as players_mod
 from . import skin
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -250,7 +251,9 @@ def build_html(
     # which is somebody else's board wearing this user's sign-in.
     board_ls = [lg for lg in board_ls if lg.starts_idp or lg.starts_dst] or list(BOARD_LEAGUES)
     idp_ls = [lg for lg in board_ls if lg.starts_idp]
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
     title = " &amp; ".join(html_mod.escape(lg.name) for lg in board_ls)
     # A league that starts only a team D/ST has no IDP board to speak of,
     # and calling its page one would be a small lie in large type.

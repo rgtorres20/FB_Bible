@@ -245,6 +245,40 @@ def main() -> int:
         slate_age_h is not None and slate_age_h < 6,
         f"{slate_age_h}h old" if slate_age_h is not None else f"unreadable stamp {vegas_as_of!r}",
     )
+    # Aug 24: vegas.py pinned week=1 unconditionally, so once the regular
+    # season starts ESPN keeps answering with Week 1 and the slate reads
+    # fresh while describing games already played -- fresh stamp, wrong
+    # games, which the age check above cannot see. The fetch now asks
+    # unpinned and pins only in preseason; the live proof is that the week
+    # the page names matches ESPN's own idea of the current week.
+    espn_week = None
+    try:
+        raw = urllib.request.urlopen(
+            urllib.request.Request(
+                "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+                headers={"User-Agent": "FBBible-verify/1.0"},
+            ),
+            timeout=30,
+        ).read()
+        espn = json.loads(raw)
+        espn_week = (espn.get("week") or {}).get("number")
+        espn_pre = (espn.get("season") or {}).get("type") == 1
+    except Exception as exc:  # noqa: BLE001 - a probe failure is not a page failure
+        print(f"  INFO  could not read ESPN's current week: {exc}")
+        espn_pre = False
+    served_src = meta.get("Vegas lines", {}).get("source") or ""
+    served_week = re.search(r"Week (\d+)", served_src)
+    if espn_week is not None and served_week:
+        want = 1 if espn_pre else int(espn_week)
+        check(
+            "Vegas slate is the current week, not a pinned Week 1",
+            int(served_week.group(1)) == want,
+            f"page says Week {served_week.group(1)}, ESPN is on week {espn_week}"
+            + (" (preseason)" if espn_pre else ""),
+        )
+    else:
+        print(f"  INFO  Vegas week check skipped (served={served_src!r}, espn={espn_week})")
+
     cheat = get("/app/cheatsheet").decode("utf-8", errors="replace")
     check(
         "cheat sheet serves the live board",
@@ -445,6 +479,16 @@ def main() -> int:
     # the page failing to serve, or serving without saying which half of
     # it is measured rather than live.
     nextup_page = get("/app/nextup").decode("utf-8", errors="replace")
+    # Aug 24: six boards stamped themselves with the time the request was
+    # served, which dates the render and not the data -- a board reading
+    # from a player index six hours stale still printed "as of now". Each
+    # now appends players.age_note(). One board is enough to prove the
+    # helper is wired; all six share it.
+    check(
+        "boards date their data, not the moment they were rendered",
+        "player index" in nextup_page and "h old" in nextup_page,
+        "stamp carries no player-index age",
+    )
     check("next-man-up board serves", "Next man up" in nextup_page)
     check(
         "next-man-up says which half is live",
@@ -768,11 +812,55 @@ def main() -> int:
     # all. Both halves are checked because they fail differently: a foot
     # pager with no handler renders dead buttons, and a sliced list with
     # no pager hides posts with no way to reach them.
+    # Aug 24: the alerts feed froze at "Today" / "2h ago" -- labels written
+    # once into the curated seed and never re-rendered, so the page grew
+    # more wrong the longer it ran, and the client's ts() read them as 0 and
+    # sorted the freshest rows last. render.absolute_alert_times promotes the
+    # absolute stamp already carried in each row's source. Checked as a count
+    # of survivors, not a set intersection: intersection-style checks pass by
+    # finding nothing (the Aug 22 keying lesson).
+    frozen = re.findall(r'"time":\s*"((?:Today|Yesterday)[^"]*|[^"]*\bago\b[^"]*)"', served)
+    check(
+        "no alert wears a frozen relative timestamp",
+        not frozen,
+        f"{len(frozen)} relative labels survive: {frozen[:3]}" if frozen else "",
+    )
+
     check("alerts has a pager at the foot of the list", "{{ alertNextFoot }}" in served)
     check("news pages rather than running forever", "{{ newsNext }}" in served)
     news_pages = re.search(r"Page \d+ of (\d+) \u00b7 (\d+) posts", served)
     if news_pages:
         print(f"  INFO  news feed: {news_pages.group(2)} posts across {news_pages.group(1)} pages")
+
+    # Aug 24: the Feeds-watched panel named eight publishers, five of
+    # which nothing polls ("Team beat writers - 18 accounts", "Practice
+    # reports - Wed-Fri"). A panel that invents its own sources is the
+    # false-positive rule broken on the surface that claims coverage, so
+    # both halves are checked: the fictions are gone AND the real list is
+    # there. Checking only for the absence would pass on an empty panel.
+    invented = [
+        "Team beat writers",
+        "Practice reports",
+        "National takes",
+        "Official transactions",
+        "Yahoo league activity",
+    ]
+    still = [n for n in invented if n in served]
+    check(
+        "feeds panel names no publisher the app does not poll",
+        not still,
+        f"{len(still)} invented rows survive: {still}" if still else "",
+    )
+    polled = served.count('count: "polled"')
+    check(
+        "feeds panel names the publishers really polled",
+        polled >= 7,
+        f"{polled} polled rows",
+    )
+    check(
+        "sources tile counts what is watched, not a made-up nine",
+        '"Sources live", value: "9"' not in served and "Sources watched" in served,
+    )
 
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of

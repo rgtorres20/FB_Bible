@@ -58,6 +58,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .. import leagues as leagues_mod
+from . import players as players_mod
 from . import replacement, skin
 
 CENTRAL = ZoneInfo("America/Chicago")
@@ -343,7 +344,9 @@ def build_html(
 ) -> str:
     """The scoring board: real stat lines through each league's real values."""
     board_ls = list(board_leagues if board_leagues is not None else BOARD_LEAGUES)
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
     season = (stats_state or {}).get("season")
     label = f"{season} season" if season else "the stored season"
     title = " &amp; ".join(html_mod.escape(lg.name) for lg in board_ls)

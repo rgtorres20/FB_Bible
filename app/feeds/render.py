@@ -17,6 +17,7 @@ no zero padding. Both matter: the page renders them verbatim.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from . import adp, impact, injury, stats, vegas, weekrev
@@ -114,6 +115,45 @@ def rename_leagues(feeds: dict) -> dict:
     ):
         text = text.replace(old, new)
     return _json.loads(text)
+
+
+# The page reads an alert's time with this, so anything we put there has
+# to match it or the row sorts as if it had no time at all.
+_ABSOLUTE_STAMP = re.compile(r"[A-Z][a-z]{2} \d+ \u00b7 \d+:\d+ (?:AM|PM)")
+
+
+def absolute_alert_times(alerts: list[dict]) -> list[dict]:
+    """Replace relative alert labels with the date they actually carry.
+
+    The curated alerts were written with labels like "Today", "1 day" and
+    "3 days ago". A relative label baked into a static file is false the
+    day after it is written, and these have been rendering "Today" beside
+    ten-day-old news.
+
+    Nothing is invented to fix it: every one of these rows already carries
+    an absolute stamp in `source` ("Yahoo lineup wire - Fri Aug 14 - 11:00
+    AM"), so the honest label was sitting next to the dishonest one the
+    whole time. Rows that already have a real stamp are left alone.
+
+    It also repairs the sort. The page orders alerts by
+    `ts(a.time || a.source)`, and `ts` returns 0 for anything it cannot
+    parse -- so "Today" was both wrong AND sorted to the very bottom, the
+    rows labelled freshest sitting last.
+    """
+    out = []
+    for alert in alerts or []:
+        row = dict(alert)
+        label = row.get("time")
+        # Only rows that actually carry a stale label are touched. A row
+        # with no time at all is not claiming anything, so inventing an
+        # empty cell for it would be a change with no reader behind it.
+        if label and not _ABSOLUTE_STAMP.search(label):
+            found = _ABSOLUTE_STAMP.search(row.get("source") or "")
+            # No stamp in the source either means we genuinely do not know
+            # when this happened; a blank says so, and a guess would not.
+            row["time"] = found.group(0) if found else ""
+        out.append(row)
+    return out
 
 
 def merge_into_feeds(
@@ -237,6 +277,10 @@ def merge_into_feeds(
             name: {**stamp, "time": format_time(stamp["published"])}
             for name, stamp in stamps.items()
         }
+
+    # Curated alerts keep their editorial judgement and lose their
+    # relative timestamps -- see absolute_alert_times.
+    merged["alerts"] = absolute_alert_times(merged.get("alerts") or [])
 
     merged["updated"] = now.isoformat()
     merged["note"] = (

@@ -24,7 +24,17 @@ name: Sync feeds
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Deliberately NOT */15, which asks for :00 :15 :30 :45 -- the top of
+    # the hour is the most contended slot on GitHub's shared scheduler and
+    # the one its own docs warn about, and the quarter-hours are nearly as
+    # busy. Same four runs an hour, asked for at unpopular minutes.
+    #
+    # This is a mitigation, not a fix: measured Aug 24 the schedule
+    # delivered one run every 1.32h against four an hour asked for.
+    # Whether the offset actually helps is measurable from the run history
+    # after a day or two -- if it does not, the answer is a scheduler that
+    # is not GitHub's free tier (docs/GAP_REVIEW.md).
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: # lets you force a sync from the Actions tab
 
 concurrency:

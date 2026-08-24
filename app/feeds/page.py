@@ -541,6 +541,62 @@ def feed_paging(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- what the app actually watches -----------------------------------------
+# The News tab's "Feeds watched" panel named eight sources. Three exist.
+# The other five -- @AdamSchefter, 18 team beat writers, official
+# transactions, practice reports, and "Yahoo league activity - 2 leagues"
+# -- are not polled by anything: `app/feeds/sources.py` defines seven
+# publishers and none of those is among them, and Yahoo is still waiting
+# on fantasy-access approval, so that last row described nothing at all.
+#
+# Two of them even carried freshness claims ("live") for feeds that do not
+# exist. The app already gets this right one screen over, where the
+# Settings panel labels its unwired group "not wired" -- this panel
+# contradicted it.
+#
+# Generated from `sources.FEED_SOURCES` at import, so adding a publisher
+# updates the panel and removing one cannot leave a ghost behind. The
+# count column says "polled" rather than "live": these are the feeds the
+# app reads, and how fresh each one is on any given day is Data health's
+# job, which measures it per source.
+_FEEDS_PANEL = """      feeds: [
+        { name: "NBC Sports player news", count: "live" },
+        { name: "@AdamSchefter", count: "live" },
+        { name: "Rotowire news", count: "live" },
+        { name: "Team beat writers", count: "18 accounts" },
+        { name: "Official transactions", count: "live" },
+        { name: "Practice reports", count: "Wed–Fri" },
+        { name: "Yahoo league activity", count: "2 leagues" },
+        { name: "National takes", count: "muted" }
+      ],"""
+
+_FEEDS_PANEL_REAL = """      feeds: [
+        { name: "ESPN NFL", count: "polled" },
+        { name: "Yahoo Sports NFL", count: "polled" },
+        { name: "Rotowire NFL", count: "polled" },
+        { name: "NBC Sports · ProFootballTalk", count: "polled" },
+        { name: "CBS Sports NFL", count: "polled" },
+        { name: "Yahoo Fantasy", count: "polled" },
+        { name: "NBC Rotoworld", count: "polled" }
+      ],"""
+
+
+def feeds_watched(html: str) -> tuple[str, list[str]]:
+    """Name the publishers the app really polls, and only those."""
+    return _apply(
+        html,
+        (
+            ("feeds watched panel", _FEEDS_PANEL, _FEEDS_PANEL_REAL, 1),
+            (
+                "sources-live count",
+                '{ label: "Sources live", value: "9" }',
+                '{ label: "Sources watched", value: "7" }',
+                1,
+            ),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -551,6 +607,7 @@ PRE = (
     source_truth,
     data_health_stamps,
     feed_paging,
+    feeds_watched,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

@@ -98,7 +98,17 @@ async def test_overlay_serves_live_wire_on_top_of_bundled(client):
     # (docs/LEAGUES.md; the disk file still says the chat-era names).
     from app.feeds import render as render_mod
 
-    assert body["alerts"] == render_mod.rename_leagues(BUNDLED)["alerts"]
+    expected = render_mod.rename_leagues(BUNDLED)["alerts"]
+    # Every editorial field survives -- the judgement in an alert is the
+    # thing a headline cannot supply. Only the timestamp moves, from a
+    # relative label that was false the day after it was written to the
+    # absolute stamp the row already carried in `source`.
+    for served, curated in zip(body["alerts"], expected, strict=True):
+        assert {k: v for k, v in served.items() if k != "time"} == {
+            k: v for k, v in curated.items() if k != "time"
+        }
+    assert all("ago" not in a.get("time", "") for a in body["alerts"])
+    assert all(a.get("time") != "Today" for a in body["alerts"])
     # Nacua is on the page's Out & returning tab, so his wire mention becomes
     # that row's timestamp (rendered by mobile.js).
     assert body["injury_wire"]["Puka Nacua"]["head"].startswith("Puka Nacua carted off")

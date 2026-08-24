@@ -349,6 +349,27 @@ def age_seconds(index: dict | None, now: datetime | None = None) -> float | None
     return ((now or datetime.now(UTC)) - stamp).total_seconds()
 
 
+def age_note(index: dict | None, now: datetime | None = None) -> str:
+    """ " · player index Nh old", or "" when the age is unknowable.
+
+    Every served board printed the REQUEST time and nothing else -- "checked
+    Sat Aug 24, 09:41 AM Central" -- while /app/nextup went as far as "the
+    flags are live". Since a failed refetch deliberately keeps the previous
+    copy rather than emptying the boards, a week-old index renders
+    byte-identically to a fresh one under a stamp saying it was checked this
+    minute. The generation time is true and says nothing about the data.
+
+    `age_seconds` has existed since Aug 22 and only /health read it; this is
+    the same number, on the surfaces people actually look at. Appended to
+    the stamp rather than replacing it, because when a page was built and
+    how old its data is are two different facts and both are worth having.
+    """
+    age = age_seconds(index, now)
+    if age is None:
+        return ""
+    return f" \u00b7 player index {age / 3600:.1f}h old"
+
+
 def needs_refresh(index: dict | None, now: datetime | None = None) -> bool:
     """Whether the sync should try for a newer copy.
 

@@ -31,6 +31,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from . import board, impact, render, skin
+from . import players as players_mod
 
 CENTRAL = ZoneInfo("America/Chicago")
 
@@ -122,7 +123,9 @@ def build_html(
     now: datetime,
     capsules: dict[str, dict] | None = None,
 ) -> str:
-    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central")
+    stamp = now.astimezone(CENTRAL).strftime("%a %b %d, %I:%M %p Central") + players_mod.age_note(
+        index, now
+    )
     head = skin.head("top-300 alert board", "Alert board", _STYLE) + "<h1>Top-300 alert board</h1>"
 
     offense, defense = _split_sections(index)
