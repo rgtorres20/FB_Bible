@@ -262,3 +262,48 @@ def test_data_health_stops_restamping_feeds_with_the_browsers_own_fetch(index_ht
 def test_the_data_health_transform_reports_a_miss_rather_than_half_applying():
     _, misses = page.data_health_stamps("<html>nothing to patch</html>")
     assert len(misses) == 3
+
+
+# The Aug 24 miss, kept as a test. `feeds_watched` removed five invented
+# publishers from the Feeds-watched panel and every unit test passed --
+# but two of them, "Team beat writers" and "National takes", also lived in
+# the Settings SOURCES list, and the live watchdog failed on exactly those
+# while the panel check beside it passed. A transform's own anchor test
+# proves it fired; it cannot prove the claim is gone from the PAGE. So
+# this asserts against the whole served output, which is the only thing a
+# reader actually sees.
+INVENTED_PUBLISHERS = (
+    "Team beat writers",
+    "Practice reports",
+    "National takes",
+    "Official transactions",
+    "Yahoo league activity",
+    "Route and snap analytics",
+)
+
+
+def test_no_invented_publisher_survives_anywhere_on_the_page(index_html):
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    still = [n for n in INVENTED_PUBLISHERS if n in served]
+    assert not still, f"invented sources still on the page: {still}"
+
+
+def test_the_usage_toggles_keep_the_ids_their_behaviour_hangs_off(index_html):
+    """s3 and s5 are not decoration -- each pulls a split-usage player's
+    value toward ADP. Renaming them for their effect is the fix; renaming
+    the IDs would silently unwire two real controls."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert 'id: "s3"' in served and 'id: "s5"' in served
+    assert "srcOn.s3" in served and "srcOn.s5" in served
+
+
+def test_a_polled_feed_is_not_shown_switched_off(index_html):
+    """s7 shipped defaulting off and reading "Muted by default". It now
+    names a feed the app really polls, so leaving it off would trade one
+    false claim for another."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "s7: true" in served

@@ -581,6 +581,111 @@ _FEEDS_PANEL_REAL = """      feeds: [
       ],"""
 
 
+def _src(sid: str, name: str, kind: str, weight: int, group: str) -> str:
+    """One SOURCES entry, spelled exactly as index.html spells it.
+
+    Built rather than pasted so the lines stay inside the line limit --
+    a `# noqa` cannot go inside a triple-quoted literal without becoming
+    part of the string it is meant to annotate.
+    """
+    return (
+        f'  {{ id: "{sid}", name: "{name}", kind: "{kind}", weight: {weight}, group: "{group}" }}'
+    )
+
+
+_SOURCES_INVENTED = ",\n".join(
+    (
+        _src(
+            "s1",
+            "NBC Sports player news",
+            "nbcsports.com/fantasy/football \u00b7 live wire",
+            28,
+            "wire",
+        ),
+        _src("s2", "@AdamSchefter", "X \u00b7 breaking status and transactions", 24, "wire"),
+        _src("s8", "Rotowire news", "rotowire.com/football/news \u00b7 live wire", 16, "wire"),
+        _src("s7", "National takes", "Muted by default", 0, "wire"),
+        _src(
+            "s3",
+            "Team beat writers",
+            "X list \u00b7 18 accounts, usage and practice",
+            16,
+            "usage",
+        ),
+        _src("s5", "Route and snap analytics", "Usage model \u00b7 imported CSV", 9, "usage"),
+    )
+)
+
+_SOURCES_REAL = ",\n".join(
+    (
+        _src(
+            "s1",
+            "NBC Rotoworld",
+            "nbcsports.com/fantasy/football/player-news \u00b7 polled",
+            28,
+            "wire",
+        ),
+        _src("s2", "ESPN NFL", "espn.com/espn/rss/nfl/news \u00b7 polled", 24, "wire"),
+        _src("s8", "Rotowire NFL", "rotowire.com/rss/news.php \u00b7 polled", 16, "wire"),
+        _src("s7", "Yahoo Sports NFL", "sports.yahoo.com/nfl/rss.xml \u00b7 polled", 16, "wire"),
+        _src("s3", "Backfield split read", "Off leans committee RBs toward ADP", 16, "usage"),
+        _src(
+            "s5",
+            "Route-share read",
+            "Off leans committee pass-catchers toward ADP",
+            9,
+            "usage",
+        ),
+    )
+)
+
+
+def source_names(html: str) -> tuple[str, list[str]]:
+    """Stop the Settings source list naming feeds nobody polls.
+
+    A companion to `feeds_watched`, and the reason it is a separate
+    transform is the reason the watchdog caught this at all: the same
+    fictions lived in TWO lists. Fixing the Feeds-watched panel left
+    "Team beat writers" and "National takes" standing here, and the
+    live check failed on exactly those two while the panel it was
+    written for passed. A grep of the page, not of the block being
+    edited, is what the next one of these needs.
+
+    Two different problems, so two different fixes:
+
+    * The **wire** group named an X account and a "National takes"
+      category. Nothing polls either. It now names four of the seven
+      real publishers (`sources.FEED_SOURCES`); the group is labelled
+      "not wired" already, so these are display, and the full seven are
+      on the Feeds-watched panel.
+
+    * The **usage** group is not display -- `srcOn.s3` and `srcOn.s5`
+      each pull a split-usage player's value toward ADP (index.html
+      ~2328). So the toggles do something real while being named after
+      an "X list of 18 accounts" and an "imported CSV" that do not
+      exist. Renaming them for their EFFECT keeps the control and drops
+      the claim, which is the same call `source_truth` made about the
+      board sliders: a real control with a misleading label is worse
+      than a dead one.
+
+    s7 shipped defaulting off, which read as "muted". A real polled feed
+    showing as off would be a fresh false claim, so its default flips
+    with its name.
+    """
+    return _apply(
+        html,
+        (
+            ("settings source list", _SOURCES_INVENTED, _SOURCES_REAL, 1),
+            (
+                "s7 default",
+                "s6: true, s7: false, s8: true",
+                "s6: true, s7: true, s8: true",
+                1,
+            ),
+        ),
+    )
+
+
 def feeds_watched(html: str) -> tuple[str, list[str]]:
     """Name the publishers the app really polls, and only those."""
     return _apply(
@@ -608,6 +713,7 @@ PRE = (
     data_health_stamps,
     feed_paging,
     feeds_watched,
+    source_names,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.
