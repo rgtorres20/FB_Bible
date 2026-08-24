@@ -218,3 +218,47 @@ def test_now_defaults_to_the_real_clock():
     decoded = base64.urlsafe_b64decode(cookie.encode()).decode()
     _, expires, _ = decoded.rsplit("|", 2)
     assert abs(int(expires) - (time.time() + authn.SESSION_DAYS * DAY)) < 5
+
+
+def test_an_invite_addressed_in_mixed_case_admits_the_lowercase_sign_in():
+    """The whole round trip, because this is how a real tester gets
+    locked out of an app that looks correct.
+
+    The owner types an address the way a person writes it — capital
+    first letter, maybe a trailing space off a copy-paste — and the
+    invitee later signs in typing their own address the way they always
+    do, in lower case. If any leg of add → invite → accept → check
+    skipped normalisation, the allowlist would hold one spelling and the
+    gate would test another, and the refusal would be silent and
+    indistinguishable from "not invited".
+    """
+    auth = {}
+    auth, token = authn.mint_invite(auth, " Msechelski@CamIntegrated.com ", now_ts=NOW)
+    auth, accepted = authn.accept_invite(auth, token, now_ts=NOW)
+
+    assert accepted == "msechelski@camintegrated.com", "stored once, folded"
+    # However they type it back at us, it is the same person.
+    for typed in (
+        "msechelski@camintegrated.com",
+        "Msechelski@camintegrated.com",
+        "MSECHELSKI@CAMINTEGRATED.COM",
+        "  msechelski@camintegrated.com  ",
+    ):
+        assert authn.is_allowed(auth, typed, OWNER), typed
+    # And the session cookie minted for any of those spellings reads back
+    # as the one stored identity.
+    cookie = authn.mint_session("Msechelski@CamIntegrated.com", SECRET, now_ts=NOW)
+    assert authn.read_session(cookie, SECRET, now_ts=NOW) == "msechelski@camintegrated.com"
+
+
+def test_a_second_invite_to_the_same_person_in_a_different_case_is_the_same_row():
+    """Otherwise the access page grows two rows for one human, and
+    removing the one you can see leaves the other one letting them in —
+    a revocation that silently does not revoke."""
+    auth = {}
+    auth, first = authn.mint_invite(auth, "RGTorres09@Gmail.com", now_ts=NOW)
+    auth, _ = authn.accept_invite(auth, first, now_ts=NOW)
+    auth, second = authn.mint_invite(auth, "rgtorres09@gmail.com", now_ts=NOW)
+    auth, _ = authn.accept_invite(auth, second, now_ts=NOW)
+
+    assert list(auth["allow"]) == ["rgtorres09@gmail.com"]
