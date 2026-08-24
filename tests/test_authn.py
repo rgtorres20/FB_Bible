@@ -262,3 +262,43 @@ def test_a_second_invite_to_the_same_person_in_a_different_case_is_the_same_row(
     auth, _ = authn.accept_invite(auth, second, now_ts=NOW)
 
     assert list(auth["allow"]) == ["rgtorres09@gmail.com"]
+
+
+def test_a_fresh_invite_kills_the_unused_one_it_replaces():
+    """Minting was purely additive until Aug 22, so re-adding an email
+    three times left THREE working links — every one a live way in, and
+    only the newest one known to the owner. Nobody would guess that from
+    a page whose only affordance is "add", and the docs already promised
+    the opposite ("re-add the email to mint a fresh one").
+
+    One live link per person is the whole point: it is what makes "I lost
+    the link, make me another" safe to offer as a button.
+    """
+    auth = {}
+    auth, first = authn.mint_invite(auth, "tester@example.com", now_ts=NOW)
+    auth, second = authn.mint_invite(auth, "tester@example.com", now_ts=NOW)
+
+    assert len(auth["invites"]) == 1
+    after, dead = authn.accept_invite(auth, first, now_ts=NOW)
+    assert dead is None, "the superseded link must not open anything"
+    assert not (after.get("allow") or {}), "and must not allowlist anybody"
+    _, live = authn.accept_invite(auth, second, now_ts=NOW)
+    assert live == "tester@example.com"
+
+
+def test_superseding_is_per_person_and_case_folded():
+    """Re-inviting one tester must not revoke everybody else's pending
+    link — and the same person written two ways is one person, or the
+    supersede silently misses and both links stay live."""
+    auth = {}
+    auth, mine = authn.mint_invite(auth, "tester@example.com", now_ts=NOW)
+    auth, theirs = authn.mint_invite(auth, "someone.else@example.com", now_ts=NOW)
+    auth, mine_again = authn.mint_invite(auth, "  TESTER@Example.com ", now_ts=NOW)
+
+    assert len(auth["invites"]) == 2, "one live link each, not three"
+    _, dead = authn.accept_invite(auth, mine, now_ts=NOW)
+    assert dead is None
+    _, still_good = authn.accept_invite(auth, theirs, now_ts=NOW)
+    assert still_good == "someone.else@example.com", "an unrelated invite survives"
+    _, live = authn.accept_invite(auth, mine_again, now_ts=NOW)
+    assert live == "tester@example.com"

@@ -12,10 +12,20 @@ nothing by itself.
   no passwords.
 - `/app/access` — your access page (owner only). Add an email → the
   server mints a **one-time invite link**, shown to you exactly once
-  (the server keeps only its hash). Send it however you like — text,
-  email, carrier pigeon. Opening it signs that email in on that device
-  for 30 days and burns the link. Unused links expire after 7 days;
-  re-add the email to mint a fresh one.
+  (the server keeps only its hash, so it can never be shown again).
+  Send it however you like — text, email, carrier pigeon. Opening it
+  signs that email in on that device for 30 days and burns the link.
+  Unused links expire after 7 days.
+- **Lost the link before you copied it?** Every unused invite has a
+  **New link** button beside it. It mints a replacement in one click —
+  no retyping the address — and **supersedes the old one**, so use it
+  when a link was lost, not after you have sent it.
+- **One live link per person, always.** Minting used to be purely
+  additive: re-adding an email three times left three working links,
+  every one a live way in and only the newest known to you. Since Aug 22
+  a fresh invite drops the unused one for that address (and only that
+  address — everyone else's pending link is untouched). This is what
+  makes the New link button safe to offer.
 - **Remove** an email and they're locked out on their very next request,
   valid cookie or not — the gate re-checks the stored allowlist every
   time.

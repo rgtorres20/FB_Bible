@@ -77,9 +77,23 @@ def mint_invite(auth: dict, email: str, now_ts: float | None = None) -> tuple[di
     now_ts = time.time() if now_ts is None else now_ts
     token = secrets.token_urlsafe(32)
     digest = hashlib.sha256(token.encode()).hexdigest()
-    invites = dict(auth.get("invites") or {})
+    address = normalize_email(email)
+    # A fresh link SUPERSEDES any unused one for the same person. Minting
+    # was purely additive until Aug 22, so re-adding an email three times
+    # left three working links -- every one of them a live way in, and
+    # only the newest one known to the owner. The docs already described
+    # the behaviour everyone assumed ("re-add the email to mint a fresh
+    # one"), which is the one implemented here.
+    #
+    # Other people's invites are untouched: this drops the rows for this
+    # address only.
+    invites = {
+        d: v
+        for d, v in (auth.get("invites") or {}).items()
+        if normalize_email(v.get("email", "")) != address
+    }
     invites[digest] = {
-        "email": normalize_email(email),
+        "email": address,
         "expires": int(now_ts + INVITE_DAYS * 86400),
     }
     return {**auth, "invites": invites}, token

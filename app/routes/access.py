@@ -385,17 +385,29 @@ def _access_page(
         or "<tr><td colspan='2' class='quiet'>Nobody yet — just you.</td></tr>"
     )
 
+    # The link is shown once and the server keeps only its hash, so it
+    # cannot be handed back -- but a mis-click costing a retyped address
+    # was needless friction. "New link" re-mints in one click, and says
+    # what it does: minting supersedes the unused link for that person,
+    # so a link already sent stops working.
     pending = "".join(
         f"<tr><td>{html_mod.escape(v.get('email', ''))}</td>"
-        f"<td>{max(0, int((v.get('expires', 0) - now) / 86400))}d left</td></tr>"
+        f"<td>{max(0, int((v.get('expires', 0) - now) / 86400))}d left</td>"
+        "<td><form method='post' action='/app/access/add' style='margin:0'>"
+        f"<input type='hidden' name='email' "
+        f"value='{html_mod.escape(v.get('email', ''), quote=True)}'>"
+        "<button class='quietbtn'>New link</button></form></td></tr>"
         for v in invites.values()
         if v.get("expires", 0) > now
     )
     pending_html = (
         "<div class='card'><h2>Unused invites</h2><table>"
-        "<tr><th>Email</th><th>Expires</th></tr>" + pending + "</table>"
-        "<p class='sub' style='margin:8px 0 0'>Links are shown only at mint "
-        "time; re-add an email to mint a fresh one.</p></div>"
+        "<tr><th>Email</th><th>Expires</th><th></th></tr>" + pending + "</table>"
+        "<p class='sub' style='margin:8px 0 0'>A link is shown only when it "
+        "is minted — the server keeps just its hash, so it can never be "
+        "shown again. <b>New link</b> mints a replacement and kills the "
+        "unused one, so use it when the link was lost, not after you have "
+        "sent it.</p></div>"
         if pending
         else ""
     )

@@ -274,3 +274,48 @@ def test_the_artwork_allowlist_opens_nothing_else(client):
         "/app/data/feeds.json",
     ):
         assert c.get(guarded, follow_redirects=False).status_code in (303, 401), guarded
+
+
+def test_the_new_link_button_mints_a_replacement_and_burns_the_lost_one(client):
+    """The owner's real failure mode: mint a link, navigate away before
+    copying it, and it is gone — the server keeps only its hash, so it
+    can never be shown again. "New link" is the recovery, and it must be
+    a true replacement: the link nobody managed to copy stops working,
+    so a lost link is not left live and unaccounted for."""
+    c, _ = client
+    _owner_login(c)
+
+    first_page = c.post("/app/access/add", data={"email": "tester@example.com"}).text
+    lost = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", first_page).group(1)
+
+    # The pending row offers the one-click replacement.
+    page = c.get("/app/access").text
+    assert "New link" in page
+    assert "tester@example.com" in page
+
+    second_page = c.post("/app/access/add", data={"email": "tester@example.com"}).text
+    fresh = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", second_page).group(1)
+    assert fresh != lost
+
+    # The lost link is dead; the fresh one works.
+    stale = TestClient(main.app)
+    r = stale.get(f"/login/invite/{lost}", follow_redirects=False)
+    assert r.headers["location"] == "/login?e=2"
+    assert stale.get("/app/data/feeds.json").status_code == 401
+
+    invited = TestClient(main.app)
+    r = invited.get(f"/login/invite/{fresh}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/app/"
+    assert invited.get("/app/data/feeds.json").status_code == 200
+
+
+def test_the_access_page_says_a_link_can_never_be_shown_again(client):
+    """The page must not imply a link is retrievable. It is not — only
+    its hash is kept — and a reader who expects otherwise will lose one
+    and not understand why."""
+    c, _ = client
+    _owner_login(c)
+    c.post("/app/access/add", data={"email": "tester@example.com"})
+    page = c.get("/app/access").text
+    assert "keeps just its hash" in page
+    assert "kills the unused one" in page
