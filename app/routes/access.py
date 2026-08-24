@@ -276,12 +276,27 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         "open it on this device and you're in — no password.</p>"
         + err
         + passkey_card
-        + "<div class='card'><h2>Owner sign-in</h2>"
+        + what_it_does
+        # Folded away, and last. An invited tester arriving on a burned or
+        # expired link used to land on a card headed "Owner sign-in" with
+        # an "Owner code" field right under the error -- and read it as a
+        # code they were supposed to have been given. Nobody but the owner
+        # can ever use this form (`owner_login` checks the code AND the
+        # address), so it is not a sign-in choice, it is one person's door.
+        #
+        # <details> rather than a script: this is the way back in when a
+        # passkey fails or the allowlist locks the owner out
+        # (docs/ACCESS.md), so it must not depend on JavaScript running.
+        + "<details class='card' style='padding:12px 16px'>"
+        "<summary style='cursor:pointer; font-weight:700; font-size:13px'>"
+        "Owner sign-in</summary>"
+        "<p class='sub' style='margin:8px 0 0'>Only the app's owner — "
+        "invited testers do not need this, and there is no code to ask "
+        "for. If your link no longer works, ask for a fresh one.</p>"
         "<form method='post' action='/login'>"
         "<label>Email</label><input name='email' type='email' required>"
         "<label>Owner code</label><input name='code' type='password' required>"
-        "<button>Sign in</button></form></div>"
-        + what_it_does
+        "<button>Sign in</button></form></details>"
         + state_note
         + f"<script>{passkeys.BROWSER_JS}</script>"
         + "<script>"

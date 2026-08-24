@@ -319,3 +319,48 @@ def test_the_access_page_says_a_link_can_never_be_shown_again(client):
     page = c.get("/app/access").text
     assert "keeps just its hash" in page
     assert "kills the unused one" in page
+
+
+def test_a_bounced_invitee_is_not_confronted_with_a_code_field(client):
+    """Owner ask, Aug 24: "web page is still asking for code even when they
+    click link". The link had been used, so the gate bounced them to
+    /login — correctly — but the first thing under the error was a card
+    headed "Owner sign-in" with an "Owner code" input, and it reads as a
+    code the invitee was supposed to have been given. There is no such
+    code: `owner_login` checks the code AND the owner's address, so that
+    form is one person's door, not a sign-in choice.
+
+    It is folded away rather than deleted — it is the way back in when a
+    passkey fails (docs/ACCESS.md).
+    """
+    c, _ = client
+    page = c.get("/login?e=2").text
+
+    assert "invite link has been used already or has expired" in page
+    # The error must reach the reader before any mention of a code.
+    assert page.index("has expired") < page.index("Owner code")
+    # And the form is behind a disclosure, not sitting open on the page.
+    assert "<details" in page
+    assert page.index("<details") < page.index("Owner code")
+    assert "invited testers do not need this" in page
+
+
+def test_the_owner_door_still_works_and_needs_no_javascript(client):
+    """Folding it away must not weaken it: this is the lockout escape
+    hatch, so it stays a plain HTML form that submits with scripting off."""
+    c, _ = client
+    page = c.get("/login").text
+    assert "<form method='post' action='/login'>" in page
+    assert "name='code'" in page
+
+    # It still signs the owner in, folded or not.
+    _owner_login(c)
+
+
+def test_the_sign_in_page_leads_with_the_invite_path(client):
+    """What an invitee needs to read first: the link is the whole
+    credential, and there is no password to hunt for."""
+    c, _ = client
+    page = c.get("/login").text
+    assert "open it on this device and you're in" in page
+    assert page.index("open it on this device") < page.index("Owner sign-in")
