@@ -85,6 +85,19 @@ from Sleeper. Neither blocks personal single-user use.
   not in an error message. `/auth/yahoo/status` returns expiry metadata only.
 - **Tokens go through `app/store`.** Don't read or write `.tokens.json` or
   Redis directly, and don't add a store that skips `TokenCipher`.
+- **The access blob is encrypted at rest too** (Aug 24), under the same
+  `TOKEN_ENCRYPTION_KEY`. Before passwords it held addresses and passkey
+  *public* keys — nothing impersonable if the store leaked; scrypt hashes
+  made it worth stealing. The rule that binds code is not the encryption
+  but its failure mode: **an access blob that cannot be decrypted raises
+  `AuthUnreadable`, never `{}`**. Empty is a legitimate value (a fresh
+  deployment), and every admin action is load → mutate → save, so
+  collapsing the two would overwrite the whole allowlist on the next add.
+  That is the verdict-wipe bug class, pre-empted rather than repeated. A
+  blob written before Aug 24 is plaintext and still opens, re-sealed by
+  the next write. `/health` reports `auth_at_rest`, `verify-live.yml`
+  fails on `plaintext`, and rotation is in
+  [docs/ACCESS.md](docs/ACCESS.md).
 - **Keep both run targets working.** Any change has to survive both
   `uvicorn app.main:app` and Vercel (same entrypoint, named in
   `[tool.vercel]`). That means: no reliance
@@ -212,7 +225,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1180 tests green — 1164 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1195 tests green — 1179 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).

@@ -60,6 +60,12 @@ nothing by itself.
   time.
 - The allowlist lives in its own Redis key (`fbbible:auth`), outside the
   feeds blob, so no sync rebuild can ever clobber it.
+- **That key is encrypted at rest** (Aug 24), with the same
+  `TOKEN_ENCRYPTION_KEY` the Yahoo tokens use. Before passwords the blob
+  held addresses and passkey *public* keys — nothing that impersonates
+  anyone if it leaked. Password hashes changed that, so the blob is now
+  sealed as well as hashed. See **Key rotation** below: it is the one
+  operational consequence.
 - Sessions are signed cookies (HMAC over `SESSION_SECRET`); nothing
   about a session is logged, per the repo's token rule.
 - The sync runner and the watchdog pass the gate with the `X-Sync-Token`
@@ -176,6 +182,40 @@ feed data the page shows; gating it would break the annotate runner's
 work-list GETs, so it stays open for now — recorded as follow-up
 hardening if this ever goes beyond friends
 ([GAP_REVIEW](GAP_REVIEW.md)).
+
+## Key rotation, and what a lost key looks like
+
+`TOKEN_ENCRYPTION_KEY` now opens two things: the Yahoo tokens and the
+access list. Change it and both stop opening — the difference is that a
+lost Yahoo token is re-earned by signing in to Yahoo again, and a lost
+access list is everyone you invited.
+
+What the app does about that is the part worth knowing:
+
+- An access list it cannot decrypt **raises** rather than reading as
+  empty. That distinction is the whole safeguard. Every admin action is
+  read → change → write, so a blob that read as "empty" would be
+  *overwritten* with whatever you did next, and the real list would be
+  gone for good rather than merely locked.
+- So a wrong key is **recoverable**: put the old value back and
+  everything returns. Nothing was deleted.
+- While the key is wrong, `/app/*` answers **503** naming
+  `TOKEN_ENCRYPTION_KEY` rather than a bare 500, and the gate stays shut
+  for everyone but you (the owner passes on the env check alone).
+- `/health` reports `"auth_at_rest"`. `"encrypted"` is correct;
+  `"plaintext"` means no key is set and the list is being written in the
+  clear — which is what local dev does, and what production must not.
+  `verify-live.yml` fails on it.
+
+**To rotate deliberately** you would need to decrypt with the old key and
+re-encrypt with the new one; there is no built-in re-key command, because
+with a handful of users the honest answer is to set the new key and
+re-invite. If the user count ever makes that silly, that is the point to
+write the migration.
+
+A blob written **before** Aug 24 is plaintext JSON and still opens
+normally — it is re-sealed by the next write (any add, removal or
+password set). Nobody was locked out to gain this.
 
 ## If you lock yourself out
 
