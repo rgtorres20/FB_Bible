@@ -83,6 +83,15 @@ def client(tmp_path, monkeypatch):
     main.app.dependency_overrides.clear()
 
 
+def _accept(client_: TestClient, token: str, password: str = "draft-day-2026-buddy"):
+    """Accept an invite the way a person does: set a password, get signed in."""
+    return client_.post(
+        "/login/invite",
+        data={"token": token, "password": password, "confirm": password},
+        follow_redirects=False,
+    )
+
+
 def _owner_login(c: TestClient) -> None:
     r = c.post(
         "/login",
@@ -117,7 +126,7 @@ def test_owner_signs_in_and_passes_the_gate(client):
 def test_health_and_login_stay_outside_the_gate(client):
     c, _ = client
     assert c.get("/health").json()["app_auth"] == "on"
-    assert "Owner sign-in" in c.get("/login").text
+    assert "<h2>Sign in</h2>" in c.get("/login").text
 
 
 def test_health_reports_which_mail_transport_is_wired(client, monkeypatch):
@@ -162,7 +171,7 @@ def test_invite_flow_end_to_end_then_revocation(client):
     assert "buddy@example.com" in shown.text
 
     # Clicking the button is what signs them in.
-    r = buddy.post("/login/invite", data={"token": token}, follow_redirects=False)
+    r = _accept(buddy, token)
     assert r.status_code == 303 and r.headers["location"] == "/app/"
     assert buddy.get("/app/data/feeds.json").status_code == 200
 
@@ -307,17 +316,14 @@ def test_the_new_link_button_mints_a_replacement_and_burns_the_lost_one(client):
     stale = TestClient(main.app)
     r = stale.get(f"/login/invite/{lost}", follow_redirects=False)
     assert r.headers["location"] == "/login?e=2"
-    assert (
-        stale.post("/login/invite", data={"token": lost}, follow_redirects=False).headers[
-            "location"
-        ]
-        == "/login?e=2"
-    ), "and cannot be forced past the confirm page either"
+    assert _accept(stale, lost).headers["location"] == "/login?e=2", (
+        "and cannot be forced past the confirm page by posting it directly"
+    )
     assert stale.get("/app/data/feeds.json").status_code == 401
 
     invited = TestClient(main.app)
     assert invited.get(f"/login/invite/{fresh}").status_code == 200
-    r = invited.post("/login/invite", data={"token": fresh}, follow_redirects=False)
+    r = _accept(invited, fresh)
     assert r.status_code == 303 and r.headers["location"] == "/app/"
     assert invited.get("/app/data/feeds.json").status_code == 200
 
@@ -334,33 +340,27 @@ def test_the_access_page_says_a_link_can_never_be_shown_again(client):
     assert "kills the unused one" in page
 
 
-def test_a_bounced_invitee_is_not_confronted_with_a_code_field(client):
+def test_a_bounced_invitee_sees_a_password_field_not_an_owner_code(client):
     """Owner ask, Aug 24: "web page is still asking for code even when they
-    click link". The link had been used, so the gate bounced them to
-    /login — correctly — but the first thing under the error was a card
-    headed "Owner sign-in" with an "Owner code" input, and it reads as a
-    code the invitee was supposed to have been given. There is no such
-    code: `owner_login` checks the code AND the owner's address, so that
-    form is one person's door, not a sign-in choice.
+    click link". The bounce was right — the link was spent — but the form
+    under it said "Owner code", which reads as a code the invitee was
+    supposed to have been given, and none existed.
 
-    It is folded away rather than deleted — it is the way back in when a
-    passkey fails (docs/ACCESS.md).
+    Now the same form is theirs: one Password field, and a line saying
+    where a password comes from and what the reset is.
     """
     c, _ = client
     page = c.get("/login?e=2").text
 
     assert "invite link has been used already or has expired" in page
-    # The error must reach the reader before any mention of a code.
-    assert page.index("has expired") < page.index("Owner code")
-    # And the form is behind a disclosure, not sitting open on the page.
-    assert "<details" in page
-    assert page.index("<details") < page.index("Owner code")
-    assert "invited testers do not need this" in page
+    assert "Owner code" not in page, "there is no such thing for an invitee"
+    assert "<label>Password</label>" in page
+    assert "It comes from your invite link" in page
 
 
-def test_the_owner_door_still_works_and_needs_no_javascript(client):
-    """Folding it away must not weaken it: this is the lockout escape
-    hatch, so it stays a plain HTML form that submits with scripting off."""
+def test_the_owner_code_still_signs_the_owner_in(client):
+    """The owner's credential stays the env-held code, not a stored
+    password — so a leaked store can never contain the owner's way in."""
     c, _ = client
     page = c.get("/login").text
     assert "<form method='post' action='/login'>" in page
@@ -370,13 +370,13 @@ def test_the_owner_door_still_works_and_needs_no_javascript(client):
     _owner_login(c)
 
 
-def test_the_sign_in_page_leads_with_the_invite_path(client):
-    """What an invitee needs to read first: the link is the whole
-    credential, and there is no password to hunt for."""
+def test_the_sign_in_page_says_where_a_password_comes_from(client):
+    """The one question the page has to answer for somebody who has never
+    been here: I have no password, now what."""
     c, _ = client
     page = c.get("/login").text
-    assert "open it on this device and you're in" in page
-    assert page.index("open it on this device") < page.index("Owner sign-in")
+    assert "password you chose when you accepted your invite" in page
+    assert "Ask for a fresh invite" in page
 
 
 def test_opening_an_invite_does_not_spend_it(client):
@@ -403,7 +403,7 @@ def test_opening_an_invite_does_not_spend_it(client):
 
     # And the real invitee still gets in.
     invitee = TestClient(main.app)
-    r = invitee.post("/login/invite", data={"token": token}, follow_redirects=False)
+    r = _accept(invitee, token)
     assert r.status_code == 303 and r.headers["location"] == "/app/"
     assert invitee.get("/app/data/feeds.json").status_code == 200
 
@@ -419,9 +419,8 @@ def test_the_confirm_page_says_who_it_signs_in_and_what_to_do_next(client):
 
     shown = TestClient(main.app).get(f"/login/invite/{token}").text
     assert "buddy@example.com" in shown
-    assert "Sign me in" in shown
+    assert "Choose a password" in shown
     assert "Set up on this device" in shown
-    assert "30 days" in shown
 
 
 async def test_an_expired_invite_never_reaches_the_confirm_page(client):
@@ -438,3 +437,145 @@ async def test_an_expired_invite_never_reaches_the_confirm_page(client):
 
     r = TestClient(main.app).get(f"/login/invite/{token}", follow_redirects=False)
     assert r.headers["location"] == "/login?e=2"
+
+
+# --- passwords: the credential that travels with the person ---------------
+
+
+def test_a_password_signs_in_on_any_number_of_devices(client):
+    """The whole point of the change. An invite link proves it once and a
+    passkey proves it on one device; a password proves it anywhere, which
+    is what "they should have access until I remove them" requires."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+    _accept(TestClient(main.app), token)
+
+    for _ in range(3):  # phone, laptop, tablet
+        device = TestClient(main.app)
+        r = device.post(
+            "/login",
+            data={"email": "Buddy@Example.com", "code": "draft-day-2026-buddy"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303 and r.headers["location"] == "/app/"
+        assert device.get("/app/data/feeds.json").status_code == 200
+
+
+def test_removing_someone_kills_their_password_with_them(client):
+    """A revocation that leaves a working password behind is not one. The
+    hash lives inside the allowlist entry precisely so removal takes it."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+    _accept(TestClient(main.app), token)
+
+    c.post("/app/access/remove", data={"email": "buddy@example.com"})
+
+    after = TestClient(main.app)
+    r = after.post(
+        "/login",
+        data={"email": "buddy@example.com", "code": "draft-day-2026-buddy"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/login?e=1"
+    assert after.get("/app/data/feeds.json").status_code == 401
+
+
+def test_the_door_locks_after_five_wrong_passwords(client):
+    """Opening /login to real passwords is what makes this necessary: it
+    used to take one address and one env-held code, so guessing was
+    pointless. Five accounts make it a door worth rattling."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+    _accept(TestClient(main.app), token)
+
+    attacker = TestClient(main.app)
+    for _ in range(authn.THROTTLE_MAX_FAILS):
+        r = attacker.post(
+            "/login",
+            data={"email": "buddy@example.com", "code": "wrong-guess-here"},
+            follow_redirects=False,
+        )
+        assert r.headers["location"] == "/login?e=1"
+
+    # Locked — and the RIGHT password is refused too, or the lock is a
+    # suggestion rather than a lock.
+    r = attacker.post(
+        "/login",
+        data={"email": "buddy@example.com", "code": "draft-day-2026-buddy"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/login?e=3"
+    assert "Too many tries" in c.get("/login?e=3").text
+
+
+def test_the_lock_follows_the_address_not_the_browser(client):
+    """Counted per email because an attacker picks their IP and cannot
+    pick whose account they want."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+    _accept(TestClient(main.app), token)
+
+    for _ in range(authn.THROTTLE_MAX_FAILS):
+        TestClient(main.app).post(
+            "/login",
+            data={"email": "buddy@example.com", "code": "wrong"},
+            follow_redirects=False,
+        )
+
+    fresh_browser = TestClient(main.app)
+    r = fresh_browser.post(
+        "/login",
+        data={"email": "buddy@example.com", "code": "draft-day-2026-buddy"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/login?e=3"
+
+
+def test_a_wrong_password_never_says_whether_the_account_exists(client):
+    """Which addresses are real is not something the door should teach."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    _accept(TestClient(main.app), re.search(r"/login/invite/([\w\-]+)", page).group(1))
+
+    real = TestClient(main.app).post(
+        "/login", data={"email": "buddy@example.com", "code": "nope"}, follow_redirects=False
+    )
+    fake = TestClient(main.app).post(
+        "/login", data={"email": "nobody@example.com", "code": "nope"}, follow_redirects=False
+    )
+    assert real.headers["location"] == fake.headers["location"] == "/login?e=1"
+
+
+def test_a_typo_on_the_invite_form_does_not_cost_the_link(client):
+    """Validation runs before the token is spent. Losing a one-time link
+    to a mistyped confirmation would be a cruel way to learn to type."""
+    c, _ = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "buddy@example.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+
+    invitee = TestClient(main.app)
+    r = invitee.post(
+        "/login/invite",
+        data={"token": token, "password": "long-enough-here", "confirm": "mismatched"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == f"/login/invite/{token}?problem=match"
+    r = invitee.post(
+        "/login/invite",
+        data={"token": token, "password": "short", "confirm": "short"},
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == f"/login/invite/{token}?problem=short"
+
+    # The link survived both, and still works.
+    assert _accept(invitee, token).headers["location"] == "/app/"

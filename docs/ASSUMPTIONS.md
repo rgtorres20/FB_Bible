@@ -189,6 +189,24 @@ size a player is missing from, so `a10`/`a12` are always populated and a
 count of them proves nothing about coverage. The watchdog counts how
 many players *differ* between the columns instead.
 
+### Password and throttle numbers, all chosen
+
+None of these were measured; they are the conventional settings for a
+small private app, and each is one constant.
+
+| Value | Where | If wrong |
+| --- | --- | --- |
+| `PW_MIN_LENGTH = 10` | `app/authn.py` | Length is the only rule — no composition requirements, which push people toward `Passw0rd!` and buy nothing. Ten is short for a public app and ample among five friends. |
+| scrypt `n = 2**14` | `app/authn.py` | ~50ms a check here. Higher is safer and eats the serverless budget; the parameters are stored per record, so raising it later does not lock anybody out. |
+| `THROTTLE_MAX_FAILS = 5` | `app/authn.py` | Low enough to stop guessing, high enough to survive genuinely fumbling a password. |
+| `THROTTLE_LOCK_SECONDS = 900` | `app/authn.py` | Deliberately short: a long lock turns "hammer their address" into a denial of service against the person you are protecting. |
+
+The trade the whole feature makes, stated once: before this the app
+stored nothing that could impersonate anyone even if the entire store
+leaked. Password hashes are a target where there was none. scrypt is
+what makes that an acceptable trade rather than a careless one — and
+the owner's own credential deliberately stays out of the store.
+
 ### League points are a *column*, not a sort key
 
 The board still orders by ADP and the blended rank lists. Your scoring now

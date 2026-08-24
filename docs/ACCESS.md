@@ -7,9 +7,25 @@ nothing by itself.
 
 ## How it works
 
-- `/login` — the sign-in page. You sign in with your email + an owner
-  code held in Vercel env. Nobody's password is ever stored; there are
-  no passwords.
+- `/login` — the sign-in page. **One form for everyone**: your email,
+  and either the owner code held in Vercel env (yours) or the password
+  the person chose from their invite (everyone else's).
+- **Passwords, since Aug 24.** The allowlist says *who is allowed*; a
+  credential says *how they prove it is them*. An invite link proves it
+  once and a passkey proves it on one device, so neither answers "they
+  should have access on any device until I remove them" — a password
+  does. Stored as `hashlib.scrypt` (stdlib, memory-hard, ~50ms a check)
+  with a per-user salt, inside the person's allowlist entry so removing
+  them takes the credential with it. The owner's credential stays the
+  env-held code, so a leaked store never contains the owner's way in.
+- **The sign-in door is throttled** — five wrong tries against one
+  address locks *that address* for fifteen minutes, counted per email
+  because an attacker picks their IP and cannot pick whose account they
+  want. The lock is short and self-clearing on purpose: otherwise
+  hammering someone's address would be a way to keep them out.
+- **The reset is a fresh invite.** There is no email-based reset because
+  there is no reliable outbound email yet; minting a new link is the
+  recovery, and it is rare rather than monthly.
 - `/app/access` — your access page (owner only). Add an email → the
   server mints a **one-time invite link**, shown to you exactly once
   (the server keeps only its hash, so it can never be shown again).

@@ -330,3 +330,134 @@ def test_peek_refuses_an_expired_or_unknown_token():
     assert authn.peek_invite(auth, token, now_ts=NOW + authn.INVITE_DAYS * 86400 + 1) is None
     assert authn.peek_invite(auth, "not-a-real-token", now_ts=NOW) is None
     assert authn.peek_invite(auth, "", now_ts=NOW) is None
+
+
+# --- passwords -------------------------------------------------------------
+
+
+def test_the_password_is_never_stored_and_never_recoverable():
+    """The property that makes holding hashes acceptable at all. What
+    goes in the store must not resemble what was typed, and there must be
+    no way back to it."""
+    auth = authn.set_password({"allow": {"b@e.com": {"added": 1}}}, "b@e.com", "correct-horse-b")
+    record = auth["allow"]["b@e.com"]["pw"]
+
+    blob = json.dumps(auth)
+    assert "correct-horse-b" not in blob
+    assert set(record) == {"salt", "hash", "n", "r", "p"}
+    assert len(record["hash"]) == 64  # 32 bytes of scrypt, hex
+
+
+def test_the_same_password_twice_stores_two_different_hashes():
+    """Per-user salt. Without it, identical passwords are visibly
+    identical in the store and one cracked hash breaks every match."""
+    a = authn.set_password({}, "one@e.com", "same-password-here")
+    b = authn.set_password({}, "two@e.com", "same-password-here")
+    assert a["allow"]["one@e.com"]["pw"]["hash"] != b["allow"]["two@e.com"]["pw"]["hash"]
+
+
+def test_a_password_is_checked_against_membership_too():
+    """A correct password for a removed account must not open anything —
+    which is why check_password looks the address up rather than trusting
+    a hash handed to it."""
+    auth = authn.set_password({"allow": {"b@e.com": {"added": 1}}}, "b@e.com", "long-enough-pw")
+    assert authn.check_password(auth, "b@e.com", "long-enough-pw")
+    gone = {**auth, "allow": {}}
+    assert not authn.check_password(gone, "b@e.com", "long-enough-pw")
+
+
+def test_verify_survives_a_future_cost_increase():
+    """Parameters are read back from each record, so raising the cost
+    later must not lock out everybody stored under the old one."""
+    auth = authn.set_password({}, "b@e.com", "long-enough-pw")
+    record = auth["allow"]["b@e.com"]["pw"]
+    assert record["n"] == 2**14
+    assert authn.verify_password(record, "long-enough-pw")
+    assert not authn.verify_password(record, "long-enough-px")
+
+
+def test_a_corrupt_password_record_refuses_rather_than_raising():
+    """Stored blobs outlive the code that wrote them; a bad one must be a
+    failed sign-in, not a 500 on the login page."""
+    for bad in ({}, None, {"salt": "zz", "hash": "x"}, {"hash": "x"}, {"salt": "00", "n": "?"}):
+        assert not authn.verify_password(bad, "anything-at-all")
+
+
+# --- throttling ------------------------------------------------------------
+
+
+def test_five_failures_lock_the_address_and_a_success_clears_it():
+    auth, now = {}, 1000.0
+    for i in range(authn.THROTTLE_MAX_FAILS - 1):
+        auth = authn.record_failure(auth, "b@e.com", now_ts=now + i)
+        assert authn.locked_until(auth, "b@e.com", now_ts=now + i) is None
+    auth = authn.record_failure(auth, "b@e.com", now_ts=now + 10)
+    assert authn.locked_until(auth, "b@e.com", now_ts=now + 10) is not None
+    assert authn.locked_until(auth, "b@e.com", now_ts=now + 10) > now + 10
+    auth = authn.clear_failures(auth, "b@e.com")
+    assert authn.locked_until(auth, "b@e.com", now_ts=now + 10) is None
+
+
+def test_the_lock_expires_on_its_own():
+    """Short and self-clearing on purpose: otherwise hammering someone's
+    address is a way to keep them out, and the defence becomes the
+    attack."""
+    auth, now = {}, 1000.0
+    for i in range(authn.THROTTLE_MAX_FAILS):
+        auth = authn.record_failure(auth, "b@e.com", now_ts=now + i)
+    # The lock runs from the LAST failure, which was at now + 4.
+    later = now + authn.THROTTLE_MAX_FAILS + authn.THROTTLE_LOCK_SECONDS + 1
+    assert authn.locked_until(auth, "b@e.com", now_ts=later) is None
+
+
+def test_slow_guessing_does_not_accumulate_forever():
+    """Failures age out of their window, so one wrong password a day
+    never adds up to a lockout."""
+    auth, now = {}, 1000.0
+    for day in range(10):
+        auth = authn.record_failure(auth, "b@e.com", now_ts=now + day * 86400)
+        assert authn.locked_until(auth, "b@e.com", now_ts=now + day * 86400) is None
+
+
+def test_one_address_being_locked_does_not_lock_another():
+    auth, now = {}, 1000.0
+    for i in range(authn.THROTTLE_MAX_FAILS):
+        auth = authn.record_failure(auth, "target@e.com", now_ts=now + i)
+    assert authn.locked_until(auth, "target@e.com", now_ts=now + 5) is not None
+    assert authn.locked_until(auth, "bystander@e.com", now_ts=now + 5) is None
+
+
+def test_the_throttle_table_does_not_grow_without_bound():
+    """A stored write per failure is fine at five testers only because
+    spent counters are pruned as they expire."""
+    auth, now = {}, 1000.0
+    for n in range(50):
+        auth = authn.record_failure(auth, f"drive-by-{n}@e.com", now_ts=now)
+    # Long after every window and lock has passed, one more failure
+    # sweeps the dead entries out.
+    auth = authn.record_failure(auth, "someone@e.com", now_ts=now + 10 * 86400)
+    assert list(auth["throttle"]) == ["someone@e.com"]
+
+
+def test_an_unknown_address_costs_the_same_as_a_real_one():
+    """User enumeration by stopwatch. An unknown address used to return in
+    ~0ms while a real one paid scrypt's ~40ms, and that gap is readable
+    over the network — so the door answered "is this person a user?" to
+    anyone willing to time it, which is exactly what the identical
+    redirect exists to refuse. Measured before the fix: 40.6ms vs 0.0ms.
+
+    Timing in a test is inherently noisy, so this asserts the shape (both
+    pay for a hash) rather than a tight bound.
+    """
+    import time
+
+    auth = authn.set_password({"allow": {"real@e.com": {"added": 1}}}, "real@e.com", "long-pw-here")
+
+    def cost(address: str) -> float:
+        start = time.perf_counter()
+        assert not authn.check_password(auth, address, "a-wrong-guess")
+        return time.perf_counter() - start
+
+    known = min(cost("real@e.com") for _ in range(3))
+    unknown = min(cost("nobody@e.com") for _ in range(3))
+    assert unknown > known / 4, f"unknown {unknown:.4f}s vs known {known:.4f}s — enumerable"

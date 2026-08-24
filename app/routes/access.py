@@ -220,6 +220,12 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
             "<div class='err'>That invite link has been used already or has "
             "expired — ask for a fresh one.</div>"
         )
+    elif request.query_params.get("e") == "3":
+        err = (
+            "<div class='err'>Too many tries. Wait "
+            f"{authn.THROTTLE_LOCK_SECONDS // 60} minutes and try again — or "
+            "sign in with Face ID if you've set it up on this device.</div>"
+        )
     state_note = (
         ""
         if settings.auth_state == "on"
@@ -272,31 +278,26 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         "<img src='/app/assets/fsb-logo.svg' alt='Fantasy Sports Bible — "
         "draft smarter, dominate longer' width='900' height='420'>"
         "</div>"
-        "<p class='sub'>Access is by invitation. If you got an invite link, "
-        "open it on this device and you're in — no password.</p>"
+        "<p class='sub'>Access is by invitation. Sign in below with the "
+        "password you chose when you accepted your invite — it works on "
+        "any device, for as long as you have access.</p>"
         + err
         + passkey_card
-        + what_it_does
-        # Folded away, and last. An invited tester arriving on a burned or
-        # expired link used to land on a card headed "Owner sign-in" with
-        # an "Owner code" field right under the error -- and read it as a
-        # code they were supposed to have been given. Nobody but the owner
-        # can ever use this form (`owner_login` checks the code AND the
-        # address), so it is not a sign-in choice, it is one person's door.
-        #
-        # <details> rather than a script: this is the way back in when a
-        # passkey fails or the allowlist locks the owner out
-        # (docs/ACCESS.md), so it must not depend on JavaScript running.
-        + "<details class='card' style='padding:12px 16px'>"
-        "<summary style='cursor:pointer; font-weight:700; font-size:13px'>"
-        "Owner sign-in</summary>"
-        "<p class='sub' style='margin:8px 0 0'>Only the app's owner — "
-        "invited testers do not need this, and there is no code to ask "
-        "for. If your link no longer works, ask for a fresh one.</p>"
+        # No longer folded away: since Aug 24 this form is everybody's way
+        # in, not one person's door. It was hidden because an invited
+        # tester reading "Owner code" concluded they needed a code nobody
+        # had given them -- true then, and the opposite of true now.
+        + "<div class='card'><h2>Sign in</h2>"
         "<form method='post' action='/login'>"
-        "<label>Email</label><input name='email' type='email' required>"
-        "<label>Owner code</label><input name='code' type='password' required>"
-        "<button>Sign in</button></form></details>"
+        "<label>Email</label>"
+        "<input name='email' type='email' autocomplete='username' required>"
+        "<label>Password</label>"
+        "<input name='code' type='password' autocomplete='current-password' required>"
+        "<button>Sign in</button></form>"
+        "<p class='sub' style='margin:10px 0 0'>No password yet? It comes "
+        "from your invite link. Forgotten it? Ask for a fresh invite — "
+        "that's the reset.</p></div>"
+        + what_it_does
         + state_note
         + f"<script>{passkeys.BROWSER_JS}</script>"
         + "<script>"
@@ -316,30 +317,67 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
 
 
 @router.post("/login", include_in_schema=False)
-async def owner_login(
+async def sign_in(
     email: str = Form(""),
     code: str = Form(""),
     settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
 ) -> RedirectResponse:
+    """One form, two kinds of credential.
+
+    The owner's is the code from Vercel env; everybody else's is the
+    password they chose from their invite. One field either way, because
+    two forms would only make the reader pick, and picking wrong is the
+    same failure as being wrong.
+
+    Throttled per address (`authn.record_failure`). Until this accepted
+    passwords the door took exactly one address and one env-held code, so
+    guessing was pointless; five real accounts make it worth rattling.
+    """
     import hmac as hmac_mod
 
-    ok = (
+    address = authn.normalize_email(email)
+    auth = await store.load_auth()
+
+    # Refused before the password is even checked, so a locked address
+    # costs an attacker a request and tells them nothing new.
+    if authn.locked_until(auth, address):
+        log.info("access: sign-in refused, address is throttled")
+        return RedirectResponse("/login?e=3", status_code=303)
+
+    owner_ok = (
         settings.app_owner_code
         and settings.owner_email
         and hmac_mod.compare_digest(code, settings.app_owner_code)
-        and authn.normalize_email(email) == authn.normalize_email(settings.owner_email)
+        and address == authn.normalize_email(settings.owner_email)
     )
-    if not ok:
-        # Same response either way; nothing about the attempt is logged.
+    if not (owner_ok or authn.check_password(auth, address, code)):
+        # Same response either way -- which account exists is not something
+        # the door should teach. Nothing about the attempt is logged.
+        await store.save_auth(authn.record_failure(auth, address))
         return RedirectResponse("/login?e=1", status_code=303)
+
+    if (auth.get("throttle") or {}).get(authn.normalize_email(address)):
+        await store.save_auth(authn.clear_failures(auth, address))
     response = RedirectResponse("/app/", status_code=303)
-    _set_session(response, email, settings)
+    _set_session(response, address, settings)
     return response
+
+
+def _invite_error(problem: str) -> str:
+    """Inline complaint on the set-password form. Short codes, not prose,
+    so nothing a stranger types reaches the page."""
+    text = {
+        "short": f"Use at least {authn.PW_MIN_LENGTH} characters.",
+        "match": "Those two didn't match.",
+    }.get(problem, "")
+    return f"<div class='err'>{text}</div>" if text else ""
 
 
 @router.get("/login/invite/{token}", include_in_schema=False)
 async def open_invite(
     token: str,
+    problem: str = "",
     store: FeedStore = Depends(get_feed_store),
 ) -> Response:
     """Show the invite; do NOT spend it.
@@ -354,6 +392,7 @@ async def open_invite(
     email = authn.peek_invite(await store.load_auth(), token)
     if not email:
         return RedirectResponse("/login?e=2", status_code=303)
+    err = _invite_error(problem)
     return _page(
         "your invite",
         "<div class='hero'>"
@@ -361,31 +400,56 @@ async def open_invite(
         "draft smarter, dominate longer' width='900' height='420'>"
         "</div>"
         "<div class='card'><h2>You're invited</h2>"
-        f"<p class='sub'>This link signs in <b>{html_mod.escape(email)}</b> "
-        "on this device and keeps you signed in for "
-        f"{authn.SESSION_DAYS} days. No password, and nothing to install.</p>"
-        "<form method='post' action='/login/invite'>"
+        f"<p class='sub'>Pick a password for <b>{html_mod.escape(email)}</b>. "
+        "You'll use it to sign in on any device, for as long as you have "
+        "access — this link only gets you started, and it works once.</p>"
+        + err
+        + "<form method='post' action='/login/invite'>"
         f"<input type='hidden' name='token' value='{html_mod.escape(token, quote=True)}'>"
-        "<button>Sign me in</button></form>"
-        "<p class='sub' style='margin:10px 0 0'>The link works once, so "
-        "finish here rather than saving it for later. Once you're in, open "
-        "<b>My stuff</b> and hit <b>Set up on this device</b> — after that "
-        "your face or fingerprint is the whole sign-in.</p></div>",
+        "<label>Choose a password</label>"
+        "<input name='password' type='password' autocomplete='new-password' "
+        f"minlength='{authn.PW_MIN_LENGTH}' required>"
+        "<label>Type it again</label>"
+        "<input name='confirm' type='password' autocomplete='new-password' "
+        f"minlength='{authn.PW_MIN_LENGTH}' required>"
+        "<button>Set it and sign me in</button></form>"
+        f"<p class='sub' style='margin:10px 0 0'>At least "
+        f"{authn.PW_MIN_LENGTH} characters — length beats punctuation. "
+        "Once you're in, open <b>My stuff</b> and hit <b>Set up on this "
+        "device</b> to add Face ID or a fingerprint, which is faster than "
+        "typing this again.</p></div>",
     )
 
 
 @router.post("/login/invite", include_in_schema=False)
 async def accept_invite(
     token: str = Form(...),
+    password: str = Form(""),
+    confirm: str = Form(""),
     settings: Settings = Depends(get_settings),
     store: FeedStore = Depends(get_feed_store),
 ) -> RedirectResponse:
-    """Spend the invite. Only a real click reaches here."""
+    """Spend the invite, set the password, sign them in -- or none of it.
+
+    One step on purpose. Signing them in first and asking for a password
+    afterwards lets them skip it, and a tester with no password is a
+    tester who comes back to the owner for a link every thirty days,
+    which is the whole thing this replaces.
+    """
+    # Checked before the token is spent, so a typo does not cost the link.
+    problem = "match" if password != confirm else None
+    if problem is None and authn.password_problem(password):
+        problem = "short"
+    if problem:
+        return RedirectResponse(f"/login/invite/{token}?problem={problem}", status_code=303)
+
     auth = await store.load_auth()
     updated, email = authn.accept_invite(auth, token)
     if not email:
         return RedirectResponse("/login?e=2", status_code=303)
+    updated = authn.set_password(updated, email, password)
     await store.save_auth(updated)
+    # Never the address, never the password: a count is the whole log.
     log.info("access: invite accepted, allowlist now %d", len(updated.get("allow") or {}))
     response = RedirectResponse("/app/", status_code=303)
     _set_session(response, email, settings)
