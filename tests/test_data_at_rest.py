@@ -1,4 +1,4 @@
-"""The access blob is encrypted at rest.
+"""The two blobs worth stealing are encrypted at rest.
 
 Until Aug 24 `fbbible:auth` held email addresses and passkey public keys,
 neither of which impersonates anyone if the store leaks. Passwords changed
@@ -16,13 +16,20 @@ why both are tested rather than just the happy round trip:
     written back over the whole allowlist on the next add.
 """
 
+import hashlib
 import json
 
 import pytest
 from cryptography.fernet import Fernet
 
 from app.config import Settings
-from app.feeds.store import AuthUnreadable, FileFeedStore, build_feed_store
+from app.feeds.store import (
+    AuthUnreadable,
+    FileFeedStore,
+    StoredDataUnreadable,
+    UserDataUnreadable,
+    build_feed_store,
+)
 
 KEY = Fernet.generate_key().decode()
 OTHER_KEY = Fernet.generate_key().decode()
@@ -243,4 +250,105 @@ def test_health_reports_how_the_access_blob_is_stored(gated):
     off must be answerable in one request."""
     client, _store, _tmp = gated
 
-    assert client.get("/health").json()["auth_at_rest"] == "encrypted"
+    assert client.get("/health").json()["stored_data_at_rest"] == "encrypted"
+
+
+# --- the other blob: each person's own layer ---------------------------------
+# fbbible:user:{email} holds documents, ranking lists and league settings --
+# things somebody typed, not headlines the app polled. "Not Yahoo data" is a
+# retention rule (docs/LICENSING.md), not a reason to leave a person's own
+# notes legible in a dump.
+
+MINE = {
+    "docs": [{"name": "my keepers", "text": "Puka Nacua, Bijan Robinson"}],
+    "leagues": {"custom": {"name": "Sunday Money", "teams": 12}},
+}
+
+
+async def test_personal_documents_round_trip(tmp_path):
+    store = store_at(tmp_path)
+
+    await store.save_user("friend@x.com", MINE)
+
+    assert await store.load_user("friend@x.com") == MINE
+
+
+async def test_what_someone_typed_is_not_on_disk_in_the_clear(tmp_path):
+    store = store_at(tmp_path)
+
+    await store.save_user("friend@x.com", MINE)
+
+    written = [p for p in tmp_path.glob("user.*.json")]
+    assert len(written) == 1
+    raw = written[0].read_text(encoding="utf-8")
+    assert "Puka Nacua" not in raw
+    assert "Sunday Money" not in raw
+
+
+async def test_a_user_with_nothing_saved_is_empty_not_an_error(tmp_path):
+    assert await store_at(tmp_path).load_user("nobody@x.com") == {}
+
+
+async def test_a_plaintext_personal_blob_still_opens_and_is_resealed(tmp_path):
+    """Migration, same trade as the access list: locking someone out of
+    their own documents to gain encryption would be the worse outcome."""
+    store = store_at(tmp_path)
+    path = tmp_path / f"user.{hashlib.sha256(b'friend@x.com').hexdigest()[:24]}.json"
+    path.write_text(json.dumps(MINE), encoding="utf-8")
+
+    assert await store.load_user("friend@x.com") == MINE
+
+    await store.save_user("friend@x.com", await store.load_user("friend@x.com"))
+    assert "Puka Nacua" not in path.read_text(encoding="utf-8")
+    assert await store.load_user("friend@x.com") == MINE
+
+
+async def test_an_unreadable_personal_blob_raises_rather_than_reading_as_empty(tmp_path):
+    await store_at(tmp_path, KEY).save_user("friend@x.com", MINE)
+
+    with pytest.raises(UserDataUnreadable):
+        await store_at(tmp_path, OTHER_KEY).load_user("friend@x.com")
+
+
+async def test_saving_a_league_never_silently_erases_the_documents(tmp_path):
+    """The concrete wipe this guards. Every write is {**data, "key": ...},
+    so if the load handed back {} then setting a league would store
+    {"leagues": ...} alone -- and the docs and ranking lists that person
+    typed would be gone, with no error anywhere."""
+    good = store_at(tmp_path, KEY)
+    await good.save_user("friend@x.com", MINE)
+    blind = store_at(tmp_path, OTHER_KEY)
+
+    with pytest.raises(UserDataUnreadable):
+        data = await blind.load_user("friend@x.com")
+        await blind.save_user("friend@x.com", {**data, "leagues": {"new": {}}})
+
+    assert await good.load_user("friend@x.com") == MINE
+
+
+async def test_the_two_blobs_raise_distinguishable_errors(tmp_path):
+    """One 503 body should say which. They share a base so a single
+    handler catches both, and differ so the message is not a guess."""
+    assert issubclass(AuthUnreadable, StoredDataUnreadable)
+    assert issubclass(UserDataUnreadable, StoredDataUnreadable)
+    assert AuthUnreadable.what != UserDataUnreadable.what
+
+
+async def test_the_503_names_the_personal_blob_not_the_access_list(gated):
+    client, store, tmp_path = gated
+    from app import authn
+
+    await store.save_user("friend@x.com", MINE)
+    await store.save_auth(authn.set_password({}, "friend@x.com", "draft-day-2026"))
+    client.cookies.set(authn.SESSION_COOKIE, authn.mint_session("friend@x.com", "unit-test-secret"))
+    # Access list still opens; only the personal blob is sealed elsewhere.
+    for p in tmp_path.glob("user.*.json"):
+        p.write_text("gAAAAABkbroken", encoding="utf-8")
+
+    resp = client.post(
+        "/app/mine/save", data={"name": "notes", "text": "hi"}, follow_redirects=False
+    )
+
+    assert resp.status_code == 503
+    assert "personal documents" in resp.json()["detail"]
+    assert "access list" not in resp.json()["detail"]

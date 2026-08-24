@@ -4,9 +4,11 @@ Separate from the token store on purpose: these are public headlines, so no
 encryption, and the retention rules are different. Yahoo's 24-hour deletion
 rule does not apply here -- none of this is Yahoo user data.
 
-The one exception is the access blob under `fbbible:auth`. It is not a
-headline: since Aug 24 it carries password hashes, so it is encrypted at
-rest with the same `TokenCipher` the Yahoo tokens use. See `_AuthVault`.
+Two blobs here are exceptions, and neither is a headline. The access list
+under `fbbible:auth` carries password hashes, and each person's own layer
+under `fbbible:user:{email}` carries the documents, ranking lists and
+league settings they typed by hand. Both are encrypted at rest with the
+same `TokenCipher` the Yahoo tokens use. See `_Vault`.
 """
 
 from __future__ import annotations
@@ -44,47 +46,80 @@ _AUTH_KEY = "fbbible:auth"
 _SCORECARD_KEY = "fbbible:scorecard"
 
 
-class AuthUnreadable(RuntimeError):
-    """The stored access blob exists but could not be decrypted.
+class StoredDataUnreadable(RuntimeError):
+    """A stored blob exists but could not be decrypted.
 
-    Raised rather than returning {} on purpose, and it is the whole point
-    of this class. An empty dict is a *legitimate* value -- it is what a
-    fresh deployment holds -- so handing one back for a blob written under
-    a different TOKEN_ENCRYPTION_KEY would make "nobody is enrolled yet"
-    and "the allowlist is unreadable" the same answer. Every caller that
-    adds or removes a user does load -> mutate -> save, so that mistake
-    would not merely deny access, it would overwrite the allowlist with
-    the empty dict on the next write and delete every user for good. This
-    is the verdict-wipe bug class (docs/GAP_REVIEW.md), pre-empted.
+    Raised rather than returning {}, and that is the whole point of these
+    classes. An empty dict is a *legitimate* value -- it is what a fresh
+    deployment holds, and what a user with no saved documents holds -- so
+    handing one back for a blob written under a different
+    TOKEN_ENCRYPTION_KEY would make "nothing here yet" and "this is
+    unreadable" the same answer.
 
-    `request_allowed` already fails closed on any exception, so raising
-    also keeps the gate shut instead of open.
+    That matters because every caller does load -> mutate -> save:
+
+      auth       adding one user would write a one-person allowlist over
+                 everybody, and the real list would be gone rather than
+                 merely locked;
+      user data  saving a league setting would write `{"leagues": ...}`
+                 over the same person's documents and ranking lists, all
+                 of which they typed by hand.
+
+    In both cases the data is destroyed by the NEXT write rather than by
+    the failure itself, which is exactly how the verdict wipe happened
+    (docs/GAP_REVIEW.md). Raising keeps the bytes on disk intact and
+    makes a wrong key a recoverable mistake.
+
+    `what` names the blob for the response the API hands back.
     """
 
+    what = "stored data"
 
-class _AuthVault:
-    """Encrypt the access blob at rest, and read what is already there.
 
-    One class, shared by both stores, because two copies of a migration
-    rule is how one of them stays wrong (the rotoworld-cleaner lesson).
+class AuthUnreadable(StoredDataUnreadable):
+    """The access list. `request_allowed` fails closed on any exception,
+    so raising also keeps the gate shut rather than opening it."""
+
+    what = "access list"
+
+
+class UserDataUnreadable(StoredDataUnreadable):
+    """One person's own layer -- documents, ranking lists, league
+    settings. Unlike the access list this is scoped to a single email, so
+    it degrades one account rather than the deployment. The two read-only
+    call sites (the app page's ranking panel, the league lookup) already
+    catch and fall back to the built-ins; the write paths do not, and
+    must not."""
+
+    what = "personal documents"
+
+
+class _Vault:
+    """Encrypt a blob at rest, and read what is already there.
+
+    One class for both blobs and both stores, because copies of a
+    migration rule are how one of them stays wrong (the rotoworld-cleaner
+    lesson). The only per-blob difference is which exception a failure
+    raises, so that is a parameter rather than a second class.
 
     Reading handles three shapes, and the order matters:
 
-      * nothing stored          -> {}, a fresh deployment
+      * nothing stored          -> {}, nothing saved yet
       * plaintext JSON          -> returned as-is, then re-encrypted by the
                                    next save. Blobs written before Aug 24
-                                   are this, and locking those users out
-                                   to gain encryption would be a poor trade
-      * a Fernet token          -> decrypted, or AuthUnreadable
+                                   are this, and locking people out of
+                                   their own data to gain encryption would
+                                   be a poor trade
+      * a Fernet token          -> decrypted, or the caller's exception
 
     A Fernet token is urlsafe base64 and a JSON object starts with `{`, so
     the two can never be mistaken for each other.
 
     With no TOKEN_ENCRYPTION_KEY configured this writes plaintext, exactly
     as before. That is a real downgrade, so it is *reported* rather than
-    assumed: `/health` says `auth_at_rest`, and it is the deployment's job
-    to set the key. Production already must -- the token store refuses to
-    build without one.
+    assumed: `/health` says `stored_data_at_rest`, and it is the
+    deployment's job to set the key. Production already must -- the token
+    store refuses to build without one.
     """
 
     def __init__(self, key: str) -> None:
@@ -98,7 +133,7 @@ class _AuthVault:
     def encrypting(self) -> bool:
         return self._cipher is not None
 
-    def read(self, raw: str | None) -> dict:
+    def read(self, raw: str | None, unreadable: type = AuthUnreadable) -> dict:
         if not raw:
             return {}
         text = raw.strip()
@@ -106,15 +141,15 @@ class _AuthVault:
             try:
                 return json.loads(text)
             except json.JSONDecodeError as exc:
-                raise AuthUnreadable("stored access blob is not valid JSON") from exc
+                raise unreadable(f"stored {unreadable.what} is not valid JSON") from exc
         if self._cipher is None:
-            raise AuthUnreadable(
-                "stored access blob is encrypted but TOKEN_ENCRYPTION_KEY is not set"
+            raise unreadable(
+                f"stored {unreadable.what} is encrypted but TOKEN_ENCRYPTION_KEY is not set"
             )
         payload = self._cipher.decrypt(text)
         if payload is None:
-            raise AuthUnreadable(
-                "stored access blob could not be decrypted -- wrong TOKEN_ENCRYPTION_KEY?"
+            raise unreadable(
+                f"stored {unreadable.what} could not be decrypted -- wrong TOKEN_ENCRYPTION_KEY?"
             )
         return payload
 
@@ -151,7 +186,7 @@ class FileFeedStore:
 
     def __init__(self, path: str, encryption_key: str = "") -> None:
         self._path = Path(path)
-        self._vault = _AuthVault(encryption_key)
+        self._vault = _Vault(encryption_key)
 
     async def load(self) -> dict:
         if not self._path.exists():
@@ -244,19 +279,23 @@ class FileFeedStore:
         return self._path.with_name(f"user.{digest}.json")
 
     async def load_user(self, email: str) -> dict:
+        # Same split as load_auth: a file that is not there means nothing
+        # saved yet, a file that IS there and will not open raises. The
+        # difference matters because every write is {**data, "key": ...}.
         path = self._user_path(email)
         if not path.exists():
             return {}
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            raw = path.read_text(encoding="utf-8")
+        except OSError:
             return {}
+        return self._vault.read(raw, UserDataUnreadable)
 
     async def save_user(self, email: str, payload: dict) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         path = self._user_path(email)
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.write_text(self._vault.write(payload), encoding="utf-8")
         tmp.replace(path)
 
 
@@ -265,7 +304,7 @@ class RedisFeedStore:
         import redis.asyncio as redis
 
         self._redis = redis.from_url(url, decode_responses=True)
-        self._vault = _AuthVault(encryption_key)
+        self._vault = _Vault(encryption_key)
 
     async def load(self) -> dict:
         raw = await self._redis.get(_KEY)
@@ -324,17 +363,15 @@ class RedisFeedStore:
 
     async def load_user(self, email: str) -> dict:
         raw = await self._redis.get(_USER_KEY_PREFIX + email)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return self._vault.read(raw, UserDataUnreadable)
 
     async def save_user(self, email: str, payload: dict) -> None:
         # No TTL: personal data is the user's own, not Yahoo-sourced --
         # the 24h deletion rule does not apply (docs/LICENSING.md).
-        await self._redis.set(_USER_KEY_PREFIX + email, json.dumps(payload))
+        # Encrypted since Aug 24: these are documents somebody typed, and
+        # "not Yahoo data" is a retention rule, not a reason to leave
+        # a person's own notes legible in a dump.
+        await self._redis.set(_USER_KEY_PREFIX + email, self._vault.write(payload))
 
 
 def build_feed_store(settings) -> FeedStore:

@@ -137,14 +137,15 @@ def main() -> int:
     check("health.status", health.get("status") == "ok")
     check("health.token_store is redis", health.get("token_store") == "redis")
     check("health.encryption configured", health.get("encryption_configured") is True)
-    # The access blob carries password hashes since Aug 24, so it is
-    # encrypted at rest. Checked live because the fallback is silent from
+    # The access list (password hashes) and each person's own layer
+    # (documents, ranking lists, league settings) are both encrypted at
+    # rest since Aug 24. Checked live because the fallback is silent from
     # the outside: with no key the store writes plaintext and every page
-    # behaves identically. "encrypted" here is the only external evidence.
+    # behaves identically. This field is the only external evidence.
     check(
-        "the access list is encrypted at rest",
-        health.get("auth_at_rest") == "encrypted",
-        f"auth_at_rest={health.get('auth_at_rest')!r}",
+        "the access list and personal data are encrypted at rest",
+        health.get("stored_data_at_rest") == "encrypted",
+        f"stored_data_at_rest={health.get('stored_data_at_rest')!r}",
     )
     check("health.frontend ready", health.get("frontend_ready") is True)
     # Reported, not asserted -- the same run has to serve both stages. What

@@ -19,7 +19,7 @@ from . import leagues
 from .config import get_settings
 from .feeds import board, clock, page, previews, ranklists, stats, vegas
 from .feeds import players as players_mod
-from .feeds.store import AuthUnreadable, FeedStore
+from .feeds.store import FeedStore, StoredDataUnreadable
 from .routes import access, auth, feeds, league, leaguecfg, userdata
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -67,27 +67,28 @@ app.include_router(userdata.router)
 app.include_router(leaguecfg.router)
 
 
-@app.exception_handler(AuthUnreadable)
-async def _auth_unreadable(request: Request, exc: AuthUnreadable) -> JSONResponse:
-    """The stored access blob would not open. Answer with the cause.
+@app.exception_handler(StoredDataUnreadable)
+async def _stored_data_unreadable(request: Request, exc: StoredDataUnreadable) -> JSONResponse:
+    """An encrypted blob would not open. Answer with the cause.
 
-    Registered once rather than caught at each of the thirteen load_auth
-    call sites, so a route added later inherits it. 503 and not 500 because
-    the deployment is misconfigured, not the request: the blob is intact and
-    a restored TOKEN_ENCRYPTION_KEY fixes it. The same reasoning as the
-    named 503 `deps.get_store` gives a missing setting -- a bare 500 sends
-    the owner to Vercel's logs to learn something the response could say.
+    Registered once rather than caught at each of the thirty-odd load
+    call sites, so a route added later inherits it. 503 and not 500
+    because the deployment is misconfigured, not the request: the blob is
+    intact and a restored TOKEN_ENCRYPTION_KEY fixes it. The same
+    reasoning as the named 503 `deps.get_store` gives a missing setting --
+    a bare 500 sends the owner to Vercel's logs to learn something the
+    response could say.
 
-    The message never carries the key, only its name.
+    The message names the variable, never its value.
     """
-    logging.getLogger(__name__).error("access blob unreadable: %s", exc)
+    logging.getLogger(__name__).error("%s unreadable: %s", exc.what, exc)
     return JSONResponse(
         status_code=503,
         content={
             "detail": (
-                "The stored access list could not be read. This is what a "
+                f"The stored {exc.what} could not be read. This is what a "
                 "changed or missing TOKEN_ENCRYPTION_KEY looks like -- the "
-                "list itself is intact and restoring the key restores it. "
+                "data itself is intact and restoring the key restores it. "
                 "Nothing has been overwritten."
             )
         },
@@ -187,12 +188,18 @@ async def health(
         "invite_email": settings.mail_transport,
         "token_store": settings.token_store,
         "encryption_configured": bool(settings.token_encryption_key),
-        # The access blob carries password hashes, so it is encrypted at
-        # rest with the same key. Reported rather than assumed for the
-        # same reason as invite_email: with no key configured the store
-        # falls back to plaintext, which is a real downgrade and must be
-        # answerable in one request instead of inferred from the config.
-        "auth_at_rest": ("encrypted" if settings.token_encryption_key else "plaintext"),
+        # How the two blobs worth stealing are written: the access list
+        # (password hashes) and each person's own layer (documents,
+        # ranking lists, league settings). Both use the key above, so one
+        # field covers both -- and it is named for the data rather than
+        # for `auth` alone, because a field called auth_at_rest reporting
+        # on somebody's saved documents is a mislabel, which is the same
+        # fault as a real number under a "Proj" header.
+        #
+        # Reported rather than assumed for the same reason as
+        # invite_email: with no key the store falls back to plaintext,
+        # which is a real downgrade and is invisible from outside.
+        "stored_data_at_rest": ("encrypted" if settings.token_encryption_key else "plaintext"),
         "league_keys": settings.league_keys,
         "frontend_ready": _FRONTEND_READY,
         "frontend_missing": _FRONTEND_MISSING,
