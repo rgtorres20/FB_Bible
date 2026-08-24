@@ -394,7 +394,20 @@ def main() -> int:
     # "misconfigured" is a half-enable worth seeing in the log.
     login_page = get("/login").decode("utf-8", errors="replace")
     served_login_probe = get("/app/").decode("utf-8", errors="replace")
-    check("login page serves", "Owner sign-in" in login_page)
+    # Structural, not cosmetic: this asserted the heading "Owner sign-in"
+    # until Aug 24, when the form stopped being the owner's alone and the
+    # heading went with it -- and the watchdog failed, correctly, on a
+    # stale assertion of its own. A form that posts somewhere and a field
+    # to type a secret into is what "the login page serves" actually
+    # means; the wording above it is the design's business.
+    check(
+        "login page serves",
+        "action='/login'" in login_page and "name='code'" in login_page,
+    )
+    check(
+        "sign-in asks for a password, not an owner-only code",
+        "<label>Password</label>" in login_page and "Owner code" not in login_page,
+    )
     check("login offers passkey sign-in", "Sign in with Face ID" in login_page)
     # Proves the WebAuthn dependency survived the deploy: this endpoint
     # imports it, so a bundle that dropped it answers 500 here instead of
