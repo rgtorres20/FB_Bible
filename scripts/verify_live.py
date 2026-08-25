@@ -654,6 +654,14 @@ def main() -> int:
         # from out here is that it bounces at all, which is the claim that
         # matters; the rendered bar is covered signed in and signed out by
         # tests/test_navigation.py.
+        # A trailing slash 404'd on all eleven (owner, Aug 25). The
+        # StaticFiles mount matches the /app prefix, so Starlette's
+        # slash-redirect never fires and StaticFiles answers 404 instead.
+        # Checked live and per page: /app/ IS a real page, so the app
+        # teaches the slash, and a PWA or an autocomplete adds one unasked.
+        code = anon_status(path + "/")
+        check(f"a trailing slash still reaches {path}", code != 404, f"HTTP {code}")
+
         if path in OWNER_ONLY:
             code = anon_status(path)
             check(f"owner-only, turns others away: {path}", code in (303, 307, 401), f"HTTP {code}")

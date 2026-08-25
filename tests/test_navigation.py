@@ -137,3 +137,34 @@ def test_the_bar_does_not_print():
     a navigation button on paper is noise."""
     assert "@media print" in skin.home_bar()
     assert "display:none" in skin.home_bar()
+
+
+def test_a_trailing_slash_reaches_the_page_instead_of_a_404(client):
+    """Owner, Aug 25: "mystuff not working -- not found".
+
+    Every one of the eleven pages 404'd on a trailing slash. Starlette
+    redirects /path/ to /path when nothing matches, but the StaticFiles
+    mount matches the /app PREFIX, so /app/mine/ IS matched -- by
+    StaticFiles, which has no such file and answers 404. The redirect
+    never runs.
+
+    What made it bite rather than lurk: /app/ is itself a real page, so
+    the app teaches people to type the slash, and a PWA or an autocomplete
+    will add one unasked.
+
+    Walked from skin.SERVED_PAGES rather than a list of its own -- a copy
+    is how the next page added ships with the bug back.
+    """
+    for path in skin.SERVED_PAGES:
+        resp = client.get(path + "/", follow_redirects=False)
+        assert resp.status_code in (307, 308), f"{path}/ -> {resp.status_code}"
+        assert resp.headers["location"] == path, f"{path}/ -> {resp.headers['location']}"
+
+
+def test_the_slash_redirect_lands_somewhere_real(client):
+    """A redirect to another 404 is not a fix. Follows it and checks the
+    page actually answers -- 200, or the gate's own redirect for a page
+    that needs a sign-in, never 404."""
+    for path in skin.SERVED_PAGES:
+        resp = client.get(path + "/", follow_redirects=True)
+        assert resp.status_code != 404, f"{path}/ still ends at a 404"

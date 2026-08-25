@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, clock, page, previews, ranklists, stats, vegas
+from .feeds import board, clock, page, previews, ranklists, skin, stats, vegas
 from .feeds import players as players_mod
 from .feeds.store import FeedStore, StoredDataUnreadable
 from .routes import access, auth, feeds, league, leaguecfg, userdata
@@ -355,5 +355,26 @@ if _FRONTEND_READY:
         if settings.stage == "preview":
             html, _ = page.stage_badge(html)
         return HTMLResponse(html)
+
+    # A trailing slash used to be a 404 on every one of these (owner, Aug
+    # 25: "mystuff not working -- not found").
+    #
+    # Starlette redirects /path/ to /path when nothing matches, but the
+    # StaticFiles mount below matches the /app PREFIX, so /app/mine/ is a
+    # match -- handled by StaticFiles, which has no such file and answers
+    # 404. The redirect never gets a chance. And /app/ itself is a real
+    # page, so people are actively taught to type the slash.
+    #
+    # Registered BEFORE the mount, and generated from skin.SERVED_PAGES
+    # rather than listed again, so a page added there inherits this
+    # instead of shipping with the same 404.
+    for _page in skin.SERVED_PAGES:
+
+        def _slash_redirect(_target: str = _page) -> RedirectResponse:
+            # 307, not 308: permanent is cacheable forever by the browser,
+            # and this app is young enough to still move a path.
+            return RedirectResponse(_target, status_code=307)
+
+        app.get(_page + "/", include_in_schema=False)(_slash_redirect)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
