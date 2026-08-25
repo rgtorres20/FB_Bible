@@ -560,6 +560,18 @@ def main() -> int:
     # introduce the app to a stranger (docs/BRAND.md).
     check("sign-in page leads with the mark", "/app/assets/fsb-logo.svg" in login_page)
     check("sign-in page says what the app is", "What this is" in login_page)
+    # Owner, Aug 25: the app is more than draft prep, and the sign-in
+    # page said "a draft-prep desk". Checked live because it is the first
+    # sentence anyone invited ever reads.
+    check(
+        "sign-in page is not still selling draft prep alone",
+        "all your fantasy needs" in login_page and "A draft-prep desk" not in login_page,
+    )
+    # The invite email's mark. It loads from /app/icons/, one of the four
+    # paths the gate leaves open -- a recipient is not signed in, so a
+    # gated path renders a broken image in every inbox. 200 here, not 401.
+    code = anon_status("/app/icons/email-mark.png")
+    check("the invite email's mark loads without a sign-in", code == 200, f"HTTP {code}")
     # Club themes. The stylesheet is linked by every page, so a 404 here
     # is 33 broken themes and a light-mode app (docs/BRAND.md).
     team_css = get("/app/teams.css").decode("utf-8", errors="replace")

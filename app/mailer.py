@@ -45,10 +45,26 @@ class MailError(RuntimeError):
 
 SUBJECT = "You're invited to Fantasy Sports Bible"
 
+# One line, used by both the plain-text and HTML bodies so they cannot
+# drift into describing the app differently (owner, Aug 25).
+TAGLINE = "The place for all your fantasy needs"
+
+# Written once, rendered into both bodies. Two hand-kept lists is how the
+# HTML mail ends up promising something the plain-text one does not.
+FEATURES = (
+    "Live news wire with AI-drafted reads, updated hourly",
+    "Draft cheat sheet built from live ADP, scored by league settings",
+    "Mock draft room: pick your slot, the room autopicks the rest",
+    "IDP draft board scored with each league's real settings",
+    "In-season scoring, pickup board and a graded prediction scorecard",
+    "\u201cMy stuff\u201d: your own notes and rankings, private to you",
+)
+
 
 def invite_body(invite_link: str, app_base: str) -> str:
-    return f"""You've been invited to Fantasy Sports Bible, a draft-prep app
-for fantasy football.
+    features = "\n".join(f"  - {item}" for item in FEATURES)
+    return f"""You've been invited to Fantasy Sports Bible -- the place for
+all your fantasy needs.
 
 Your invite link (works once, expires in 7 days):
 
@@ -63,13 +79,108 @@ and add Face ID or Touch ID from "My stuff" to skip typing it.
 
 Once you're in ({app_base}app/):
 
-  - Live news wire with AI-drafted reads, updated hourly
-  - Draft cheat sheet built from live ADP, scored by league settings
-  - Mock draft room: pick your slot, the room autopicks the rest
-  - IDP draft board scored with each league's real settings
-  - "My stuff" (/app/mine): your own notes and rankings, private to you
+{features}
 
 If the link expires, ask for a fresh one.
+"""
+
+
+# Navy is the app's own (`skin.py` theme-color). The mark is white and
+# gold, so it MUST sit on navy or it vanishes -- the same rule that binds
+# every other surface (CLAUDE.md, "The mark").
+NAVY = "#0B1A36"
+
+# A PNG, not the SVG the app itself uses: Gmail and Outlook strip SVG.
+# Loaded from /app/icons/, one of the four paths the access gate
+# deliberately leaves open -- everything else under /app answers 401, and
+# an invite's recipient is by definition not signed in yet, so any other
+# path renders a broken image.
+#
+# Its own file rather than the manifest icon. icon-192.png is opaque with
+# white corners, which is CORRECT for a home-screen tile and wrong here:
+# on the navy panel it reads as a white frame around the mark. email-mark
+# is rendered from fsb-mark.svg with a transparent background, so the
+# white-and-gold mark sits on the navy directly (docs/BRAND.md -- and it
+# regenerates from the same SVG whenever the artwork changes).
+LOGO_PATH = "app/icons/email-mark.png"
+LOGO_W, LOGO_H = 132, 99  # the mark's own 4:3, not a square
+
+
+def invite_html(invite_link: str, app_base: str) -> str:
+    """The same invite, with the mark on it.
+
+    Tables and inline styles because that is what mail clients render;
+    a stylesheet or a flex layout is not portable here.
+
+    This is an ALTERNATIVE to the plain text, never a replacement. Some
+    clients show text only, some people prefer it, and a mail with no
+    text part looks like bulk to a spam filter -- so both say the same
+    thing, and the text one stays the source of truth.
+    """
+    logo = f"{app_base}{LOGO_PATH}"
+    features = "".join(
+        f"<tr><td style='padding:3px 0;color:#334155;font-size:15px;"
+        f"line-height:22px'>{item}</td></tr>"
+        for item in FEATURES
+    )
+    return f"""<!doctype html>
+<html><body style="margin:0;padding:0;background:#f1f5f9">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="background:#f1f5f9;padding:24px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+ style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;
+ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+
+  <tr><td align="center" style="background:{NAVY};padding:28px 24px">
+    <!-- alt is empty on purpose: the name is the line directly below, so
+         with images blocked (which is most clients, by default) alt text
+         here just prints "Fantasy Sports Bible" twice. Decorative image,
+         adjacent text carries the meaning. -->
+    <img src="{logo}" width="{LOGO_W}" height="{LOGO_H}" alt=""
+     style="display:block;border:0;width:{LOGO_W}px;height:{LOGO_H}px">
+    <div style="color:#ffffff;font-size:20px;font-weight:700;padding-top:12px">
+      Fantasy Sports Bible</div>
+    <div style="color:#cbd5e1;font-size:14px;padding-top:4px">{TAGLINE}</div>
+  </td></tr>
+
+  <tr><td style="padding:28px 24px 8px;color:#0f172a;font-size:16px;line-height:24px">
+    You've been invited to Fantasy Sports Bible.
+  </td></tr>
+
+  <tr><td align="center" style="padding:12px 24px 8px">
+    <a href="{invite_link}"
+     style="display:inline-block;background:{NAVY};color:#ffffff;text-decoration:none;
+     font-size:16px;font-weight:600;padding:13px 30px;border-radius:8px">
+      Accept your invite</a>
+  </td></tr>
+
+  <tr><td align="center" style="padding:0 24px 16px;color:#64748b;font-size:13px">
+    Works once, expires in 7 days.
+  </td></tr>
+
+  <tr><td style="padding:0 24px 20px;color:#334155;font-size:15px;line-height:22px">
+    You'll set a password, then sign in from any device at
+    <a href="{app_base}login" style="color:{NAVY}">{app_base}login</a> —
+    phone, laptop or tablet. Add Face ID or Touch ID from “My stuff” to
+    skip typing it.
+  </td></tr>
+
+  <tr><td style="padding:0 24px 8px;color:{NAVY};font-size:13px;font-weight:700;
+   letter-spacing:.04em;text-transform:uppercase">What's inside</td></tr>
+  <tr><td style="padding:0 24px 24px"><table role="presentation" cellpadding="0"
+   cellspacing="0">{features}</table></td></tr>
+
+  <tr><td style="background:#f8fafc;padding:16px 24px;color:#64748b;font-size:12px;
+   line-height:18px">
+    If the button doesn't work, paste this into your browser:<br>
+    <span style="color:#334155;word-break:break-all">{invite_link}</span><br><br>
+    If the link has expired, ask for a fresh one.
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>
 """
 
 
@@ -80,6 +191,7 @@ def send_invite(to_email: str, invite_link: str, app_base: str, settings: Settin
     msg["From"] = settings.mail_from_address
     msg["To"] = to_email
     msg.set_content(invite_body(invite_link, app_base))
+    msg.add_alternative(invite_html(invite_link, app_base), subtype="html")
     _send(msg, settings)
 
 
@@ -120,16 +232,47 @@ def _send(msg: EmailMessage, settings: Settings) -> None:
         _send_smtp(msg, settings)
 
 
+def _bodies(msg: EmailMessage) -> tuple[str, str]:
+    """(plain text, html) out of a message that may be either shape.
+
+    `msg.get_content()` raises on a multipart message, so this had to
+    change the moment the invite gained an HTML alternative -- SMTP sends
+    the assembled MIME object and never noticed, but the Resend path pulls
+    the bodies out by hand and would have thrown on every invite while the
+    text-only test mail kept passing. The one that gets exercised least is
+    the one that breaks.
+
+    html is "" when there is no HTML part, which the caller uses to decide
+    whether to send the field at all.
+    """
+    if not msg.is_multipart():
+        return msg.get_content(), ""
+    text = html = ""
+    for part in msg.walk():
+        if part.is_multipart():
+            continue
+        kind = part.get_content_type()
+        if kind == "text/plain" and not text:
+            text = part.get_content()
+        elif kind == "text/html" and not html:
+            html = part.get_content()
+    return text, html
+
+
 def _send_http(msg: EmailMessage, settings: Settings) -> None:
     """Resend's HTTP API, over 443. stdlib only -- no SDK, no new dep."""
-    payload = json.dumps(
-        {
-            "from": settings.mail_from_address,
-            "to": [msg["To"]],
-            "subject": msg["Subject"],
-            "text": msg.get_content(),
-        }
-    ).encode()
+    text, html = _bodies(msg)
+    body: dict[str, object] = {
+        "from": settings.mail_from_address,
+        "to": [msg["To"]],
+        "subject": msg["Subject"],
+        "text": text,
+    }
+    # Only when there is one. Resend rejects an empty `html`, and the test
+    # mail is deliberately text-only.
+    if html:
+        body["html"] = html
+    payload = json.dumps(body).encode()
     request = urllib.request.Request(
         RESEND_ENDPOINT,
         data=payload,

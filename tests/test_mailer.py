@@ -398,3 +398,150 @@ def test_a_cloudflare_block_is_not_reported_as_an_api_refusal(monkeypatch):
     note = str(caught.value)
     assert "1010" in note, "the edge's own code is the whole diagnosis"
     assert "not verified" not in note.lower()
+
+
+# --- the HTML invite ---------------------------------------------------------
+
+
+def _built_invite():
+    from email.message import EmailMessage
+
+    msg = EmailMessage()
+    msg["To"] = TO
+    msg["Subject"] = mailer.SUBJECT
+    msg.set_content(mailer.invite_body(LINK, BASE))
+    msg.add_alternative(mailer.invite_html(LINK, BASE), subtype="html")
+    return msg
+
+
+def test_the_invite_is_sent_as_text_and_html():
+    """Both, always. Some clients show text only, some people prefer it,
+    and a mail with no text part reads as bulk to a spam filter."""
+    msg = _built_invite()
+
+    text, html = mailer._bodies(msg)
+    assert "Fantasy Sports Bible" in text
+    assert "<html" in html.lower()
+
+
+def test_the_resend_payload_carries_both_bodies(monkeypatch):
+    """The regression this nearly shipped: _send_http pulled the body out
+    with msg.get_content(), which RAISES on a multipart message. SMTP
+    hands over the assembled MIME object and would never have noticed,
+    and the one text-only mail (the test button) would have kept passing
+    while every actual invite threw."""
+    seen = {}
+
+    def capture(req, *a, **k):
+        seen.update(json.loads(req.data))
+
+        class _R:
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return _R()
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", capture)
+    mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+    assert LINK in seen["text"]
+    assert LINK in seen["html"]
+    assert seen["html"].lstrip().startswith("<!doctype html>")
+
+
+def test_a_text_only_mail_sends_no_empty_html_field(monkeypatch):
+    """Resend rejects an empty `html`, so the key is omitted rather than
+    sent blank."""
+    seen = {}
+
+    def capture(req, *a, **k):
+        seen.update(json.loads(req.data))
+
+        class _R:
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return _R()
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", capture)
+    mailer.send_test(TO, BASE, _Settings(resend_api_key="re_key"))
+
+    assert "html" not in seen
+    assert seen["text"]
+
+
+def test_the_mark_is_a_png_on_an_ungated_path():
+    """Three ways this silently renders wrong, all found by looking at it:
+    the app's own mark is an SVG, which Gmail and Outlook strip;
+    everything under /app answers 401 to anyone not signed in, which an
+    invite's recipient is by definition (/app/icons/ is one of the four
+    paths the gate leaves open); and the manifest icon is opaque with
+    white corners -- right for a home-screen tile, a white frame around
+    the mark on the email's navy panel. Hence its own transparent file."""
+    html = mailer.invite_html(LINK, BASE)
+
+    assert f'src="{BASE}app/icons/email-mark.png"' in html
+    assert ".svg" not in html
+    assert mailer.LOGO_PATH.startswith("app/icons/"), "must stay on an ungated path"
+
+
+def test_the_mark_sits_on_navy():
+    """The wordmark is white and gold. On a white card it disappears --
+    the standing rule from CLAUDE.md, which binds here too."""
+    html = mailer.invite_html(LINK, BASE)
+
+    header = html[html.index("<img") - 400 : html.index("<img")]
+    assert mailer.NAVY in header
+
+
+def test_the_html_invite_carries_no_league_links_either():
+    """The plain-text body is pinned for this; a second body is a second
+    place to leak them."""
+    html = mailer.invite_html(LINK, BASE)
+
+    assert "fantasysports.yahoo.com" not in html
+    for token in ("NDDPL", "RED_EYE", "BALLAPALOSA", "192426", "811739", "963878"):
+        assert token not in html
+
+
+def test_both_bodies_describe_the_same_app():
+    """The feature list is written once and rendered into both. Two
+    hand-kept copies is how the HTML mail ends up promising something the
+    text one does not."""
+    text = mailer.invite_body(LINK, BASE)
+    html = mailer.invite_html(LINK, BASE)
+
+    for item in mailer.FEATURES:
+        assert item in text, item
+        assert item in html, item
+    assert mailer.TAGLINE.lower() in html.lower()
+
+
+def test_the_invite_still_works_when_images_are_blocked():
+    """Most clients block remote images by default, so the mail has to
+    make sense with no logo at all.
+
+    The mark's alt is EMPTY, and that is the accessible choice rather than
+    a missing one: the name is the very next line, so alt text here reads
+    "Fantasy Sports Bible" twice over. Decorative image, adjacent text
+    carries the meaning.
+
+    What must survive is the link -- as raw text as well as a button, for
+    a client that mangles the anchor."""
+    html = mailer.invite_html(LINK, BASE)
+
+    assert 'alt=""' in html
+    assert 'alt="Fantasy Sports Bible"' not in html
+    assert html.count(LINK) >= 2

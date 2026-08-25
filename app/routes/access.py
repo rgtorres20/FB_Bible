@@ -250,9 +250,11 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
     # actually does today -- no roadmap, no "coming soon".
     what_it_does = (
         "<div class='card what'><h2>What this is</h2>"
-        "<p class='sub' style='margin:0 0 10px'>A draft-prep desk for "
-        "fantasy football, built around <b>your</b> league's scoring rather "
-        "than a generic ranking.</p>"
+        "<p class='sub' style='margin:0 0 10px'>The place for all your "
+        "fantasy needs — built around <b>your</b> league's scoring rather "
+        "than a generic ranking. Draft prep, then the season: a live wire, "
+        "boards that use your rules, a pickup board and a graded "
+        "scorecard.</p>"
         "<ul>"
         "<li><b>Live wire, ranked by impact.</b> Seven publishers polled "
         "around the clock — NBC, ESPN, CBS, Rotowire, Yahoo — deduped, "

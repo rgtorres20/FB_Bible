@@ -21,6 +21,23 @@ All under `frontend/assets/`, served at `/app/assets/…`.
 Regenerate them whenever the SVG changes — a home-screen tile that
 disagrees with the favicon is the drift this note exists to prevent.
 
+`frontend/icons/email-mark.png` is a **third** rendering, from
+`fsb-mark.svg`, for the invite email (Aug 25). Three reasons it is not
+one of the two above:
+
+- mail clients strip SVG, so the email cannot use the vector the app uses;
+- the manifest icons are **opaque with white corners** — correct for a
+  home-screen tile, and on the email's navy panel a white frame around
+  the mark. This one is rendered with a transparent background
+  (`omitBackground`), so the white-and-gold mark sits on the navy
+  directly, which is the standing rule for the mark anywhere;
+- it is served from `/app/icons/`, one of the four paths the access gate
+  leaves open. An invite's recipient is by definition not signed in, so
+  any gated path renders a broken image in every inbox. `verify_live`
+  fetches it anonymously and fails on a 401.
+
+Regenerate all three when the artwork changes.
+
 ## Why vector, not the supplied PNG
 
 The mark ships as a favicon, a PWA tile and a page hero — 16px to 512px
