@@ -583,3 +583,50 @@ def test_a_missing_anchor_reports_zero_rather_than_half_wiring_it(index_html):
     served, n = board.wire_blend_column(broken)
 
     assert n == 0
+
+
+def test_the_yahoo_sign_in_controls_are_gone(index_html):
+    """Owner, Aug 25: "lets remove Yahoo login from UI for now until its
+    fixed". The card offered a deploy-URL box, Check, Connect Yahoo and
+    Sign out -- a flow that cannot complete, because Yahoo's
+    fantasy-access approval has never come through (docs/RESUME.md). A
+    control that cannot succeed costs somebody a session's worth of
+    trying."""
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    for gone in ("Connect Yahoo", "Link a Yahoo account", "{{ yahooConnect }}"):
+        assert gone not in served, gone
+
+
+def test_no_orphaned_yahoo_binding_is_left_behind(index_html):
+    """Every handler the removed card bound. A binding with no panel is a
+    template referencing a callback nothing renders."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    for binding in (
+        "{{ yahooCheck }}",
+        "{{ yahooLogout }}",
+        "{{ yahooLinked }}",
+        "{{ yahooApi }}",
+        "{{ yahooStateLabel }}",
+        "{{ onYahooApi }}",
+    ):
+        assert binding not in served, binding
+
+
+def test_the_absence_explains_itself(index_html):
+    """Deleted outright, the panel simply vanishes and reads as a bug to
+    anyone who saw it last week. One line answers "why is there no Yahoo
+    here" so the app does not leave that question hanging."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "fantasy-access approval" in served
+
+
+def test_the_server_side_yahoo_route_is_untouched():
+    """Only the UI comes off. Approval means putting the panel back, not
+    rebuilding the OAuth flow."""
+    from app.routes import auth
+
+    assert any("/auth/yahoo" in getattr(r, "path", "") for r in auth.router.routes)

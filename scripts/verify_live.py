@@ -717,6 +717,15 @@ def main() -> int:
     )
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
+    # Owner, Aug 25: the Yahoo sign-in card comes off until Yahoo's
+    # fantasy-access approval lands. Checked live because a control that
+    # cannot succeed costs somebody a session of trying, and the panel
+    # returning is a design-resync away.
+    check(
+        "Yahoo sign-in controls are off the UI",
+        "Connect Yahoo" not in served and "{{ yahooConnect }}" not in served,
+    )
+    check("the missing Yahoo panel explains itself", "fantasy-access approval" in served)
     # Strict on purpose: once the live board has shipped, a revert to the
     # curated openers means the odds pipeline is stale -- a true failure.
     check("vegas table rebound to live data", "vegas: (F.vegas || VEGAS)," in served)
