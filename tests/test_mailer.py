@@ -321,3 +321,58 @@ def test_the_reason_is_capped_so_an_error_page_is_not_a_wall(monkeypatch):
         mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
 
     assert len(str(caught.value)) < 400
+
+
+def test_the_request_identifies_itself(monkeypatch):
+    """Resend's API is behind Cloudflare, whose browser integrity check
+    bans urllib's default "Python-urllib/3.x" signature. The result is a
+    403 carrying Cloudflare error 1010 -- which reads exactly like the API
+    refusing the key or the sender domain, and sent the owner hunting
+    through Resend's dashboard for a cause that was never there.
+
+    Pinned because the header is invisible in every other test: they all
+    stub urlopen, so nothing else would notice it being dropped."""
+    seen = {}
+
+    def capture(req, *a, **k):
+        seen["ua"] = req.get_header("User-agent")
+        seen["accept"] = req.get_header("Accept")
+
+        class _R:
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return _R()
+
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", capture)
+    mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+    assert seen["ua"] == mailer.USER_AGENT
+    assert "urllib" not in (seen["ua"] or "").lower()
+    assert "python" not in (seen["ua"] or "").lower()
+    assert seen["accept"] == "application/json"
+
+
+def test_a_cloudflare_block_is_not_reported_as_an_api_refusal(monkeypatch):
+    """1010 comes from the edge, not from Resend. Telling the owner their
+    domain is unverified would be a fabricated cause -- the request never
+    reached the API."""
+    body = b"<html><title>Access denied</title><body>error code: 1010</body></html>"
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(_raw_error(403, body)),
+    )
+
+    with pytest.raises(mailer.MailError) as caught:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+    note = str(caught.value)
+    assert "1010" in note, "the edge's own code is the whole diagnosis"
+    assert "not verified" not in note.lower()

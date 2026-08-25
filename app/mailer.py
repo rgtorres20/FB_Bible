@@ -22,6 +22,13 @@ from .config import Settings
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 
+# Sent on every outbound call. A default "Python-urllib/3.x" is banned by
+# Cloudflare's browser integrity check, which fronts Resend's API, so the
+# request never arrives: 403, Cloudflare error 1010, indistinguishable
+# from the API refusing us. Identifying the app honestly is also what a
+# provider wants when they need to trace traffic back to a caller.
+USER_AGENT = "FantasySportsBible/1.0 (+https://fantasysportsbible.com)"
+
 
 class MailError(RuntimeError):
     """A send that failed, carrying a reason a person can act on."""
@@ -127,6 +134,14 @@ def _send_http(msg: EmailMessage, settings: Settings) -> None:
         headers={
             "Authorization": f"Bearer {settings.resend_api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            # Not optional. Without it urllib sends "Python-urllib/3.x",
+            # and Resend's API sits behind Cloudflare, whose browser
+            # integrity check bans that signature outright -- a 403 with
+            # Cloudflare error 1010, before Resend sees the request at
+            # all. It looks exactly like an API refusal and is not one:
+            # no key, sender or domain change can fix it. See USER_AGENT.
+            "User-Agent": USER_AGENT,
         },
         method="POST",
     )
