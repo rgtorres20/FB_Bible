@@ -142,6 +142,46 @@ def header_mark(html: str) -> tuple[str, list[str]]:
     )
 
 
+_KICKER = (
+    '<div style="font-size:10px; font-weight:700; letter-spacing:0.16em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">'
+    "{{ screenKicker }}</div>"
+)
+
+_HEADER_LINKS = (
+    '<div style="margin:0 0 12px; font-size:13px;">'
+    '<a href="/app/mine" target="_blank" rel="noopener" '
+    'style="color:var(--color-accent-700); font-weight:600; text-decoration:none;">'
+    "My stuff \u2014 notes &amp; rankings&nbsp;\u2192</a></div>"
+)
+
+
+def header_links(html: str) -> tuple[str, list[str]]:
+    """A way to My stuff from the app page (owner, Aug 25: "put a link on
+    main page for MINE").
+
+    It had no route from here at all. /app/mine held each person's own
+    documents, ranking lists and passkey setup, and the only paths to it
+    were a "Choose a team" prompt that appears once, a footer link on one
+    tab, and typing the URL -- which is how the trailing-slash 404 went
+    unnoticed for so long. A page nobody can reach is a page that does
+    not exist.
+
+    It goes in the same header as the mark, for the same documented
+    reason: that header is the one region every screen shares, and the
+    only one visible on a phone, since the sidebar is an off-canvas
+    drawer under 769px. The Draft analyzer's own link list (mobile.js,
+    DRAFT_LINKS) renders only on that one screen, so it is the wrong home
+    for the one page that is not about drafting.
+
+    New tab, matching DRAFT_LINKS: installed as a PWA there is no address
+    bar, and in-shell navigation away from the shell strands you. Every
+    served page carries `home_bar()` now, so the way back exists either
+    way -- but the convention is deliberate and consistent beats clever.
+    """
+    return _apply(html, (("app header links", _KICKER, _HEADER_LINKS + _KICKER, 1),))
+
+
 def client_paths(html: str) -> tuple[str, list[str]]:
     """The dynamic imports carry the design project's layout.
 
@@ -705,6 +745,7 @@ def feeds_watched(html: str) -> tuple[str, list[str]]:
 PRE = (
     head_tags,
     header_mark,
+    header_links,
     client_paths,
     vegas_binding,
     ffbets_landing,

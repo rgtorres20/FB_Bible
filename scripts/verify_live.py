@@ -615,6 +615,11 @@ def main() -> int:
     # is both halves: the mark is there AND it is on its own navy ground
     # (docs/BRAND.md). A missed anchor drops both silently.
     check("app page shows the mark", "/app/assets/fsb-logo.svg" in served_login_probe)
+
+    # Owner, Aug 25: "put a link on main page for MINE". /app/mine had no
+    # route from the app page -- which is also why its trailing-slash 404
+    # went unnoticed, since nobody could reach it the easy way to try.
+    check("app page links to My stuff", 'href="/app/mine"' in served_login_probe)
     navy = served_login_probe.find("background:#0B1A36")
     lockup = served_login_probe.find('<img src="/app/assets/fsb-logo.svg"')
     check(

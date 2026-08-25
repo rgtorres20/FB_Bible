@@ -413,3 +413,41 @@ def test_the_blurb_is_derived_not_typed(index_html):
     assert "team D/ST" in balla
     assert "IDP" not in balla
     assert "rec yds/pt" not in balla
+
+
+def test_the_app_page_offers_a_way_to_my_stuff(index_html):
+    """Owner, Aug 25: "put a link on main page for MINE".
+
+    /app/mine had no route from the app page at all -- the paths to it
+    were a "Choose a team" prompt that shows once, a footer link on a
+    single tab, and typing the URL. Which is also how the trailing-slash
+    404 stayed hidden: nobody could reach it the easy way to notice.
+    """
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    assert 'href="/app/mine"' in served
+    assert "My stuff" in served
+
+
+def test_the_my_stuff_link_sits_in_the_header_every_screen_shares(index_html):
+    """Not in DRAFT_LINKS, which renders only on the Draft analyzer. It
+    goes in the same header as the mark, for the same documented reason:
+    the one region every screen shares, and the only one visible on a
+    phone, since the sidebar is an off-canvas drawer under 769px."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    link_at = served.index('href="/app/mine"')
+    mark_at = served.index("fsb-logo.svg")
+    kicker_at = served.index("{{ screenKicker }}")
+    assert mark_at < link_at < kicker_at, "link should sit between the mark and the kicker"
+
+
+def test_the_my_stuff_link_opens_out_of_the_shell(index_html):
+    """Matches DRAFT_LINKS. Installed as a PWA there is no address bar,
+    and navigating the shell away from itself strands you."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    tag = served[served.index('<a href="/app/mine"') : served.index('href="/app/mine"') + 220]
+    assert 'target="_blank"' in tag
+    assert 'rel="noopener"' in tag
