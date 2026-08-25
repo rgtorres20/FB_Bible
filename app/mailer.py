@@ -134,19 +134,61 @@ def _send_http(msg: EmailMessage, settings: Settings) -> None:
         with urllib.request.urlopen(request, timeout=20) as response:
             response.read()
     except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = (json.loads(exc.read() or b"{}") or {}).get("message", "")
-        except Exception:  # noqa: BLE001 - the status alone is still useful
-            pass
-        if exc.code == 403 and "domain" in detail.lower():
+        detail = _api_detail(exc)
+        if exc.code == 403 and ("domain" in detail.lower() or "testing emails" in detail.lower()):
             raise MailError(
                 "Resend will only mail your own address until a domain is "
-                "verified — see docs/ACCESS.md."
+                "verified — see docs/ACCESS.md. It said: " + detail
+            ) from exc
+        if exc.code == 403 and not detail:
+            # A 403 with a body we could not read. Do not invent a cause,
+            # but do not pretend the status alone is useless either: this
+            # is the one Resend returns for an unverified sender.
+            raise MailError(
+                "Resend refused it (403) and sent no readable reason. That "
+                "status is almost always an unverified sending domain — "
+                "check Resend > Domains says Verified, and that MAIL_FROM "
+                "uses exactly that domain."
             ) from exc
         raise MailError(f"Resend refused it ({exc.code}). {detail}".strip()) from exc
     except Exception as exc:  # noqa: BLE001 - network trouble, reported as-is
         raise MailError(f"Could not reach Resend ({type(exc).__name__}).") from exc
+
+
+def _api_detail(exc: urllib.error.HTTPError) -> str:
+    """Whatever reason the API actually gave, out of any shape it uses.
+
+    This read only `message` off the top level, so a body shaped any other
+    way became "" and the owner got a bare status -- the diagnosis fetched
+    and then dropped, one layer below the button that had the same bug.
+    Resend has used both `{"message": ...}` and `{"error": {"message":
+    ...}}`, and an error body is not always JSON at all (a gateway can
+    answer HTML), so an unparseable body falls back to its own first line
+    rather than to nothing.
+
+    The body is read once -- HTTPError is a stream, and a second read
+    returns b"" -- and truncated, since a proxy error page is not a
+    reason.
+    """
+    try:
+        raw = exc.read() or b""
+    except Exception:  # noqa: BLE001 - an unreadable body is not a crash
+        return ""
+    text = raw.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return text.splitlines()[0][:200]
+    if isinstance(body, dict):
+        for key in ("message", "error", "detail", "name"):
+            value = body.get(key)
+            if isinstance(value, str) and value:
+                return value[:200]
+            if isinstance(value, dict) and isinstance(value.get("message"), str):
+                return value["message"][:200]
+    return text[:200]
 
 
 def _send_smtp(msg: EmailMessage, settings: Settings) -> None:

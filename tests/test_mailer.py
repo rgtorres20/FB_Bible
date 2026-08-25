@@ -231,3 +231,93 @@ def test_port_465_uses_implicit_tls_and_anything_else_starts_tls(monkeypatch):
     mailer.send_invite(TO, LINK, BASE, _Settings(smtp_port=465))
     mailer.send_invite(TO, LINK, BASE, _Settings(smtp_port=587))
     assert used == [("ssl", 465), ("plain", 587), ("starttls", None)]
+
+
+# --- reading the API's reason, whatever shape it arrives in ------------------
+# The owner hit "Resend refused it (403)." with nothing after it. The reason
+# was in the response body; the parser read only a top-level `message` and
+# dropped everything else. A bare status sends someone hunting through four
+# settings pages for a cause the API already named.
+
+
+def _raw_error(code: int, body: bytes) -> urllib.error.HTTPError:
+    import io
+
+    return urllib.error.HTTPError(mailer.RESEND_ENDPOINT, code, "err", {}, io.BytesIO(body))
+
+
+def test_a_nested_error_object_still_yields_its_message(monkeypatch):
+    """Resend has used {"error": {"message": ...}} as well as a flat one."""
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(
+            _http_error(422, {"error": {"message": "from must be a valid email"}})
+        ),
+    )
+
+    with pytest.raises(mailer.MailError, match="from must be a valid email"):
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+
+def test_a_non_json_body_falls_back_to_its_first_line(monkeypatch):
+    """A gateway can answer HTML. That is still more than a bare status."""
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(
+            _raw_error(502, b"Bad Gateway\nupstream timed out\n")
+        ),
+    )
+
+    with pytest.raises(mailer.MailError, match="Bad Gateway"):
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+
+def test_an_unreadable_403_still_names_the_likeliest_cause(monkeypatch):
+    """What the owner actually got. An empty body must not become a bare
+    status: 403 from Resend is an unverified sender nearly every time, so
+    say that -- as the likeliest cause, not as a certainty."""
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(_raw_error(403, b"")),
+    )
+
+    with pytest.raises(mailer.MailError) as caught:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+    assert "Verified" in str(caught.value)
+    assert "MAIL_FROM" in str(caught.value)
+
+
+def test_the_testing_emails_wording_is_recognised_too(monkeypatch):
+    """Resend's 403 does not always say "domain" -- it often says you can
+    only send testing emails to your own address. Same cause, and matching
+    on one wording alone let the other fall through to a bare status."""
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(
+            _http_error(
+                403,
+                {"message": "You can only send testing emails to your own email address"},
+            )
+        ),
+    )
+
+    with pytest.raises(mailer.MailError, match="verified"):
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+
+def test_the_reason_is_capped_so_an_error_page_is_not_a_wall(monkeypatch):
+    monkeypatch.setattr(
+        mailer.urllib.request,
+        "urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(_raw_error(500, b"x" * 5000)),
+    )
+
+    with pytest.raises(mailer.MailError) as caught:
+        mailer.send_invite(TO, LINK, BASE, _Settings(resend_api_key="re_key"))
+
+    assert len(str(caught.value)) < 400
