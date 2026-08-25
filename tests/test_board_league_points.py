@@ -94,15 +94,20 @@ def test_the_same_player_reads_differently_in_each_league():
     """The whole point. A quarterback totalling 474 in NDDPL and 874 in
     RED_EYE must not occupy the same square on the board."""
     allen = _table()["Josh Allen"]
-    assert allen["NDDPL"] == pytest.approx(round(474.0 / 17, 1))
-    assert allen["RED_EYE"] == pytest.approx(round(874.0 / 17, 1))
-    assert allen["RED_EYE"] > allen["NDDPL"] * 1.8
+    assert allen["NDDPL"]["p"] == pytest.approx(round(474.0 / 17, 1))
+    assert allen["RED_EYE"]["p"] == pytest.approx(round(874.0 / 17, 1))
+    assert allen["RED_EYE"]["p"] > allen["NDDPL"]["p"] * 1.8
+    # The season total rides along (owner ask, Aug 25) -- same scoring
+    # pass, and it was being computed and discarded before.
+    assert allen["NDDPL"]["t"] == 474
+    assert allen["RED_EYE"]["t"] == 874
 
 
 def test_halved_receiving_shows_up_where_it_is_not_halved():
     nacua = _table()["Puka Nacua"]
     assert nacua["NDDPL"] == nacua["RED_EYE"]
-    assert nacua["BALLAPALOSA"] > nacua["NDDPL"]
+    assert nacua["BALLAPALOSA"]["p"] > nacua["NDDPL"]["p"]
+    assert nacua["BALLAPALOSA"]["t"] > nacua["NDDPL"]["t"]
 
 
 def test_a_league_that_cannot_start_him_gets_no_number_at_all():
@@ -199,8 +204,13 @@ def test_the_header_stops_claiming_a_projection():
     which put "'25 P/G" over the fabricated slope during an outage."""
     out, n = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
     assert n == 2
-    assert "<div>Blend</div><div>'25 P/G</div>" in out
+    assert "<div>Blend</div><div>'25 P/G \u00b7 total</div>" in out
     assert "<div>Proj</div>" not in out.split("Latest read")[0]
+    # Still not claiming a forecast. The owner asked for "total projected
+    # points"; what exists is last season's real line under this league's
+    # real values, and the header keeps saying which.
+    assert "'25" in out.split("Latest read")[0]
+    assert "Proj" not in out.split("Latest read")[0]
 
 
 def test_no_injection_keeps_the_proj_header_too():
@@ -210,3 +220,62 @@ def test_no_injection_keeps_the_proj_header_too():
     assert n == 0
     assert "<div>Blend</div><div>Proj</div>" in out
     assert "'25 P/G" not in out
+
+
+# --- the season total beside it (owner ask, Aug 25) -------------------------
+
+
+def test_the_total_is_the_season_not_a_forecast():
+    """The ask was "total projected points". '26 projections do not exist
+    in this app, and inventing them is the line it does not cross. What it
+    has is last season's real line under this league's real values -- so
+    the number is a measured total and the header says '25."""
+    allen = _table()["Josh Allen"]
+
+    assert allen["NDDPL"]["t"] == 474
+    # And it is the per-game figure's own arithmetic, not a second source
+    # that could disagree with it.
+    assert allen["NDDPL"]["t"] == pytest.approx(allen["NDDPL"]["p"] * 17, rel=0.01)
+
+
+def test_the_board_renders_both_figures():
+    out, _ = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
+
+    assert "const totalFor" in out
+    assert "projTotal: totalFor(b)" in out
+    assert "{{ b.projTotal }} total" in out
+
+
+def test_a_league_that_cannot_start_him_gets_no_total_either():
+    """The dash rule covers both numbers. A season total of 0 for a player
+    the league cannot start is the same lie as a per-game 0."""
+    garrett = _table()["Myles Garrett"]
+
+    assert set(garrett) == {"RED_EYE"}
+    assert "t" in garrett["RED_EYE"] and "p" in garrett["RED_EYE"]
+
+
+def test_both_readers_fall_back_to_a_dash_not_a_zero():
+    """The page-side halves. `String(v.t)` on a missing entry would print
+    "undefined"; both readers check the type first."""
+    out, _ = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
+
+    start = out.index("const FBPts")
+    readers = out[start : out.index("const boardOrdered", start)]
+    # The JS source carries the escape sequence, not the character.
+    assert readers.count(r"\u2014") == 2, "both readers need the dash"
+    assert 'typeof v.p === "number"' in readers
+    assert 'typeof v.t === "number"' in readers
+
+
+def test_a_missing_cell_anchor_changes_nothing():
+    """All-or-nothing, as before: a header renamed to promise a total
+    beside a cell that never got one is worse than leaving both."""
+    broken = INDEX_HTML.replace(
+        '<div style="font-size:10px; color:var(--color-neutral-600);">PPG</div>', "<div>x</div>", 1
+    )
+
+    out, n = board.inject_league_points(broken, _index(), _stats(), leagues_mod.defaults())
+
+    assert n == 0
+    assert out == broken

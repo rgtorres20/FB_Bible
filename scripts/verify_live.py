@@ -813,6 +813,18 @@ def main() -> int:
         "byLeague[s.draftLeague]" in served,
     )
     check("board's points column says which season it is", "'25 P/G" in served)
+    # Owner ask, Aug 25: the season total beside the per-game rate. Both
+    # come out of the one scoring pass, so they cannot disagree -- and
+    # both are last season MEASURED, not a forecast, which is why the
+    # header still says '25 rather than the "Proj" it used to.
+    check(
+        "the board carries the season total beside the per-game rate",
+        "projTotal: totalFor(b)" in served and "total</div>" in served,
+    )
+    check(
+        "the total is still not claiming a projection",
+        "<div>Proj</div>" not in served.split("Latest read")[0],
+    )
     scored = re.search(r"const FB_LEAGUE_PTS = (\{.*?\});\n", served, re.S)
     n_scored = len(json.loads(scored.group(1))) if scored else 0
     check(

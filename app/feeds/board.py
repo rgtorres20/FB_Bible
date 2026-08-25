@@ -462,15 +462,33 @@ _PROJ_FORMULA = """    const projFor = b => {
       return raw.toFixed(1);
     };"""
 
-_PROJ_REPLACEMENT = """    const projFor = b => {
+_PROJ_REPLACEMENT = """    const FBPts = b => {
       const byLeague = (typeof FB_LEAGUE_PTS !== "undefined" && FB_LEAGUE_PTS[b.name]) || null;
-      const v = byLeague ? byLeague[s.draftLeague] : null;
-      return typeof v === "number" ? v.toFixed(1) : "\\u2014";
+      return byLeague ? byLeague[s.draftLeague] : null;
+    };
+    const projFor = b => {
+      const v = FBPts(b);
+      return v && typeof v.p === "number" ? v.p.toFixed(1) : "\\u2014";
+    };
+    const totalFor = b => {
+      const v = FBPts(b);
+      return v && typeof v.t === "number" ? String(v.t) : "\\u2014";
     };"""
 
 _LEAGUE_PTS_ANCHOR = "const RAW_BOARD = ["
 _PROJ_HEADER = "<div>Blend</div><div>Proj</div>"
-_PROJ_HEADER_REPLACEMENT = "<div>Blend</div><div>'25 P/G</div>"
+_PROJ_HEADER_REPLACEMENT = "<div>Blend</div><div>'25 P/G \u00b7 total</div>"
+
+# The row field and the cell that renders it. Owner ask, Aug 25: the season
+# total beside the per-game rate. Same cell rather than a new column: the
+# board's grid template and header row are one string each, and widening
+# them on a phone costs more than it buys.
+_PROJ_ROW_FIELD = ("proj: projFor(b),", "proj: projFor(b), projTotal: totalFor(b),")
+_PROJ_CELL = (
+    '<div style="font-size:10px; color:var(--color-neutral-600);">PPG</div>',
+    '<div style="font-size:10px; color:var(--color-neutral-600);">'
+    "PPG \u00b7 {{ b.projTotal }} total</div>",
+)
 
 
 def league_points(
@@ -478,7 +496,7 @@ def league_points(
     stats_state: dict | None,
     leagues_list,
 ) -> dict[str, dict[str, float]]:
-    """{player name: {league name: last season's points per game}}.
+    """{player name: {league name: {"p": points per game, "t": season total}}}.
 
     The same arithmetic `/app/scoring` ranks by -- each league's own
     values over that player's real stored line -- reduced to per game so
@@ -491,6 +509,12 @@ def league_points(
     A player the stats do not cover is simply absent, and the board shows
     a dash. That is the whole reason this replaces a formula: the formula
     always had an answer, and the answer was invented.
+
+    Neither figure is a PROJECTION and the header says so. The owner asked
+    for "total projected points" (Aug 25); '26 projections are not
+    something this app has, and inventing them is the line it does not
+    cross. What it has is last season's real line under this league's real
+    values, which is why the column reads "'25".
     """
     players = (index or {}).get("players") or {}
     lines = ((stats_state or {}).get("players") or {}) if stats_state else {}
@@ -508,7 +532,11 @@ def league_points(
             if total is None:
                 # The league cannot start him. A dash, never a zero.
                 continue
-            per_league[lg.name] = round(total / games, 1)
+            # Both figures, from the one scoring pass. `t` is the season
+            # total -- what actually wins a league -- and `p` the per-game
+            # rate, which is what makes a half-season comparable. The total
+            # was always computed here and thrown away on the next line.
+            per_league[lg.name] = {"p": round(total / games, 1), "t": round(total)}
         if per_league:
             out[name] = per_league
     return out
@@ -534,7 +562,13 @@ def inject_league_points(
     either leaves the page untouched and reports nothing changed.
     """
     table = _rekey_to_page(league_points(index, stats_state, leagues_list), html)
-    if not table or _PROJ_FORMULA not in html or _LEAGUE_PTS_ANCHOR not in html:
+    if (
+        not table
+        or _PROJ_FORMULA not in html
+        or _LEAGUE_PTS_ANCHOR not in html
+        or _PROJ_ROW_FIELD[0] not in html
+        or _PROJ_CELL[0] not in html
+    ):
         return html, 0
     html = html.replace(_PROJ_FORMULA, _PROJ_REPLACEMENT, 1)
     # The header rename rides with the rebind, not in the PRE transforms:
@@ -543,6 +577,8 @@ def inject_league_points(
     # fabricated slope -- a measured-sounding label on an invented number,
     # worse than the "Proj" it replaced.
     html = html.replace(_PROJ_HEADER, _PROJ_HEADER_REPLACEMENT, 1)
+    html = html.replace(*_PROJ_ROW_FIELD, 1)
+    html = html.replace(*_PROJ_CELL, 1)
     html = html.replace(
         _LEAGUE_PTS_ANCHOR,
         f"const FB_LEAGUE_PTS = {_script_json(table)};\n{_LEAGUE_PTS_ANCHOR}",
