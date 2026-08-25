@@ -665,6 +665,77 @@ def drop_reserve(html: str, index: dict | None) -> tuple[str, list[str]]:
     return html.replace(block.group(0), "\n".join(kept_lines), 1), dropped
 
 
+_BLEND_FN = re.compile(
+    r"const blendScore = b => \{\n"
+    r"(?P<adp>[^\n]*const adp = [^\n]+\n)"
+    r"[^\n]*return \(1 - w\) \* b\.rank \+ w \* \(isNaN\(adp\) \? b\.rank : adp\);\n"
+    r"\s*\};"
+)
+
+# The displayed value, in EITHER shape: as committed, or as `deepen` has
+# already rewritten it to read live ADP. Matching only the committed one
+# is the bug this regex exists to avoid -- see wire_blend_column.
+_BLEND_DISPLAY = re.compile(
+    r"[^\n]*let v = b\.base;\n"
+    r"[^\n]*if \(b\.split && !beatOn\) v = [^\n]+\n"
+    r"[^\n]*if \(b\.split && !analyticsOn\) v = [^\n]+\n"
+)
+
+
+def wire_blend_column(html: str) -> tuple[str, int]:
+    """Make the Blend column the number the board is actually sorted by.
+
+    Owner, Aug 25: "i still dont see updates to adp when i move sliders".
+    ADP is market data and never moves for anyone -- but the column beside
+    it is headed **Blend**, and it was not the blend.
+
+    The board sorts by `blendScore`, which is the only place srcWeight
+    (the Board-order slider, and the four Settings sliders that compute
+    it) has any effect. The number displayed was `b.base`, adjusted by
+    the two usage toggles and nothing else. Measured against the page's
+    own rows: 0 of 204 responded to the slider before, 204 of 204 after.
+
+    A control whose output you cannot see is indistinguishable from one
+    wired to nothing, which is exactly the fault `source_truth` was
+    written to end -- and this was the same fault one column over.
+
+    So the split-usage adjustment moves INTO blendScore, and the display
+    reads blendScore. One value, used for the sort and the column, so the
+    column explains the order it sits in and both toggles keep working.
+
+    Matched by regex, not by string, because `deepen` runs first and
+    rewrites these very lines to read live ADP: `parseFloat(b.adp)`
+    becomes `FBAdp(b)`. String anchors would match the committed page in
+    a test with no ADP data and silently miss the deployed one -- a green
+    unit test over a dead control in production, which is the shape of
+    failure this file keeps finding. Both shapes are handled, and the
+    `adp` line is preserved rather than rewritten so whichever one is
+    there survives.
+    """
+    fn = _BLEND_FN.search(html)
+    display = _BLEND_DISPLAY.search(html)
+    if not fn or not display:
+        return html, 0
+
+    body = (
+        "const blendScore = b => {\n"
+        + fn.group("adp")
+        + "      const mkt = isNaN(adp) ? b.rank : adp;\n"
+        "      let v = (1 - w) * b.rank + w * mkt;\n"
+        "      if (b.split && !beatOn) v = (v + mkt) / 2;\n"
+        "      if (b.split && !analyticsOn) v = (v + mkt) / 2;\n"
+        "      return v;\n"
+        "    };"
+    )
+    html = html[: fn.start()] + body + html[fn.end() :]
+
+    display = _BLEND_DISPLAY.search(html)
+    if not display:
+        return html, 0
+    html = html[: display.start()] + "      const v = blendScore(b);\n" + html[display.end() :]
+    return html, 1
+
+
 def decorate(
     html: str, index: dict | None, stats_state: dict | None, leagues_list
 ) -> tuple[str, dict[str, object]]:
@@ -694,6 +765,7 @@ def decorate(
     html, counts["deepened"] = deepen(html, index, leagues_list)
     html, counts["scored"] = inject_league_points(html, index, stats_state, leagues_list)
     html, counts["flagged"] = inject_injuries(html, index)
+    html, counts["blend_wired"] = wire_blend_column(html)
     return html, counts
 
 

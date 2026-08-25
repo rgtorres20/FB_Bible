@@ -785,6 +785,22 @@ def main() -> int:
         bool(board_names) and len(board_names) == len(set(board_names)),
         f"{len(board_names)} rows, {len(set(board_names))} distinct",
     )
+    # Owner, Aug 25: "i still dont see updates to adp when i move
+    # sliders". ADP never moves -- it is the market -- but the Blend
+    # column beside it was b.base, which srcWeight never touches, while
+    # the board sorted by blendScore, the only place the slider lands.
+    # Sorted by one number, displaying another. Checked live because
+    # deepen() rewrites these same lines for live ADP, so the deployed
+    # shape is not the committed one a unit test sees.
+    check(
+        "the Blend column is the number the board sorts by",
+        "const v = blendScore(b);" in served,
+        "still displaying b.base" if "let v = b.base;" in served else "anchor gone",
+    )
+    check(
+        "the board-order slider reaches the displayed value",
+        "(1 - w) * b.rank + w * mkt" in served,
+    )
     # The board the owner drafts from finally answers to their scoring
     # (owner, Aug 22: "how does my leagues scores influence rankings").
     # Its numeric column was a fabricated slope with no league in it.

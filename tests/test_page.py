@@ -520,3 +520,66 @@ def test_a_league_with_no_yahoo_id_gets_no_link(index_html):
     served, _ = board.inject_leagues(index_html, [*leagues_mod.defaults(), mine])
     qid_at = served.index("const QID = {")
     assert "Sunday Money" not in served[qid_at : qid_at + 300], "no id means no QID entry"
+
+
+# --- the Blend column (owner, Aug 25) ---------------------------------------
+# "i still dont see updates to adp when i move sliders". ADP is market data
+# and never moves. But the column beside it is headed Blend, and it was not
+# the blend: the board SORTED by blendScore (the only place srcWeight has any
+# effect) and DISPLAYED b.base, which srcWeight never touches. Measured on the
+# page's own rows: 0 of 204 numbers responded to the slider; now 204 of 204.
+
+
+def test_the_blend_column_is_the_number_the_board_sorts_by(index_html):
+    served, n = board.wire_blend_column(index_html)
+
+    assert n == 1
+    assert "const v = blendScore(b);" in served
+    assert "let v = b.base;" not in served, "the displayed value was not the sorted one"
+
+
+def test_the_slider_reaches_the_displayed_value(index_html):
+    """srcWeight must appear in the function the column now reads."""
+    served, _ = board.wire_blend_column(index_html)
+
+    fn = served[served.index("const blendScore") : served.index("const boardOrdered")]
+    assert "(1 - w) * b.rank + w * mkt" in fn, "srcWeight is not in the displayed formula"
+
+
+def test_both_usage_toggles_still_do_something(index_html):
+    """They moved INTO blendScore rather than being dropped. A control that
+    stops working is not an improvement on one you cannot see working."""
+    served, _ = board.wire_blend_column(index_html)
+
+    fn = served[served.index("const blendScore") : served.index("const boardOrdered")]
+    assert "!beatOn" in fn and "!analyticsOn" in fn
+
+
+def test_it_fires_after_deepen_has_rewritten_those_lines(index_html):
+    """The trap this nearly fell into. `deepen` runs first and rewrites the
+    same lines to read live ADP -- parseFloat(b.adp) becomes FBAdp(b). A
+    string anchor matches the committed page (which is what a test with no
+    ADP data sees) and silently misses the deployed one: a green test over a
+    dead control in production."""
+    simulated = index_html
+    for old, new in board._CONSUMERS:
+        simulated = simulated.replace(old, new)
+    simulated = simulated.replace(board._WEIGHT_LINE, board._HELPER, 1)
+    assert "FBAdp(b)" in simulated, "the fixture no longer resembles deepen's output"
+
+    served, n = board.wire_blend_column(simulated)
+
+    assert n == 1
+    assert "const v = blendScore(b);" in served
+    # The live-ADP reader is preserved, not overwritten by the committed line.
+    fn = served[served.index("const blendScore") : served.index("const boardOrdered")]
+    assert "const adp = FBAdp(b);" in fn
+    assert "parseFloat(b.adp)" not in fn
+
+
+def test_a_missing_anchor_reports_zero_rather_than_half_wiring_it(index_html):
+    broken = index_html.replace("let v = b.base;", "let v = 0;", 1)
+
+    served, n = board.wire_blend_column(broken)
+
+    assert n == 0

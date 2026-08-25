@@ -134,7 +134,11 @@ def test_a_missing_index_clears_the_badges_rather_than_keeping_frozen_ones():
     (docs/ASSUMPTIONS.md).
     """
     out, marks = board.decorate(INDEX_HTML, None, None, LEAGUES)
-    assert marks == {"benched": [], "deepened": 0, "scored": 0, "flagged": 0}
+    # blend_wired is 1 even here, and should be: making the Blend column
+    # the number the board sorts by is a rewiring of the page's own
+    # arithmetic, not a join onto data. It is the one decoration that
+    # still works during an index outage.
+    assert marks == {"benched": [], "deepened": 0, "scored": 0, "flagged": 0, "blend_wired": 1}
     assert "const OUT_RED" not in out, "no frozen list survives an outage"
     assert _map(out, "FB_INJURIES") == {}
     assert "bases = { QB: 24.5" in out, "with no stats the points column is left alone"
