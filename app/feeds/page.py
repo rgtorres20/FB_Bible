@@ -182,6 +182,68 @@ def header_links(html: str) -> tuple[str, list[str]]:
     return _apply(html, (("app header links", _KICKER, _HEADER_LINKS + _KICKER, 1),))
 
 
+def _yahoo_panel(html: str) -> str:
+    """The Settings screen's Yahoo-account card, located in the page.
+
+    Found rather than pasted: it is 2.5KB of markup, and a copy here would
+    be one whitespace change away from matching nothing -- a silent miss,
+    which for this transform means the sign-in controls stay on screen.
+    """
+    head = (
+        '<div style="border:2px solid var(--color-text); padding:var(--space-4); '
+        'margin-bottom:var(--space-6);">\n            <div style="font-size:10px; '
+        "font-weight:700; letter-spacing:0.14em; text-transform:uppercase; "
+        'color:var(--color-accent-700);">Yahoo account</div>'
+    )
+    start = html.find(head)
+    if start < 0:
+        return ""
+    tail = '</div>\n          <div style="margin-bottom:var(--space-6);">'
+    end = html.find(tail, start)
+    if end < 0:
+        return ""
+    return html[start : end + len("</div>")]
+
+
+_YAHOO_NOTE = (
+    '<div style="border:1px dashed var(--color-neutral-400); '
+    'padding:var(--space-4); margin-bottom:var(--space-6);">'
+    '<div style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">Yahoo account</div>'
+    '<div style="font-size:12px; color:var(--color-neutral-700); margin-top:6px; '
+    'text-wrap:pretty;">Not available yet. Linking a Yahoo account needs '
+    "fantasy-access approval from Yahoo, which this app is still waiting on, "
+    "so the buttons are hidden rather than left to fail. Everything else on "
+    "these boards is live and needs no Yahoo link.</div></div>"
+)
+
+
+def yahoo_panel(html: str) -> tuple[str, list[str]]:
+    """Take the Yahoo sign-in controls off the Settings screen.
+
+    Owner, Aug 25: "lets remove Yahoo login from UI for now until its
+    fixed". The card offered a deploy-URL box, Check, Connect Yahoo and
+    Sign out -- a whole flow that cannot complete: the OAuth code is
+    built and tested, but it has never been verified against a real
+    account because Yahoo's fantasy-access approval has not come through
+    (docs/RESUME.md). A control that cannot succeed is worse than a
+    missing one; it costs somebody a session's worth of trying.
+
+    Replaced with one line rather than deleted outright, deliberately: a
+    panel that simply vanishes reads as a bug to anyone who saw it last
+    week, and "why is there no Yahoo here" is a question the app should
+    answer itself. The controls are gone, which is the ask; the sentence
+    is what stops it becoming a mystery.
+
+    Nothing server-side is touched. /auth/yahoo/* stays exactly as it is,
+    so approval means putting this panel back, not rebuilding it.
+    """
+    panel = _yahoo_panel(html)
+    if not panel:
+        return html, ["yahoo account panel"]
+    return html.replace(panel, _YAHOO_NOTE, 1), []
+
+
 def client_paths(html: str) -> tuple[str, list[str]]:
     """The dynamic imports carry the design project's layout.
 
@@ -746,6 +808,7 @@ PRE = (
     head_tags,
     header_mark,
     header_links,
+    yahoo_panel,
     client_paths,
     vegas_binding,
     ffbets_landing,

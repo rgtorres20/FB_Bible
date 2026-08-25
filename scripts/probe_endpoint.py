@@ -98,8 +98,32 @@ def main() -> int:
     # fields exist at all, and how many entries carry each" -- what you need
     # before building an extractor against sparse per-entry coverage (the
     # IDP stats question, and the same trap the offense stats hit).
-    if os.environ.get("PROBE_MODE") == "fields" and isinstance(payload, dict):
+    # A LIST of dicts gets the same census, one level down into whichever
+    # sub-dict PROBE_KEY names. Sleeper's projections arrive that way --
+    # 3,113 rows each carrying a `stats` object -- and the field names in
+    # that object are the whole question: they decide whether the existing
+    # league scorer can read a projection line at all, and a name that is
+    # merely close scores a silent zero.
+    if os.environ.get("PROBE_MODE") == "fields" and isinstance(payload, list):
+        inner = os.environ.get("PROBE_KEY") or ""
         counts: dict[str, int] = {}
+        entries = 0
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            target = item.get(inner) if inner else item
+            if isinstance(target, dict):
+                entries += 1
+                for field in target:
+                    counts[field] = counts.get(field, 0) + 1
+        label = f"{inner}." if inner else ""
+        print(f"field census across {entries} list entries ({len(counts)} distinct {label}fields):")
+        for field, n in sorted(counts.items()):
+            print(f"  {label}{field}: {n}")
+        return 0
+
+    if os.environ.get("PROBE_MODE") == "fields" and isinstance(payload, dict):
+        counts = {}
         entries = 0
         for value in payload.values():
             if isinstance(value, dict):
