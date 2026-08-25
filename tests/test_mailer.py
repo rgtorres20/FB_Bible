@@ -56,14 +56,36 @@ def test_the_invite_carries_the_link_and_says_it_is_one_time():
     assert "7 days" in body
 
 
-def test_the_invite_points_at_the_app_and_the_leagues():
+def test_the_invite_points_at_the_app():
     """Owner ask, Aug 21: the invite doubles as the intro. A link with no
     context reads like phishing."""
     body = mailer.invite_body(LINK, BASE)
     assert f"{BASE}app/" in body
-    for name, url in mailer.LEAGUE_LINKS:
-        assert name in body
-        assert url in body
+    assert f"{BASE}login" in body
+
+
+def test_the_invite_never_carries_the_owners_league_links():
+    """Owner, Aug 25: "those are my personal teams". The URLs being public
+    routing is beside the point -- email is the one surface that leaves
+    the gate, so a forward, a shared inbox or an archive puts them in
+    front of people who were never given access. Inside the app the
+    allowlist decides who sees them; an email decides nothing."""
+    body = mailer.invite_body(LINK, BASE)
+
+    assert "fantasysports.yahoo.com" not in body
+    for token in ("NDDPL", "RED_EYE", "BALLAPALOSA", "192426", "811739", "963878"):
+        assert token not in body, f"{token} is in the invite email"
+
+
+def test_the_invite_describes_the_sign_in_that_actually_exists():
+    """It promised "no password to remember -- the link signs you in",
+    which stopped being true when invites became two-step. A recipient
+    told to expect no password meets a password form and reads it as a
+    phishing page."""
+    body = mailer.invite_body(LINK, BASE)
+
+    assert "set a password" in body
+    assert "No password to remember" not in body
 
 
 def test_the_invite_goes_to_exactly_one_address(monkeypatch):

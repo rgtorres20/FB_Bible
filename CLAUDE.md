@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1224 tests green — 1208 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1226 tests green — 1210 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -420,8 +420,11 @@ their own league — full custom scoring, not presets — and the mock room
 and IDP board then score with it (docs/LEAGUE_SETTINGS.md); `/app/mine`
 gives each signed-in user their own private layer (named text/CSV
 documents, per-email Redis key),
-and adding a user can email them the invite + app intro + league links
-when SMTP env is set. **Passkeys** (Face ID / Touch ID) layer on top:
+and adding a user can email them the invite + app intro when mail is
+configured. That email deliberately carries **no league links** (owner,
+Aug 25) — email is the one surface that leaves the gate, so a forward or
+a shared inbox would hand the owner's own teams to people never given
+access. **Passkeys** (Face ID / Touch ID) layer on top:
 register from `/app/mine` after a normal sign-in, then the login page
 signs you in with a face or fingerprint — discoverable credentials, user
 verification required, public keys only, and the allowlist still governs

@@ -151,8 +151,15 @@ browser exactly.
 ## Emailing invites automatically (optional)
 
 Adding an email can also send the invite for you — the message carries
-the one-time link, a short intro to the app, and both league links
+the one-time link, how to set a password, and a short intro to the app
 (`app/mailer.py` is the template).
+
+It deliberately carries **no league links** (owner, Aug 25: *"those are
+my personal teams"*). The Yahoo URLs being public routing is beside the
+point: email is the one surface that leaves the gate, so a forwarded
+invite, a shared inbox or a mail archive puts your teams in front of
+people who were never given access. Inside the app the allowlist decides
+who sees them; an email decides nothing. A test pins their absence.
 
 > **SMTP does not work on Vercel.** Learned the hard way, Aug 21: the
 > serverless sandbox hangs outbound SMTP connections, so a completely

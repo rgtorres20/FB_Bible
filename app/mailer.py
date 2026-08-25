@@ -34,40 +34,42 @@ class MailError(RuntimeError):
     """A send that failed, carrying a reason a person can act on."""
 
 
-# The leagues' own pages (docs/LEAGUES.md). Yahoo's league URLs are
-# public routing, not user data.
-LEAGUE_LINKS = (
-    ("NDDPL", "https://football.fantasysports.yahoo.com/f1/192426"),
-    ("RED_EYE", "https://football.fantasysports.yahoo.com/league/red_eye"),
-)
+# The invite deliberately carries NO league links (owner, Aug 25).
+#
+# They used to be listed here as "public routing, not user data" -- true
+# of the URLs, and beside the point. These are the owner's own teams, and
+# email is the one surface that leaves the gate: a forwarded invite, a
+# shared inbox or a mail archive puts them in front of people who were
+# never given access. Inside the app the allowlist decides who sees them.
+# An email decides nothing.
 
 SUBJECT = "You're invited to Fantasy Sports Bible"
 
 
 def invite_body(invite_link: str, app_base: str) -> str:
-    leagues = "\n".join(f"  - {name}: {url}" for name, url in LEAGUE_LINKS)
-    return f"""You've been invited to Fantasy Sports Bible -- our draft-prep app
-for this season's leagues.
+    return f"""You've been invited to Fantasy Sports Bible, a draft-prep app
+for fantasy football.
 
-Your sign-in link (works once, expires in 7 days -- open it on the
-device you'll use):
+Your invite link (works once, expires in 7 days):
 
   {invite_link}
+
+Open it and you'll set a password. After that you can sign in from
+any device -- phone, laptop, tablet -- at
+
+  {app_base}login
+
+and add Face ID or Touch ID from "My stuff" to skip typing it.
 
 Once you're in ({app_base}app/):
 
   - Live news wire with AI-drafted reads, updated hourly
-  - Draft cheat sheet built from live ADP, tuned to our scoring
+  - Draft cheat sheet built from live ADP, scored by league settings
   - Mock draft room: pick your slot, the room autopicks the rest
   - IDP draft board scored with each league's real settings
   - "My stuff" (/app/mine): your own notes and rankings, private to you
 
-The leagues:
-
-{leagues}
-
-No password to remember -- the link signs you in. If it expires, ask for
-a fresh one.
+If the link expires, ask for a fresh one.
 """
 
 

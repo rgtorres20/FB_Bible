@@ -122,11 +122,14 @@ def test_size_cap_is_enforced_with_an_honest_message(client, monkeypatch):
 # --- the invite email --------------------------------------------------------
 
 
-def test_invite_email_carries_link_leagues_and_app_info():
+def test_invite_email_carries_the_link_and_app_info_but_no_leagues():
+    """The league links came out on Aug 25 (owner: "those are my personal
+    teams"). See test_mailer for why email is the surface where that
+    matters -- it is the one that leaves the gate."""
     body = mailer.invite_body("https://x/login/invite/tok123", "https://x/")
     assert "https://x/login/invite/tok123" in body
-    assert "192426" in body and "red_eye" in body  # both league links
     assert "Mock draft room" in body and "My stuff" in body
+    assert "192426" not in body and "red_eye" not in body
 
 
 def test_add_sends_the_email_when_configured_and_reports_failure(client, monkeypatch):
