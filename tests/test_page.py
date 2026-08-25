@@ -451,3 +451,72 @@ def test_the_my_stuff_link_opens_out_of_the_shell(index_html):
     tag = served[served.index('<a href="/app/mine"') : served.index('href="/app/mine"') + 220]
     assert 'target="_blank"' in tag
     assert 'rel="noopener"' in tag
+
+
+def test_no_hardcoded_league_list_survives_anywhere(index_html):
+    """The miss that made the first fix look done while the owner still
+    could not see their third league.
+
+    inject_leagues edited the sidebar's `leagueDefs`, passed its own
+    anchor checks, and left FIVE other hardcoded pairs standing --
+    including `draftLeagues`, which is the list the Draft analyzer
+    actually renders. An all-or-nothing transform only guarantees the
+    edits it knows about.
+
+    So this greps the WHOLE served page, exactly like the invented-
+    publishers test written the same day after the same mistake. Curated
+    alert rows are excluded: those carry `league: "..."` as content and
+    page.league_names renames them later, in POST.
+    """
+    from app import leagues as leagues_mod
+
+    served, misses = page.apply(index_html, page.PRE)
+    served, _ = board.inject_leagues(served, leagues_mod.defaults())
+    served, post_misses = page.apply(served, page.POST)
+
+    assert misses == [] and post_misses == []
+    for doc_name in ("Sunday Gravy", "The Trenches"):
+        assert doc_name not in served, f"{doc_name} still on the page"
+
+
+def test_every_surface_naming_leagues_names_all_of_them(index_html):
+    """Each list the page keeps of its leagues, by the shape that list
+    takes. Named individually so a failure says WHICH one drifted rather
+    than just that something did."""
+    from app import leagues as leagues_mod
+
+    served, _ = board.inject_leagues(index_html, leagues_mod.defaults())
+    names = [lg.name for lg in leagues_mod.defaults()]
+
+    for label, needle in (
+        ("sidebar picker", "const leagueDefs = ["),
+        ("analyzer chips", "draftLeagues: ["),
+        ("queue pills", "queueLeaguePills: ["),
+        ("seat counts", "const leagueTeams = {"),
+        ("yahoo ids", "const QID = {"),
+        ("settings cards", "leagueSettings: ["),
+    ):
+        at = served.index(needle)
+        chunk = served[at : at + 900]
+        for name in names:
+            assert name in chunk, f"{name} missing from the {label}"
+
+
+def test_a_league_with_no_yahoo_id_gets_no_link(index_html):
+    """A league somebody defined by hand has no id, so it must get an
+    empty url -- never inherit one. `blank()` builds with dataclass
+    replace() off NDDPL, which silently carried the OWNER'S league id
+    until it was cleared: a stranger's settings page linking to the
+    owner's Yahoo league."""
+    from app import leagues as leagues_mod
+
+    mine = leagues_mod.blank("Sunday Money", 12)
+
+    assert mine.yahoo_id == ""
+    card = board.league_facts(mine)
+    assert 'url: ""' in card
+    assert "192426" not in card
+
+    served, _ = board.inject_leagues(index_html, [*leagues_mod.defaults(), mine])
+    qid_at = served.index("const QID = {")
+    assert "Sunday Money" not in served[qid_at : qid_at + 300], "no id means no QID entry"

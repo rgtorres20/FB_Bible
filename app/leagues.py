@@ -184,6 +184,12 @@ class League:
     # Starting slots plus bench, in draft-priority order. "FLX" is any of
     # WR/RB/TE; "D" is any IDP group the league starts.
     slots: tuple[str, ...]
+    # The league's id on Yahoo, for deep links. Here rather than in the
+    # page because league facts live in this module and nowhere else --
+    # the page held these, and that is exactly how a third league ended
+    # up missing from half the surfaces that name leagues (Aug 25).
+    # Empty for a league somebody defined by hand: no id, so no link.
+    yahoo_id: str = ""
     # Offense, as the league's own settings page states it.
     ppr: float = 1.0
     pass_td: float = MARKET_PASS_TD
@@ -438,6 +444,7 @@ class League:
             "key": self.key,
             "name": self.name,
             "teams": self.teams,
+            "yahoo_id": self.yahoo_id,
             "slots": list(self.slots),
             "ppr": self.ppr,
             "pass_td": self.pass_td,
@@ -497,6 +504,7 @@ NDDPL = League(
     key="nddpl",
     name="NDDPL",
     teams=10,
+    yahoo_id="192426",
     slots=(
         "QB",
         "RB",
@@ -532,6 +540,7 @@ RED_EYE = League(
     key="red_eye",
     name="RED_EYE",
     teams=12,  # owner correction Aug 20, superseding the PDF's 10
+    yahoo_id="811739",
     slots=(
         "QB",
         "RB",
@@ -567,6 +576,7 @@ BALLAPALOSA = League(
     key="ballapalosa",
     name="BALLAPALOSA",
     teams=10,
+    yahoo_id="963878",
     # QB / 3 WR / 2 RB / TE / W-R-T / K / DEF, then six bench. The two IR
     # slots on the settings page are not draft rounds and are left out --
     # counting them would tell the mock room to run two rounds longer
@@ -692,6 +702,12 @@ def blank(name: str = "My league", teams: int = 10) -> League:
         key="custom",
         name=name,
         teams=teams,
+        # Not inherited. `replace` copies every field not named here, so
+        # without this a league somebody defines by hand carries the
+        # OWNER'S Yahoo id and links to the owner's league from a
+        # stranger's settings page. Same rule the invite email learned:
+        # the owner's teams do not travel with anything.
+        yahoo_id="",
         slots=(
             "QB",
             "RB",

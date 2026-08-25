@@ -729,6 +729,65 @@ def league_blurb(lg) -> str:
     return " \u00b7 ".join(bits)
 
 
+def _settings_block(html: str) -> str:
+    """The committed leagueSettings array, exactly as it sits in the page.
+
+    Located rather than pasted: it is a 500-character line of nested
+    object literals, and a copy in this file would be one stray space
+    away from matching nothing -- a silent miss, which for this transform
+    means the whole injection reports zero and every league edit is
+    dropped.
+    """
+    start = html.find("      leagueSettings: [")
+    if start < 0:
+        return "\u0000 no leagueSettings anchor"
+    end = html.find("\n      ]", start)
+    if end < 0:
+        return "\u0000 no leagueSettings close"
+    return html[start : end + len("\n      ]")]
+
+
+def league_facts(lg) -> str:
+    """One league's card in the Connected-leagues panel, as page JS.
+
+    Derived like the picker blurb. The page carried two of these by hand,
+    with the roster written out as "1QB 3RB 4WR 1TE 1K" -- a string that
+    can disagree with the slots the app actually drafts, and nothing to
+    catch it if it does.
+    """
+    counts = _slot_counts(lg)
+    roster = " ".join(f"{n}{slot}" for slot, n in counts if slot != "BN")
+    facts = [
+        ("Format", f"{lg.teams}-team " + ("full PPR" if lg.ppr >= 1 else f"{lg.ppr:g} PPR")),
+        ("Roster", roster),
+    ]
+    if lg.starts_idp:
+        groups = [f"{n} {slot}" for slot, n in counts if slot in ("DL", "LB", "DB", "D")]
+        idp = " \u00b7 ".join(groups)
+        facts.append(("IDP", idp or "defenders"))
+    if lg.starts_dst:
+        facts.append(("Defense", "team D/ST"))
+    if lg.pass_completion:
+        facts.append(("QB scoring", f"+{lg.pass_completion:g} per completion"))
+    facts.append(("Bench", str(dict(counts).get("BN", 0))))
+    facts_js = ", ".join(f'{{ k: "{k}", v: "{v}" }}' for k, v in facts)
+    url = f"football.fantasysports.yahoo.com/f1/{lg.yahoo_id}" if lg.yahoo_id else ""
+    return f'{{ name: "{lg.name}", url: "{url}", facts: [{facts_js}] }}'
+
+
+def _slot_counts(lg):
+    """Slot counts in the roster's own order, deduped, zeroes dropped."""
+    seen: list[tuple[str, int]] = []
+    for slot in lg.slots:
+        for i, (name, n) in enumerate(seen):
+            if name == slot:
+                seen[i] = (name, n + 1)
+                break
+        else:
+            seen.append((slot, 1))
+    return seen
+
+
 def inject_leagues(html: str, leagues_list) -> tuple[str, int]:
     """Put the user's real leagues into the draft analyzer.
 
@@ -764,6 +823,10 @@ def inject_leagues(html: str, leagues_list) -> tuple[str, int]:
         for lg in leagues_list
     )
     queue_badge = " + ".join(f'((s.queue && s.queue["{n}"]) || []).length' for n in names)
+    names_js = ", ".join(f'"{n}"' for n in names)
+    seats = ", ".join(f'"{lg.name}": {lg.teams}' for lg in leagues_list)
+    qids = ", ".join(f'"{lg.name}": "{lg.yahoo_id}"' for lg in leagues_list if lg.yahoo_id)
+    settings_js = ",\n".join("        " + league_facts(lg) for lg in leagues_list)
 
     edits = (
         (
@@ -802,6 +865,38 @@ def inject_leagues(html: str, leagues_list) -> tuple[str, int]:
             f'((s.queue && s.queue["{_DOC_L2}"]) || []).length)',
             f"String({queue_badge})",
         ),
+        # The list the Draft analyzer actually renders. Missing this on the
+        # first pass is why the owner still could not see a third league
+        # after the picker was "fixed" -- the sidebar's list and the
+        # analyzer's own chips are two different arrays.
+        (
+            f'draftLeagues: ["{_DOC_L1}", "{_DOC_L2}"].map(lg => ({{',
+            f"draftLeagues: [{names_js}].map(lg => ({{",
+        ),
+        (
+            f'queueLeaguePills: ["{_DOC_L1}", "{_DOC_L2}"].map(l => ({{',
+            f"queueLeaguePills: [{names_js}].map(l => ({{",
+        ),
+        # Seat counts. BALLAPALOSA happens to be 10, which the `|| 10`
+        # fallback would have got right by luck -- a wrong number that
+        # looks right is worse than a missing one, and a 12-team league
+        # added later would have silently drafted 10 seats.
+        (
+            f'const leagueTeams = {{ "{_DOC_L1}": 10, "{_DOC_L2}": 12 }};',
+            f"const leagueTeams = {{ {seats} }};",
+        ),
+        # Yahoo deep links. These ids now live in app/leagues.py, which is
+        # where league facts are supposed to live; a league defined by
+        # hand has no id and so gets no link rather than someone else's.
+        (
+            f'const QID = {{ "{_DOC_L1}": "192426", "{_DOC_L2}": "811739" }};',
+            f"const QID = {{ {qids} }};",
+        ),
+        # The Connected-leagues cards. Two of these were written by hand,
+        # roster included -- "1QB 3RB 4WR 1TE 1K", a string that can
+        # disagree with the slots the app actually drafts with nothing to
+        # catch it. Generated from each League now, so it cannot.
+        (_settings_block(html), f"      leagueSettings: [\n{settings_js}\n      ]"),
     )
 
     for old, _new in edits:

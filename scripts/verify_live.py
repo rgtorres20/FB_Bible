@@ -847,6 +847,30 @@ def main() -> int:
         "per-league state covers every league offered",
         all(f'"{n}": []' in served for n in ("NDDPL", "RED_EYE", "BALLAPALOSA")),
     )
+    # The page keeps SEVEN separate lists of its leagues. Fixing one and
+    # shipping was the Aug 25 miss -- the sidebar picker was right while
+    # the analyzer's own chips still named two. Checked by shape, per
+    # list, so a failure says which one drifted.
+    for _label, _needle in (
+        ("sidebar picker", "const leagueDefs = ["),
+        ("analyzer chips", "draftLeagues: ["),
+        ("queue pills", "queueLeaguePills: ["),
+        ("seat counts", "const leagueTeams = {"),
+        ("yahoo ids", "const QID = {"),
+        ("settings cards", "leagueSettings: ["),
+    ):
+        _at = served.find(_needle)
+        _chunk = served[_at : _at + 900] if _at >= 0 else ""
+        _missing = [n for n in ("NDDPL", "RED_EYE", "BALLAPALOSA") if n not in _chunk]
+        check(
+            f"the {_label} names every league",
+            _at >= 0 and not _missing,
+            "anchor gone" if _at < 0 else f"missing {_missing}",
+        )
+    # The design document's names must not survive anywhere -- they are
+    # how a hardcoded list announces itself.
+    for _doc in ("Sunday Gravy", "The Trenches"):
+        check(f"no surface still says {_doc!r}", _doc not in served)
     check("injury badge is not a frozen name list", "const OUT_RED" not in served)
     check("injury badge reads live status", "FB_INJURIES[name]" in served)
     hurt = re.search(r"const FB_INJURIES = (\{.*?\});\n", served, re.S)
