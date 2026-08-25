@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from app.feeds import page
+from app.feeds import board, page
 
 INDEX = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
 
@@ -307,3 +307,109 @@ def test_a_polled_feed_is_not_shown_switched_off(index_html):
     served, _ = page.apply(index_html, page.PRE)
 
     assert "s7: true" in served
+
+
+# --- the draft analyzer's league picker (owner, Aug 25) ----------------------
+# Two reports, one cause: "I don't see any updates when it comes to adding
+# leagues in draft analyzer" and "I don't see my 3rd league either". The page
+# hardcoded the design document's two, so BALLAPALOSA -- verified, scored, and
+# already on /app/scoring, /app/idp and the mock room -- was invisible here,
+# and a league defined at /app/leagues never appeared at all.
+
+
+def test_every_league_reaches_the_analyzer(index_html):
+    from app import leagues as leagues_mod
+
+    served, n = board.inject_leagues(index_html, leagues_mod.defaults())
+
+    assert n == len(leagues_mod.defaults()) == 3
+    for lg in leagues_mod.defaults():
+        assert f'id: "{lg.name}"' in served, lg.name
+    assert 'meta: "3 connected"' in served
+
+
+def test_a_league_the_user_defined_reaches_it_too(index_html):
+    """The picker is built from the caller's list, not from the defaults,
+    which is what makes /app/leagues actually show up here."""
+    from app import leagues as leagues_mod
+
+    mine = leagues_mod.defaults()[:1]
+    served, n = board.inject_leagues(index_html, mine)
+
+    assert n == 1
+    assert 'meta: "1 connected"' in served
+    assert 'id: "RED_EYE"' not in served
+
+
+def test_the_per_league_state_moves_with_the_picker(index_html):
+    """A picker offering a league whose state map has no slot for it
+    renders a league that silently drops every pick made in it. So the
+    maps, their defaults and the queue badge all move together."""
+    from app import leagues as leagues_mod
+
+    served, _ = board.inject_leagues(index_html, leagues_mod.defaults())
+
+    for key in ("myTeams", "taken", "queue", "draftSlot"):
+        line = next(ln for ln in served.splitlines() if ln.strip().startswith(f"{key}:"))
+        for lg in leagues_mod.defaults():
+            assert f'"{lg.name}"' in line, f"{lg.name} missing from {key}"
+    assert 'draftLeague: "NDDPL"' in served
+    assert 'queueLeague: "NDDPL"' in served
+
+
+def test_saved_teams_survive_the_rename(index_html):
+    """The subtle one. The guards read
+
+        if (teams && teams["Sunday Gravy"] && teams["The Trenches"])
+
+    so stored data had to carry BOTH design names or it was thrown away
+    whole -- which, once the keys are real league names, discards every
+    saved team on load. A shape check, then a merge onto the defaults, so
+    a league missing from storage keeps its empty slot instead of
+    vanishing from state."""
+    from app import leagues as leagues_mod
+
+    served, _ = board.inject_leagues(index_html, leagues_mod.defaults())
+
+    # Scoped to the guards. The curated alert rows still say "Sunday
+    # Gravy" at this point -- page.league_names renames those later, in
+    # POST -- so asserting the string is gone from the whole page would be
+    # testing the wrong layer and would fail for the right reason.
+    assert 'teams["Sunday Gravy"]' not in served
+    assert 'qq["Sunday Gravy"]' not in served
+    assert 'taken["Sunday Gravy"]' not in served
+    assert served.count("Object.assign({}, this.state.myTeams, teams)") == 1
+    assert served.count("Object.assign({}, this.state.queue, qq)") == 1
+    assert served.count("Object.assign({}, this.state.taken, taken)") == 1
+
+
+def test_a_missing_anchor_changes_nothing(index_html):
+    """All-or-nothing, same rule as inject_league_points: a picker updated
+    beside a state map that was not would be worse than the bug."""
+    from app import leagues as leagues_mod
+
+    broken = index_html.replace('draftLeague: "Sunday Gravy",', "draftLeague: 0,", 1)
+    served, n = board.inject_leagues(broken, leagues_mod.defaults())
+
+    assert n == 0
+    assert served == broken
+
+
+def test_the_blurb_is_derived_not_typed(index_html):
+    """The two strings on the page were hand-typed -- a second home for a
+    league's facts, and so a second place for them to be wrong. Every
+    claim in the line now comes off the League itself."""
+    from app import leagues as leagues_mod
+
+    by_name = {lg.name: lg for lg in leagues_mod.defaults()}
+
+    nddpl = board.league_blurb(by_name["NDDPL"])
+    assert "10-team" in nddpl and "IDP" in nddpl
+    assert "per completion" not in nddpl, "NDDPL has no completion bonus"
+
+    # BALLAPALOSA starts a team defence, not defenders, and does NOT halve
+    # receiving yardage -- the two things separating it from the other two.
+    balla = board.league_blurb(by_name["BALLAPALOSA"])
+    assert "team D/ST" in balla
+    assert "IDP" not in balla
+    assert "rec yds/pt" not in balla

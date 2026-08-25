@@ -823,6 +823,25 @@ def main() -> int:
         "RED_EYE reads the 12-team ADP column",
         's.draftLeague === "RED_EYE" ? b.adp12' in served,
     )
+    # The analyzer's league picker (owner, Aug 25). The page shipped the
+    # design document's two leagues hardcoded, so the third verified one
+    # was invisible here and anything defined at /app/leagues never
+    # appeared. Checked live per league, and the count with it: a picker
+    # naming three beside a tile still reading "2 connected" is exactly
+    # the half-applied edit this repo keeps finding.
+    for _name in ("NDDPL", "RED_EYE", "BALLAPALOSA"):
+        check(f"{_name} is in the analyzer's league picker", f'id: "{_name}"' in served)
+    check(
+        "the league count matches the leagues offered",
+        'meta: "3 connected"' in served,
+        "still claiming 2 connected" if '"2 connected"' in served else "",
+    )
+    # A league in the picker with no slot in the state maps renders a
+    # league that silently drops every pick made in it.
+    check(
+        "per-league state covers every league offered",
+        all(f'"{n}": []' in served for n in ("NDDPL", "RED_EYE", "BALLAPALOSA")),
+    )
     check("injury badge is not a frozen name list", "const OUT_RED" not in served)
     check("injury badge reads live status", "FB_INJURIES[name]" in served)
     hurt = re.search(r"const FB_INJURIES = (\{.*?\});\n", served, re.S)

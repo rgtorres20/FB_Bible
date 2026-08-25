@@ -695,3 +695,118 @@ def decorate(
     html, counts["scored"] = inject_league_points(html, index, stats_state, leagues_list)
     html, counts["flagged"] = inject_injuries(html, index)
     return html, counts
+
+
+# The two names the design document shipped with. Everything below edits
+# the page BEFORE `page.league_names` renames them, so these are the
+# spellings on the page at this point.
+_DOC_L1 = "Sunday Gravy"
+_DOC_L2 = "The Trenches"
+
+
+def league_blurb(lg) -> str:
+    """One line describing a league, from its own settings.
+
+    Derived, never written down: the page used to carry two hand-typed
+    strings, which is a second place for a league's facts to live and
+    therefore a second place for them to be wrong.
+    """
+    bits = [f"{lg.teams}-team"]
+    bits.append("full PPR" if lg.ppr >= 1 else (f"{lg.ppr:g} PPR" if lg.ppr else "standard"))
+    if lg.starts_idp:
+        bits.append("IDP")
+    if lg.starts_dst:
+        bits.append("team D/ST")
+    if lg.pass_td and lg.pass_td != 4.0:
+        bits.append(f"{lg.pass_td:g}-pt pass TDs")
+    if lg.pass_completion:
+        bits.append(f"+{lg.pass_completion:g} per completion")
+    # Halved receiving yardage is the other quirk that actually changes an
+    # order (targets over air yards), and it is what separates BALLAPALOSA
+    # from the other two. 10 yds/pt is the market default and says nothing.
+    if lg.rec_yds_per_pt and lg.rec_yds_per_pt > 10.0:
+        bits.append(f"{lg.rec_yds_per_pt:g} rec yds/pt")
+    return " \u00b7 ".join(bits)
+
+
+def inject_leagues(html: str, leagues_list) -> tuple[str, int]:
+    """Put the user's real leagues into the draft analyzer.
+
+    The page hardcoded exactly two, because the design document had
+    exactly two. So BALLAPALOSA -- verified, scored, and already on
+    /app/scoring, /app/idp and the mock room -- was invisible here, and a
+    league somebody defined at /app/leagues never appeared at all. Two
+    owner reports, one cause (Aug 25).
+
+    Every edit lands together or none does. The picker is not the only
+    hardcoded spot: the per-league state maps, their localStorage guards
+    and the pickup-queue badge are all keyed by those two names, and a
+    picker offering a third league whose state map has no slot for it
+    would render a league that silently drops every pick made in it.
+
+    The guards are the subtle one. They read
+
+        if (teams && teams["Sunday Gravy"] && teams["The Trenches"])
+
+    so stored data had to carry BOTH design names or it was discarded
+    whole -- which, the moment the keys become real league names, throws
+    away every saved team on load. They become a shape check instead.
+    """
+    names = [lg.name for lg in leagues_list]
+    if not names:
+        return html, 0
+
+    empty = ", ".join(f'"{n}": []' for n in names)
+    ones = ", ".join(f'"{n}": 1' for n in names)
+    first = names[0]
+    defs = ",\n      ".join(
+        f'{{ id: "{lg.name}", name: "{lg.name}", meta: "{league_blurb(lg)}" }}'
+        for lg in leagues_list
+    )
+    queue_badge = " + ".join(f'((s.queue && s.queue["{n}"]) || []).length' for n in names)
+
+    edits = (
+        (
+            f'      {{ id: "all", name: "All leagues", meta: "2 connected" }},\n'
+            f'      {{ id: "{_DOC_L1}", name: "{_DOC_L1}", '
+            f'meta: "10-team full PPR \u00b7 IDP \u00b7 6-pt pass TDs" }},\n'
+            f'      {{ id: "{_DOC_L2}", name: "{_DOC_L2}", '
+            f'meta: "12-team full PPR \u00b7 IDP \u00b7 +1 per completion" }}',
+            f'      {{ id: "all", name: "All leagues", meta: "{len(names)} connected" }},\n'
+            f"      {defs}",
+        ),
+        (f'draftLeague: "{_DOC_L1}",', f'draftLeague: "{first}",'),
+        (f'queueLeague: "{_DOC_L1}",', f'queueLeague: "{first}",'),
+        (f'draftSlot: {{ "{_DOC_L1}": 1, "{_DOC_L2}": 1 }},', f"draftSlot: {{ {ones} }},"),
+        (f'myTeams: {{ "{_DOC_L1}": [], "{_DOC_L2}": [] }},', f"myTeams: {{ {empty} }},"),
+        (f'taken: {{ "{_DOC_L1}": [], "{_DOC_L2}": [] }},', f"taken: {{ {empty} }},"),
+        (f'queue: {{ "{_DOC_L1}": [], "{_DOC_L2}": [] }},', f"queue: {{ {empty} }},"),
+        (
+            f'if (teams && teams["{_DOC_L1}"] && teams["{_DOC_L2}"]) '
+            "this.setState({ myTeams: teams });",
+            'if (teams && typeof teams === "object") '
+            "this.setState({ myTeams: Object.assign({}, this.state.myTeams, teams) });",
+        ),
+        (
+            f'if (qq && qq["{_DOC_L1}"] && qq["{_DOC_L2}"]) this.setState({{ queue: qq }});',
+            'if (qq && typeof qq === "object") '
+            "this.setState({ queue: Object.assign({}, this.state.queue, qq) });",
+        ),
+        (
+            f'if (taken && taken["{_DOC_L1}"] && taken["{_DOC_L2}"]) this.setState({{ taken }});',
+            'if (taken && typeof taken === "object") '
+            "this.setState({ taken: Object.assign({}, this.state.taken, taken) });",
+        ),
+        (
+            f'String(((s.queue && s.queue["{_DOC_L1}"]) || []).length + '
+            f'((s.queue && s.queue["{_DOC_L2}"]) || []).length)',
+            f"String({queue_badge})",
+        ),
+    )
+
+    for old, _new in edits:
+        if old not in html:
+            return html, 0
+    for old, new in edits:
+        html = html.replace(old, new, 1)
+    return html, len(names)

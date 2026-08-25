@@ -339,11 +339,24 @@ if _FRONTEND_READY:
         # explanation of what the board is ordered by.
         mine: list[ranklists.RankList] = []
         who = access.session_email(request, settings)
+        user_data: dict = {}
         if who and store is not None:
             try:
-                mine = ranklists.user_lists(await store.load_user(who))
+                user_data = await store.load_user(who)
+                mine = ranklists.user_lists(user_data)
             except Exception as exc:  # noqa: BLE001 - the committed lists still stand
                 log.warning("ranking sources: user lists unavailable: %s", exc)
+        # The draft analyzer's league picker. The page shipped with the
+        # design document's two leagues hardcoded, so the third verified
+        # one was invisible there and a league defined at /app/leagues
+        # never appeared at all (owner, Aug 25 -- two reports, one cause).
+        # Read from the signed-in user's own settings, falling back to the
+        # verified defaults, exactly like every other league-aware surface.
+        html, n_lg = board.inject_leagues(html, leagues.for_user(user_data))
+        if n_lg:
+            log.info("board: %d leagues in the analyzer", n_lg)
+        else:
+            log.warning("board: league picker anchors not found -- still the hardcoded two")
         html, n_src = board.inject_sources(
             html, ranklists.sources_payload(ranklists.builtins() + mine, clock.today())
         )
