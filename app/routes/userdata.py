@@ -22,7 +22,7 @@ import time
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
@@ -557,6 +557,48 @@ async def mine_list_delete(
     return RedirectResponse("/app/mine", status_code=303)
 
 
+@router.post("/app/mine/list/active", include_in_schema=False)
+async def mine_list_active(
+    request: Request,
+    key: str = Form(...),
+    on: str = Form(""),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Switch any ranking list into or out of the blend -- built-in or
+    uploaded -- and answer with the whole set.
+
+    Owner, Aug 25: "i need a way to add or remove all top 300 list default
+    and added from draft page ... they olderones may get outdated based on
+    preseason."
+
+    The existing toggle only ever reached UPLOADED lists, because those
+    are the only ones with a stored row to flip. The five committed lists
+    were whatever the file said, permanently -- so a 300-player sheet
+    dated before the preseason kept counting and nothing could stop it.
+    That is the actual complaint, and it is why this writes an override
+    map instead of editing rows: a built-in has no row to edit.
+
+    Returns the refreshed set as JSON so the Draft analyzer can update in
+    place. The panel lives on the board, and bouncing someone to /app/mine
+    mid-draft to switch off a stale sheet is the friction this removes.
+    """
+    email = session_email(request, settings)
+    if not email:
+        return JSONResponse({"detail": "sign-in required"}, status_code=401)
+
+    data = await store.load_user(email)
+    choices = dict(data.get(ranklists.OVERRIDES_KEY) or {})
+    choices[key] = on not in ("", "0", "false", "off")
+    await store.save_user(email, {**data, ranklists.OVERRIDES_KEY: choices})
+
+    mine = ranklists.user_lists(data)
+    every = ranklists.with_overrides(
+        ranklists.builtins() + mine, {**data, **{ranklists.OVERRIDES_KEY: choices}}
+    )
+    return JSONResponse(ranklists.sources_payload(every, clock.today()))
+
+
 @router.get("/app/data/ranksources.json", include_in_schema=False)
 async def rank_sources(
     request: Request,
@@ -581,10 +623,13 @@ async def rank_sources(
     the blend is using.
     """
     mine: list[ranklists.RankList] = []
+    stored: dict = {}
     email = session_email(request, settings)
     if email and store is not None:
         try:
-            mine = ranklists.user_lists(await store.load_user(email))
+            stored = await store.load_user(email)
+            mine = ranklists.user_lists(stored)
         except Exception as exc:  # noqa: BLE001 - the panel must still render
             log.warning("rank sources: user lists unavailable: %s", exc)
-    return ranklists.sources_payload(ranklists.builtins() + mine, clock.today())
+    every = ranklists.with_overrides(ranklists.builtins() + mine, stored)
+    return ranklists.sources_payload(every, clock.today())

@@ -357,9 +357,12 @@ if _FRONTEND_READY:
             log.info("board: %d leagues in the analyzer", n_lg)
         else:
             log.warning("board: league picker anchors not found -- still the hardcoded two")
-        html, n_src = board.inject_sources(
-            html, ranklists.sources_payload(ranklists.builtins() + mine, clock.today())
-        )
+        # The user's own on/off choices, over both populations. Applied
+        # HERE as well as in the JSON endpoint, and that is the point: the
+        # panel and the blend have to read the same set, or the board
+        # averages a list the panel is showing as switched off.
+        every = ranklists.with_overrides(ranklists.builtins() + mine, user_data)
+        html, n_src = board.inject_sources(html, ranklists.sources_payload(every, clock.today()))
         if n_src:
             log.info("board: %d ranking sources published", n_src)
         html, post_misses = page.apply(html, page.POST)

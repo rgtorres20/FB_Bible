@@ -311,6 +311,13 @@
   var sources = (typeof FB_RANK_SOURCES !== 'undefined' && FB_RANK_SOURCES) || null;
   var sourcesFetching = false;
 
+  /* Where "old enough to distrust" falls. Preseason is when depth charts
+   * and injuries redraw a board, and a top-300 sheet written before the
+   * games is describing a different league. Chosen, not measured -- so it
+   * is recorded in docs/ASSUMPTIONS.md and shown as a note rather than
+   * used to switch anything off. */
+  var STALE_DAYS = 21;
+
   function ageWords(days) {
     if (days <= 0) return 'today';
     if (days === 1) return '1 day old';
@@ -329,14 +336,116 @@
      * so nothing needs a hedge. */
     var bits = [s.n + ' players', 'as of ' + s.asOf + ' · ' + ageWords(s.age)];
     if (s.scope && s.scope !== 'OVERALL') bits.push('ranks within ' + s.scope);
+    /* The reason the owner wanted these controls: "they olderones may get
+     * outdated based on preseason". A date is already shown, but a date
+     * is something you have to do arithmetic on. STALE_DAYS is a judgement
+     * and is written down as one -- see docs/ASSUMPTIONS.md. The row says
+     * it plainly and still leaves the decision to the reader; nothing is
+     * switched off automatically. */
+    if (s.age >= STALE_DAYS) {
+      row.className += ' fb-src-stale';
+      bits.push('preseason has moved since this');
+    }
     meta.textContent = bits.join(' · ');
-    var state = document.createElement('span');
-    state.className = 'fb-src-state';
-    state.textContent = s.active ? 'in the average' : 'off';
+    /* The control, on the board rather than a tab away (owner, Aug 25:
+     * "i need a way to add or remove all top 300 list default and added
+     * from draft page ... they olderones may get outdated based on
+     * preseason"). Built-in and uploaded lists get the same button,
+     * because from here they are the same thing: a list that is counting
+     * when it should not be. */
+    var toggle = document.createElement('button');
+    toggle.className = 'fb-src-btn';
+    toggle.type = 'button';
+    toggle.textContent = s.active ? 'in the average' : 'off';
+    toggle.title = s.active ? 'Switch this list out of the blend'
+                            : 'Switch this list into the blend';
+    toggle.setAttribute('aria-pressed', s.active ? 'true' : 'false');
+    toggle.onclick = function () { setActive(s.key, !s.active, toggle); };
     row.appendChild(name);
     row.appendChild(meta);
-    row.appendChild(state);
+    row.appendChild(toggle);
     return row;
+  }
+
+  /* Posts the change and re-renders from the response, so the panel shows
+   * what the SERVER now holds rather than what this tab guessed. The
+   * board's own blend is rebuilt on the next page load; the panel says so
+   * rather than pretending the order under it has already moved. */
+  function setActive(key, on, btn) {
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('key', key);
+    body.set('on', on ? '1' : '0');
+    fetch('/app/mine/list/active', {
+      method: 'POST', credentials: 'same-origin', body: body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    })
+      .then(function (r) {
+        if (r.status === 401) throw new Error('signed out');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (fresh) {
+        if (!Array.isArray(fresh)) throw new Error('bad payload');
+        sources = fresh;
+        renderSources();
+        note('Saved — the board picks it up on the next load.');
+      })
+      .catch(function (err) {
+        /* Never leave a button that looks like it worked. The old state
+         * is still on screen and the reason is said out loud. */
+        btn.disabled = false;
+        note(String(err.message) === 'signed out'
+          ? 'Sign in to change which lists count.'
+          : 'Could not save that — the list is unchanged.');
+      });
+  }
+
+  /* Sequential, not Promise.all: each response carries the whole set,
+   * so parallel writes would race and the panel would render whichever
+   * reply landed last rather than the final state. Slower and correct. */
+  function setAll(on, btn) {
+    var todo = sources.filter(function (s) { return s.active !== on; })
+                      .map(function (s) { return s.key; });
+    if (!todo.length) { note(on ? 'All lists are already on.' : 'All lists are already off.'); return; }
+    btn.disabled = true;
+    var i = 0;
+    function step() {
+      if (i >= todo.length) {
+        btn.disabled = false;
+        renderSources();
+        note('Saved — the board picks it up on the next load.');
+        return;
+      }
+      var body = new URLSearchParams();
+      body.set('key', todo[i++]);
+      body.set('on', on ? '1' : '0');
+      fetch('/app/mine/list/active', {
+        method: 'POST', credentials: 'same-origin', body: body,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (fresh) { if (Array.isArray(fresh)) sources = fresh; step(); })
+        .catch(function () {
+          btn.disabled = false;
+          renderSources();
+          note('Stopped part way — some lists are unchanged.');
+        });
+    }
+    step();
+  }
+
+  function note(text) {
+    var host = document.getElementById('fb-rank-sources');
+    if (!host) return;
+    var line = host.querySelector('.fb-src-msg');
+    if (!line) {
+      line = document.createElement('div');
+      line.className = 'fb-src-msg';
+      host.appendChild(line);
+    }
+    line.textContent = text;
   }
 
   function renderSources() {
@@ -367,12 +476,28 @@
 
     sources.forEach(function (s) { host.appendChild(sourceRow(s)); });
 
+    /* One control for all of them, which is the shape the owner asked for
+     * -- "that way we can turn off and on from one part". Switching every
+     * list off is a legitimate state (the board falls back to its own
+     * order) so it is offered rather than guarded against. */
+    var bulk = document.createElement('div');
+    bulk.className = 'fb-src-bulk';
+    [['All on', true], ['All off', false]].forEach(function (spec) {
+      var b = document.createElement('button');
+      b.className = 'fb-src-btn';
+      b.type = 'button';
+      b.textContent = spec[0];
+      b.onclick = function () { setAll(spec[1], b); };
+      bulk.appendChild(b);
+    });
+    host.appendChild(bulk);
+
     var foot = document.createElement('a');
     foot.className = 'fb-src-foot';
     foot.href = '/app/mine';
     foot.target = '_blank';
     foot.rel = 'noopener';
-    foot.textContent = 'Add, switch off or remove a list →';
+    foot.textContent = 'Add a list, or paste a new one →';
     host.appendChild(foot);
   }
 

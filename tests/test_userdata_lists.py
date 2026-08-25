@@ -37,6 +37,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(s, "app_owner_code", "open-sesame", raising=False)
     monkeypatch.setattr(s, "session_secret", "unit-test-secret", raising=False)
     main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
+    # /app/data/ranksources.json reads through the OPTIONAL store, a
+    # different dependency. Without this override the writes and the reads
+    # in these tests land in two different places, and a persistence
+    # assertion fails for a reason that has nothing to do with the app.
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = lambda: store
     monkeypatch.setattr(access_route, "build_feed_store", lambda _s: store)
     c = TestClient(main.app)
     c.post("/login", data={"email": OWNER, "code": "open-sesame"})
@@ -186,3 +191,81 @@ def test_lists_are_not_offered_to_a_signed_out_visitor(client):
     signed_out = TestClient(main.app)
     page = signed_out.get("/app/mine").text
     assert "Add a ranking list" not in page
+
+
+# --- the one control, from the draft page (owner, Aug 25) -------------------
+
+
+def _keys(client_):
+    return {row["key"]: row for row in client_.get("/app/data/ranksources.json").json()}
+
+
+def test_switching_a_builtin_off_from_the_board(client):
+    """The gap this closes. /app/mine/list/toggle only ever reached
+    UPLOADED lists, because those are the only ones with a stored row to
+    flip -- so a committed 300-player sheet counted forever."""
+    c = client
+    before = _keys(c)
+    key = next(k for k, row in before.items() if row["builtin"] and row["active"])
+
+    resp = c.post("/app/mine/list/active", data={"key": key, "on": "0"})
+
+    assert resp.status_code == 200
+    assert {row["key"]: row["active"] for row in resp.json()}[key] is False
+    assert _keys(c)[key]["active"] is False, "it must survive the next read"
+
+
+def test_switching_it_back_on(client):
+    c = client
+    key = next(k for k, row in _keys(c).items() if row["builtin"])
+
+    c.post("/app/mine/list/active", data={"key": key, "on": "0"})
+    c.post("/app/mine/list/active", data={"key": key, "on": "1"})
+
+    assert _keys(c)[key]["active"] is True
+
+
+def test_the_response_is_the_whole_set_so_the_panel_need_not_guess(client):
+    """It re-renders from the reply rather than from what it assumed the
+    click did, so the panel shows what the server actually holds."""
+    c = client
+    key = next(iter(_keys(c)))
+
+    body = c.post("/app/mine/list/active", data={"key": key, "on": "0"}).json()
+
+    assert isinstance(body, list) and len(body) == len(_keys(c))
+    assert all({"key", "name", "active", "age", "builtin"} <= set(row) for row in body)
+
+
+def test_switching_lists_never_edits_their_ranks(client):
+    """Off means out of the average, not deleted. The list has to come
+    back intact, which is the difference between a toggle and a remove."""
+    c = client
+    key, before = next((k, r) for k, r in _keys(c).items() if r["n"] > 0)
+
+    c.post("/app/mine/list/active", data={"key": key, "on": "0"})
+    after = _keys(c)[key]
+
+    assert after["n"] == before["n"]
+    assert after["asOf"] == before["asOf"]
+
+
+def test_a_signed_out_caller_is_refused_not_redirected(client):
+    """It is called by fetch from the board. A 303 to /login would be
+    followed silently and the panel would render a sign-in page as JSON."""
+    key = next(iter(_keys(client)))
+    anon = TestClient(main.app)
+
+    resp = anon.post("/app/mine/list/active", data={"key": key, "on": "0"}, follow_redirects=False)
+
+    assert resp.status_code == 401
+
+
+def test_an_unknown_key_does_not_invent_a_list(client):
+    c = client
+    before = len(_keys(c))
+
+    resp = c.post("/app/mine/list/active", data={"key": "no-such-list", "on": "1"})
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == before

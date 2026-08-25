@@ -1052,6 +1052,27 @@ def main() -> int:
     # Renamed at serve time; mobile.js anchors on the served text.
     check("analyzer keeps the row the panel hangs off", "Board order</span>" in served)
 
+    # Owner, Aug 25: switch any ranking list on or off from the draft page,
+    # "that way we can turn off and on from one part". Checked in both
+    # halves -- the endpoint that persists it and the script that renders
+    # the control -- because either alone is a button wired to nothing.
+    #
+    # A POST, not anon_status: that sends a GET, and a GET on a POST-only
+    # route is 405 whether the route is guarded or not, which would pass
+    # while proving nothing about who may call it.
+    code, _ = post_json("/app/mine/list/active")
+    check(
+        "the list switch refuses a stranger",
+        code == 401,
+        f"HTTP {code} (405 means the probe used the wrong method)",
+    )
+    check("the sources panel renders a control, not a label", "fb-src-btn" in ask_js)
+    check("the panel offers one switch for all of them", "All off" in ask_js)
+    check(
+        "every list reports whether it can be deleted",
+        bool(live_sources) and all("builtin" in row for row in live_sources),
+    )
+
     mobile_css = get("/app/mobile.css")
     check("mobile.css serves", b"min-height: 100vh" in mobile_css)
     check("wire-stamp styles serve", b"fb-wire-stamp" in mobile_css)

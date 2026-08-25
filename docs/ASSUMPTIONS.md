@@ -291,6 +291,27 @@ and line, and each has a test pinning current behaviour. Changing one
 means changing the value and the test that asserts it — which is the point:
 nothing here can drift silently, it can only be revised on purpose.
 
+## A ranking list is "old" at 21 days
+
+**Chosen Aug 25, with the draft-page list controls.**
+
+The panel flags a list older than three weeks with "preseason has moved
+since this". Twenty-one days is a judgement, not a measurement: preseason
+is when depth charts and injuries redraw a board, so a top-300 sheet
+written before the games describes a different league — but no source
+publishes the day a ranking stops being useful.
+
+**What it does and does not do.** It adds a line to the row and tints it.
+Nothing is switched off automatically, and the blend is unchanged. The
+owner asked for controls because "they olderones may get outdated based
+on preseason"; deciding *for* them which lists are past it would be the
+app forming an opinion it cannot support.
+
+**If it is wrong:** the number lives in one place, `STALE_DAYS` in
+`frontend/mobile.js`. Too low and every list wears the note by
+mid-September, which trains people to ignore it; too high and it never
+fires when it matters, in the last fortnight before a draft.
+
 ## Projected totals omit return yardage
 
 **Chosen Aug 25, when '26 projections were added.**

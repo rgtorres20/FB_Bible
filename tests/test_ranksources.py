@@ -74,6 +74,11 @@ def test_the_payload_says_what_a_reader_needs_to_judge_a_list():
         "age": 0,
         "scope": "OVERALL",
         "active": True,
+        # Added Aug 25 with the draft-page controls: whether this row can
+        # be deleted or only switched off. A built-in has no stored row to
+        # remove, and a Remove that silently does nothing is worse than
+        # none at all.
+        "builtin": False,
     }
     assert got[1]["age"] == 20
     assert got[1]["scope"] == "LB"
@@ -272,7 +277,10 @@ def test_the_panel_renders_at_all(rendered):
 def test_it_names_every_list_and_says_which_ones_count(rendered):
     nodes = _flat(rendered["panel"])
     names = [n["text"] for n in nodes if n["cls"] == "fb-src-name"]
-    states = [n["text"] for n in nodes if n["cls"] == "fb-src-state"]
+    # The state badge became a BUTTON on Aug 25 -- same words, now the
+    # control that switches the list (owner: do it from the draft page).
+    states = [n["text"] for n in nodes if "fb-src-btn" in n["cls"]]
+    states = [t for t in states if t not in ("All on", "All off")]
     assert names == ["Overall draft cheat sheet 2026", "ESPN IDP LB 2026"]
     assert states == ["in the average", "off"]
 
@@ -332,3 +340,70 @@ def test_the_draft_tool_links_open_outside_the_shell(rendered):
     for link in rendered["links"]:
         assert link["target"] == "_blank", link["id"]
         assert link["href"].startswith("/app/"), link["id"]
+
+
+# --- switching lists from the draft page (owner, Aug 25) --------------------
+# "i need a way to add or remove all top 300 list default and added from
+# draft page ... they olderones may get outdated based on preseason."
+#
+# Before this the two populations had different powers: an uploaded list
+# could be switched off, a committed one could not be touched at all. So a
+# 300-player sheet dated before the preseason kept counting in the blend
+# with nothing able to stop it -- which is the complaint, exactly.
+
+
+def test_a_builtin_can_be_switched_off_now():
+    builtin = ranklists.builtins()[0]
+    assert builtin.active, "fixture assumes a list that ships on"
+
+    off = ranklists.with_overrides([builtin], {ranklists.OVERRIDES_KEY: {builtin.key: False}})
+
+    assert off[0].active is False
+    assert off[0].order == builtin.order, "switching off must not touch the ranks"
+
+
+def test_a_builtin_that_ships_off_can_be_switched_on():
+    """Both directions. The three ESPN IDP sheets ship inactive, and a
+    control that could only ever remove would be half a control."""
+    idp = next(lst for lst in ranklists.builtins() if not lst.active)
+
+    on = ranklists.with_overrides([idp], {ranklists.OVERRIDES_KEY: {idp.key: True}})
+
+    assert on[0].active is True
+
+
+def test_no_overrides_changes_nobody():
+    """Shipping this must not silently re-blend anyone's board."""
+    every = ranklists.builtins()
+
+    assert ranklists.with_overrides(every, {}) == every
+    assert ranklists.with_overrides(every, None) == every
+    assert ranklists.with_overrides(every, {ranklists.OVERRIDES_KEY: "nonsense"}) == every
+
+
+def test_an_unknown_key_is_ignored_rather_than_creating_a_list():
+    every = ranklists.builtins()
+
+    assert ranklists.with_overrides(every, {ranklists.OVERRIDES_KEY: {"gone": True}}) == every
+
+
+def test_the_payload_says_which_rows_can_be_deleted():
+    """A built-in has no stored row to remove. The panel needs to know
+    that to avoid offering a Remove that does nothing."""
+    payload = ranklists.sources_payload(ranklists.builtins(), TODAY)
+
+    assert payload and all(row["builtin"] for row in payload)
+
+
+def test_switching_off_takes_the_list_out_of_the_blend():
+    """The whole point: the panel and the board must agree. A list shown
+    as off that still counts is worse than no control at all."""
+    lists = ranklists.builtins()
+    on_names = ranklists.blend(lists, ["Ja'Marr Chase"])
+    off = ranklists.with_overrides(
+        lists, {ranklists.OVERRIDES_KEY: {lst.key: False for lst in lists}}
+    )
+    off_names = ranklists.blend(off, ["Ja'Marr Chase"])
+
+    assert on_names.scores != off_names.scores
+    assert not off_names.scores, "with every list off, nothing is averaged"

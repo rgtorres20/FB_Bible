@@ -37,7 +37,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 from . import clock
@@ -221,6 +221,50 @@ def builtins() -> list[RankList]:
     return out
 
 
+# One user's on/off decisions, keyed by list key. Stored under this name
+# in their own blob.
+OVERRIDES_KEY = "rank_active"
+
+
+def with_overrides(lists: list[RankList], stored: dict | None) -> list[RankList]:
+    """Apply a user's own on/off choices over whatever the list shipped as.
+
+    Owner, Aug 25: "i need a way to add or remove all top 300 list default
+    and added from draft page ... they olderones may get outdated based on
+    preseason."
+
+    Before this the two populations had different powers. A list the user
+    uploaded could be switched off; the five committed ones could not be
+    touched at all -- their `active` came from the file (overall sheets on,
+    the ESPN IDP sheets off) and no user could change it. So a 300-player
+    sheet dated before the preseason kept counting in the blend with no way
+    to stop it, which is exactly the case the owner is describing.
+
+    An override map rather than mutating the lists: a built-in is committed
+    data and has no per-user row to edit. `replace` because RankList is
+    frozen, and absent keys keep the shipped default so switching the
+    feature on changes nobody's blend.
+    """
+    choices = (stored or {}).get(OVERRIDES_KEY) or {}
+    if not isinstance(choices, dict) or not choices:
+        return lists
+    out = []
+    for lst in lists:
+        want = choices.get(lst.key)
+        out.append(replace(lst, active=bool(want)) if isinstance(want, bool) else lst)
+    return out
+
+
+def is_builtin(key: str) -> bool:
+    """Whether a key names a committed list rather than an uploaded one.
+
+    The delete route needs this: a built-in has no stored row to remove,
+    so "remove" for one can only mean switching it off. Saying so beats
+    a delete that silently does nothing.
+    """
+    return any(lst.key == key for lst in builtins())
+
+
 def sources_payload(lists: list[RankList], today: date) -> list[dict]:
     """What the Draft analyzer needs to show how its average is built.
 
@@ -244,6 +288,10 @@ def sources_payload(lists: list[RankList], today: date) -> list[dict]:
                 "age": max(age, 0),
                 "scope": lst.scope,
                 "active": bool(lst.active and lst.order),
+                # Whether this row can be deleted or only switched off.
+                # A built-in has no stored row to remove, and a Remove
+                # button that silently does nothing is worse than none.
+                "builtin": is_builtin(lst.key),
             }
         )
     # Active first, then by name, so the ones doing the work read first.

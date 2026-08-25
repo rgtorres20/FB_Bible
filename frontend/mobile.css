@@ -430,6 +430,42 @@ aside > div:nth-child(2) {
   color: var(--color-accent-700, inherit);
 }
 .fb-src-off .fb-src-state { color: var(--color-neutral-600, inherit); }
+/* The state badge became a button (owner, Aug 25: switch lists from the
+ * draft page). It keeps the badge's look so the panel does not suddenly
+ * read as a form, but it is a real button: focusable, and big enough to
+ * hit with a thumb, since this gets used mid-draft on a phone. */
+.fb-src-btn {
+  margin-left: auto;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent-700, inherit);
+  background: none;
+  border: 1px solid var(--color-neutral-400, rgba(128, 128, 128, 0.5));
+  border-radius: 4px;
+  padding: 5px 9px;
+  min-height: 30px;
+  cursor: pointer;
+}
+.fb-src-btn:hover { border-color: var(--color-accent-700, inherit); }
+.fb-src-btn:disabled { opacity: 0.5; cursor: progress; }
+.fb-src-off .fb-src-btn { color: var(--color-neutral-600, inherit); }
+/* Old enough that preseason has probably overtaken it. A cue, not a
+ * verdict -- nothing is switched off automatically. */
+.fb-src-stale .fb-src-meta { color: var(--color-accent-700, inherit); }
+.fb-src-bulk {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fb-src-bulk .fb-src-btn { margin-left: 0; }
+.fb-src-msg {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--color-neutral-600, inherit);
+}
 .fb-src-foot {
   display: inline-block;
   margin-top: 10px;
