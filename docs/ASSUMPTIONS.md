@@ -290,3 +290,34 @@ Every entry above is a constant or a small function, named with its file
 and line, and each has a test pinning current behaviour. Changing one
 means changing the value and the test that asserts it — which is the point:
 nothing here can drift silently, it can only be revised on purpose.
+
+## Projected totals omit return yardage
+
+**Chosen Aug 25, when '26 projections were added.**
+
+Rotowire's projections (via Sleeper, probed live) carry no return
+**yardage** for any group — not `kr_yd`/`pr_yd` for returners, not
+`idp_int_ret_yd`/`idp_fum_ret_yd` for defenders, not `int_ret_yd`/
+`fum_ret_yd` for team defenses. Return **TDs** are partly there
+(`pr_td`, `def_kr_td`); the yards are not.
+
+Both IDP leagues pay for those yards — NDDPL 20 yds/pt on kick and punt
+returns and 20 on IDP turnover returns, RED_EYE 20 and 10
+(docs/LEAGUES.md). So a projected total is short by whatever a player
+earns returning, while the '25 measured column beside it includes it.
+
+**The choice:** score the projection with the fields that exist and say
+so, rather than modelling the missing ones. A return estimate would be
+this app's invention sitting inside a column labelled as somebody else's
+forecast, which is worse than a number that is honestly a little low.
+
+**Size of it.** Negligible for most defenders — 60 interception-return
+yards is 3 points at 20 yds/pt. Not negligible for a dedicated kick
+returner, who can clear 1,000 return yards in a season and so be
+understated by 50+ points in either IDP league. Read a projected total
+for a return specialist as a floor.
+
+**If it is wrong:** `tests/test_projections.py` pins the absence of all
+four fields, so the day Sleeper starts carrying them the test fails and
+the caveat comes off rather than outliving its reason.
+

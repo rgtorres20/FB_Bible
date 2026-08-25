@@ -54,7 +54,11 @@ COMPOSERS = frozenset({"main", "feeds", "league", "leaguecfg", "userdata", "acce
 DATA_UNITS: dict[str, frozenset[str]] = {
     "wire": frozenset({"poller", "rss", "rotoworld", "impact", "injury"}),
     "adp": frozenset({"adp", "board", "ranklists"}),
-    "usage": frozenset({"stats", "depth"}),
+    # projections sits with the measured stats rather than in its own
+    # unit: both reduce a Sleeper payload of the SAME stat vocabulary
+    # into a line the league scorer reads. The difference between them is
+    # the tense, not the shape.
+    "usage": frozenset({"stats", "depth", "projections"}),
     "odds": frozenset({"vegas"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
     "scoring": frozenset({"scorecard", "replacement"}),
