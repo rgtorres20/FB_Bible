@@ -40,6 +40,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
+from . import clock
 from .board import match_key
 
 # Lines that are obviously not a player: headers, blank rows, section
@@ -176,7 +177,7 @@ def top_list(blended: Blended, name: str = "Top rankings", as_of: date | None = 
     return RankList(
         key="top",
         name=name,
-        as_of=as_of or date.today(),
+        as_of=as_of or clock.today(),
         order=ranked,
         active=False,
     )
@@ -256,7 +257,7 @@ def user_lists(stored: dict | None) -> list[RankList]:
         try:
             as_of = date.fromisoformat(entry.get("as_of") or "")
         except ValueError:
-            as_of = date.today()
+            as_of = clock.today()
         out.append(
             RankList(
                 key=key,

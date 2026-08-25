@@ -837,7 +837,24 @@ async def access_test_mail(
         )
         note = f"Test email sent to {settings.owner_email} — check your inbox (and spam)."
         log.info("access: test email sent")
+    except mailer.MailError as exc:
+        # str(exc), not type(exc).__name__. This button exists to report the
+        # real reason, and it used to print the class name -- "MailError" --
+        # while discarding the message mailer.py had just built, then append
+        # fixed SMTP advice whatever the transport. On the Resend path that
+        # sent the owner to check SMTP_USER for a transport not in use, and
+        # threw away the API's own words ("domain is not verified"). The
+        # diagnosis was computed and dropped one line before it was needed.
+        # MailError messages are written not to repeat the API key or an
+        # invite token, which is what makes printing them whole safe.
+        note = f"Send failed via {settings.mail_transport}: {exc}"
+        log.warning("access: test email failed: %s", exc)
     except Exception as exc:  # noqa: BLE001 - the owner needs the reason, not a stack
-        note = f"Send failed: {type(exc).__name__}. Check SMTP_USER / SMTP_PASS and the port."
-        log.warning("access: test email failed: %s", type(exc).__name__)
+        # Anything mailer.py did not anticipate. Name the transport so the
+        # advice is at least about the right one, and do not guess a cause.
+        note = (
+            f"Send failed unexpectedly on the {settings.mail_transport} transport "
+            f"({type(exc).__name__}). The deployment log has the detail."
+        )
+        log.warning("access: test email failed: %r", exc)
     return _access_page(auth, settings, mail_note=note)

@@ -186,13 +186,50 @@ def test_owner_can_send_themselves_a_test_email(client, monkeypatch):
     assert sent["to"] == "owner@example.com"
     assert "Test email sent" in page
 
-    # A failure reports the reason rather than a shrug.
+    # A failure reports the REASON, not the exception's class name. This
+    # assertion used to read `"Send failed: TimeoutError" in page`, which
+    # passed while the page told the owner to check SMTP_USER during a
+    # Resend failure -- the class name is a shrug wearing a label. What
+    # mailer.py wrote is the whole point.
+    def refused(*a, **k):
+        raise mailer.MailError("Resend refused it (403). The domain is not verified.")
+
+    monkeypatch.setattr(mailer, "send_test", refused)
+    page = c.post("/app/access/test-mail", follow_redirects=True).text
+    assert "The domain is not verified." in page
+    assert "MailError" not in page
+    # And no advice about a transport that is not the one that failed.
+    assert "SMTP_USER" not in page
+
     def boom(*a, **k):
         raise TimeoutError("port blocked")
 
     monkeypatch.setattr(mailer, "send_test", boom)
     page = c.post("/app/access/test-mail", follow_redirects=True).text
-    assert "Send failed: TimeoutError" in page
+    # Unanticipated failures still name the transport rather than guessing
+    # a cause, so the owner is not sent to the wrong settings page.
+    assert "TimeoutError" in page and "smtp" in page
+
+
+def test_the_test_button_names_the_transport_that_actually_failed(client, monkeypatch):
+    """The Resend path told people to check SMTP_USER / SMTP_PASS and the
+    port -- settings that are not consulted when RESEND_API_KEY is set.
+    Wrong advice is worse than none: it sends the owner to change working
+    config while the real cause (an unverified sender domain) stands."""
+    c, _ = client
+    _sign_in_owner(c)
+    s = get_settings()
+    monkeypatch.setattr(s, "resend_api_key", "re_test_key", raising=False)
+
+    def refused(*a, **k):
+        raise mailer.MailError("Resend refused it (403). The domain is not verified.")
+
+    monkeypatch.setattr(mailer, "send_test", refused)
+    page = c.post("/app/access/test-mail", follow_redirects=True).text
+
+    assert "http" in page
+    assert "SMTP_USER" not in page and "SMTP_PASS" not in page
+    assert "re_test_key" not in page
 
 
 def test_smtp_timeout_names_the_platform_not_the_port():

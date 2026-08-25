@@ -11,13 +11,12 @@ the as-of date that makes staleness visible.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pytest
 from fastapi.testclient import TestClient
 
 from app import main
 from app.config import get_settings
+from app.feeds import clock
 from app.feeds.store import FileFeedStore
 from app.routes import access as access_route
 from app.routes import feeds as feeds_route
@@ -99,7 +98,7 @@ async def test_a_list_always_carries_an_as_of_date(client, anyio_backend):
     never blank."""
     _save(client, "No date given", ESPN_PASTE)
     saved = await _lists(client)
-    assert saved["no date given"]["as_of"] == date.today().isoformat()
+    assert saved["no date given"]["as_of"] == clock.today().isoformat()
 
     _save(client, "Dated", ESPN_PASTE, as_of="2026-08-01")
     saved = await _lists(client)
@@ -110,7 +109,7 @@ async def test_a_list_always_carries_an_as_of_date(client, anyio_backend):
 async def test_a_nonsense_date_falls_back_rather_than_storing_garbage(client, anyio_backend):
     _save(client, "Bad date", ESPN_PASTE, as_of="not-a-date")
     saved = await _lists(client)
-    assert saved["bad date"]["as_of"] == date.today().isoformat()
+    assert saved["bad date"]["as_of"] == clock.today().isoformat()
 
 
 @pytest.mark.anyio

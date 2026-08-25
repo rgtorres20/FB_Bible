@@ -215,3 +215,37 @@ def test_the_layers_do_not_overlap():
         for b in names[i + 1 :]:
             overlap = groups[a] & groups[b]
             assert not overlap, f"{a} and {b} both claim {sorted(overlap)}"
+
+
+def test_no_app_module_reads_the_host_date():
+    """`date.today()` is the HOST's date -- UTC on Vercel, not Houston.
+
+    The app renders every timestamp in America/Chicago, so between 7pm and
+    midnight Central the host is already on tomorrow and any "N days old"
+    figure reads a day off. `clock.today()` exists for exactly this and
+    says so in its own docstring -- yet two calls in ranklists.py used the
+    host date anyway, and a test asserted against it, so the suite failed
+    the first time it happened to run in that window (Aug 25, 00:0x UTC).
+
+    A comment did not hold the line, so this does. clock.py itself is
+    exempt: it is where the correct answer is computed, and it names the
+    wrong one to explain why.
+    """
+    offenders = []
+    for path in sorted(pathlib.Path("app").rglob("*.py")):
+        if path.name == "clock.py":
+            continue
+        source = path.read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr != "today":
+                continue
+            base = node.func.value
+            if isinstance(base, ast.Name) and base.id in ("date", "datetime"):
+                offenders.append(f"{path}:{node.lineno}")
+
+    assert not offenders, (
+        "these read the host's date instead of Houston's -- use clock.today(): "
+        + ", ".join(offenders)
+    )
