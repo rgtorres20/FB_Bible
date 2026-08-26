@@ -258,11 +258,3 @@ def test_no_typed_sync_date_reaches_the_browser(served):
     assert "synced Fri Aug 14" not in served
     assert "ROTOWIRE[0] && ROTOWIRE[0].link" in served
     assert "WEEKREV.stamp ||" in served
-
-
-def test_the_league_term_reaches_the_browser(served):
-    """Twin of the live check. The board's blend is the same bytes for
-    everybody, so it is verified signed-out here too."""
-    assert "FBLeagueRank" in served
-    assert "if (lw > 0 && lr)" in served
-    assert "League fit" in served

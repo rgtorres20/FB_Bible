@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1445 tests green — 1429 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1436 tests green — 1420 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -375,23 +375,14 @@ order** instead of "Source influence", and both point at where the real
 lists live. All four are named transforms in `app/feeds/page.py`
 (`source_truth`), so a design resync that renames an anchor says so.
 
-**Your league's scoring pulls the board order, not just a column**
-(owner, Aug 26: *"I want to always average any top 300s but the league
-settings would impact this list projections"*). Both halves, in tension,
-both kept: the consensus of the ranking lists stays the base — every
-list switched on counts the same, averaged — and a third term blends in
-the player's rank by what the **selected league** would pay him off the
-'26 projection. A **rank**, never the points: RED_EYE's point per
-completion adds hundreds to a quarterback, and raw totals in a blend of
-ranks would let one league's units swamp the consensus. The **League
-fit** slider sets the weight (35% default, recorded in
-[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)); 0 is exactly the old board.
-A player the league cannot start, or the forecast does not cover, keeps
-his **consensus place rather than a zero** — a zero would bury every
-rookie the forecast misses. The control and the term it feeds are
-written by one function and checked together, because a slider wired to
-nothing is the fault that column already had once. This closes the
-"League points are a column, not a sort key" item open since Aug 22.
+**League scoring is a column, not a sort key** — settled by the owner
+on Aug 26 (*"league status should just matter for PPR point totals no
+influence, remove slider"*), after the opposite was built and shipped
+that morning. The averaged top-300 lists and live ADP decide the order;
+your league decides what the number beside a player says. The League fit
+slider and its blend term are reverted, not deleted — see
+[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) for the commit to recover if
+this is ever revisited, and for why the heading is not an invitation.
 
 **The board's points column reads '26 projections** (owner, Aug 25:
 *"i want to add total projected poitns to draft analzer beside PPG"*,

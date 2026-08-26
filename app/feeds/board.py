@@ -787,51 +787,25 @@ def wire_blend_column(html: str) -> tuple[str, int]:
     """
     fn = _BLEND_FN.search(html)
     display = _BLEND_DISPLAY.search(html)
-    # The League-fit control and the term it feeds are checked together
-    # and written together. A slider wired to nothing is the exact fault
-    # this function was written to end; adding a second one while fixing
-    # the first would be its own punchline.
-    league_anchors = [
-        old
-        for old, _ in (
-            _LEAGUE_W_STATE,
-            _LEAGUE_W_READ,
-            _LEAGUE_W_BINDINGS,
-            _LEAGUE_W_BOOT,
-        )
-    ]
-    row = _LEAGUE_W_ROW_RE.search(html)
-    if not fn or not display or not row or any(a not in html for a in league_anchors):
+    if not fn or not display:
         return html, 0
 
     body = (
-        _LEAGUE_RANK_FN
-        + "    const blendScore = b => {\n"
+        "const blendScore = b => {\n"
         + fn.group("adp")
         + "      const mkt = isNaN(adp) ? b.rank : adp;\n"
         "      let v = (1 - w) * b.rank + w * mkt;\n"
         "      if (b.split && !beatOn) v = (v + mkt) / 2;\n"
         "      if (b.split && !analyticsOn) v = (v + mkt) / 2;\n"
-        # A player this league cannot start, or that the forecast does not
-        # cover, keeps his consensus place. Scoring him zero would bury
-        # every rookie and every defender in a league with no IDP slots
-        # under an answer nobody computed.
-        "      const lr = FBLeagueRank(b);\n"
-        "      if (lw > 0 && lr) v = (1 - lw) * v + lw * lr;\n"
         "      return v;\n"
         "    };"
     )
-    html = html[: fn.start()] + body.lstrip() + html[fn.end() :]
+    html = html[: fn.start()] + body + html[fn.end() :]
 
     display = _BLEND_DISPLAY.search(html)
     if not display:
         return html, 0
     html = html[: display.start()] + "      const v = blendScore(b);\n" + html[display.end() :]
-
-    for old, new in (_LEAGUE_W_STATE, _LEAGUE_W_READ, _LEAGUE_W_BINDINGS, _LEAGUE_W_BOOT):
-        html = html.replace(old, new, 1)
-    row = _LEAGUE_W_ROW_RE.search(html)
-    html = html[: row.end()] + _LEAGUE_W_ROW + html[row.end() :]
     return html, 1
 
 
@@ -1176,111 +1150,3 @@ def inject_sleepers(html: str, names: list[str] | None) -> tuple[str, int]:
     html = html.replace(_SLEEPER_SEED, _SLEEPER_SEED_REPLACEMENT, 1)
     html = html.replace(_SLEEPER_TOGGLE, _SLEEPER_TOGGLE_REPLACEMENT, 1)
     return html, len(names)
-
-
-# --- your league shapes the order, not just a column ----------------------
-#
-# Owner, Aug 26: "I want to always average any top 300s but the league
-# settings would impact this list projections".
-#
-# Both halves matter and they are in tension, so both are kept. The
-# consensus of the ranking lists stays the base -- every list switched on
-# counts the same, averaged, exactly as before. What changes is that a
-# player's worth UNDER YOUR SCORING is now an input to the order rather
-# than a number printed beside it.
-#
-# docs/ASSUMPTIONS.md has carried "League points are a *column*, not a
-# sort key" as an open item since Aug 22, with the note that the owner
-# might expect the board to re-sort. They did. This is that.
-#
-# The league term is a RANK, not the points themselves. Points are on
-# wildly different scales between leagues -- RED_EYE's point per
-# completion adds hundreds to a quarterback -- so mixing raw totals into
-# a blend of ranks would let one league's units swamp the consensus. The
-# projection's rank within the board is the same kind of number as the
-# other two terms, which is what makes averaging them meaningful.
-
-_LEAGUE_W_STATE = ("    srcWeight: 50,", "    srcWeight: 50,\n    leagueWeight: 35,")
-
-_LEAGUE_W_BOOT = (
-    '      const sw = parseInt(localStorage.getItem("ww_src_weight") || "", 10);',
-    '      const lgw = parseInt(localStorage.getItem("ww_league_weight") || "", 10);\n'
-    "      if (!isNaN(lgw)) this.setState({ leagueWeight: lgw });\n"
-    '      const sw = parseInt(localStorage.getItem("ww_src_weight") || "", 10);',
-)
-
-_LEAGUE_W_READ = (
-    "    const w = s.srcWeight / 100;",
-    "    const w = s.srcWeight / 100;\n    const lw = (s.leagueWeight || 0) / 100;",
-)
-
-_LEAGUE_W_BINDINGS = (
-    "      srcWeight: s.srcWeight,",
-    "      srcWeight: s.srcWeight,\n"
-    "      leagueWeight: s.leagueWeight,\n"
-    '      leagueWeightLabel: (s.leagueWeight || 0) === 0 ? "Off · consensus only"\n'
-    '        : (s.leagueWeight || 0) + "% your scoring \\u00b7 " '
-    '+ (100 - (s.leagueWeight || 0)) + "% consensus",\n'
-    "      onLeagueWeight: e => {\n"
-    "        const v = parseInt(e.target.value, 10);\n"
-    "        this.setState({ leagueWeight: v });\n"
-    '        try { localStorage.setItem("ww_league_weight", String(v)); } catch (err) {}\n'
-    "      },",
-)
-
-# The control, cloned from the Board-order row beside it so the two read
-# as one pair rather than as a bolted-on extra.
-#
-# A REGEX, and for the reason this file already learned once: `page.source_truth`
-# renames that row's label and rewrites its helper text, so a string anchor
-# would match the committed page in a unit test and miss the served one in
-# production -- a green test over a control that never shipped. The pattern
-# stops at the first </div> after the srcWeight input, which is that row's
-# own close in both shapes.
-_LEAGUE_W_ROW_RE = re.compile(
-    r'<div style="display:flex; align-items:center; gap:12px; '
-    r'padding:0 0 var\(--space-3\); flex-wrap:wrap;">'
-    r".*?\{\{ srcWeight \}\}.*?</div>",
-    re.S,
-)
-
-_LEAGUE_W_ROW = (
-    '\n            <div style="display:flex; align-items:center; gap:12px; '
-    'padding:0 0 var(--space-3); flex-wrap:wrap;">\n'
-    '              <span style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
-    'text-transform:uppercase; color:var(--color-neutral-600);">League fit</span>\n'
-    '              <input type="range" min="0" max="100" step="5" '
-    'value="{{ leagueWeight }}" onChange="{{ onLeagueWeight }}" '
-    'style="width:180px; accent-color:var(--color-accent);">\n'
-    '              <span style="font-size:11px; font-weight:700; '
-    'color:var(--color-neutral-700);">{{ leagueWeightLabel }}</span>\n'
-    '              <span style="font-size:11px; color:var(--color-neutral-600);">'
-    "How much the picked league's own scoring pulls the order. A player "
-    "your league cannot start, or that the forecast does not cover, keeps "
-    "his consensus place rather than being invented one.</span>\n"
-    "            </div>"
-)
-
-# Ranks the board by what the SELECTED league would actually pay the
-# player, cached per league because the picker changes on click and this
-# runs once per row per render.
-_LEAGUE_RANK_FN = """    const FBLeagueRank = (() => {
-      let cache = null, cacheFor = null;
-      return b => {
-        if (typeof FB_LEAGUE_PTS === "undefined") return null;
-        const lg = s.draftLeague;
-        if (cacheFor !== lg) {
-          const scored = [];
-          for (const nm in FB_LEAGUE_PTS) {
-            const row = FB_LEAGUE_PTS[nm] && FB_LEAGUE_PTS[nm][lg];
-            if (row && typeof row.t === "number") scored.push([nm, row.t]);
-          }
-          scored.sort((x, y) => y[1] - x[1]);
-          cache = {};
-          scored.forEach((row, i) => { cache[row[0]] = i + 1; });
-          cacheFor = lg;
-        }
-        return cache[b.name] || null;
-      };
-    })();
-"""

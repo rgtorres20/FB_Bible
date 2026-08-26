@@ -280,45 +280,29 @@ leaked. Password hashes are a target where there was none. scrypt is
 what makes that an acceptable trade rather than a careless one — and
 the owner's own credential deliberately stays out of the store.
 
-### ~~League points are a *column*, not a sort key~~ — RESOLVED Aug 26
+### League points are a *column*, not a sort key — SETTLED Aug 26, do not rebuild
 
-*Was:* the board ordered by ADP and the blended rank lists; your scoring
-appeared on every row and changed nothing about where the row sat. Left
-open with the note that the owner might expect the board to re-sort.
+The board orders by ADP and the blended rank lists. Your scoring appears
+on every row and changes nothing about where the row sits.
 
-They did — *"I want to always average any top 300s but the league settings
-would impact this list projections"* — so it does now. The **League fit**
-slider on the Draft analyzer blends a third term into `blendScore`, and
-the entry below records the number behind it.
+**This is now a decision, not an open question.** It was built the other
+way on Aug 26 — a League fit slider blending each player's rank under the
+selected league's scoring into `blendScore` — and the owner removed it
+the same day: *"league status should just matter for PPR point totals no
+influence, remove slider"*.
 
-### League fit defaults to 35%
+So the entry that used to sit here ("if you expected the board to
+re-sort, it does not") is answered: the owner does not. Scoring belongs
+in the column, where it says what a player is worth without overruling
+the consensus of the ranking lists. The averaged top-300 lists and live
+ADP decide the order; your league decides what the number beside him
+says.
 
-**Chosen Aug 26.** The board's order is a blend of three things: the
-consensus of the ranking lists (averaged, every active list equal), live
-ADP, and — new — the player's rank by what the **selected league** would
-actually pay him, off the '26 projection.
-
-**A rank, not the points.** Points are on wildly different scales between
-leagues; RED_EYE's point per completion adds hundreds to a quarterback.
-Mixing raw totals into a blend of ranks would let one league's units
-swamp the consensus. The projection's rank *within the board* is the same
-kind of number as the other two terms, which is what makes averaging them
-mean anything.
-
-**Why 35 and not more.** "Always average any top 300s" is the first half
-of the ask, so the consensus has to stay the base. At 35% a league can
-move a player meaningfully among his neighbours and cannot overturn a
-large consensus gap — there is a test pinning exactly that. It is a
-slider, so the number is the starting point rather than the policy: 0 is
-exactly the old board, 100 drafts purely by your scoring.
-
-**A player the league cannot start, or that the forecast does not cover,
-keeps his consensus place.** Not a zero. Scoring him zero would bury
-every rookie the forecast misses and every defender in a league with no
-IDP slots under an answer nobody computed.
-
-**If it is wrong:** move the slider. The default lives in one place
-(`board._LEAGUE_W_STATE`) and follows the account once changed.
+**If it is wrong:** the reverted commit is `6412712` and its revert is
+the one after it, so the whole mechanism — the rank cache, the blend
+term, the slider, and the tests that ran the generated JavaScript under
+node — is recoverable rather than rewritten. Do not rebuild it from
+scratch, and do not treat this heading as an invitation.
 
 ### The mock room drafts injured players as though healthy
 
