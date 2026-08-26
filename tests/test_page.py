@@ -721,3 +721,75 @@ def test_the_group_no_longer_calls_the_feed_news(index_html):
 
     assert "News & status" not in served
     assert "Alerts & status" in served
+
+
+# --- back goes where you came from -----------------------------------------
+
+
+def test_the_way_back_returns_to_the_tab_you_came_from(index_html):
+    """Owner, Aug 26: "i should go back to the previous page im at right
+    now i go bak to main alerts page that doesnt help". The control was
+    bound to a handler hardcoded to `screen: "alerts"`."""
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    assert 'screen: "alerts", player: null' not in served
+    assert 'screen: this.state.lastNav || "alerts", player: null' in served
+
+
+def test_the_button_stops_naming_a_destination_it_does_not_go_to(index_html):
+    """It read "Back to alerts" while going to alerts from everywhere —
+    honest but useless. Now the label is derived from the same `titles`
+    map the header reads, so it cannot disagree with the click."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert ">Back to alerts</button>" not in served
+    assert ">{{ backLabel }}</button>" in served
+    assert "backLabel:" in served
+
+
+def test_only_sidebar_tabs_are_remembered(index_html):
+    """Not every transient sub-screen. Being returned to a player detail
+    you already left would be its own kind of wrong."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "this.setState({ screen: n.id, lastNav: n.id })" in served
+    # The player-detail transitions stay plain `screen:` sets.
+    assert 'screen: "player", player:' in served
+
+
+def test_the_app_reopens_on_the_tab_you_were_last_using(index_html):
+    """The other half of the same complaint: every served page's only way
+    home is `/app/`, and `/app/` opened on the default tab."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert 'localStorage.setItem("ww_screen", n.id)' in served
+    assert 'const sc = localStorage.getItem("ww_screen")' in served
+
+
+def test_the_remembered_tab_stays_on_the_device(index_html):
+    """A cursor, not a list. A phone and a laptop can be in different
+    places, so this is one of the keys `prefs` deliberately does not
+    carry to the account."""
+    from app.feeds import prefs
+
+    assert "ww_screen" not in prefs.MANAGED
+
+
+def test_a_missing_anchor_leaves_the_page_alone(index_html):
+    """Five edits, all or none. A label rewired without its action would
+    promise a destination the click does not go to."""
+    for gone in (
+        'backToAlerts: () => this.setState({ screen: "alerts", player: null }),',
+        ">Back to alerts</button>",
+        "onClick: () => this.setState({ screen: n.id })",
+    ):
+        broken = index_html.replace(gone, "/* moved */", 1)
+        assert broken != index_html, f"anchor not in the page: {gone}"
+
+        served, misses = page.back_where_you_were(broken)
+
+        assert misses, gone
+        # And nothing else was written either. `_apply` would have applied
+        # the surviving four; these five are halves of one promise.
+        assert served == broken, gone

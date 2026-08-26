@@ -998,6 +998,23 @@ def main() -> int:
     # Owner, Aug 26: "news and post and alerts are same thing stay with
     # alerts". Checked live because the fix is a serve-time transform and
     # a missed anchor would put the duplicate tab straight back.
+    # Owner, Aug 26: "i should go back to the previous page im at right
+    # now i go bak to main alerts page that doesnt help". Checked live in
+    # both halves -- the action and the label -- because a label naming a
+    # destination the click does not go to is the failure this replaced.
+    check(
+        "the way back returns to the tab you came from",
+        'screen: this.state.lastNav || "alerts"' in served
+        and 'screen: "alerts", player: null' not in served,
+    )
+    check(
+        "the back button names where it is really going",
+        ">{{ backLabel }}</button>" in served and ">Back to alerts</button>" not in served,
+    )
+    check(
+        "the app reopens on the tab you were last using",
+        'localStorage.getItem("ww_screen")' in served,
+    )
     check("one door into the wire, not two", 'label: "News & posts"' not in served)
     check(
         "the alerts badge counts the live feed, not six curated rows",

@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1417 tests green — 1401 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1426 tests green — 1410 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -410,6 +410,24 @@ a "Proj" label would swap one wrong claim for another. Both edits land
 together or neither does; a map injected beside a surviving formula would
 keep rendering the invented number.
 
+
+**Back goes where you came from** (owner, Aug 26: *"When i select
+areas and new pages are opened i should go back to the previous page im
+at right now i go bak to main alerts page that doesnt help"*). The code
+said so out loud: the control was `backToAlerts`, hardcoded to
+`screen: "alerts"`, under a button reading "Back to alerts". Opening a
+player from the Draft analyzer and leaving cost you your place every
+time — worst exactly when you are working a board and checking players
+one after another. `page.back_where_you_were` remembers the last
+**sidebar** tab (not transient sub-screens: being returned to a player
+detail you already left is its own kind of wrong), derives the button's
+label from the same `titles` map the header reads so it cannot name a
+destination the click does not go to, and persists the tab so `/app/` —
+the only way home from every served page — reopens where you were. Per
+device on purpose: a cursor, not a list. It is the one transform here
+that is **genuinely atomic**, checking all five anchors before writing
+any: `_apply` reports a miss and applies the rest, which is right for
+independent edits and wrong for two halves of one promise.
 
 **One wire, one name: Alerts** (owner, Aug 26: *"news and post and
 alerts are same thing stay with alerts"*). They were right, and the app

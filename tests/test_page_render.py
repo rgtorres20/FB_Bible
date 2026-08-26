@@ -241,3 +241,11 @@ def test_only_one_door_into_the_wire_reaches_the_browser(served):
     assert 'label: "News & posts"' not in served
     assert "News & status" not in served
     assert "String(ALERTS.length + NEWS.length)" in served
+
+
+def test_the_way_back_reaches_the_browser_wired_to_the_last_tab(served):
+    """Twin of the live check. Same bytes for everybody, so it is verified
+    signed-out here as well as in the transform's own unit test."""
+    assert 'screen: this.state.lastNav || "alerts"' in served
+    assert ">{{ backLabel }}</button>" in served
+    assert 'localStorage.getItem("ww_screen")' in served

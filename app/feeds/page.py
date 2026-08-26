@@ -954,6 +954,90 @@ def alerts_is_the_wire(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- back goes where you came from ----------------------------------------
+#
+# Owner, Aug 26: "When i select areas and new pages are opened i should go
+# back to the previous page im at right now i go bak to main alerts page
+# that doesnt help".
+#
+# Exactly right, and the code said so out loud: the control was bound to
+# `backToAlerts`, hardcoded to `screen: "alerts"`, under a button reading
+# "Back to alerts". Open a player from the Draft analyzer and the only way
+# out dropped you on a different tab -- so the way back cost you your
+# place every time, which is worst precisely when you are working a board
+# and checking players one after another.
+#
+# Two halves. The screen remembers the last SIDEBAR tab (not every
+# transient sub-screen -- returning to a player detail you already left
+# would be its own kind of wrong), and the button says where it is
+# actually going.
+#
+# It is also persisted, which is the other half of the same complaint:
+# the served pages (/app/idp, /app/nextup, the mock room) have no way home
+# except `/app/`, and `/app/` opened on the default tab. Now it opens on
+# the one you were last using. Per device on purpose -- a phone and a
+# laptop can be in different places, and this is a cursor, not a list.
+
+_BACK_STATE = '    screen: "alerts",\n    league: "all",'
+_BACK_STATE_REPLACEMENT = '    screen: "alerts",\n    lastNav: "alerts",\n    league: "all",'
+
+_BACK_NAV = "onClick: () => this.setState({ screen: n.id })"
+_BACK_NAV_REPLACEMENT = (
+    "onClick: () => { "
+    'try { localStorage.setItem("ww_screen", n.id); } catch (e) {} '
+    "this.setState({ screen: n.id, lastNav: n.id }); }"
+)
+
+_BACK_ACTION = '      backToAlerts: () => this.setState({ screen: "alerts", player: null }),'
+# The label is derived from the same `titles` map the header reads, so it
+# can never name a destination the click does not go to.
+_BACK_ACTION_REPLACEMENT = (
+    "      backToAlerts: () => this.setState({ "
+    'screen: this.state.lastNav || "alerts", player: null }),\n'
+    '      backLabel: "Back to " + ((titles[this.state.lastNav] || titles.alerts)[1] || "alerts"),'
+)
+
+_BACK_LABEL = ">Back to alerts</button>"
+_BACK_LABEL_REPLACEMENT = ">{{ backLabel }}</button>"
+
+_BACK_BOOT = '      const sd = localStorage.getItem("ww_scout_dismissed");'
+_BACK_BOOT_REPLACEMENT = (
+    '      const sc = localStorage.getItem("ww_screen");\n'
+    "      if (sc) this.setState({ screen: sc, lastNav: sc });\n"
+    '      const sd = localStorage.getItem("ww_scout_dismissed");'
+)
+
+
+_BACK_EDITS = (
+    ("back state", _BACK_STATE, _BACK_STATE_REPLACEMENT),
+    ("back nav write", _BACK_NAV, _BACK_NAV_REPLACEMENT),
+    ("back action", _BACK_ACTION, _BACK_ACTION_REPLACEMENT),
+    ("back label", _BACK_LABEL, _BACK_LABEL_REPLACEMENT),
+    ("back boot restore", _BACK_BOOT, _BACK_BOOT_REPLACEMENT),
+)
+
+
+def back_where_you_were(html: str) -> tuple[str, list[str]]:
+    """Make the way back return to the tab the reader came from.
+
+    All five edits or none, and unlike most transforms here that needs
+    saying in code rather than in a docstring: `_apply` reports a miss and
+    then goes on to apply the rest, which is right when the edits are
+    independent and wrong when they are halves of one promise. A label
+    rewired without its action would name a destination the click does not
+    go to; an action rewired without its label would go somewhere the
+    button denies. Either is worse than the honest, uniformly wrong
+    behaviour it replaces, so the anchors are all checked before any of
+    them is written.
+    """
+    missing = [label for label, old, _ in _BACK_EDITS if old not in html]
+    if missing:
+        return html, missing
+    for _, old, new in _BACK_EDITS:
+        html = html.replace(old, new, 1)
+    return html, []
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -970,6 +1054,7 @@ PRE = (
     source_names,
     sleepers_watchlist,
     alerts_is_the_wire,
+    back_where_you_were,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.
