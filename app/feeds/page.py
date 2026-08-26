@@ -885,6 +885,75 @@ def sleepers_watchlist(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- one wire, one name ---------------------------------------------------
+#
+# Owner, Aug 26: "news and post and alerts are same thing stay with
+# alerts". They were right, and the app was worse than inconsistent about
+# it.
+#
+# The Alerts screen ALREADY merges the live polled wire with the owner's
+# curated calls -- `ALERTS.concat(newsThreads)`, sorted by time, paged.
+# So the data was never split. What was split was the door and the name:
+# "News & posts" was a second entry into items Alerts already carried,
+# and Alerts' own badge was the hardcoded string "6", which described the
+# curated rows alone and made the live feed look like six stale entries.
+#
+# A badge that under-reports by two orders of magnitude is not cosmetic.
+# It is the number a reader uses to decide whether the tab is worth
+# opening, and it was telling them not to bother.
+
+_NAV_NEWS = '      { id: "news", label: "News & posts", badge: String(NEWS.length) },\n'
+
+_NAV_ALERTS = '      { id: "alerts", label: "Alerts", badge: "6" },'
+_NAV_ALERTS_REAL = (
+    '      { id: "alerts", label: "Alerts", badge: String(ALERTS.length + NEWS.length) },'
+)
+
+_GROUP_MAP = (
+    '      alerts: "News & status", injury: "News & status", '
+    'news: "News & status", rotowire: "News & status",'
+)
+_GROUP_MAP_RENAMED = (
+    '      alerts: "Alerts & status", injury: "Alerts & status", '
+    'news: "Alerts & status", rotowire: "Alerts & status",'
+)
+
+_GROUP_ORDER = 'const groupOrder = ["News & status", "Draft prep", "Season", "System"];'
+_GROUP_ORDER_RENAMED = 'const groupOrder = ["Alerts & status", "Draft prep", "Season", "System"];'
+
+# The kicker described the curated half only. It is the live wire that
+# fills this screen, and saying so is how a reader knows it is worth
+# refreshing.
+_ALERTS_KICKER = '"Camp status changes across the whole player pool", "Alerts"'
+_ALERTS_KICKER_REAL = (
+    '"The live wire and your own calls, newest first · whole player pool", "Alerts"'
+)
+
+
+def alerts_is_the_wire(html: str) -> tuple[str, list[str]]:
+    """One feed, one name, and a badge that counts what is really there.
+
+    Nothing is merged here that was not already merged: the screen has
+    always concatenated the live items onto the curated ones. This closes
+    the second door and fixes the count, which is the whole of what made
+    three names look like three feeds.
+
+    "NBC player news" deliberately stays. A named publisher's cut is a
+    real distinction rather than a third synonym for the same list, and
+    its curated blurbs carry editorial leans a headline does not.
+    """
+    return _apply(
+        html,
+        (
+            ("news nav entry", _NAV_NEWS, "", 1),
+            ("alerts badge", _NAV_ALERTS, _NAV_ALERTS_REAL, 1),
+            ("nav group map", _GROUP_MAP, _GROUP_MAP_RENAMED, 1),
+            ("nav group order", _GROUP_ORDER, _GROUP_ORDER_RENAMED, 1),
+            ("alerts kicker", _ALERTS_KICKER, _ALERTS_KICKER_REAL, 1),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -900,6 +969,7 @@ PRE = (
     feeds_watched,
     source_names,
     sleepers_watchlist,
+    alerts_is_the_wire,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

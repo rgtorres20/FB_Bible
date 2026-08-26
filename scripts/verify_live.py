@@ -995,6 +995,16 @@ def main() -> int:
     # absolute stamp already carried in each row's source. Checked as a count
     # of survivors, not a set intersection: intersection-style checks pass by
     # finding nothing (the Aug 22 keying lesson).
+    # Owner, Aug 26: "news and post and alerts are same thing stay with
+    # alerts". Checked live because the fix is a serve-time transform and
+    # a missed anchor would put the duplicate tab straight back.
+    check("one door into the wire, not two", 'label: "News & posts"' not in served)
+    check(
+        "the alerts badge counts the live feed, not six curated rows",
+        "String(ALERTS.length + NEWS.length)" in served and 'badge: "6"' not in served,
+    )
+    check("the sidebar heading says alerts", "News & status" not in served)
+
     frozen = re.findall(r'"time":\s*"((?:Today|Yesterday)[^"]*|[^"]*\bago\b[^"]*)"', served)
     check(
         "no alert wears a frozen relative timestamp",

@@ -232,3 +232,12 @@ def test_a_reader_with_no_session_gets_no_storage_shim(served):
     to sign in, which is the watchdog's exact position: no account, so no
     lists to follow it, so the page keeps plain localStorage."""
     assert "localStorage.getItem = function" not in served
+
+
+def test_only_one_door_into_the_wire_reaches_the_browser(served):
+    """Twin of the live check. This one CAN be verified signed-out — the
+    nav is the same bytes for everybody — so it is checked in both places
+    rather than only in the transform's own unit test."""
+    assert 'label: "News & posts"' not in served
+    assert "News & status" not in served
+    assert "String(ALERTS.length + NEWS.length)" in served

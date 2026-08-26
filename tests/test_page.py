@@ -668,3 +668,56 @@ def test_a_missing_table_anchor_reports_a_miss(index_html):
 
     assert misses == ["sleepers watchlist anchor"]
     assert served == stripped
+
+
+# --- one wire, one name ----------------------------------------------------
+
+
+def test_the_second_door_into_the_same_feed_is_closed(index_html):
+    """Owner, Aug 26: "news and post and alerts are same thing stay with
+    alerts". The Alerts screen already concatenated the live wire onto the
+    curated calls, so "News & posts" was a second entry into items it was
+    showing anyway."""
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    assert 'label: "News & posts"' not in served
+    assert 'id: "alerts", label: "Alerts"' in served
+
+
+def test_the_alerts_badge_counts_what_is_really_there(index_html):
+    """It was the hardcoded string "6" — the curated rows alone. A badge
+    that under-reports by two orders of magnitude is not cosmetic: it is
+    the number a reader uses to decide whether to open the tab, and it was
+    telling them not to bother."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert 'badge: "6"' not in served
+    assert "String(ALERTS.length + NEWS.length)" in served
+
+
+def test_the_kicker_stops_describing_only_the_curated_half(index_html):
+    """The live wire is what fills this screen. Saying so is how a reader
+    knows it is worth refreshing."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "The live wire and your own calls" in served
+    assert "Camp status changes across the whole player pool" not in served
+
+
+def test_a_named_publisher_is_not_a_third_synonym(index_html):
+    """NBC player news stays. It is a real cut of the wire with editorial
+    blurbs a headline cannot replace — not another word for the same
+    list."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert 'label: "NBC player news"' in served
+
+
+def test_the_group_no_longer_calls_the_feed_news(index_html):
+    """The sidebar heading was the last place the old word survived, and a
+    heading is the first thing read."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "News & status" not in served
+    assert "Alerts & status" in served

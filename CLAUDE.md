@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1409 tests green — 1393 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1417 tests green — 1401 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -410,6 +410,24 @@ a "Proj" label would swap one wrong claim for another. Both edits land
 together or neither does; a map injected beside a surviving formula would
 keep rendering the invented number.
 
+
+**One wire, one name: Alerts** (owner, Aug 26: *"news and post and
+alerts are same thing stay with alerts"*). They were right, and the app
+was worse than inconsistent. The Alerts screen **already** merged the
+live polled wire with the owner's curated calls
+(`ALERTS.concat(newsThreads)`, newest first, paged) — the data was never
+split. What was split was the door and the name: "News & posts" was a
+second entry into items Alerts was already showing, and Alerts' own badge
+was the hardcoded string `"6"`, describing the curated rows alone. A
+badge that under-reports by two orders of magnitude is not cosmetic — it
+is the number a reader uses to decide whether the tab is worth opening,
+and it was telling them not to bother. `page.alerts_is_the_wire` closes
+the second door, counts what is really there, renames the sidebar group,
+and makes the kicker say the feed is live. **"NBC player news" stays**: a
+named publisher's cut is a real distinction, not a third synonym, and its
+blurbs carry editorial leans a headline cannot replace. The sleepers
+panel's own "posts" wording went with it — the app had three words for
+one wire and that panel had just added the third.
 
 The **Sleepers tab is now your list, not an analyst's** (owner, Aug 26:
 *"right now it doesnt make sense and this list should be editble like we

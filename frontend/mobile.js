@@ -288,13 +288,13 @@
     name.textContent = w.name;
     var meta = document.createElement('span');
     meta.className = 'fb-src-meta';
-    /* "no posts yet" is a real answer to what a sleeper list asks, and
+    /* "no alerts yet" is a real answer to what a sleeper list asks, and
      * often the point of one -- so it is said, not hidden. A name the
      * player index does not carry is flagged, because it will never
      * collect wire and the reader should know why. */
     meta.textContent = w.known
       ? (w.meta ? w.meta + ' · ' : '') +
-        (w.posts ? w.posts + (w.posts === 1 ? ' post' : ' posts') : 'no posts yet')
+        (w.alerts ? w.alerts + (w.alerts === 1 ? ' alert' : ' alerts') : 'no alerts yet')
       : 'not a name the player index knows — no wire will match it';
     var drop = document.createElement('button');
     drop.className = 'fb-src-btn';
@@ -363,8 +363,8 @@
    * therefore a no-op unless the data behind it changed. */
   function sleeperStamp(d) {
     return JSON.stringify([
-      (d.watched || []).map(function (w) { return w.name + '/' + w.posts + '/' + w.known; }),
-      (d.posts || []).map(function (p) { return p.url || p.title; })
+      (d.watched || []).map(function (w) { return w.name + '/' + w.alerts + '/' + w.known; }),
+      (d.alerts || []).map(function (p) { return p.url || p.title; })
     ]);
   }
 
@@ -383,7 +383,7 @@
     head.className = 'fb-src-head';
     var n = (sleeperData.watched || []).length;
     head.textContent = 'My sleepers · ' + n + (n === 1 ? ' player' : ' players') +
-      ' · ' + (sleeperData.posts || []).length + ' posts about them';
+      ' · ' + (sleeperData.alerts || []).length + ' alerts about them';
     host.appendChild(head);
 
     var form = document.createElement('form');
@@ -414,7 +414,7 @@
       /* An empty list is a legitimate state and says so, rather than the
        * tab looking broken. */
       empty.textContent = 'Nobody on the list yet. Add a player and every ' +
-        'polled item that mentions him shows up here.';
+        'alert that mentions him shows up here.';
       host.appendChild(empty);
       return;
     }
@@ -423,16 +423,16 @@
     thread.className = 'fb-sl-thread';
     var th = document.createElement('div');
     th.className = 'fb-src-head';
-    th.textContent = 'The wire about them';
+    th.textContent = 'Alerts about them';
     thread.appendChild(th);
-    if (!(sleeperData.posts || []).length) {
+    if (!(sleeperData.alerts || []).length) {
       var none = document.createElement('div');
       none.className = 'fb-src-note';
-      none.textContent = 'Nothing polled about these players yet. That is an ' +
+      none.textContent = 'No alerts about these players yet. That is an ' +
         'answer too — a sleeper nobody is writing about is still a sleeper.';
       thread.appendChild(none);
     } else {
-      sleeperData.posts.forEach(function (p) { thread.appendChild(sleeperPost(p)); });
+      sleeperData.alerts.forEach(function (p) { thread.appendChild(sleeperPost(p)); });
     }
     host.appendChild(thread);
   }

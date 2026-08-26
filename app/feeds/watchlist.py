@@ -144,6 +144,10 @@ def summary(index: dict | None, items: list[dict] | None, names: list[str]) -> d
     A watched player with nothing written about him reports zero rather
     than being hidden. "Nobody is talking about him" is a real answer to
     the question the list is asking, and often the point of a sleeper.
+
+    The count is called `alerts`, not `posts`. Owner, Aug 26: "news and
+    post and alerts are same thing stay with alerts" -- the app had three
+    words for one polled wire, and this panel had just added the third.
     """
     posts = thread(index, items, names, limit=200)
     counts: dict[str, int] = {name: 0 for name in names}
@@ -155,7 +159,7 @@ def summary(index: dict | None, items: list[dict] | None, names: list[str]) -> d
         "watched": [
             {
                 "name": name,
-                "posts": counts.get(name, 0),
+                "alerts": counts.get(name, 0),
                 # Said plainly rather than dropped: a name the index does
                 # not carry will never collect wire, and the reader should
                 # know that is why, not wonder.
@@ -164,5 +168,5 @@ def summary(index: dict | None, items: list[dict] | None, names: list[str]) -> d
             }
             for name in names
         ],
-        "posts": posts[:40],
+        "alerts": posts[:40],
     }

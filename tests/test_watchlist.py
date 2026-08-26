@@ -167,9 +167,9 @@ def test_a_watched_player_with_no_coverage_reports_zero():
     out = watchlist.summary(idx, [], ["Blake Corum"])
 
     assert out["watched"] == [
-        {"name": "Blake Corum", "posts": 0, "known": True, "meta": "RB · LAR"}
+        {"name": "Blake Corum", "alerts": 0, "known": True, "meta": "RB · LAR"}
     ]
-    assert out["posts"] == []
+    assert out["alerts"] == []
 
 
 def test_a_name_the_index_does_not_know_stays_and_says_so():
@@ -189,7 +189,7 @@ def test_an_empty_list_is_an_empty_thread_not_everything():
     items = [_item("0", "anything", "2026-08-24")]
 
     assert watchlist.thread(idx, items, []) == []
-    assert watchlist.summary(idx, items, [])["posts"] == []
+    assert watchlist.summary(idx, items, [])["alerts"] == []
 
 
 # --- the panel actually renders --------------------------------------------
@@ -270,8 +270,8 @@ def test_a_player_nobody_has_written_about_says_so(rendered):
     """Rather than being hidden. "Nobody is talking about him" is a real
     answer to what a sleeper list asks, and often the point of one."""
     meta = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-src-meta"]
-    assert meta[0] == "RB · LAR · 1 post"
-    assert meta[1] == "RB · LAR · no posts yet"
+    assert meta[0] == "RB · LAR · 1 alert"
+    assert meta[1] == "RB · LAR · no alerts yet"
     assert "no wire will match it" in meta[2]
 
 
