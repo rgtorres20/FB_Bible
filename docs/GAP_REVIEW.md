@@ -1,5 +1,32 @@
 # Gap review — Aug 15 2026
 
+## Found Aug 26 — two live checks in two days that could not pass
+
+Both were written in the same commit as the feature they watch, and
+neither was run before it shipped.
+
+1. **`"GL carries" not in served`, page-wide** — five rows of unrelated
+   curated prose say exactly that, so the check was false the moment it
+   was written. Scoped to the handcuff block.
+2. **The sleepers-unification checks** — asserted `FB_SLEEPERS` and the
+   rewired toggle in the served page. The watchdog authenticates with a
+   **sync token, not a session cookie**, so `session_email` is None and
+   the server list is correctly *not* injected for it. The check was
+   asserting a signed-in page against a signed-out reader.
+
+The common cause is not carelessness about the assertion; it is that
+**nothing exercised the watchdog's expectations before they ran live.**
+`scripts/verify_live.py` only ever runs against a deployment, so a wrong
+expectation costs a full deploy-and-run cycle to discover, and reads as a
+broken feature rather than a broken check.
+
+**The rule now:** every live check about page *content* gets a twin in
+`tests/test_page_render.py`, rendering the page the way the watchdog
+receives it — no session, real store. The check and its twin fail
+together, or the check is measuring something the twin is not. The two
+above now have twins; the signed-in half is pinned separately in
+`tests/test_watchlist.py` against the real served page.
+
 ## Found Aug 26 — fixed, and the failure class is the point
 
 - **A docstring was the source of truth, and it was wrong.**

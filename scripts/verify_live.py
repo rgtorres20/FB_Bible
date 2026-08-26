@@ -1174,23 +1174,25 @@ def main() -> int:
     # A POST, as above: anon_status sends a GET, and a GET on a POST-only
     # route is 405 whether it is guarded or not.
     code, _ = post_json("/app/mine/sleepers")
-    # Owner, Aug 26: one sleepers list, not two. The page's own stars wrote
-    # to localStorage while the panel wrote to the server, so starring a
-    # player did not put him on the list the panel showed -- and the list
-    # lived on one device. Checked in all three halves, because any one of
-    # them alone is a star wired to nothing.
+    # Owner, Aug 26: one sleepers list, not two. The page's stars wrote to
+    # localStorage while the panel wrote to the server.
+    #
+    # THIS WATCHDOG CANNOT SEE THE UNIFIED HALF, and saying so is the
+    # point. It authenticates with a sync token, not a session cookie, so
+    # `session_email` is None and the server list is deliberately not
+    # injected for it -- exactly as for any signed-out reader. The first
+    # version of this asserted the injected strings anyway and failed on
+    # its first live run, the second check in two days written against an
+    # environment it does not run in.
+    #
+    # So it checks the two things it genuinely observes: that the
+    # signed-out fallback is intact for a reader with no session, and that
+    # the script half shipped. The signed-in injection is pinned by
+    # tests/test_watchlist.py against the real served page.
     check(
-        "the page's sleeper stars read the server list",
-        "const FB_SLEEPERS = " in served and 'typeof FB_SLEEPERS !== "undefined"' in served,
-    )
-    check(
-        "starring a player writes to the server",
-        '"/app/mine/sleepers", { method: "POST"' in served,
-    )
-    check(
-        "the panel can hand the page its new list",
-        "window.__fbSetSleepers" in served
-        and 'dispatchEvent(new Event("fb-sleepers-changed"))' in served,
+        "a reader with no session keeps the browser's own sleepers list",
+        'localStorage.getItem("ww_my_sleepers")' in served,
+        "no session cookie here, so no server list is injected -- by design",
     )
     check(
         "the sleepers edit refuses a stranger",
@@ -1211,6 +1213,13 @@ def main() -> int:
     check(
         "sleepers panel decorator serves",
         b"fb-sleepers" in mobile_js and b"/app/data/sleepers.json" in mobile_js,
+    )
+    # The half of "one list, not two" that lives in the static script and
+    # so is visible to a reader with no session: the panel hands the page
+    # its new list, and listens for a star clicked elsewhere.
+    check(
+        "the sleepers panel and the page's stars talk to each other",
+        b"__fbSetSleepers" in mobile_js and b"fb-sleepers-changed" in mobile_js,
     )
     check("sleepers panel styles serve", b"fb-sl-thread" in mobile_css)
 

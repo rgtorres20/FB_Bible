@@ -19,6 +19,7 @@ order they run in production.
 
 from __future__ import annotations
 
+import pathlib
 import re
 
 import pytest
@@ -190,3 +191,37 @@ def test_a_stored_projection_reaches_the_board_with_its_credit(tmp_path, monkeyp
 
     assert "<div>Blend</div><div>'26 proj \u00b7 Rotowire</div>" in page
     assert "<div>Blend</div><div>'25 P/G \u00b7 total</div>" not in page
+
+
+# --- what the watchdog actually sees --------------------------------------
+#
+# Written Aug 26, after the second live check in two days that could not
+# pass. The first asserted "GL carries" page-wide when unrelated prose says
+# it too; the second asserted the signed-in sleepers injection against a
+# watchdog that authenticates with a sync token and therefore has no
+# session at all.
+#
+# Both were written blind against an environment nothing here simulated.
+# So: every live check about page CONTENT gets a twin here, rendering the
+# page the same way the watchdog receives it. A check and its twin fail
+# together or the check is measuring something the twin is not.
+
+
+def test_a_reader_with_no_session_keeps_the_browsers_own_sleepers_list(served):
+    """The `served` fixture makes no attempt to sign in, which is exactly
+    the watchdog's position. The server list is deliberately not injected
+    for it, and the localStorage fallback has to be intact — otherwise
+    that reader's stars are wired to nothing at all."""
+    assert 'localStorage.getItem("ww_my_sleepers")' in served
+    assert "const FB_SLEEPERS = " not in served
+
+
+def test_the_script_half_of_one_list_ships_in_mobile_js():
+    """The part a signed-out reader CAN be shown to have: the panel hands
+    the page its new list, and listens for a star clicked elsewhere. Both
+    are checked live against /app/mobile.js, so both are checked here
+    against the file that gets served."""
+    script = pathlib.Path("frontend/mobile.js").read_text(encoding="utf-8")
+
+    assert "__fbSetSleepers" in script
+    assert "fb-sleepers-changed" in script
