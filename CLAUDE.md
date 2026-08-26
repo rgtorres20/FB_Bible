@@ -419,14 +419,15 @@ whether the feed was an hour old or a month. **The NBC tab was never
 stale**: the live watchdog measured 40 live rows of 53, newest the night
 before, and only the heading said otherwise — a working feed reading as a
 dead one because of a typed string. Week review was the opposite: when no
-scoreboard is pushed the page falls back to , which is
+scoreboard is pushed the page falls back to `WEEKREV_SEED`, which is
 labelled "Preseason Week 1" and renders Aug 13–15 games as though they
-were current, under a sync date agreeing with them. 
+were current, under a sync date agreeing with them. `weekrev.stamp()`
 now reports the real pull time and says **OLDER THAN A WEEK** past
- (8 days — a scoreboard describes one week, so an old one
+`_STALE_AFTER` (8 days — a scoreboard describes one week, so an old one
 is last week wearing this week's heading), the NBC kicker reads whether
-its top row is live (curated seed rows carry no ; every live row
-does), and  replaces both typed dates.
+its top row is live (curated seed rows carry no `link`; every live row
+does), and `page.dated_kickers_read_the_data` replaces both typed
+dates.
 
 **Back goes where you came from** (owner, Aug 26: *"When i select
 areas and new pages are opened i should go back to the previous page im
