@@ -998,6 +998,23 @@ def main() -> int:
     # Owner, Aug 26: "news and post and alerts are same thing stay with
     # alerts". Checked live because the fix is a serve-time transform and
     # a missed anchor would put the duplicate tab straight back.
+    # Owner, Aug 26: "NBC player news is stale why not live". It IS wired
+    # to the wire -- player-tagged items, newest first, curated blurbs
+    # kept below -- so the question is answerable with a number rather
+    # than an opinion. Curated seed rows carry no `link`; every live row
+    # does (to_nbc_entry always sets it), which is what separates them.
+    nbc = (page_data.get("rotowire") or []) if isinstance(page_data, dict) else []
+    nbc_live = [row for row in nbc if isinstance(row, dict) and row.get("link")]
+    print(
+        f"  INFO  NBC player news: {len(nbc_live)} live of {len(nbc)} rows"
+        + (f", newest {nbc_live[0].get('time')}" if nbc_live else "")
+    )
+    check(
+        "NBC player news carries live wire, not just the curated seed",
+        bool(nbc_live),
+        f"{len(nbc_live)} live rows" if nbc_live else "every row is the Aug 14 hand-read seed",
+    )
+
     # Owner, Aug 26: "i should go back to the previous page im at right
     # now i go bak to main alerts page that doesnt help". Checked live in
     # both halves -- the action and the label -- because a label naming a
