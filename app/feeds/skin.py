@@ -10,6 +10,7 @@ mode the app itself is in.
 from __future__ import annotations
 
 import html as html_mod
+import json
 
 from . import teams
 
@@ -211,3 +212,20 @@ def head(title: str, here: str = "", style: str = "", boot: str = "") -> str:
         + (boot or THEME_BOOT)
         + home_bar(here)
     )
+
+
+def script_json(value) -> str:
+    """JSON safe to embed inside a <script> block.
+
+    `json.dumps` does not escape "/", so a value containing "</script>"
+    -- rank-list names are typed by people at /app/mine, player names
+    come from Sleeper -- would terminate the script element mid-payload:
+    the page breaks and the rest of the string renders as markup.
+
+    Kernel, and public, because two injectors need the identical answer.
+    It lived privately in `board` until Aug 26, when `page` needed it too
+    and the choice was to import a private name, copy the escape, or move
+    it here. A copied escape rule is how one of the two copies stays
+    wrong, and this one has exactly one job.
+    """
+    return json.dumps(value, separators=(",", ":")).replace("</", "<\\/")

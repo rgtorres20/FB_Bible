@@ -225,3 +225,10 @@ def test_the_script_half_of_one_list_ships_in_mobile_js():
 
     assert "__fbSetSleepers" in script
     assert "fb-sleepers-changed" in script
+
+
+def test_a_reader_with_no_session_gets_no_storage_shim(served):
+    """The twin of the live check. The `served` fixture makes no attempt
+    to sign in, which is the watchdog's exact position: no account, so no
+    lists to follow it, so the page keeps plain localStorage."""
+    assert "localStorage.getItem = function" not in served

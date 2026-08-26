@@ -224,8 +224,19 @@ def test_every_map_this_module_injects_goes_through_the_one_escaper():
     place that escapes."""
     import inspect
 
-    source = inspect.getsource(board)
-    assert source.count("json.dumps(") == 1
+    from app.feeds import page as page_mod
+
+    # Stronger than it used to be. Until Aug 26 this asserted `json.dumps(`
+    # appeared exactly once here -- the one call that escapes. Then `page`
+    # needed the identical escape for the prefs shim, and the choice was
+    # to import a private name, copy the rule, or move it. It moved, to
+    # `skin.script_json`, so now the assertion is that NEITHER injector
+    # reaches for `json.dumps` at all: there is one escaper and it is not
+    # in either of them.
+    for module in (board, page_mod):
+        source = inspect.getsource(module)
+        assert "json.dumps(" not in source, module.__name__
+        assert "script_json" in source, module.__name__
     assert "json.dumps(" in inspect.getsource(board._script_json)
 
     # And it really escapes, at whatever depth the payload nests it.

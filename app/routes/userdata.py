@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
-from ..feeds import clock, ranklists, skin, teams, watchlist
+from ..feeds import clock, prefs, ranklists, skin, teams, watchlist
 from ..feeds.store import FeedStore
 from .access import session_email
 from .feeds import get_feed_store, get_optional_feed_store
@@ -661,6 +661,43 @@ async def sleepers_edit(
     names = watchlist.remove(data, name) if dropping else watchlist.add(data, name)
     await store.save_user(email, {**data, watchlist.KEY: names})
     return JSONResponse(await _sleeper_payload(request, settings, store))
+
+
+@router.post("/app/mine/prefs", include_in_schema=False)
+async def save_prefs(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Persist the reader's own lists against their account.
+
+    Owner, Aug 26: "back up running backs list does not save for users
+    why make a list you cant save", and "when i log into other devices i
+    dont see my changes". The page kept nine such lists in localStorage,
+    so every one of them was pinned to one browser.
+
+    A MERGE, not a replace (`prefs.merge`): two tabs are two writers, and
+    a replace would let the draft board open on a laptop delete what the
+    cuffs tab on a phone just saved.
+
+    JSON and 401 rather than a redirect -- this is called by a shim from
+    inside the page, and a 303 to /login would be followed silently and
+    stored as if it were data.
+    """
+    email = session_email(request, settings)
+    if not email:
+        return JSONResponse({"detail": "sign-in required"}, status_code=401)
+    try:
+        incoming = await request.json()
+    except Exception:  # noqa: BLE001 - a malformed body is a 400, never a 500
+        return JSONResponse({"detail": "expected a JSON object"}, status_code=400)
+    if not isinstance(incoming, dict):
+        return JSONResponse({"detail": "expected a JSON object"}, status_code=400)
+
+    data = await store.load_user(email)
+    merged = prefs.merge(data, incoming)
+    await store.save_user(email, {**data, prefs.KEY: merged})
+    return JSONResponse({"saved": sorted(merged)})
 
 
 @router.get("/app/data/ranksources.json", include_in_schema=False)

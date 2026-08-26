@@ -288,12 +288,21 @@ def pages_claimed_in_claude_md(root: Path) -> set[str]:
     `/app/data/feeds.json`): those are served, but they are not pages with a
     way back to the app, which is what the navigation list is about. `/app/`
     itself is the destination, not an entry.
+
+    A path written as `POST /app/...` is excluded too. Those are endpoints
+    the page calls with fetch, not pages anybody navigates to, so they have
+    no way home to check and demanding one would be asking for a Back link
+    on a JSON response. Added Aug 26, when `POST /app/mine/prefs` was
+    documented and the dot heuristic read it as an eleventh page.
     """
     text = _read(root, "CLAUDE.md") or ""
     found = set()
-    for raw in _PAGE_RE.findall(text):
-        page = raw.rstrip("/.,;:)`")
+    for match in _PAGE_RE.finditer(text):
+        page = match.group(0).rstrip("/.,;:)`")
         if page in ("/app", "/app/") or "." in page.rsplit("/", 1)[-1]:
+            continue
+        before = text[max(0, match.start() - 8) : match.start()]
+        if before.rstrip().rstrip("`").endswith(("POST", "GET", "DELETE")):
             continue
         found.add(page)
     return found

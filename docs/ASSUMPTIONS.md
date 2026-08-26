@@ -154,6 +154,48 @@ but they cannot currently correct it — there is no "no, the other one"
 control. `shared_names` on the index records every contested name, so the
 size of the problem is measurable rather than assumed.
 
+## Which of the page's own storage keys follow an account
+
+**Chosen Aug 26, after the owner reported "back up running backs list
+does not save for users" and "when i log into other devices i dont see my
+changes".**
+
+The design document keeps fourteen things in `localStorage`. Nine of them
+are the reader's own work and now travel with the account
+(`prefs.MANAGED`): the backup-RB order and cleared rows, the draft queue,
+who is taken, my teams, the draft slot, dismissed scout cards, and the two
+slider-weight keys.
+
+**Five deliberately do not.** `ww_theme`, `ww_skin` and `fb_team` are
+appearance — a phone in the dark and a desk monitor are different rooms,
+and CLAUDE.md pins two of them as immutable storage keys. `ww_live` is a
+cache and `ww_api_base` a developer override; neither is anybody's work.
+`ww_my_sleepers` is excluded for a different reason: that list already has
+its own route and store, and a second writer is how the two copies start
+disagreeing.
+
+**If it is wrong:** somebody who wants their theme to follow them will not
+get it, and somebody who expects a per-device draft queue will be
+surprised that it followed them. Both are one line in `prefs.MANAGED`.
+
+## Caps on the saved-preferences blob
+
+**Chosen Aug 26 with the mechanism above.** `MAX_VALUE = 64KB` per key,
+`MAX_TOTAL = 256KB` per account. A 300-name `ww_taken` is roughly 6KB, so
+one value is generous by an order of magnitude, and the total bounds what
+one account can push into a blob that is loaded on **every page render**.
+
+An oversized value is **dropped, never truncated**: half a JSON array is
+not a smaller list, it is a corrupt one, and the page would read it back
+as empty and lose the lot. Over the total, the *largest* values are
+evicted first — nothing here is older or less wanted than anything else,
+so dropping one big list loses fewer of the reader's lists than dropping
+several small ones.
+
+**If it is wrong:** the numbers are two constants in `app/feeds/prefs.py`,
+and a reader who hits the cap loses their biggest list silently, which is
+the part worth improving first if it ever happens.
+
 ## Measurements that lean on a model
 
 ### IDP opportunity counts an assist like a solo tackle

@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1387 tests green — 1371 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1409 tests green — 1393 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -341,6 +341,27 @@ by roughly 2x. The overrides are **kept** — they encode how those rooms
 actually draft, and the fact that two leagues with identical spread
 premiums draft QBs differently is a finding for the owner, not a bug to
 paper over ([docs/GAP_REVIEW.md](docs/GAP_REVIEW.md)).
+
+**The lists a reader makes follow their account, not their browser**
+(owner, Aug 26: *"why make a list you cant save"*, then *"when i log into
+other devices i dont see my changes"*). The design document keeps
+fourteen things in `localStorage`; the nine that are somebody's own work
+— the backup-RB order and cleared rows, the draft queue, who is taken,
+my teams, the draft slot, dismissed scout cards, the slider weights —
+were pinned to one browser. The fix is **not** a rewrite of each tab's
+save code: nine bespoke transforms would be nine anchors to break on the
+next design resync. Instead the *storage* is redirected once beneath all
+of them — `page.prefs_shim` installs a `localStorage` shim before
+`</head>`, which is before the page's own script reads those keys, and
+serves the managed ones out of the account's copy while writing changes
+back through `POST /app/mine/prefs` (coalesced, plus a `pagehide`
+flush).
+Anything unmanaged passes straight through, so themes and caches behave
+exactly as before. A write **merges** rather than replaces, because two
+tabs are two writers. Appearance keys stay per-device on purpose and
+`ww_my_sleepers` is excluded because it already has its own store — two
+writers for one list is how the copies disagree
+([docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) records both, and the caps).
 
 The Settings panel stopped claiming to blend lists it does not have
 (Aug 21). Two different things were called **sources**: four hand-written

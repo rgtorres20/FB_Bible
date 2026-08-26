@@ -68,6 +68,9 @@ DATA_UNITS: dict[str, frozenset[str]] = {
     # curated is a surface's honesty layer rather than a data unit: it
     # holds no feed, only the as-of stamps for the two tabs nobody polls.
     "curated": frozenset({"curated"}),
+    # prefs holds no feed either: it is the rule for which of the page's
+    # own localStorage keys follow an account rather than a browser.
+    "prefs": frozenset({"prefs"}),
 }
 
 SURFACES = frozenset(

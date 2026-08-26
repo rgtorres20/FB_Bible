@@ -33,26 +33,19 @@ Two rules carried from the rest of the project:
 
 from __future__ import annotations
 
-import json
 import re
 
 from . import players as players_mod
+from . import skin
 
 # The page's own board, which is the source of truth for who is on it.
 _RAW_BOARD = re.compile(r"const RAW_BOARD = \[(.*?)\n\];", re.S)
 _ROW_NAME = re.compile(r'^\s*\[\d+,"([^"]+)"', re.M)
 
 
-def _script_json(value) -> str:
-    """JSON safe to embed inside a <script> block.
-
-    json.dumps does not escape "/", so a name containing "</script>" --
-    rank-list names are typed by users at /app/mine, player names come
-    from Sleeper -- would terminate the script element mid-payload: the
-    page breaks and the rest of the string renders as markup. The same
-    escape the mock room has always used.
-    """
-    return json.dumps(value, separators=(",", ":")).replace("</", "<\\/")
+# One escape rule, in the kernel, because `page` needs the identical
+# answer and a second copy is how one of them stays wrong (Aug 26).
+_script_json = skin.script_json
 
 
 # The derived-ADP block this replaces. Matched as a whole so a design-project

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import html as html_mod
 
-from . import skin
+from . import prefs, skin
 
 # One edit: a label for the miss report, the anchor to find, its
 # replacement, how many occurrences to replace (0 = all of them), and
@@ -913,3 +913,114 @@ def apply(html: str, transforms: tuple) -> tuple[str, list[str]]:
         html, missed = transform(html)
         misses.extend(missed)
     return html, misses
+
+
+# --- the reader's own lists follow the account ----------------------------
+#
+# Owner, Aug 26: "back up running backs list does not save for users why
+# make a list you cant save", then "when i log into other devices i dont
+# see my changes".
+#
+# The design document keeps its state in localStorage -- the cuffs order,
+# the cleared rows, the draft queue, who is taken. All of it correct, and
+# all of it pinned to one browser. Sign in on a phone and the app has
+# never met you.
+#
+# The fix is deliberately NOT a rewrite of each tab's save code. There
+# are nine such keys across six screens, every one of them written by the
+# page's own component, and nine bespoke transforms would be nine anchors
+# to break on the next design resync. Instead the STORAGE is redirected
+# once, under all of them: a shim installed before the app boots serves
+# the managed keys out of the account's saved copy and writes changes
+# back. The page keeps calling localStorage and never learns anything
+# changed.
+#
+# Everything not managed passes straight through to the real
+# localStorage, so a theme, a cache or a dev override behaves exactly as
+# before.
+
+_PREFS_SHIM = """<script>(function(){
+  var SAVED = %(saved)s, MANAGED = %(managed)s, PENDING = {}, timer = null;
+  var real = window.localStorage, own = {};
+  MANAGED.forEach(function (k) {
+    // The account's copy wins on load. A key the account has never saved
+    // falls back to whatever this browser holds, so somebody signing in
+    // for the first time keeps the lists they built before they had an
+    // account instead of watching them vanish.
+    own[k] = Object.prototype.hasOwnProperty.call(SAVED, k) ? SAVED[k] : null;
+  });
+  function managed(k) { return MANAGED.indexOf(k) !== -1; }
+  function flush() {
+    timer = null;
+    var body = JSON.stringify(PENDING);
+    PENDING = {};
+    if (body === "{}") return;
+    fetch("/app/mine/prefs", { method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: body }).catch(function () {});
+  }
+  function queue(k, v) {
+    PENDING[k] = v;
+    // Coalesced: dragging a row up five places is five writes and one
+    // request. `pagehide` covers the reader who reorders and immediately
+    // closes the tab, which is the case a plain debounce loses.
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, 900);
+  }
+  // Probed FIRST. A browser with storage disabled throws on the very
+  // first touch, and the guard is worthless below the code it protects:
+  // the listeners would already be bound and the overrides half-applied.
+  try {
+    real.getItem("__fb_probe");
+  } catch (e) { return; }
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") flush();
+  });
+  localStorage.getItem = function (k) {
+    return managed(k) ? own[k] : real.getItem(k);
+  };
+  localStorage.setItem = function (k, v) {
+    if (!managed(k)) return real.setItem(k, v);
+    own[k] = String(v);
+    // Written through to the device as well, so a later signed-out visit
+    // still shows the lists rather than an empty app.
+    try { real.setItem(k, String(v)); } catch (e) {}
+    queue(k, String(v));
+  };
+  localStorage.removeItem = function (k) {
+    if (!managed(k)) return real.removeItem(k);
+    own[k] = null;
+    try { real.removeItem(k); } catch (e) {}
+    queue(k, "");
+  };
+})();</script>"""
+
+
+def prefs_shim(html: str, saved: dict | None) -> tuple[str, int]:
+    """Redirect the page's own storage for the keys that are somebody's work.
+
+    `saved is None` means nobody is signed in: nothing is injected and
+    the page uses localStorage exactly as the design document wrote it.
+    That is not a degraded mode, it is the correct one -- there is no
+    account for the lists to follow.
+
+    Injected at `</head>`, which is before the app's own script runs.
+    Later would be too late: the component reads these keys as it boots,
+    and a shim installed after that has already missed the only read that
+    decides what the first screen shows.
+    """
+    if saved is None:
+        # An empty MISS LIST, not 0 -- every transform here returns the
+        # labels it could not find, and a caller doing `if misses:` would
+        # read a bare 0 as "no misses" only by accident of falsiness.
+        return html, []
+    # `skin.script_json`, not html escaping: inside a <script> block the
+    # browser does no HTML decoding, so "&quot;" would reach the JS
+    # parser as those six characters. The hazard here is a value that
+    # contains "</script>" and ends the element early -- a player name
+    # somebody typed at /app/mine would do it.
+    body = _PREFS_SHIM % {
+        "saved": skin.script_json(saved),
+        "managed": skin.script_json(list(prefs.MANAGED)),
+    }
+    return _apply(html, (("prefs shim", "</head>", body + "</head>", 1),))

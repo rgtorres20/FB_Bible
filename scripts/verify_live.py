@@ -1189,6 +1189,23 @@ def main() -> int:
     # signed-out fallback is intact for a reader with no session, and that
     # the script half shipped. The signed-in injection is pinned by
     # tests/test_watchlist.py against the real served page.
+    # Owner, Aug 26: "why make a list you cant save", and "when i log
+    # into other devices i dont see my changes". Same shape as the
+    # sleepers checks below -- the watchdog holds a sync token, not a
+    # session, so it is served the SIGNED-OUT page and the shim is
+    # correctly absent. What it can prove is that a reader with no
+    # account is left alone, which is the half that would otherwise
+    # regress silently. The signed-in half is pinned in tests/test_prefs.py.
+    check(
+        "a reader with no session gets no storage shim",
+        "localStorage.getItem = function" not in served,
+        "no session cookie here, so the page keeps plain localStorage -- by design",
+    )
+    check(
+        "the save route refuses a stranger",
+        post_json("/app/mine/prefs")[0] == 401,
+        f"HTTP {post_json('/app/mine/prefs')[0]}",
+    )
     check(
         "a reader with no session keeps the browser's own sleepers list",
         'localStorage.getItem("ww_my_sleepers")' in served,

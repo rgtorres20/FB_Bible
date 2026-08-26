@@ -23,6 +23,7 @@ from .feeds import (
     curated,
     depth,
     page,
+    prefs,
     previews,
     ranklists,
     skin,
@@ -431,6 +432,16 @@ if _FRONTEND_READY:
         # count -- so "whose account is this" is a live question and had
         # no answer on the main screen.
         html, _ = page.header_identity(html, who)
+        # The reader's own lists follow their account rather than their
+        # browser (owner, Aug 26: "when i log into other devices i dont
+        # see my changes"). Injected before </head>, which is before the
+        # page's own script reads those keys -- later would already have
+        # missed the read that decides what the first screen shows.
+        html, prefs_misses = page.prefs_shim(
+            html, prefs.stored(user_data) if who and store is not None else None
+        )
+        if prefs_misses:
+            log.warning("served page: prefs shim found no anchor for %s", prefs_misses)
         # The two hand-read tabs say how old they are (owner, Aug 25:
         # "we need to add dates so i know if this is latest or
         # preseason"). Neither said anything about its own age, and both
