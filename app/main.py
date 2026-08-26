@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, clock, page, previews, ranklists, skin, stats, vegas
+from .feeds import board, clock, curated, page, previews, ranklists, skin, stats, vegas
 from .feeds import players as players_mod
 from .feeds.store import FeedStore, StoredDataUnreadable
 from .routes import access, auth, feeds, league, leaguecfg, userdata
@@ -366,6 +366,13 @@ if _FRONTEND_READY:
         # count -- so "whose account is this" is a live question and had
         # no answer on the main screen.
         html, _ = page.header_identity(html, who)
+        # The two hand-read tabs say how old they are (owner, Aug 25:
+        # "we need to add dates so i know if this is latest or
+        # preseason"). Neither said anything about its own age, and both
+        # had stood since Aug 14 -- through a round of preseason games.
+        html, n_dated = curated.inject(html, clock.today())
+        if n_dated != 2:
+            log.warning("curated stamps: %d of 2 tabs dated", n_dated)
         every = ranklists.with_overrides(ranklists.builtins() + mine, user_data)
         html, n_src = board.inject_sources(html, ranklists.sources_payload(every, clock.today()))
         if n_src:

@@ -1003,6 +1003,20 @@ def main() -> int:
         '"Sources live", value: "9"' not in served and "Sources watched" in served,
     )
 
+    # Owner, Aug 25: "we need to add dates so i know if this is latest or
+    # preseason". The Sleepers and Backup RB tabs are hand-read constants
+    # no feed touches, and neither said anything about its own age.
+    # Checked live per tab -- one stamp landing and the other missing is
+    # the half-applied edit this file keeps finding.
+    check(
+        "both hand-read tabs carry an as-of date",
+        served.count("Read by hand") == 2,
+        f"{served.count('Read by hand')} of 2 stamped",
+    )
+    check(
+        "the backup table does not read like a measurement",
+        "usage splits are estimates, not measured" in served,
+    )
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now

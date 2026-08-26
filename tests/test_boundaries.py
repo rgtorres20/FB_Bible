@@ -62,6 +62,9 @@ DATA_UNITS: dict[str, frozenset[str]] = {
     "odds": frozenset({"vegas"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
     "scoring": frozenset({"scorecard", "replacement"}),
+    # curated is a surface's honesty layer rather than a data unit: it
+    # holds no feed, only the as-of stamps for the two tabs nobody polls.
+    "curated": frozenset({"curated"}),
 }
 
 SURFACES = frozenset(
