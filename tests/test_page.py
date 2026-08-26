@@ -630,3 +630,41 @@ def test_the_server_side_yahoo_route_is_untouched():
     from app.routes import auth
 
     assert any("/auth/yahoo" in getattr(r, "path", "") for r in auth.router.routes)
+
+
+# --- the Sleepers tab's own list ---------------------------------------
+
+
+def test_the_sleepers_tab_offers_a_list_of_your_own(index_html):
+    """Owner, Aug 25: "this list should be editble like we discused".
+
+    The tab was 19 rows transcribed from other people's previews on Aug
+    14 and frozen. The transform's whole job is to open the door for a
+    per-user list, so what it must leave behind is the anchor mobile.js
+    builds into -- above the frozen table, not below it."""
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    assert "data-fb-sleepers" in served
+    assert served.index("data-fb-sleepers") < served.index("{{ showSleeperTable }}")
+
+
+def test_the_analysts_table_is_named_rather_than_deleted(index_html):
+    """19 researched names are a reasonable place to start a list from --
+    the failure was that they were the *only* list. Kept, but labelled,
+    so the two panels cannot be read as one."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "hand-read, not live" in served
+    assert "{{ targets }}" in served
+
+
+def test_a_missing_table_anchor_reports_a_miss(index_html):
+    """Insert nothing, say so. A watchlist anchor that silently failed to
+    land renders as a tab that simply has no list on it."""
+    stripped = index_html.replace("{{ showSleeperTable }}", "{{ gone }}")
+
+    served, misses = page.sleepers_watchlist(stripped)
+
+    assert misses == ["sleepers watchlist anchor"]
+    assert served == stripped

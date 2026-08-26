@@ -605,6 +605,7 @@ def main() -> int:
         "/app/mobile.js",
         "/app/data/feeds.json",
         "/app/data/ranksources.json",
+        "/app/data/sleepers.json",
     ):
         code = anon_status(guarded)
         check(f"still gated: {guarded}", code in (303, 401, 307), f"HTTP {code}")
@@ -1109,6 +1110,35 @@ def main() -> int:
         bool(live_sources) and all("builtin" in row for row in live_sources),
     )
 
+    # Owner, Aug 25: the Sleepers tab was 19 rows transcribed from other
+    # people's previews on Aug 14 and frozen -- "right now it doesnt make
+    # sense and this list should be editble". Three halves have to survive
+    # for the tab to have a list on it, and each fails silently alone: the
+    # serve-time anchor, the script that binds to it, and the route that
+    # persists an edit.
+    check(
+        "the sleepers tab carries the watchlist anchor",
+        "data-fb-sleepers" in served,
+    )
+    check(
+        "your list sits above the analysts' table",
+        "data-fb-sleepers" in served
+        and "{{ showSleeperTable }}" in served
+        and served.index("data-fb-sleepers") < served.index("{{ showSleeperTable }}"),
+    )
+    check(
+        "the analysts' table is named rather than passed off as yours",
+        "hand-read, not live" in served,
+    )
+    # A POST, as above: anon_status sends a GET, and a GET on a POST-only
+    # route is 405 whether it is guarded or not.
+    code, _ = post_json("/app/mine/sleepers")
+    check(
+        "the sleepers edit refuses a stranger",
+        code == 401,
+        f"HTTP {code} (405 means the probe used the wrong method)",
+    )
+
     mobile_css = get("/app/mobile.css")
     check("mobile.css serves", b"min-height: 100vh" in mobile_css)
     check("wire-stamp styles serve", b"fb-wire-stamp" in mobile_css)
@@ -1119,6 +1149,11 @@ def main() -> int:
         "source panel decorator serves",
         b"fb-rank-sources" in mobile_js and b"Board order" in mobile_js,
     )
+    check(
+        "sleepers panel decorator serves",
+        b"fb-sleepers" in mobile_js and b"/app/data/sleepers.json" in mobile_js,
+    )
+    check("sleepers panel styles serve", b"fb-sl-thread" in mobile_css)
 
     # --- verdict -----------------------------------------------------------
     print(f"\n{len(passes)} passed, {len(failures)} failed")

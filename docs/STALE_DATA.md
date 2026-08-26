@@ -115,7 +115,34 @@ Ordered by how much staleness actually costs.
    the stats do not cover reads "no '25 usage", never a zero. What stays
    curated is the judgement around the numbers — who is worth a late
    pick and why — and the tab's stamp now says which half is which.
-6. **weekrev / Team intel / FFBets salaries** — curated estimates, already
+6. **TARGETS (the Sleepers tab's 19 rows)** — analysts' picks
+   transcribed by hand from PFF, Yahoo and Bleacher Report on **Aug 14**,
+   frozen there, and carrying no date until `curated.inject` stamped the
+   tab on Aug 25.
+   *Answered Aug 26, differently than the other rows here.* The owner's
+   complaint was not that the rows were old: *"right now it doesnt make
+   sense and this list should be editble like we discused"*. Staleness was
+   the symptom; the disease was that the tab held **somebody else's** list
+   and offered no way to change it. Refreshing the transcription would have
+   fixed neither.
+   So the tab now opens on **your own list** — a per-user watchlist stored
+   beside your ranking lists and league settings (`app/feeds/watchlist.py`,
+   `/app/data/sleepers.json`, `POST /app/mine/sleepers`) — and under it a
+   thread of **the real polled items mentioning those players**. That
+   thread is a *join*, not a search: the poller already tags every item
+   with the players it mentions, so this is a lookup against work already
+   done, and it renders the item's own headline and link rather than a
+   summary of one. Nothing on it can go stale, because nothing on it is
+   transcribed.
+   The 19 analyst rows are **kept below it, dated and retitled**
+   "Analysts' picks · hand-read, not live". Nineteen names somebody
+   researched are a reasonable place to start a list from; the failure was
+   that they were the *only* list. The app deliberately does not decide who
+   your sleepers are — it can say a player is trending or projected above
+   his ADP, it cannot say who you believe in, and that judgement is exactly
+   what the frozen table was carrying on somebody else's behalf.
+
+7. **weekrev / Team intel / FFBets salaries** — curated estimates, already
    labelled "estimates / no live sheet" in Data health. Plan: revisit when
    the season starts (weekrev is a September feature); salaries have no
    free live source — the honest label stays.

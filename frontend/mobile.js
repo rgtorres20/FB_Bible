@@ -242,6 +242,215 @@
     }
   }
 
+  /* --- Sleepers: the owner's own list, and the wire about it -------------
+   *
+   * Owner, Aug 25: "maybe the sleepers need a list of people that i can
+   * add but we also show sleepers alerts in seperate thread where we
+   * search for new articles on sleepers for ppr leagues", and plainly,
+   * "right now it doesnt make sense and this list should be editble".
+   *
+   * The tab shipped as 19 rows transcribed by hand from PFF, Yahoo and
+   * Bleacher Report on Aug 14 and frozen: somebody else's picks, from
+   * before the preseason, unchangeable. This replaces that panel with a
+   * list you keep and a thread of the real polled items mentioning it.
+   *
+   * The thread is a join the server already had -- every item carries
+   * the players it mentions -- so nothing is searched and nothing is
+   * summarised. Titles link out to the real article. */
+  var sleeperData = null;
+  var sleeperBusy = false;
+
+  function sleeperPost(p) {
+    var row = document.createElement('div');
+    row.className = 'fb-sl-post';
+    var a = document.createElement('a');
+    a.href = p.url || '#';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.className = 'fb-sl-title';
+    a.textContent = p.title || '(untitled)';
+    var meta = document.createElement('div');
+    meta.className = 'fb-sl-meta';
+    /* Who it is about, then where it came from and when. Every one of
+     * these came off the item itself. */
+    meta.textContent = (p.about || []).join(', ') + ' · ' + (p.source || '') +
+      (p.published ? ' · ' + String(p.published).slice(0, 10) : '');
+    row.appendChild(a);
+    row.appendChild(meta);
+    return row;
+  }
+
+  function sleeperRow(w) {
+    var row = document.createElement('div');
+    row.className = 'fb-src-row';
+    var name = document.createElement('span');
+    name.className = 'fb-src-name';
+    name.textContent = w.name;
+    var meta = document.createElement('span');
+    meta.className = 'fb-src-meta';
+    /* "no posts yet" is a real answer to what a sleeper list asks, and
+     * often the point of one -- so it is said, not hidden. A name the
+     * player index does not carry is flagged, because it will never
+     * collect wire and the reader should know why. */
+    meta.textContent = w.known
+      ? (w.meta ? w.meta + ' · ' : '') +
+        (w.posts ? w.posts + (w.posts === 1 ? ' post' : ' posts') : 'no posts yet')
+      : 'not a name the player index knows — no wire will match it';
+    var drop = document.createElement('button');
+    drop.className = 'fb-src-btn';
+    drop.type = 'button';
+    drop.textContent = 'Remove';
+    drop.onclick = function () { editSleeper(w.name, true, drop); };
+    row.appendChild(name);
+    row.appendChild(meta);
+    row.appendChild(drop);
+    return row;
+  }
+
+  function editSleeper(name, drop, btn) {
+    if (sleeperBusy) return;
+    sleeperBusy = true;
+    if (btn) btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('name', name);
+    body.set('drop', drop ? '1' : '0');
+    fetch('/app/mine/sleepers', {
+      method: 'POST', credentials: 'same-origin', body: body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    })
+      .then(function (r) {
+        if (r.status === 401) throw new Error('signed out');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (fresh) {
+        sleeperData = fresh;
+        sleeperBusy = false;
+        renderSleepers();
+      })
+      .catch(function (err) {
+        sleeperBusy = false;
+        if (btn) btn.disabled = false;
+        sleeperNote(err.message === 'signed out'
+          ? 'Sign in to keep a sleepers list.'
+          : 'Could not save that — the list is unchanged.');
+      });
+  }
+
+  function sleeperNote(text) {
+    var host = document.getElementById('fb-sleepers');
+    if (!host) return;
+    var line = host.querySelector('.fb-src-msg');
+    if (!line) {
+      line = document.createElement('div');
+      line.className = 'fb-src-msg';
+      host.appendChild(line);
+    }
+    line.textContent = text;
+  }
+
+  /* What the panel actually shows. The MutationObserver re-runs decorate()
+   * on every DOM change -- including the ones this render makes -- so an
+   * unconditional rebuild would loop at frame rate and, worse, wipe a
+   * half-typed name out of the add box on every pass. Rendering is
+   * therefore a no-op unless the data behind it changed. */
+  function sleeperStamp(d) {
+    return JSON.stringify([
+      (d.watched || []).map(function (w) { return w.name + '/' + w.posts + '/' + w.known; }),
+      (d.posts || []).map(function (p) { return p.url || p.title; })
+    ]);
+  }
+
+  function renderSleepers() {
+    var host = document.getElementById('fb-sleepers');
+    if (!host || !sleeperData) return;
+    var stamp = sleeperStamp(sleeperData);
+    if (host.getAttribute('data-stamp') === stamp) return;
+    host.setAttribute('data-stamp', stamp);
+    /* Carry the half-typed name across a refresh that lands mid-sentence. */
+    var box = host.querySelector('.fb-sl-add input');
+    var typed = box && box.value ? box.value : '';
+    host.textContent = '';
+
+    var head = document.createElement('div');
+    head.className = 'fb-src-head';
+    var n = (sleeperData.watched || []).length;
+    head.textContent = 'My sleepers · ' + n + (n === 1 ? ' player' : ' players') +
+      ' · ' + (sleeperData.posts || []).length + ' posts about them';
+    host.appendChild(head);
+
+    var form = document.createElement('form');
+    form.className = 'fb-sl-add';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Add a player by name';
+    input.setAttribute('aria-label', 'Add a player to your sleepers list');
+    var go = document.createElement('button');
+    go.className = 'fb-src-btn';
+    go.type = 'submit';
+    go.textContent = 'Add';
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      var v = input.value.trim();
+      if (v) { input.value = ''; editSleeper(v, false, go); }
+    };
+    input.value = typed;
+    form.appendChild(input);
+    form.appendChild(go);
+    host.appendChild(form);
+
+    (sleeperData.watched || []).forEach(function (w) { host.appendChild(sleeperRow(w)); });
+
+    if (!n) {
+      var empty = document.createElement('div');
+      empty.className = 'fb-src-note';
+      /* An empty list is a legitimate state and says so, rather than the
+       * tab looking broken. */
+      empty.textContent = 'Nobody on the list yet. Add a player and every ' +
+        'polled item that mentions him shows up here.';
+      host.appendChild(empty);
+      return;
+    }
+
+    var thread = document.createElement('div');
+    thread.className = 'fb-sl-thread';
+    var th = document.createElement('div');
+    th.className = 'fb-src-head';
+    th.textContent = 'The wire about them';
+    thread.appendChild(th);
+    if (!(sleeperData.posts || []).length) {
+      var none = document.createElement('div');
+      none.className = 'fb-src-note';
+      none.textContent = 'Nothing polled about these players yet. That is an ' +
+        'answer too — a sleeper nobody is writing about is still a sleeper.';
+      thread.appendChild(none);
+    } else {
+      sleeperData.posts.forEach(function (p) { thread.appendChild(sleeperPost(p)); });
+    }
+    host.appendChild(thread);
+  }
+
+  var sleeperFetched = false;
+
+  function showSleepers() {
+    /* Navigating away re-renders the screen and takes the host with it, so
+     * the anchor is looked up again every pass rather than once at boot. */
+    if (!document.getElementById('fb-sleepers')) {
+      var anchor = document.querySelector('[data-fb-sleepers]');
+      if (!anchor || !anchor.parentElement) return;
+      var host = document.createElement('div');
+      host.id = 'fb-sleepers';
+      anchor.parentElement.insertBefore(host, anchor);
+    }
+    if (sleeperData) { renderSleepers(); return; }
+    if (sleeperFetched) return;
+    sleeperFetched = true;
+    fetch('/app/data/sleepers.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) { sleeperData = d; renderSleepers(); } })
+      .catch(function () { /* the analysts' table stays; silence is right */ });
+  }
+
   /* Club themes (owner, Aug 21). The page owns its own theme state and
    * writes ww_theme; this mirrors that choice onto <html>, where the
    * club palettes in /app/teams.css live, so switching modes repaints
@@ -543,6 +752,7 @@
     offerTeamPicker();
     linkDraftTools();
     showRankSources();
+    showSleepers();
     if (!data) return;
     badgeNews();
     stampInjury();

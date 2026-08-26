@@ -473,3 +473,58 @@ aside > div:nth-child(2) {
   font-weight: 700;
   color: var(--color-accent-700, inherit);
 }
+
+/* The Sleepers tab's own list, and the wire about it. Built by
+ * showSleepers() in mobile.js. It reuses the source panel's row styles
+ * deliberately -- both answer "what is on my list and why" and a second
+ * visual language for the same question is how one of them drifts. */
+#fb-sleepers {
+  border: 1px solid var(--color-neutral-400);
+  padding: 12px 14px;
+  margin: 12px var(--space-8, 20px) 4px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+.fb-sl-add {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+/* Full width on a phone: this gets typed into one-handed, mid-draft. */
+.fb-sl-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 9px;
+  min-height: 32px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-neutral-400, rgba(128, 128, 128, 0.5));
+  border-radius: 4px;
+}
+.fb-sl-add .fb-src-btn { margin-left: 0; }
+.fb-sl-thread {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 2px solid var(--color-neutral-400, rgba(128, 128, 128, 0.5));
+}
+.fb-sl-post {
+  padding: 7px 0;
+  border-top: 1px solid var(--color-neutral-300, rgba(128, 128, 128, 0.3));
+}
+.fb-sl-post:first-of-type { border-top: 0; }
+.fb-sl-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.fb-sl-title:hover { color: var(--color-accent-700, inherit); }
+.fb-sl-meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--color-neutral-600, inherit);
+}

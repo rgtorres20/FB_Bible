@@ -52,7 +52,10 @@ KERNEL = frozenset(
 COMPOSERS = frozenset({"main", "feeds", "league", "leaguecfg", "userdata", "access", "auth"})
 
 DATA_UNITS: dict[str, frozenset[str]] = {
-    "wire": frozenset({"poller", "rss", "rotoworld", "impact", "injury"}),
+    # watchlist joins the wire onto a list the user keeps, so it belongs
+    # with the wire rather than beside the ranking lists: what it owns is
+    # the join, not the storage.
+    "wire": frozenset({"poller", "rss", "rotoworld", "impact", "injury", "watchlist"}),
     "adp": frozenset({"adp", "board", "ranklists"}),
     # projections sits with the measured stats rather than in its own
     # unit: both reduce a Sleeper payload of the SAME stat vocabulary

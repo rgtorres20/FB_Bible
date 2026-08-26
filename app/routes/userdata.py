@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .. import passkeys
 from ..config import Settings, get_settings
-from ..feeds import clock, ranklists, skin, teams
+from ..feeds import clock, ranklists, skin, teams, watchlist
 from ..feeds.store import FeedStore
 from .access import session_email
 from .feeds import get_feed_store, get_optional_feed_store
@@ -597,6 +597,70 @@ async def mine_list_active(
         ranklists.builtins() + mine, {**data, **{ranklists.OVERRIDES_KEY: choices}}
     )
     return JSONResponse(ranklists.sources_payload(every, clock.today()))
+
+
+async def _sleeper_payload(request: Request, settings: Settings, store) -> dict:
+    """The list plus its wire, for whoever is signed in."""
+    email = session_email(request, settings)
+    stored: dict = {}
+    if email and store is not None:
+        try:
+            stored = await store.load_user(email)
+        except Exception as exc:  # noqa: BLE001 - the tab still renders
+            log.warning("sleepers: user data unavailable: %s", exc)
+    index: dict = {}
+    items: list[dict] = []
+    if store is not None:
+        try:
+            index = await store.load_players() or {}
+            items = (await store.load()).get("items") or []
+        except Exception as exc:  # noqa: BLE001 - an empty thread, not a 500
+            log.warning("sleepers: wire unavailable: %s", exc)
+    return watchlist.summary(index, items, watchlist.watched(stored))
+
+
+@router.get("/app/data/sleepers.json", include_in_schema=False)
+async def sleepers_data(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore | None = Depends(get_optional_feed_store),
+) -> dict:
+    """The owner's watchlist and every polled item mentioning it.
+
+    Owner, Aug 25: the Sleepers tab was 19 rows transcribed by hand from
+    other people's previews on Aug 14 and frozen -- "right now it doesnt
+    make sense and this list should be editble".
+
+    The thread is a JOIN, not a search: the poller already tags every
+    item with the players it mentions, so this is a lookup against work
+    already done, and it returns the real item rather than a summary.
+    """
+    return await _sleeper_payload(request, settings, store)
+
+
+@router.post("/app/mine/sleepers", include_in_schema=False)
+async def sleepers_edit(
+    request: Request,
+    name: str = Form(...),
+    drop: str = Form(""),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Add or drop one player, and answer with the refreshed list.
+
+    JSON and 401 rather than a redirect: this is called by fetch from the
+    board, and a 303 to /login would be followed silently and rendered as
+    data.
+    """
+    email = session_email(request, settings)
+    if not email:
+        return JSONResponse({"detail": "sign-in required"}, status_code=401)
+
+    data = await store.load_user(email)
+    dropping = drop not in ("", "0", "false")
+    names = watchlist.remove(data, name) if dropping else watchlist.add(data, name)
+    await store.save_user(email, {**data, watchlist.KEY: names})
+    return JSONResponse(await _sleeper_payload(request, settings, store))
 
 
 @router.get("/app/data/ranksources.json", include_in_schema=False)

@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1332 tests green — 1316 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1357 tests green — 1341 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -371,6 +371,34 @@ header is renamed to `'25 P/G` by a named transform — a real number under
 a "Proj" label would swap one wrong claim for another. Both edits land
 together or neither does; a map injected beside a surviving formula would
 keep rendering the invented number.
+
+
+The **Sleepers tab is now your list, not an analyst's** (owner, Aug 26:
+*"right now it doesnt make sense and this list should be editble like we
+discused"*). It shipped as 19 rows transcribed by hand from PFF, Yahoo
+and Bleacher Report on Aug 14 and frozen there — somebody else's picks,
+from before the preseason, with no way to change them. Staleness was the
+symptom; the disease was that a list you cannot edit is not your list, so
+re-transcribing it would have fixed nothing. The tab opens on a per-user
+watchlist (`app/feeds/watchlist.py`, stored beside your ranking lists and
+league settings) and, under it, **a thread of the real polled items
+mentioning those players**. That thread is a **join, not a search**: the
+poller already tags every item with the players it mentions, so this is a
+lookup against work already done and it renders the item's own headline
+and link rather than a summary of one. A watched player nobody has
+written about reports **zero posts rather than being hidden** — "nobody
+is talking about him" is a real answer to what a sleeper list asks, and
+often the point of one — and a name the player index does not carry stays
+on the list, flagged, because dropping it would be the app overruling
+what somebody typed. The 19 analyst rows are **kept below it, dated and
+retitled** "Analysts' picks · hand-read, not live": nineteen researched
+names are a fine place to start a list from, and the failure was that
+they were the *only* list. The app deliberately does not decide who your
+sleepers are. The anchor is a named transform (`page.sleepers_watchlist`)
+and the panel is built client-side, so `tests/test_watchlist.py` runs the
+real `mobile.js` under node against the real **served** page — the anchor
+does not exist on disk, and reading the file would test something no
+browser ever sees.
 
 `/app/scoring` is the scoring board (owner ask, Aug 21): every player's
 stored stat line run through **each league's own scoring values**, ranked.

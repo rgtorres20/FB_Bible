@@ -833,6 +833,58 @@ def feeds_watched(html: str) -> tuple[str, list[str]]:
     )
 
 
+# The frozen analyst table's own <sc-if>, which is the first thing under
+# the tab's curated as-of banner. The watchlist goes above it, so the tab
+# opens on the reader's own list rather than on somebody else's.
+_SLEEPER_TABLE = '        <sc-if value="{{ showSleeperTable }}" hint-placeholder-val="{{ true }}">'
+
+_SLEEPER_ANCHOR = (
+    "        <div data-fb-sleepers></div>\n"
+    '        <div style="padding:14px var(--space-8) 4px; font-size:10px; '
+    "font-weight:800; letter-spacing:0.14em; text-transform:uppercase; "
+    'color:var(--color-neutral-600);">'
+    "Analysts&#8217; picks &#183; hand-read, not live"
+    "</div>\n"
+)
+
+
+def sleepers_watchlist(html: str) -> tuple[str, list[str]]:
+    """Put the reader's own sleepers list above the analysts' table.
+
+    Owner, Aug 25: "maybe the sleepers need a list of people that i can
+    add but we also show sleepers alerts in seperate thread where we
+    search for new articles on sleepers for ppr leagues", then plainly:
+    "right now it doesnt make sense and this list should be editble".
+
+    The tab was 19 rows transcribed from PFF, Yahoo and Bleacher Report
+    on Aug 14 and frozen there -- other people's picks, from before the
+    preseason, with no way to change them. `curated.inject` already dates
+    that table honestly; what it could not do is make it *yours*.
+
+    This transform only opens the door: it inserts the anchor `mobile.js`
+    builds the watchlist into, and titles what is left underneath so the
+    two panels cannot be read as one list. The rows themselves are
+    fetched from `/app/data/sleepers.json`, because they are per-user and
+    the served page is the same bytes for everybody.
+
+    The analysts' table is kept rather than deleted. It is dated, it is
+    attributed, and 19 names somebody researched are a reasonable place
+    to start a list from -- the failure was that it was the *only* list,
+    not that it existed.
+    """
+    return _apply(
+        html,
+        (
+            (
+                "sleepers watchlist anchor",
+                _SLEEPER_TABLE,
+                _SLEEPER_ANCHOR + _SLEEPER_TABLE,
+                1,
+            ),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -847,6 +899,7 @@ PRE = (
     feed_paging,
     feeds_watched,
     source_names,
+    sleepers_watchlist,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.
