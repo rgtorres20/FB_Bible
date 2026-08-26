@@ -11,6 +11,7 @@ X-Sync-Token keeps the watchdog and sync working through a closed gate.
 from __future__ import annotations
 
 import re
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -579,3 +580,247 @@ def test_a_typo_on_the_invite_form_does_not_cost_the_link(client):
 
     # The link survived both, and still works.
     assert _accept(invitee, token).headers["location"] == "/app/"
+
+
+# --- deleting a user, not just revoking them (owner, Aug 25) ---------------
+# "i need a way to delete users from main account". Remove already dropped
+# the allowlist entry, pending invites and passkeys -- everything that gets
+# somebody back IN. What it left was their own layer: documents, ranking
+# lists, league settings. A removed address kept its contents forever, and
+# re-adding it handed the next holder everything the last one wrote.
+
+
+async def test_remove_still_keeps_what_they_saved(client):
+    """Unchanged on purpose. Remove has meant "revoke, keep their work"
+    since August, and people rely on re-adding restoring it. Making that
+    click destructive would erase documents on a familiar control."""
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"notes": "my keepers"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    c.post("/app/access/remove", data={"email": "friend@x.com"})
+
+    assert "friend@x.com" not in (await store.load_auth()).get("allow", {})
+    assert await store.load_user("friend@x.com") == {"docs": {"notes": "my keepers"}}
+
+
+async def test_delete_revokes_and_erases(client):
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"notes": "my keepers"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    page = c.post("/app/access/delete", data={"email": "friend@x.com"}).text
+
+    assert "friend@x.com" not in (await store.load_auth()).get("allow", {})
+    assert await store.load_user("friend@x.com") == {}
+    assert "erased" in page
+
+
+async def test_delete_normalises_the_address_like_every_other_path(client):
+    """A capitalised address must delete the same person, or the purge
+    misses and the page says it succeeded."""
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"a": "b"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    c.post("/app/access/delete", data={"email": "Friend@X.com "})
+
+    assert await store.load_user("friend@x.com") == {}
+
+
+async def test_delete_takes_their_passkeys_and_invites_too(client):
+    """Everything Remove revokes, Delete revokes as well -- it is Remove
+    plus the purge, never a different half."""
+    c, store = client
+    auth, _token = authn.mint_invite({}, "friend@x.com", NOW)
+    auth = {**auth, "allow": {"friend@x.com": {"added": 0, "passkeys": [{"id": "abc"}]}}}
+    await store.save_auth(auth)
+    _owner_login(c)
+
+    c.post("/app/access/delete", data={"email": "friend@x.com"})
+    after = await store.load_auth()
+
+    assert not after.get("invites")
+    assert "friend@x.com" not in after.get("allow", {})
+
+
+async def test_deleting_someone_leaves_everyone_else_alone(client):
+    c, store = client
+    await store.save_user("keep@x.com", {"docs": {"mine": "safe"}})
+    await store.save_user("go@x.com", {"docs": {"theirs": "gone"}})
+    await store.save_auth({"allow": {"keep@x.com": {"added": 0}, "go@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    c.post("/app/access/delete", data={"email": "go@x.com"})
+
+    assert await store.load_user("keep@x.com") == {"docs": {"mine": "safe"}}
+    assert "keep@x.com" in (await store.load_auth()).get("allow", {})
+
+
+async def test_delete_is_owner_only(client):
+    """The same guard Remove has. A signed-in guest deleting other users
+    would be the worst hole on this page."""
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"notes": "keep"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    c.cookies.set(authn.SESSION_COOKIE, authn.mint_session("friend@x.com", "unit-test-secret"))
+
+    resp = c.post("/app/access/delete", data={"email": "friend@x.com"}, follow_redirects=False)
+
+    assert resp.status_code == 303
+    assert await store.load_user("friend@x.com") == {"docs": {"notes": "keep"}}
+
+
+async def test_deleting_twice_is_safe(client):
+    """Idempotent, which is what makes "try again" honest advice when the
+    purge half fails."""
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"a": "b"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    c.post("/app/access/delete", data={"email": "friend@x.com"})
+    resp = c.post("/app/access/delete", data={"email": "friend@x.com"})
+
+    assert resp.status_code == 200
+    assert await store.load_user("friend@x.com") == {}
+
+
+async def test_a_failed_purge_does_not_claim_the_data_is_gone(client, monkeypatch):
+    """Access is revoked first and saved, so the half-state is "locked out
+    with their data intact" -- the safe one. The page must then say which
+    half happened: "Deleted" over a blob still in the store is exactly the
+    false completion this repo rules out."""
+    c, store = client
+    await store.save_user("friend@x.com", {"docs": {"a": "b"}})
+    await store.save_auth({"allow": {"friend@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    async def boom(email):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(store, "delete_user", boom)
+    page = c.post("/app/access/delete", data={"email": "friend@x.com"}).text
+
+    assert "friend@x.com" not in (await store.load_auth()).get("allow", {})
+    assert "could not be erased" in page
+    assert "OSError" in page
+    assert await store.load_user("friend@x.com") == {"docs": {"a": "b"}}
+
+
+# --- sign-in tracking, so "stale" is evidence (owner, Aug 25) --------------
+# "track how many times they have logged on so i can delete stale usrs". The
+# delete control landed the same day with nothing to point it at: the
+# allowlist knew who COULD get in and never who did.
+
+
+def test_a_sign_in_is_counted_against_the_address():
+    auth = {"allow": {"friend@x.com": {"added": 0}}}
+
+    once = authn.record_sign_in(auth, "friend@x.com", now=NOW)
+    twice = authn.record_sign_in(once, "Friend@X.com ", now=NOW)
+
+    assert twice["allow"]["friend@x.com"]["sign_ins"] == 2
+    assert twice["allow"]["friend@x.com"]["last_seen"] == NOW
+
+
+def test_counting_never_creates_access():
+    """It must not be a back door. An address with no row is ignored."""
+    auth = {"allow": {}}
+
+    assert authn.record_sign_in(auth, "stranger@x.com", now=NOW) == auth
+
+
+def test_an_entry_from_before_this_existed_starts_at_one():
+    """Everyone added before Aug 25 has no counter. Their first sign-in
+    after this ships must not crash on the missing key."""
+    auth = {"allow": {"old@x.com": {"added": 0}}}
+
+    out = authn.record_sign_in(auth, "old@x.com", now=NOW)
+
+    assert out["allow"]["old@x.com"]["sign_ins"] == 1
+    assert out["allow"]["old@x.com"]["added"] == 0, "the rest of the row survives"
+
+
+def test_never_signed_in_is_not_zero_days_ago():
+    """The two ends of the question being asked. Rendering None as 0 would
+    make somebody who never showed up look like they came today."""
+    assert authn.last_seen_days({"sign_ins": 0}) is None
+    assert authn.last_seen_days({"last_seen": 0}) is None
+    assert authn.last_seen_days(None) is None
+    assert authn.last_seen_days({"last_seen": NOW - 86400 * 3}, now=NOW) == 3
+    assert authn.last_seen_days({"last_seen": NOW}, now=NOW) == 0
+
+
+async def test_signing_in_with_a_password_is_counted(client):
+    c, store = client
+    await store.save_auth(authn.set_password({"allow": {}}, "friend@x.com", "draft-day-2026"))
+
+    c.post("/login", data={"email": "friend@x.com", "code": "draft-day-2026"})
+
+    entry = (await store.load_auth())["allow"]["friend@x.com"]
+    assert entry["sign_ins"] == 1
+    assert entry["last_seen"] > 0
+
+
+async def test_accepting_an_invite_counts_as_the_first_sign_in(client):
+    """Otherwise a brand-new user reads as never having been here -- the
+    row the owner would look at and delete."""
+    c, store = client
+    _owner_login(c)
+    page = c.post("/app/access/add", data={"email": "new@x.com"}).text
+    token = re.search(r"/login/invite/([A-Za-z0-9_\-]+)", page).group(1)
+
+    _accept(c, token)
+
+    entry = (await store.load_auth())["allow"]["new@x.com"]
+    assert entry["sign_ins"] == 1
+
+
+async def test_the_access_page_shows_the_count_beside_the_delete(client):
+    """The evidence has to be next to the button it justifies."""
+    c, store = client
+    await store.save_auth(
+        {"allow": {"friend@x.com": {"added": 0, "sign_ins": 4, "last_seen": time.time()}}}
+    )
+    _owner_login(c)
+
+    page = c.get("/app/access").text
+
+    assert "4 · last today" in page
+    assert "Sign-ins" in page
+
+
+async def test_an_untracked_row_says_so_rather_than_claiming_never(client):
+    """A migration artefact presented as evidence is how somebody gets
+    deleted for being new."""
+    c, store = client
+    await store.save_auth({"allow": {"old@x.com": {"added": 0}}})
+    _owner_login(c)
+
+    page = c.get("/app/access").text
+
+    assert "not tracked yet" in page
+    assert "never" not in page.split("old@x.com")[1][:120]
+
+
+def test_the_login_page_names_a_live_session(client):
+    """Owner: put the user name at the top. Landing back on /login with a
+    session is confusing alone, and on a shared device it is the moment
+    knowing which account you hold matters most."""
+    c, _ = client
+    _owner_login(c)
+
+    page = c.get("/login").text
+
+    assert "Signed in as" in page
+    assert "owner@example.com" in page
+
+
+def test_the_login_page_says_nothing_when_signed_out(client):
+    c, _ = client
+
+    assert "Signed in as" not in c.get("/login").text

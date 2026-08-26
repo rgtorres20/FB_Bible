@@ -57,7 +57,28 @@ nothing by itself.
   makes the New link button safe to offer.
 - **Remove** an email and they're locked out on their very next request,
   valid cookie or not — the gate re-checks the stored allowlist every
-  time.
+  time. Remove keeps what that person saved, so re-adding them restores
+  their documents, ranking lists and league settings.
+- **Delete** (Aug 25) does that *and* erases their own layer —
+  `fbbible:user:{email}`. Until then Remove left it in the store
+  permanently, so re-adding an address handed the next holder everything
+  the last one had written. Two buttons rather than one, deliberately:
+  Remove has meant "revoke, keep their work" since August, and quietly
+  making that click destructive would erase real documents on a familiar
+  control. Delete asks for confirmation and cannot be undone.
+
+  Access is revoked and saved *first*, then the data is purged, so a
+  failure part-way leaves the safe half-state — locked out, data intact —
+  and the page says which half happened rather than reporting "Deleted"
+  over a blob still sitting in the store. Repeating Delete is safe.
+- **Sign-ins are counted** (Aug 25), so "stale" is evidence rather than a
+  guess about somebody you are about to erase. Each row shows
+  `4 · last today`, counted at every door — password, invite acceptance
+  and passkey. Counting only passwords would read zero for anyone using
+  Face ID, who is the most active person and the one most likely to look
+  unused. Anyone added before Aug 25 reads **"not tracked yet"** rather
+  than "never": a migration artefact presented as evidence is how someone
+  gets deleted for being new.
 - The allowlist lives in its own Redis key (`fbbible:auth`), outside the
   feeds blob, so no sync rebuild can ever clobber it.
 - **That key is encrypted at rest** (Aug 24), with the same

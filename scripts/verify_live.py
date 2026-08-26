@@ -670,6 +670,19 @@ def main() -> int:
         if path in OWNER_ONLY:
             code = anon_status(path)
             check(f"owner-only, turns others away: {path}", code in (303, 307, 401), f"HTTP {code}")
+            # Owner, Aug 25: delete a user outright, not just revoke.
+            # Remove left their documents, ranking lists and league
+            # settings in the store forever, so re-adding an address
+            # handed the next holder everything the last one wrote.
+            # Probed as a POST: a GET on a POST-only route answers 405
+            # whether the route is guarded or not.
+            if path == "/app/access":
+                code_del, _ = post_json("/app/access/delete")
+                check(
+                    "the delete control refuses a stranger",
+                    code_del in (303, 401),
+                    f"HTTP {code_del}",
+                )
             continue
         page = get(path).decode("utf-8", errors="replace")
         check(

@@ -211,6 +211,18 @@ def _set_session(response: Response, email: str, settings: Settings) -> None:
 
 @router.get("/login", include_in_schema=False, response_class=HTMLResponse)
 async def login_page(request: Request, settings: Settings = Depends(get_settings)) -> HTMLResponse:
+    # Already signed in? Say whose account this browser is holding.
+    # Landing back on /login with a live session is confusing on its own,
+    # and on a shared device it is the one moment where knowing which
+    # account you are actually in matters most (owner, Aug 25).
+    who = session_email(request, settings)
+    signed_in = (
+        f"<div class='ok'>Signed in as <b>{html_mod.escape(who)}</b> — "
+        "<a href='/app/'>go to the app</a>, or sign in below as someone "
+        "else.</div>"
+        if who
+        else ""
+    )
     err = ""
     if request.query_params.get("e") == "1":
         # Which part was wrong is deliberately not said.
@@ -283,6 +295,7 @@ async def login_page(request: Request, settings: Settings = Depends(get_settings
         "<p class='sub'>Access is by invitation. Sign in below with the "
         "password you chose when you accepted your invite — it works on "
         "any device, for as long as you have access.</p>"
+        + signed_in
         + err
         + passkey_card
         # No longer folded away: since Aug 24 this form is everybody's way
@@ -359,8 +372,14 @@ async def sign_in(
         await store.save_auth(authn.record_failure(auth, address))
         return RedirectResponse("/login?e=1", status_code=303)
 
+    # Counted here rather than at the form, because this is the line
+    # access is actually granted on. Cleared throttles and the sign-in
+    # count are one write: two saves would race each other.
+    updated = authn.record_sign_in(auth, address)
     if (auth.get("throttle") or {}).get(authn.normalize_email(address)):
-        await store.save_auth(authn.clear_failures(auth, address))
+        updated = authn.clear_failures(updated, address)
+    if updated is not auth:
+        await store.save_auth(updated)
     response = RedirectResponse("/app/", status_code=303)
     _set_session(response, address, settings)
     return response
@@ -450,6 +469,10 @@ async def accept_invite(
     if not email:
         return RedirectResponse("/login?e=2", status_code=303)
     updated = authn.set_password(updated, email, password)
+    # Accepting the invite IS their first sign-in. Leaving it uncounted
+    # would show a brand-new user as never having been here, which is
+    # exactly the row the owner would read as stale and delete.
+    updated = authn.record_sign_in(updated, email)
     await store.save_auth(updated)
     # Never the address, never the password: a count is the whole log.
     log.info("access: invite accepted, allowlist now %d", len(updated.get("allow") or {}))
@@ -466,6 +489,36 @@ async def logout() -> RedirectResponse:
 
 
 # --- the owner's access page ------------------------------------------------
+
+
+def _seen_words(entry: dict | None) -> str:
+    """ "3 sign-ins · last seen 12 days ago", or the honest absence.
+
+    Owner, Aug 25: "track how many times they have logged on so i can
+    delete stale usrs". So the number exists to support a deletion, which
+    is why "never" is spelled out rather than shown as a zero: those are
+    the two ends of the question, and a 0 in a column of counts reads like
+    a rounding.
+
+    Nobody added before Aug 25 has a counter, and their rows say so
+    instead of claiming they never signed in -- a migration artefact
+    presented as evidence is how somebody gets deleted for being new.
+    """
+    entry = entry or {}
+    count = entry.get("sign_ins")
+    if not isinstance(count, int):
+        return "not tracked yet"
+    days = authn.last_seen_days(entry)
+    when = (
+        "never"
+        if days is None
+        else "today"
+        if days == 0
+        else "yesterday"
+        if days == 1
+        else f"{days} days ago"
+    )
+    return f"{count} \u00b7 last {when}"
 
 
 def _access_page(
@@ -496,9 +549,24 @@ def _access_page(
     rows = (
         "".join(
             f"<tr><td>{html_mod.escape(addr)}</td>"
+            # The evidence Delete needs beside it. Without this the owner
+            # was deciding who was stale from an address alone.
+            f"<td class='seen'>{_seen_words(allow.get(addr))}</td>"
             "<td><form method='post' action='/app/access/remove' style='margin:0'>"
             f"<input type='hidden' name='email' value='{html_mod.escape(addr, quote=True)}'>"
-            "<button class='quietbtn'>Remove</button></form></td></tr>"
+            "<button class='quietbtn' title='Revoke access. Keeps what they "
+            "saved, so re-adding them restores it.'>Remove</button></form></td>"
+            # Deliberately a SECOND button rather than a stronger version of
+            # the first. Remove has meant "revoke, keep their work" since
+            # August; quietly making it destructive would erase somebody's
+            # documents on a click that used to be reversible.
+            "<td><form method='post' action='/app/access/delete' style='margin:0' "
+            f"onsubmit=\"return confirm('Delete {html_mod.escape(addr, quote=True)} "
+            "and erase everything they saved? This cannot be undone.')\">"
+            f"<input type='hidden' name='email' value='{html_mod.escape(addr, quote=True)}'>"
+            "<button class='quietbtn' title='Revoke access AND erase their "
+            "documents, ranking lists and league settings. Cannot be undone.'>"
+            "Delete</button></form></td></tr>"
             for addr in sorted(allow)
         )
         or "<tr><td colspan='2' class='quiet'>Nobody yet — just you.</td></tr>"
@@ -555,8 +623,15 @@ def _access_page(
         "<h2>Add access</h2><form method='post' action='/app/access/add'>"
         "<label>Email</label><input name='email' type='email' required>"
         "<button>Add &amp; mint invite link</button></form></div>"
-        "<div class='card'><h2>Allowed</h2><table>"
-        "<tr><th>Email</th><th></th></tr>"
+        "<div class='card'><h2>Allowed</h2>"
+        # The two buttons promise different things, so the page says which
+        # is which once rather than relying on tooltips nobody hovers.
+        "<p class='sub' style='margin:0 0 10px'><b>Remove</b> revokes access "
+        "and keeps what they saved — re-add them and it comes back. "
+        "<b>Delete</b> revokes access <i>and</i> erases their documents, "
+        "ranking lists and league settings. Delete cannot be undone.</p>"
+        "<table>"
+        "<tr><th>Email</th><th>Sign-ins</th><th></th><th></th></tr>"
         + rows
         + "</table></div>"
         + pending_html
@@ -630,6 +705,56 @@ async def access_remove(
     await store.save_auth(updated)
     log.info("access: removed one, allowlist now %d", len(updated.get("allow") or {}))
     return _access_page(updated, settings)
+
+
+@router.post("/app/access/delete", include_in_schema=False)
+async def access_delete(
+    request: Request,
+    email: str = Form(...),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> Response:
+    """Revoke access AND erase what that person saved (owner, Aug 25).
+
+    Remove already dropped the allowlist entry, their pending invites and
+    their passkeys -- everything that could get them back IN. What it left
+    behind was their own layer: the documents, ranking lists and league
+    settings under `fbbible:user:{email}`. So a removed address kept its
+    contents forever, and re-adding it handed the next holder of that
+    address everything the last one had written. That is the gap this
+    closes, and it is a privacy question rather than a housekeeping one.
+
+    Kept separate from Remove on purpose. "Remove" has meant "revoke, keep
+    their work" since August, and re-adding someone has restored it;
+    making that click destructive would erase real documents on a control
+    people already know. Two buttons, two promises.
+
+    The order matters. Access is revoked FIRST and saved, so a failure
+    part-way leaves someone locked out with their data intact -- the safe
+    half-state. Purging first would leave a signed-in user with access to
+    an account whose contents had just vanished.
+    """
+    if not _is_owner(request, settings):
+        return RedirectResponse("/login", status_code=303)
+
+    addr = authn.normalize_email(email)
+    auth = await store.load_auth()
+    updated = passkeys.drop_all_for(authn.remove_email(auth, addr), addr)
+    await store.save_auth(updated)
+
+    note = "Deleted — access revoked and their saved work erased."
+    try:
+        await store.delete_user(addr)
+    except Exception as exc:  # noqa: BLE001 - access is already revoked
+        # Say which half happened. "Deleted" over a blob still sitting in
+        # the store is the kind of false completion this repo rules out.
+        log.warning("access: purge failed after revoke: %s", type(exc).__name__)
+        note = (
+            "Access revoked, but their saved work could not be erased "
+            f"({type(exc).__name__}). Try Delete again — it is safe to repeat."
+        )
+    log.info("access: deleted one, allowlist now %d", len(updated.get("allow") or {}))
+    return _access_page(updated, settings, mail_note=note)
 
 
 # --- passkeys: Face ID / Touch ID ------------------------------------------
@@ -790,7 +915,11 @@ async def passkey_login_verify(
         log.warning("passkey: sign-in rejected (%s)", type(exc).__name__)
         return JSONResponse({"detail": "That passkey could not be verified."}, status_code=401)
 
-    await store.save_auth(passkeys.bump_sign_count(auth, email, cred_id, verified.new_sign_count))
+    # Counted for passkeys too. A tally that only knew about passwords
+    # would read zero for anyone who set up Face ID and then used it --
+    # the person most likely to look unused while being the most active.
+    bumped = passkeys.bump_sign_count(auth, email, cred_id, verified.new_sign_count)
+    await store.save_auth(authn.record_sign_in(bumped, email))
     log.info("passkey: sign-in accepted")
     response = JSONResponse({"ok": True, "next": "/app/"})
     _set_session(response, email, settings)

@@ -361,6 +361,11 @@ if _FRONTEND_READY:
         # HERE as well as in the JSON endpoint, and that is the point: the
         # panel and the blend have to read the same set, or the board
         # averages a list the panel is showing as switched off.
+        # Who this page belongs to, in its own header. Every board below
+        # is per-user now -- league settings, ranking lists, which lists
+        # count -- so "whose account is this" is a live question and had
+        # no answer on the main screen.
+        html, _ = page.header_identity(html, who)
         every = ranklists.with_overrides(ranklists.builtins() + mine, user_data)
         html, n_src = board.inject_sources(html, ranklists.sources_payload(every, clock.today()))
         if n_src:

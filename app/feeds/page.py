@@ -27,6 +27,8 @@ and reports a miss when its anchor is absent.
 
 from __future__ import annotations
 
+import html as html_mod
+
 from . import skin
 
 # One edit: a label for the miss report, the anchor to find, its
@@ -142,6 +144,8 @@ def header_mark(html: str) -> tuple[str, list[str]]:
     )
 
 
+_IDENTITY_ANCHOR = "My stuff \u2014 notes &amp; rankings&nbsp;\u2192</a>"
+
 _KICKER = (
     '<div style="font-size:10px; font-weight:700; letter-spacing:0.16em; '
     'text-transform:uppercase; color:var(--color-neutral-600);">'
@@ -242,6 +246,31 @@ def yahoo_panel(html: str) -> tuple[str, list[str]]:
     if not panel:
         return html, ["yahoo account panel"]
     return html.replace(panel, _YAHOO_NOTE, 1), []
+
+
+def header_identity(html: str, email: str | None) -> tuple[str, int]:
+    """Name the signed-in account in the app header (owner, Aug 25).
+
+    /app/mine and /app/leagues have said "Signed in as ..." since August;
+    the app page itself never did. On a shared laptop, or after somebody
+    accepts an invite on a phone that already had a session, "whose
+    account am I looking at" had no answer anywhere on the main screen --
+    and every board on it is per-user now: league settings, ranking
+    lists, which lists are switched on.
+
+    Not a transform in PRE, because it needs the request's identity and
+    those run on the committed page with nothing but the page. Signed
+    out it adds nothing at all rather than an empty label.
+    """
+    if not email:
+        return html, 0
+    if _IDENTITY_ANCHOR not in html:
+        return html, 0
+    tag = (
+        '<span style="color:var(--color-neutral-600); font-weight:400;">'
+        " \u00b7 signed in as " + html_mod.escape(email) + "</span>"
+    )
+    return html.replace(_IDENTITY_ANCHOR, _IDENTITY_ANCHOR + tag, 1), 1
 
 
 def client_paths(html: str) -> tuple[str, list[str]]:

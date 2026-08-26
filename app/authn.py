@@ -341,6 +341,54 @@ def is_allowed(auth: dict, email: str | None, owner_email: str) -> bool:
     return email in (auth.get("allow") or {})
 
 
+def record_sign_in(auth: dict, email: str, now: float | None = None) -> dict:
+    """Count one successful sign-in against an allowlisted address.
+
+    Owner, Aug 25: "track how many times they have logged on so i can
+    delete stale usrs". The delete control landed the same day and had
+    nothing to point it at -- the allowlist knew who COULD get in and
+    never who did, so "stale" was a guess about people the owner might be
+    about to erase.
+
+    Counted at the moment access is granted, whichever door was used:
+    password, invite acceptance, or a passkey. A count that only knew
+    about passwords would read zero for anyone who set up Face ID and
+    then used it, which is precisely the person most likely to look
+    unused.
+
+    The owner is deliberately absent from this: they have no allowlist row
+    (the env check passes them), and nobody is going to delete themselves
+    for being stale.
+
+    Additive and forgiving. An address with no row is ignored rather than
+    created -- this must never be a way to grant access -- and an entry
+    with no counter starts at one rather than crashing on the migration.
+    """
+    email = normalize_email(email)
+    allow = dict(auth.get("allow") or {})
+    entry = allow.get(email)
+    if entry is None:
+        return auth
+    seen = entry.get("sign_ins")
+    seen = seen + 1 if isinstance(seen, int) else 1
+    allow[email] = {**entry, "sign_ins": seen, "last_seen": now if now is not None else time.time()}
+    return {**auth, "allow": allow}
+
+
+def last_seen_days(entry: dict | None, now: float | None = None) -> int | None:
+    """Whole days since this address last signed in, or None if never.
+
+    None is not zero and the page must not render it as one: "never signed
+    in" and "signed in today" are the two ends of the question being
+    asked.
+    """
+    stamp = (entry or {}).get("last_seen")
+    if not isinstance(stamp, int | float) or stamp <= 0:
+        return None
+    now = now if now is not None else time.time()
+    return max(0, int((now - stamp) // 86400))
+
+
 def remove_email(auth: dict, email: str) -> dict:
     """Drop an email from the allowlist and kill its pending invites --
     removal must revoke everything at once."""

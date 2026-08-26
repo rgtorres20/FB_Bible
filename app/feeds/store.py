@@ -180,6 +180,8 @@ class FeedStore(Protocol):
 
     async def save_user(self, email: str, payload: dict) -> None: ...
 
+    async def delete_user(self, email: str) -> None: ...
+
 
 class FileFeedStore:
     """Local dev. Not for serverless -- no writable disk there."""
@@ -298,6 +300,12 @@ class FileFeedStore:
         tmp.write_text(self._vault.write(payload), encoding="utf-8")
         tmp.replace(path)
 
+    async def delete_user(self, email: str) -> None:
+        """Erase one person's own layer. Idempotent -- deleting what is
+        already gone is a success, not an error, so a retry after a
+        half-finished removal completes it rather than failing."""
+        self._user_path(email).unlink(missing_ok=True)
+
 
 class RedisFeedStore:
     def __init__(self, url: str, encryption_key: str = "") -> None:
@@ -372,6 +380,11 @@ class RedisFeedStore:
         # "not Yahoo data" is a retention rule, not a reason to leave
         # a person's own notes legible in a dump.
         await self._redis.set(_USER_KEY_PREFIX + email, self._vault.write(payload))
+
+    async def delete_user(self, email: str) -> None:
+        """Erase one person's own layer. Redis DEL on a missing key is a
+        no-op, which is the idempotence this wants."""
+        await self._redis.delete(_USER_KEY_PREFIX + email)
 
 
 def build_feed_store(settings) -> FeedStore:
