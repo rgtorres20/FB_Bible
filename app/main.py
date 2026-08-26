@@ -304,7 +304,20 @@ if _FRONTEND_READY:
                 # who are gone, and one built before `deepen` never
                 # reaches the third of the board that gets appended.
                 # Both were true until the live watchdog said so.
-                html, marks = board.decorate(html, index, stored.get("stats"), leagues.defaults())
+                # '26 projections, when the sync has them (owner, Aug 25:
+                # "yes lets add real projections"). The board's numeric
+                # column reads them under the picked league's own scoring,
+                # and falls back to last season's measured line -- with a
+                # header that says which -- when it does not.
+                html, marks = board.decorate(
+                    html,
+                    index,
+                    stored.get("stats"),
+                    leagues.defaults(),
+                    stored.get("projections"),
+                )
+                if marks["projected"]:
+                    log.info("board: points column reads '26 projections")
                 # The handcuff table's usage splits, measured rather than
                 # guessed (owner, Aug 25). depth.usage() has computed the
                 # real ones for /app/nextup since Aug 21 and nothing had

@@ -292,3 +292,53 @@ def test_the_leagues_own_return_rules_are_unchanged_and_verified():
     assert by_name["BALLAPALOSA"].idp_ret_yds_per_pt == 0.0
     for lg in leagues_mod.defaults():
         assert lg.ret_td == 6.0
+
+
+# --- what actually gets stored ---------------------------------------------
+
+
+def test_only_the_fields_the_scorer_reads_are_kept():
+    """Sleeper sends 71 stat keys per row across 7,658 rows. The stored
+    blob is loaded on every page render, so a field nothing scores is
+    weight nobody is paying for. The list is BORROWED from `stats`, not
+    re-typed: two copies is how one of them starts scoring a different
+    thing than the other."""
+    reduced = proj.reduce(
+        {
+            "rows": [
+                {
+                    "player_id": "4034",
+                    "company": "rotowire",
+                    "stats": {
+                        "gp": 17,
+                        "rush_att": 240,
+                        "rush_yd": 1100,
+                        # Real Sleeper keys that no league scores.
+                        "rush_att_bc": 200,
+                        "pos_rank_ppr": 12,
+                        "gms_active": 17,
+                    },
+                }
+            ]
+        }
+    )
+
+    line = reduced["players"]["4034"]
+    assert line == {"gp": 17, "rush_att": 240, "rush_yd": 1100}
+
+
+def test_the_kept_set_covers_defenders_and_team_defenses_too():
+    """Both verified IDP leagues start eight defenders and BALLAPALOSA
+    starts a team defense. A trim that quietly kept only offence would
+    make this data useless in all three."""
+    reduced = proj.reduce(
+        {
+            "rows": [
+                {"player_id": "5", "stats": {"gp": 17, "idp_tkl_solo": 80, "idp_sack": 6.0}},
+                {"player_id": "SF", "stats": {"gp": 17, "pts_allow": 280, "sack": 48}},
+            ]
+        }
+    )
+
+    assert reduced["players"]["5"] == {"gp": 17, "idp_tkl_solo": 80, "idp_sack": 6.0}
+    assert reduced["players"]["SF"] == {"gp": 17, "pts_allow": 280, "sack": 48}

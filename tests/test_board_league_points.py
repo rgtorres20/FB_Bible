@@ -279,3 +279,103 @@ def test_a_missing_cell_anchor_changes_nothing():
 
     assert n == 0
     assert out == broken
+
+
+# --- reading forward: '26 projections ------------------------------------
+#
+# Owner, Aug 25: "i want to add total projected poitns to draft analzer
+# beside PPG", then "yes lets add real projections". The column was last
+# season's measured line, which is honest but backwards for a draft. It
+# now reads Rotowire's '26 forecast (via Sleeper, probed live before a
+# line of app/feeds/projections.py was written) through the same league
+# scoring, and falls back to '25 when there is none.
+
+
+def _proj() -> dict:
+    """The reduced shape the sync stores: same stat vocabulary as the
+    measured lines, which is what lets one scorer read both."""
+    return {
+        "players": {
+            # A deliberately bigger season than his '25 line, so a test
+            # can tell the two sources apart by the number alone.
+            "1": {
+                "gp": 17,
+                "pass_cmp": 430,
+                "pass_yd": 5000,
+                "pass_td": 40,
+                "pass_int": 9,
+                "rush_yd": 350,
+                "rush_td": 5,
+                "fum_lost": 2,
+            },
+        },
+        "companies": ["rotowire"],
+    }
+
+
+def test_the_column_reads_the_projection_when_there_is_one():
+    """Not last season. A draft is about the season ahead."""
+    measured = board.league_points(_index(), _stats(), leagues_mod.defaults())
+    projected = board.league_points(_index(), _stats(), leagues_mod.defaults(), _proj())
+
+    assert projected["Josh Allen"]["NDDPL"]["t"] > measured["Josh Allen"]["NDDPL"]["t"]
+
+
+def test_the_projection_is_still_scored_by_each_league():
+    """The point of routing it through the same scorer: RED_EYE's point
+    per completion is worth 430 points to a 430-completion forecast, the
+    same way it is worth 400 to a 400-completion season."""
+    allen = board.league_points(_index(), _stats(), leagues_mod.defaults(), _proj())["Josh Allen"]
+
+    assert allen["RED_EYE"]["t"] - allen["NDDPL"]["t"] == 430
+
+
+def test_the_header_says_which_season_it_is_reading():
+    """The label is not decoration — it is the difference between what a
+    player did and what somebody thinks he will do. `_points_source`
+    returns the numbers and the header together so a page can never show
+    one under the other's name."""
+    with_proj, _ = board.inject_league_points(
+        INDEX_HTML, _index(), _stats(), leagues_mod.defaults(), _proj()
+    )
+    without, _ = board.inject_league_points(INDEX_HTML, _index(), _stats(), leagues_mod.defaults())
+
+    # The exact header cell, not a fragment: Team intel's win projections
+    # already say "'26 proj" in unrelated prose, so a bare substring test
+    # passes on the wrong text. (The same trap cost a live watchdog check
+    # on Aug 25 — see docs/GAP_REVIEW.md.)
+    projected = "<div>Blend</div><div>'26 proj \u00b7 Rotowire</div>"
+    measured = "<div>Blend</div><div>'25 P/G \u00b7 total</div>"
+
+    assert projected in with_proj and measured not in with_proj
+    assert measured in without and projected not in without
+
+
+def test_the_forecaster_is_credited_on_the_column():
+    """Rotowire's numbers, said so — and read off the payload rather than
+    typed, so the credit follows the data the day Sleeper switches
+    provider instead of quietly crediting the wrong house."""
+    served, _ = board.inject_league_points(
+        INDEX_HTML, _index(), _stats(), leagues_mod.defaults(), _proj()
+    )
+    swapped, _ = board.inject_league_points(
+        INDEX_HTML,
+        _index(),
+        _stats(),
+        leagues_mod.defaults(),
+        {**_proj(), "companies": ["someone else"]},
+    )
+
+    assert "<div>Blend</div><div>'26 proj \u00b7 Rotowire</div>" in served
+    assert "<div>Blend</div><div>'26 proj \u00b7 Someone Else</div>" in swapped
+
+
+def test_an_empty_projection_state_falls_back_rather_than_emptying_the_column():
+    """A fetch that failed must not blank the board. Yesterday's measured
+    line under a '25 header beats no column at all."""
+    for empty in ({}, None, {"players": {}}):
+        served, n = board.inject_league_points(
+            INDEX_HTML, _index(), _stats(), leagues_mod.defaults(), empty
+        )
+        assert n, empty
+        assert "'25 P/G" in served, empty

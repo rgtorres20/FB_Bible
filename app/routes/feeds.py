@@ -38,6 +38,7 @@ from ..feeds import (
     players,
     poller,
     previews,
+    projections,
     render,
     scorecard,
     stats,
@@ -860,6 +861,28 @@ async def sync(
         except Exception as exc:  # noqa: BLE001 - stats must never sink the news sync
             log.warning("season stats fetch failed, keeping previous state: %s", exc)
 
+    # '26 projections (owner, Aug 25: "yes lets add real projections").
+    # Same rule as the stats above and for the same reason: refetched on
+    # its own budget, and any failure keeps the previous state rather than
+    # emptying the column. Rotowire revises these on news, so the window is
+    # a day rather than a week -- and `as_of` reports when THEY last moved,
+    # not when we last asked.
+    proj_state = existing.get("projections") or {}
+    if projections.stale(proj_state, datetime.now(UTC)):
+        raw = await projections.fetch()
+        if raw:
+            proj_state = projections.reduce(raw)
+            log.info(
+                "projections: %d players, forecast as of %s",
+                len(proj_state.get("players") or {}),
+                projections.as_of(proj_state) or "unknown",
+            )
+        else:
+            # `fetch` never raises; an empty dict IS the failure signal.
+            # Keeping the previous state is the point -- yesterday's
+            # forecast is a better column than no column.
+            log.warning("projections: fetch returned nothing, keeping previous state")
+
     # The prediction ledger (app/feeds/scorecard.py). Two separate jobs,
     # deliberately in this order: snapshot what the app is claiming right
     # now, then settle anything the box scores can already decide. The
@@ -935,6 +958,7 @@ async def sync(
             "vegas": vegas_state,
             "verdicts": verdicts,
             "stats": stats_state,
+            "projections": proj_state,
             "pred_reviews": pred_reviews,
             "capsules": capsule_state,
             "mover_reads": mover_reads,

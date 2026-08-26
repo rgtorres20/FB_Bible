@@ -138,7 +138,16 @@ def test_a_missing_index_clears_the_badges_rather_than_keeping_frozen_ones():
     # the number the board sorts by is a rewiring of the page's own
     # arithmetic, not a join onto data. It is the one decoration that
     # still works during an index outage.
-    assert marks == {"benched": [], "deepened": 0, "scored": 0, "flagged": 0, "blend_wired": 1}
+    assert marks == {
+        "benched": [],
+        "deepened": 0,
+        "scored": 0,
+        "flagged": 0,
+        "blend_wired": 1,
+        # Added Aug 26 with the '26 projections: whether the points
+        # column is reading forward or falling back to measured '25.
+        "projected": False,
+    }
     assert "const OUT_RED" not in out, "no frozen list survives an outage"
     assert _map(out, "FB_INJURIES") == {}
     assert "bases = { QB: 24.5" in out, "with no stats the points column is left alone"

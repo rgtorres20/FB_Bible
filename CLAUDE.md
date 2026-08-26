@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1362 tests green — 1346 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1373 tests green — 1357 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -353,6 +353,23 @@ group is now "Board order mix", the analyzer's slider reads **Board
 order** instead of "Source influence", and both point at where the real
 lists live. All four are named transforms in `app/feeds/page.py`
 (`source_truth`), so a design resync that renames an anchor says so.
+
+**The board's points column reads '26 projections** (owner, Aug 25:
+*"i want to add total projected poitns to draft analzer beside PPG"*,
+then *"yes lets add real projections"*). It carried last season's
+measured line, which is honest and backwards for a draft. It now reads
+**Rotowire's '26 forecast via Sleeper**, run through the same league
+scoring as everything else — the endpoint was probed live before a line
+of `app/feeds/projections.py` was written, and the reduce keeps only
+`stats.PLAYER_FIELDS`/`DEFENSE_FIELDS` (borrowed, not re-typed) so the
+stored blob is the scorer's vocabulary rather than all 71 keys Sleeper
+sends. The column falls back to '25 when no forecast is stored, and the
+**header is chosen by the same call that picks the numbers**
+(`board._points_source`) so a '25 figure can never render under a '26
+label. The forecaster is credited on the column and read off the payload,
+so it follows the data if Sleeper switches house. Projections **omit
+return yardage** — recorded in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md),
+which matters for return specialists in both IDP leagues.
 
 **The main draft board now answers to league scoring too** (owner ask,
 Aug 22: *"how does my leagues scores influence rankings"* — and on that

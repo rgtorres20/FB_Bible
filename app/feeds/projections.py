@@ -49,6 +49,8 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
+from . import stats as stats_mod
+
 log = logging.getLogger(__name__)
 
 SEASON = 2026
@@ -74,6 +76,14 @@ REFRESH = timedelta(hours=24)
 # forecaster has nothing to say about, and scoring his empty line would
 # produce a confident zero.
 _MIN_GAMES = 1
+
+# The scorer's own vocabulary, borrowed rather than re-listed. Sleeper
+# sends 71 stat keys per row across 7,658 rows; `League.score_player` and
+# `score_dst` read these and nothing else, so everything else is weight in
+# a Redis blob that is loaded on every page render. Same trim
+# `stats.reduce` makes for the same reason, and reusing its list is what
+# stops the two drifting into scoring different things.
+_KEEP = frozenset(stats_mod.PLAYER_FIELDS) | frozenset(stats_mod.DEFENSE_FIELDS)
 
 
 async def fetch(client: httpx.AsyncClient | None = None) -> dict:
@@ -129,7 +139,7 @@ def reduce(raw: dict | None) -> dict:
         games = stats.get("gp") or 0
         if not isinstance(games, int | float) or games < _MIN_GAMES:
             continue
-        line = {k: v for k, v in stats.items() if isinstance(v, int | float)}
+        line = {k: v for k, v in stats.items() if k in _KEEP and isinstance(v, int | float)}
         players[pid] = line
         if row.get("company"):
             companies.add(str(row["company"]))

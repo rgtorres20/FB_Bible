@@ -477,7 +477,45 @@ _PROJ_REPLACEMENT = """    const FBPts = b => {
 
 _LEAGUE_PTS_ANCHOR = "const RAW_BOARD = ["
 _PROJ_HEADER = "<div>Blend</div><div>Proj</div>"
-_PROJ_HEADER_REPLACEMENT = "<div>Blend</div><div>'25 P/G \u00b7 total</div>"
+
+# Two headers, because the column can be fed by two different things and
+# the label is not decoration -- it is the difference between "this is
+# what he did" and "this is what somebody thinks he will do". Which one
+# is rendered is decided by `_points_source`, the same call that picks
+# the numbers, so a number can never appear under the other one's label.
+_HEADER_MEASURED = "<div>Blend</div><div>'25 P/G \u00b7 total</div>"
+_HEADER_PROJECTED = "<div>Blend</div><div>'26 proj \u00b7 {credit}</div>"
+
+
+def _credit(proj_state: dict | None) -> str:
+    """Whose forecasts these are, read from the payload.
+
+    `projections.reduce` carries `companies` off the rows themselves for
+    exactly this -- a hardcoded "Rotowire" would keep saying Rotowire the
+    day Sleeper switched provider. Read here rather than imported: `board`
+    and `projections` are different data units and the fence forbids the
+    sideways import, so the state arrives as a dict like every other feed.
+    """
+    companies = (proj_state or {}).get("companies") or []
+    return " / ".join(c.title() for c in companies) if companies else "Sleeper"
+
+
+def _points_source(stats_state: dict | None, proj_state: dict | None) -> tuple[dict, str]:
+    """(the stat lines to score, the header that must travel with them).
+
+    ONE decision, returning both halves, because they are the same
+    decision. Projections win when there are any -- a draft is about the
+    season ahead -- and last season's measured line is the fallback, not
+    an inferior version of the same claim. The fallback is why the header
+    is computed rather than fixed: a page that quietly showed '25 numbers
+    under a '26 projection label would be the worst outcome available,
+    and it is the one that happens if these two are picked apart.
+    """
+    projected = (proj_state or {}).get("players") or {}
+    if projected:
+        return projected, _HEADER_PROJECTED.format(credit=_credit(proj_state))
+    return ((stats_state or {}).get("players") or {}), _HEADER_MEASURED
+
 
 # The row field and the cell that renders it. Owner ask, Aug 25: the season
 # total beside the per-game rate. Same cell rather than a new column: the
@@ -495,6 +533,7 @@ def league_points(
     index: dict | None,
     stats_state: dict | None,
     leagues_list,
+    proj_state: dict | None = None,
 ) -> dict[str, dict[str, float]]:
     """{player name: {league name: {"p": points per game, "t": season total}}}.
 
@@ -510,14 +549,17 @@ def league_points(
     a dash. That is the whole reason this replaces a formula: the formula
     always had an answer, and the answer was invented.
 
-    Neither figure is a PROJECTION and the header says so. The owner asked
-    for "total projected points" (Aug 25); '26 projections are not
-    something this app has, and inventing them is the line it does not
-    cross. What it has is last season's real line under this league's real
-    values, which is why the column reads "'25".
+    The source is `_points_source`, and the header travels with it. Until
+    Aug 26 this could only be last season's measured line, because '26
+    projections were not something this app had and inventing them was
+    the line it would not cross. It has them now -- Rotowire's, via
+    Sleeper, credited on the column -- so a draft board finally reads
+    forward. When there are none the '25 line is the fallback and the
+    header says '25, which is the whole reason the two are chosen
+    together.
     """
     players = (index or {}).get("players") or {}
-    lines = ((stats_state or {}).get("players") or {}) if stats_state else {}
+    lines, _ = _points_source(stats_state, proj_state)
     out: dict[str, dict[str, float]] = {}
     for pid, player in players.items():
         entry = lines.get(pid)
@@ -547,6 +589,7 @@ def inject_league_points(
     index: dict | None,
     stats_state: dict | None,
     leagues_list,
+    proj_state: dict | None = None,
 ) -> tuple[str, int]:
     """Point the board's projection column at each league's real scoring.
 
@@ -561,7 +604,8 @@ def inject_league_points(
     injected map would keep rendering the invented number -- so a miss on
     either leaves the page untouched and reports nothing changed.
     """
-    table = _rekey_to_page(league_points(index, stats_state, leagues_list), html)
+    _, header = _points_source(stats_state, proj_state)
+    table = _rekey_to_page(league_points(index, stats_state, leagues_list, proj_state), html)
     if (
         not table
         or _PROJ_FORMULA not in html
@@ -576,7 +620,7 @@ def inject_league_points(
     # no-opped (no stats yet, index outage), which put "'25 P/G" over the
     # fabricated slope -- a measured-sounding label on an invented number,
     # worse than the "Proj" it replaced.
-    html = html.replace(_PROJ_HEADER, _PROJ_HEADER_REPLACEMENT, 1)
+    html = html.replace(_PROJ_HEADER, header, 1)
     html = html.replace(*_PROJ_ROW_FIELD, 1)
     html = html.replace(*_PROJ_CELL, 1)
     html = html.replace(
@@ -773,7 +817,11 @@ def wire_blend_column(html: str) -> tuple[str, int]:
 
 
 def decorate(
-    html: str, index: dict | None, stats_state: dict | None, leagues_list
+    html: str,
+    index: dict | None,
+    stats_state: dict | None,
+    leagues_list,
+    proj_state: dict | None = None,
 ) -> tuple[str, dict[str, object]]:
     """Settle who is on the board, then decorate the rows that survived.
 
@@ -799,7 +847,10 @@ def decorate(
     html, benched = drop_reserve(html, index)
     counts["benched"] = benched
     html, counts["deepened"] = deepen(html, index, leagues_list)
-    html, counts["scored"] = inject_league_points(html, index, stats_state, leagues_list)
+    html, counts["scored"] = inject_league_points(
+        html, index, stats_state, leagues_list, proj_state
+    )
+    counts["projected"] = bool((proj_state or {}).get("players"))
     html, counts["flagged"] = inject_injuries(html, index)
     html, counts["blend_wired"] = wire_blend_column(html)
     return html, counts

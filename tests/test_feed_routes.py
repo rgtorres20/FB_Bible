@@ -482,3 +482,61 @@ async def test_a_push_landing_mid_sync_survives_the_save(sync_client, monkeypatc
     data = await store.load()
     assert data["vegas"] == pushed_slate, "the fresher pushed slate survives the sync's save"
     assert data["scores"] == {"week_label": "Preseason Week 3"}
+
+
+# --- the sync stores '26 projections --------------------------------------
+
+
+async def test_the_sync_stores_a_projection_it_fetched(sync_client, monkeypatch):
+    """Owner, Aug 25: "yes lets add real projections". The board reads
+    `stored["projections"]`, so a sync that fetches them and does not save
+    them is a column that never fills — and nothing else would say so."""
+    c, store = sync_client
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll([]))
+    monkeypatch.setattr(feeds_route.stats, "stale", lambda *a, **k: False)
+
+    async def _fetch(*args, **kwargs):
+        return {
+            "rows": [
+                {
+                    "player_id": "9493",
+                    "company": "rotowire",
+                    "stats": {"gp": 17, "rec": 100, "rec_yd": 1400, "rec_td": 9},
+                }
+            ],
+            "season": 2026,
+            "fetched_at": "2026-08-26T02:00:00+00:00",
+        }
+
+    monkeypatch.setattr(feeds_route.projections, "fetch", _fetch)
+
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    stored = (await store.load())["projections"]
+    assert stored["players"]["9493"]["rec_yd"] == 1400
+    assert stored["companies"] == ["rotowire"]
+
+
+async def test_a_failed_projection_fetch_keeps_the_previous_one(sync_client, monkeypatch):
+    """`projections.fetch` never raises — an empty dict IS the failure —
+    so the sync has to notice. Yesterday's forecast under an honest
+    as-of is a better column than an empty one, and emptying it would
+    also silently swap the board's header back to '25."""
+    c, store = sync_client
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll([]))
+    monkeypatch.setattr(feeds_route.stats, "stale", lambda *a, **k: False)
+    previous = {
+        "players": {"9493": {"gp": 17, "rec": 90}},
+        "companies": ["rotowire"],
+        "fetched_at": "2026-08-20T02:00:00+00:00",
+    }
+    await store.save({"items": [], "sources": {}, "projections": previous})
+
+    async def _fetch(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(feeds_route.projections, "fetch", _fetch)
+
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    assert (await store.load())["projections"] == previous

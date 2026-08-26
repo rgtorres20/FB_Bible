@@ -835,17 +835,37 @@ def main() -> int:
         "board's points column reads the selected league",
         "byLeague[s.draftLeague]" in served,
     )
-    check("board's points column says which season it is", "'25 P/G" in served)
+    # The column can be fed by two different things and the header has to
+    # name which. Matched on the EXACT header cell, not a fragment: Team
+    # intel's win projections already say "'26 proj" in unrelated prose,
+    # and a bare substring check would pass on that text while the column
+    # sat on last season. (Same trap that cost the handcuff check on
+    # Aug 25 -- docs/GAP_REVIEW.md.)
+    measured_head = "<div>Blend</div><div>'25 P/G \u00b7 total</div>"
+    proj_head = re.search(r"<div>Blend</div><div>'26 proj \u00b7 ([^<]+)</div>", served)
+    check(
+        "board's points column names its season, and only one of them",
+        (measured_head in served) != bool(proj_head),
+        "'26 projections" if proj_head else "'25 measured (no projection stored yet)",
+    )
+    if proj_head:
+        # Owner, Aug 25: "yes lets add real projections". These are
+        # somebody else's forecasts and the column says whose -- read off
+        # the payload, so it follows the data if Sleeper switches house.
+        print(f"  INFO  points column credits: {proj_head.group(1)}")
+        check(
+            "the projection credits its forecaster",
+            proj_head.group(1).strip() not in ("", "Sleeper"),
+            proj_head.group(1),
+        )
     # Owner ask, Aug 25: the season total beside the per-game rate. Both
-    # come out of the one scoring pass, so they cannot disagree -- and
-    # both are last season MEASURED, not a forecast, which is why the
-    # header still says '25 rather than the "Proj" it used to.
+    # come out of the one scoring pass, so they cannot disagree.
     check(
         "the board carries the season total beside the per-game rate",
         "projTotal: totalFor(b)" in served and "total</div>" in served,
     )
     check(
-        "the total is still not claiming a projection",
+        "the fabricated 'Proj' header is gone either way",
         "<div>Proj</div>" not in served.split("Latest read")[0],
     )
     scored = re.search(r"const FB_LEAGUE_PTS = (\{.*?\});\n", served, re.S)

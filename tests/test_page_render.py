@@ -103,9 +103,9 @@ def served(tmp_path, monkeypatch):
         main.app.dependency_overrides.clear()
 
 
-async def _seed(store, index, stats):
+async def _seed(store, index, stats, projections=None):
     await store.save_players(index)
-    await store.save({"items": [], "sources": [], "stats": stats})
+    await store.save({"items": [], "sources": [], "stats": stats, "projections": projections or {}})
 
 
 def _cuffs(page: str) -> str:
@@ -151,3 +151,42 @@ def test_one_overlay_failing_does_not_cost_the_others(served, monkeypatch):
 
     assert "GL carries" in _cuffs(page), "the handcuff table keeps its own numbers"
     assert "% run share ('25)" in page, "and Team intel is unharmed"
+
+
+# --- the points column reads forward --------------------------------------
+
+
+def test_the_column_falls_back_to_measured_when_the_sync_has_no_projection(served):
+    """The store this fixture seeds carries no projections, so the board
+    must say '25 rather than claiming a forecast it does not have."""
+    assert "<div>Blend</div><div>'25 P/G \u00b7 total</div>" in served
+
+
+def test_a_stored_projection_reaches_the_board_with_its_credit(tmp_path, monkeypatch):
+    """End to end, because the column has three separate places to fail:
+    the sync that stores it, the composer that passes it through, and the
+    injection that renders it. Two of those are one-line hand-offs, which
+    is exactly the kind that gets dropped in a refactor and noticed by
+    nobody."""
+    import asyncio
+
+    monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    projected = {
+        "players": {
+            "1000": {"gp": 17, "rush_att": 300, "rush_yd": 1400, "rush_td": 12, "rec": 50},
+        },
+        "companies": ["rotowire"],
+    }
+    asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
+        _seed(store, _index(), _stats(), projected)
+    )
+    main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = lambda: store
+    try:
+        page = TestClient(main.app).get("/app/").text
+    finally:
+        main.app.dependency_overrides.clear()
+
+    assert "<div>Blend</div><div>'26 proj \u00b7 Rotowire</div>" in page
+    assert "<div>Blend</div><div>'25 P/G \u00b7 total</div>" not in page
