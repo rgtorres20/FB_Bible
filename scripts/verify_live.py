@@ -1013,10 +1013,19 @@ def main() -> int:
         served.count("Read by hand") == 2,
         f"{served.count('Read by hand')} of 2 stamped",
     )
+    # Owner, Aug 25: the handcuff table's usage is measured now, not
+    # guessed. Checked live in both halves -- the numbers themselves, and
+    # the relabel that has to travel with them.
     check(
-        "the backup table does not read like a measurement",
-        "usage splits are estimates, not measured" in served,
+        "the backup table's usage is measured, not estimated",
+        "usage measured from Sleeper" in served,
     )
+    check(
+        "red-zone carries are not labelled goal-line",
+        "RZ carries" in served and "GL carries" not in served,
+    )
+    rz_rows = served.count("RZ carries")
+    print(f"  INFO  handcuff rows carrying measured red-zone work: {rz_rows}")
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of
     # nine sliders used to move a bar and change no output; the panel now

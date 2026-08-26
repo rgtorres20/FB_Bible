@@ -29,6 +29,10 @@ Honesty rules, the same ones the rest of the app runs on:
 
 from __future__ import annotations
 
+import re
+
+from . import players as players_mod
+
 # What counts as "this starter is not playing". Sleeper's own vocabulary,
 # now owned by the kernel because the draft board needs the same answer
 # for its badge. Questionable is deliberately outside it -- a questionable
@@ -288,3 +292,108 @@ def latest_mentions(items: list[dict] | None, ids: set[str]) -> dict[str, dict]:
             if pid in ids and pid not in found:
                 found[pid] = item
     return found
+
+
+# --- the handcuff table, measured (owner, Aug 25) ---------------------------
+
+_CUFF_BLOCK = re.compile(r"const CUFFS = \[.*?\n\];", re.S)
+_CUFF_NAME = re.compile(r'\{ name: "([^"]+)"')
+_CUFF_FIELDS = re.compile(r'(rush: )\d+(, split: )"[^"]*"(, gl: )"[^"]*"(, glNote: )"[^"]*"')
+
+
+def cuff_usage(index: dict | None, stats_state: dict | None, names: list[str]) -> dict[str, dict]:
+    """{page name: measured '25 usage} for the handcuff table's players.
+
+    The same `usage()` every other measured surface reads. Absent means
+    the stats do not cover him, and the row says so rather than keeping a
+    number nobody can source.
+    """
+    lookup = (index or {}).get("by_name") or {}
+    lines = ((stats_state or {}).get("players") or {}) if stats_state else {}
+    out: dict[str, dict] = {}
+    for name in names:
+        player = lookup.get(players_mod.match_key(name))
+        if not player:
+            continue
+        measured = usage(lines.get(str(player.get("id"))))
+        if measured.get("rush_att") or measured.get("rec_tgt"):
+            out[name] = measured
+    return out
+
+
+def inject_cuffs(html: str, index: dict | None, stats_state: dict | None) -> tuple[str, int]:
+    """Replace the handcuff table's invented usage with measured '25.
+
+    Owner, Aug 25, after being shown where that list comes from. Its 32
+    rows carried "78% rush · 22% routes" and "24 GL carries" with no
+    source behind any of them -- numbers shaped like measurements that
+    nobody had measured. docs/STALE_DATA.md has named this the remaining
+    step since Aug 21, because `depth.usage()` already computes the real
+    versions for /app/nextup and nothing had joined them up.
+
+    Only the four measured fields move. `starter`, `risk`, `cost` and
+    `why` are the owner's judgement about who is worth a late pick, and
+    that is the part of this table worth keeping.
+
+    ONE relabel, and it matters: the table said "GL carries ... inside the
+    5" and Sleeper counts red-zone attempts, inside the 20. Different
+    numbers. Writing a red-zone figure under a goal-line label would swap
+    an unsourced number for a mislabelled one, so the label moves with the
+    data -- the same call the Team-intel usage read made in August.
+
+    A player the stats do not cover keeps no number at all: the bar reads
+    0 and the cell says "no '25 usage", which is the honest answer for a
+    rookie and the one /app/nextup already gives.
+    """
+    block = _CUFF_BLOCK.search(html)
+    if not block:
+        return html, 0
+    names = _CUFF_NAME.findall(block.group(0))
+    measured = cuff_usage(index, stats_state, names)
+    if not measured:
+        return html, 0
+
+    rows = block.group(0).split("\n")
+    out_rows: list[str] = []
+    changed = 0
+    for row in rows:
+        found = _CUFF_NAME.search(row)
+        if not found:
+            out_rows.append(row)
+            continue
+        stats = measured.get(found.group(1))
+        if not stats:
+            # A lambda, not a replacement template: a template would put
+            # a backslash next to the apostrophe in "'25" and emit
+            # "no \'25 usage" into a double-quoted JS string. Legal, and
+            # visible to anyone reading the page source.
+            replaced = _CUFF_FIELDS.sub(
+                lambda m: (
+                    f"{m.group(1)}0"
+                    f'{m.group(2)}"no \'25 usage"'
+                    f'{m.group(3)}"\u2014"'
+                    f'{m.group(4)}"not in the \'25 stats"'
+                ),
+                row,
+            )
+        else:
+            share = stats.get("rush_share")
+            split = (
+                f"{share}% rush · {100 - share}% routes"
+                if isinstance(share, int)
+                else "no '25 usage"
+            )
+            replaced = _CUFF_FIELDS.sub(
+                lambda m, s=stats, sp=split, sh=share: (
+                    f"{m.group(1)}{sh if isinstance(sh, int) else 0}"
+                    f'{m.group(2)}"{sp}"'
+                    f'{m.group(3)}"{s.get("rz_att", 0)} RZ carries"'
+                    f'{m.group(4)}"inside the 20, \'25 · measured"'
+                ),
+                row,
+            )
+        if replaced != row:
+            changed += 1
+        out_rows.append(replaced)
+
+    return html.replace(block.group(0), "\n".join(out_rows), 1), changed

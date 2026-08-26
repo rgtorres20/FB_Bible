@@ -104,9 +104,17 @@ Ordered by how much staleness actually costs.
    loose, and the **real newest polled item** about the replacement.
    Injury flags and wire posts are live; depth order and workload are
    measured '25 and labelled so on every row; nothing is projected.
-   Remaining: the **CUFFS table on the app page still shows its curated
-   numbers** — the measured ones live on the new board, and folding them
-   back into that table's 32 hand-written rows is the next step.
+   *Resolved Aug 25:* the **CUFFS table now shows the measured numbers
+   too.** `depth.inject_cuffs` joins `usage()` onto its 32 rows at serve
+   time, so the rush/route split is computed from real carries and
+   targets instead of being typed. One relabel travelled with the data:
+   the table said "GL carries · inside the 5" and Sleeper counts
+   red-zone attempts inside the 20, so the label moved rather than a
+   red-zone figure being filed under a goal-line heading — an unsourced
+   number replaced by a mislabelled one is not an improvement. A player
+   the stats do not cover reads "no '25 usage", never a zero. What stays
+   curated is the judgement around the numbers — who is worth a late
+   pick and why — and the tab's stamp now says which half is which.
 6. **weekrev / Team intel / FFBets salaries** — curated estimates, already
    labelled "estimates / no live sheet" in Data health. Plan: revisit when
    the season starts (weekrev is a September feature); salaries have no

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, clock, curated, page, previews, ranklists, skin, stats, vegas
+from .feeds import board, clock, curated, depth, page, previews, ranklists, skin, stats, vegas
 from .feeds import players as players_mod
 from .feeds.store import FeedStore, StoredDataUnreadable
 from .routes import access, auth, feeds, league, leaguecfg, userdata
@@ -305,6 +305,14 @@ if _FRONTEND_READY:
                 # reaches the third of the board that gets appended.
                 # Both were true until the live watchdog said so.
                 html, marks = board.decorate(html, index, stored.get("stats"), leagues.defaults())
+                # The handcuff table's usage splits, measured rather than
+                # guessed (owner, Aug 25). depth.usage() has computed the
+                # real ones for /app/nextup since Aug 21 and nothing had
+                # joined them to this table -- STALE_DATA has named it the
+                # remaining step ever since.
+                html, n_cuffs = depth.inject_cuffs(html, index, stored.get("stats"))
+                if n_cuffs:
+                    log.info("board: %d handcuff rows measured", n_cuffs)
                 log = logging.getLogger(__name__)
                 if marks["benched"]:
                     log.info(

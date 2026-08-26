@@ -45,7 +45,11 @@ CURATED: dict[str, dict] = {
         "label": "Backup RBs",
         "as_of": date(2026, 8, 14),
         "sha": "4da69f1c4fbe6dda",
-        "source": "usage splits are estimates, not measured",
+        # Rewritten Aug 25: the usage splits are measured from Sleeper's
+        # '25 season now (depth.inject_cuffs). The rows this covers are the
+        # judgement around them -- who is worth a late pick, and why -- and
+        # that is what still carries a hand-read date.
+        "source": "usage measured from Sleeper '25; the picks are judgement",
     },
 }
 

@@ -67,15 +67,26 @@ def test_it_calls_itself_read_by_hand():
     assert curated.stamp("CUFFS", TODAY).startswith("Read by hand")
 
 
-def test_the_backup_table_admits_its_numbers_are_estimates():
-    """CUFFS carries usage splits -- "78% rush · 22% routes", "24 GL
-    carries" -- with no published source behind any of them. The measured
-    versions exist on /app/nextup, computed from Sleeper's '25
-    opportunity; until they are folded in here, the table must not read
-    like a measurement."""
+def test_the_backup_table_now_says_its_usage_is_measured():
+    """This test used to assert the opposite, and the change is the point.
+
+    CUFFS carried "78% rush · 22% routes" and "24 GL carries" with no
+    source behind any of them. depth.inject_cuffs replaces those with
+    Sleeper's real '25 numbers, so the stamp stops calling them estimates
+    -- and now says which half is which, because the picks around them
+    are still somebody's judgement and still carry a hand-read date."""
     served, _ = curated.inject(INDEX, TODAY)
 
-    assert "usage splits are estimates, not measured" in served
+    stamp = curated.stamp("CUFFS", TODAY)
+    entry = curated.CURATED["CUFFS"]
+
+    assert "usage measured from Sleeper '25" in served
+    assert "the picks are judgement" in served
+    # Scoped to this tab's own line. Other surfaces on the page -- run
+    # edges, week review, FFBets salaries -- ARE estimates and say so
+    # correctly, so a page-wide search would fail on their honesty.
+    assert "estimates" not in str(entry["source"])
+    assert stamp.startswith("Read by hand")
 
 
 def test_age_words_reads_naturally_at_the_edges():
