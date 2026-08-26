@@ -117,7 +117,12 @@ def idp_group(rec: dict) -> str | None:
 # Bump when the index shape changes; stale cached indexes are refetched.
 # v3: defenders join the index with an `idp` group field.
 # v4: team defenses join it with a `dst` flag.
-INDEX_VERSION = 4
+# v5: a name two active players share goes to the higher-ranked one rather
+#     than to whoever Sleeper serialised last, and `shared_names` records
+#     which names were contested. The bump is the point: without it the
+#     stored index keeps its dump-order answers for up to 20 hours, and the
+#     owner keeps seeing the wrong Josh Allen after the fix has shipped.
+INDEX_VERSION = 5
 
 _WORD_RE = re.compile(r"[A-Za-z0-9']+")
 
@@ -212,6 +217,49 @@ def _cased_tokens(text: str) -> list[tuple[str, bool]]:
     return [(normalize(tok), tok[:1].isupper()) for tok in raw]
 
 
+def _claim(
+    keys: dict[str, str],
+    key: str,
+    pid: str,
+    players: dict[str, dict],
+    shared: set[str],
+) -> None:
+    """Give a name key to the player who best deserves it.
+
+    Two active players share a name more often than is comfortable --
+    Josh Allen is a Buffalo quarterback and a Jacksonville linebacker,
+    Lamar Jackson a Baltimore quarterback and a corner. A plain
+    `keys[key] = pid` let whichever came last in Sleeper's dump win,
+    which is not a rule, and it is why the owner's sleepers list showed
+    the wrong man's team and the wrong man's wire.
+
+    The tie-break is Sleeper's own `search_rank`: lower is more
+    fantasy-relevant, so the quarterback (12) beats the linebacker (240).
+    An unranked player never takes a key from a ranked one. Two unranked
+    players fall back to the lower id -- arbitrary, but *stable*, so two
+    renders of the same dump agree with each other, which dump order did
+    not guarantee either.
+
+    This does not make an ambiguous name unambiguous; it makes the answer
+    defensible and repeatable. The surname map below refuses ambiguity
+    outright, and cannot here: dropping "josh allen" would cost the
+    quarterback his own name to spare the linebacker.
+    """
+    held = keys.get(key)
+    if held is None:
+        keys[key] = pid
+        return
+    shared.add(key)
+    if _rank_of(players, pid) < _rank_of(players, held):
+        keys[key] = pid
+
+
+def _rank_of(players: dict[str, dict], pid: str) -> tuple[int, str]:
+    """Sort key: ranked before unranked, then by id so ties are stable."""
+    rank = (players.get(pid) or {}).get("rank")
+    return (rank if isinstance(rank, int) else 10**9, pid)
+
+
 def build_index(raw: dict) -> dict:
     """Reduce Sleeper's dump to what matching needs.
 
@@ -229,6 +277,10 @@ def build_index(raw: dict) -> dict:
     """
     players: dict[str, dict] = {}
     full_keys: dict[str, str] = {}
+    # Names more than one active player answers to. Counted rather than
+    # hidden: the resolution is a rule now, but it is still a guess about
+    # which man somebody meant.
+    shared_names: set[str] = set()
     surname_hits: dict[str, set[str]] = {}
 
     for pid, rec in raw.items():
@@ -300,10 +352,17 @@ def build_index(raw: dict) -> dict:
 
         # Index the full name, and the name minus any suffix, so "James Pearce"
         # matches a record stored as "James Pearce Jr.".
-        full_keys[" ".join(parts)] = pid
+        #
+        # `_claim`, not assignment: two ACTIVE players really do share a
+        # name, and a plain overwrite let Sleeper's dump order pick the
+        # winner. "Josh Allen" resolved to Jacksonville's linebacker
+        # rather than Buffalo's quarterback -- reported by the owner
+        # against the sleepers list, but it reached every by_name
+        # consumer, news tagging included.
+        _claim(full_keys, " ".join(parts), pid, players, shared_names)
         stripped = [p for p in parts if p not in SUFFIXES]
         if stripped and stripped != parts:
-            full_keys[" ".join(stripped)] = pid
+            _claim(full_keys, " ".join(stripped), pid, players, shared_names)
 
         surname = stripped[-1] if stripped else parts[-1]
         surname_hits.setdefault(surname, set()).add(pid)
@@ -328,6 +387,10 @@ def build_index(raw: dict) -> dict:
         "fetched_at": datetime.now(UTC).isoformat(),
         "by_name": by_name,
         "surnames": surnames,
+        # How many names more than one active player answers to. The
+        # winner is picked by rank rather than dump order, but the reader
+        # still deserves to know the question was ambiguous.
+        "shared_names": sorted(shared_names),
         "players": players,
     }
 
@@ -473,5 +536,10 @@ async def fetch_index(timeout: float = 90.0) -> dict:
         )
     response.raise_for_status()
     index = build_index(response.json())
-    log.info("player index: %d players, %d name keys", len(index["players"]), len(index["by_name"]))
+    log.info(
+        "player index: %d players, %d name keys, %d names shared by two actives",
+        len(index["players"]),
+        len(index["by_name"]),
+        len(index.get("shared_names") or []),
+    )
     return index

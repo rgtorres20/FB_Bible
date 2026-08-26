@@ -311,3 +311,85 @@ def test_a_record_carries_no_meta_field():
 
     assert "meta" not in record
     assert (record["position"], record["team"]) == ("RB", "DET")
+
+
+# --- two players, one name ------------------------------------------------
+
+
+def _allen(order):
+    qb = {
+        "active": True,
+        "position": "QB",
+        "full_name": "Josh Allen",
+        "team": "BUF",
+        "search_rank": 12,
+    }
+    lb = {
+        "active": True,
+        "position": "LB",
+        "full_name": "Josh Allen",
+        "team": "JAX",
+        "search_rank": 240,
+    }
+    raw = {"4984": qb, "4033": lb} if order == "qb-first" else {"4033": lb, "4984": qb}
+    return players.build_index(raw)
+
+
+def test_a_shared_name_goes_to_the_fantasy_relevant_player():
+    """Owner, Aug 26: the sleepers list "choses wrong person".
+
+    Josh Allen is a Buffalo quarterback and a Jacksonville linebacker.
+    `by_name` was a plain overwrite, so Sleeper's dump order picked the
+    winner — and it picked the linebacker. Somebody adding Josh Allen to
+    a sleepers list got the wrong man's team and the wrong man's wire.
+    """
+    assert _allen("qb-first")["players"][_allen("qb-first")["by_name"]["josh allen"]]["team"] == (
+        "BUF"
+    )
+
+
+def test_the_winner_does_not_depend_on_dump_order():
+    """The actual defect. Both orders must agree, or the answer is
+    whatever Sleeper happened to serialise first that morning."""
+    assert _allen("qb-first")["by_name"]["josh allen"] == "4984"
+    assert _allen("lb-first")["by_name"]["josh allen"] == "4984"
+
+
+def test_a_ranked_player_never_loses_a_name_to_an_unranked_one():
+    """An unranked player is one Sleeper does not consider fantasy
+    relevant at all. He must not take a name off somebody who is."""
+    index = players.build_index(
+        {
+            "1": {
+                "active": True,
+                "position": "WR",
+                "full_name": "Mike Williams",
+                "team": "NYJ",
+                "search_rank": 90,
+            },
+            "2": {
+                "active": True,
+                "position": "WR",
+                "full_name": "Mike Williams",
+                "team": "FA",
+                "search_rank": 9999999,
+            },
+        }
+    )
+
+    assert index["by_name"]["mike williams"] == "1"
+
+
+def test_two_unranked_players_still_resolve_the_same_way_twice():
+    """Arbitrary is acceptable; unstable is not. Two renders of one dump
+    have to agree, which dump order never guaranteed."""
+    raw = {
+        "9": {"active": True, "position": "TE", "full_name": "John Doe", "team": "SF"},
+        "4": {"active": True, "position": "TE", "full_name": "John Doe", "team": "LAR"},
+    }
+    reversed_raw = dict(reversed(list(raw.items())))
+
+    assert (
+        players.build_index(raw)["by_name"]["john doe"]
+        == (players.build_index(reversed_raw)["by_name"]["john doe"])
+    )

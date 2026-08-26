@@ -124,6 +124,36 @@ if it is wrong.
 | `TOP = 200`, `MIN_GAMES = 1` | `app/feeds/topscorers.py:65,69` | 200 covers a 12-team roster deep into the bench; one game keeps a real September performance visible instead of hiding it behind a threshold. | `MIN_GAMES = 1` means a single big game can top the per-game column. The season-total headline is the defence against that, which is why it is the headline. |
 | `MAX_WATCHED = 60`, `thread(limit=40)` | `app/feeds/watchlist.py:36,86` | A sleepers list is a shortlist; 60 is past any reasonable one and stops a pasted cheat sheet turning the watchlist into a second ranking list. 40 posts is the same cut the Alerts overlay uses (`MAX_LIVE_ITEMS`), so the two threads read at the same depth. | Too low: a deep-league drafter silently cannot add a 61st name — the add is refused, not truncated, so nothing is lost invisibly. Too high: the tab becomes a ranking list nobody maintains. Neither number affects what the thread *contains*, only how much of it renders. |
 
+## A name two players share goes to the higher-ranked one
+
+**Chosen Aug 26, after the owner reported the sleepers list "choses wrong
+person".**
+
+Josh Allen is a Buffalo quarterback and a Jacksonville linebacker. Lamar
+Jackson is a Baltimore quarterback and a corner. `by_name` was a plain
+dict assignment, so **Sleeper's dump order decided** which one owned the
+name — and it gave "josh allen" to the linebacker. Anyone adding him to a
+sleepers list got the wrong man's team and the wrong man's wire, and the
+same key feeds news tagging and the handcuff join.
+
+**The choice:** the lower `search_rank` wins — Sleeper's own measure of
+fantasy relevance, so the quarterback (12) beats the linebacker (240). An
+unranked player never takes a name from a ranked one. Two unranked
+players fall back to the lower id: arbitrary, but *stable*, which dump
+order was not.
+
+**What this does not do:** make the name unambiguous. It makes the answer
+defensible and repeatable. The surname map refuses ambiguity outright and
+this cannot — dropping "josh allen" would cost the quarterback his own
+name in order to spare the linebacker, which is worse for every user.
+
+**If it is wrong:** somebody who genuinely wants the Jacksonville
+linebacker on a sleepers list cannot have him by name. The row shows
+position and team (`QB · BUF`), so they can *see* they got the wrong man,
+but they cannot currently correct it — there is no "no, the other one"
+control. `shared_names` on the index records every contested name, so the
+size of the problem is measurable rather than assumed.
+
 ## Measurements that lean on a model
 
 ### IDP opportunity counts an assist like a solo tackle

@@ -168,6 +168,14 @@ async def health(
                 # up as four unrelated empty boards with no cause
                 # reachable from outside Vercel's own logs.
                 "last_error": (await store.load()).get("index_error"),
+                # Names more than one active player answers to. The
+                # winner is a rank tie-break rather than dump order
+                # (Aug 26), and this is how a reader outside Vercel's
+                # logs can tell the stored index carries that rule at
+                # all -- an older blob simply has no such key.
+                "shared_names": len((index or {}).get("shared_names") or [])
+                if index and "shared_names" in index
+                else None,
             }
         except Exception as exc:  # noqa: BLE001 - report the gap, never raise
             logging.getLogger(__name__).warning("health: player index unreadable: %s", exc)

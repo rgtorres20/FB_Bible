@@ -366,6 +366,20 @@ def main() -> int:
             age_h < 48,
             f"{age_h}h since Sleeper last answered",
         )
+    # Owner, Aug 26: the sleepers list "choses wrong person". Two active
+    # players really do share a name -- Josh Allen is a Buffalo QB and a
+    # Jacksonville LB -- and `by_name` was a plain overwrite, so Sleeper's
+    # dump order picked the winner. It is a rank tie-break now. Checked
+    # live because the fix only reaches a reader once the stored index is
+    # rebuilt (INDEX_VERSION 5 forces that on the next sync).
+    shared = health_players.get("shared_names") if isinstance(health_players, dict) else None
+    check(
+        "the index resolves a shared name by rank, not by dump order",
+        isinstance(shared, int),
+        f"{shared} names contested"
+        if isinstance(shared, int)
+        else "index predates the Aug 26 tie-break; rebuilds on the next sync",
+    )
     if isinstance(health_players, dict) and health_players.get("last_error"):
         # Why it is empty, not just that it is. Reported rather than
         # checked: the failure is upstream and this is the message that
