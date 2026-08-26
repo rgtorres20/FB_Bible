@@ -280,13 +280,45 @@ leaked. Password hashes are a target where there was none. scrypt is
 what makes that an acceptable trade rather than a careless one — and
 the owner's own credential deliberately stays out of the store.
 
-### League points are a *column*, not a sort key
+### ~~League points are a *column*, not a sort key~~ — RESOLVED Aug 26
 
-The board still orders by ADP and the blended rank lists. Your scoring now
-appears on every row and changes nothing about where the row sits. That
-was the deliberate scope — "how do my league's scores influence rankings"
-was answered by putting the arithmetic on screen — but if you expected the
-board to *re-sort*, it does not.
+*Was:* the board ordered by ADP and the blended rank lists; your scoring
+appeared on every row and changed nothing about where the row sat. Left
+open with the note that the owner might expect the board to re-sort.
+
+They did — *"I want to always average any top 300s but the league settings
+would impact this list projections"* — so it does now. The **League fit**
+slider on the Draft analyzer blends a third term into `blendScore`, and
+the entry below records the number behind it.
+
+### League fit defaults to 35%
+
+**Chosen Aug 26.** The board's order is a blend of three things: the
+consensus of the ranking lists (averaged, every active list equal), live
+ADP, and — new — the player's rank by what the **selected league** would
+actually pay him, off the '26 projection.
+
+**A rank, not the points.** Points are on wildly different scales between
+leagues; RED_EYE's point per completion adds hundreds to a quarterback.
+Mixing raw totals into a blend of ranks would let one league's units
+swamp the consensus. The projection's rank *within the board* is the same
+kind of number as the other two terms, which is what makes averaging them
+mean anything.
+
+**Why 35 and not more.** "Always average any top 300s" is the first half
+of the ask, so the consensus has to stay the base. At 35% a league can
+move a player meaningfully among his neighbours and cannot overturn a
+large consensus gap — there is a test pinning exactly that. It is a
+slider, so the number is the starting point rather than the policy: 0 is
+exactly the old board, 100 drafts purely by your scoring.
+
+**A player the league cannot start, or that the forecast does not cover,
+keeps his consensus place.** Not a zero. Scoring him zero would bury
+every rookie the forecast misses and every defender in a league with no
+IDP slots under an answer nobody computed.
+
+**If it is wrong:** move the slider. The default lives in one place
+(`board._LEAGUE_W_STATE`) and follows the account once changed.
 
 ### The mock room drafts injured players as though healthy
 

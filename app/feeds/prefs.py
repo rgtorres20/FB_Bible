@@ -46,6 +46,7 @@ MANAGED = (
     "ww_scout_dismissed",
     "ww_src_w",
     "ww_src_weight",
+    "ww_league_weight",
 )
 
 # Caps, chosen rather than measured -- docs/ASSUMPTIONS.md. One value is

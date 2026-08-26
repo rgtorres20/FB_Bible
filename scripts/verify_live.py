@@ -834,6 +834,18 @@ def main() -> int:
         "const v = blendScore(b);" in served,
         "still displaying b.base" if "let v = b.base;" in served else "anchor gone",
     )
+    # Owner, Aug 26: "I want to always average any top 300s but the
+    # league settings would impact this list projections". Checked in both
+    # halves -- the control and the term it feeds -- because a slider
+    # wired to nothing is the exact fault this column already had once.
+    check(
+        "your league's scoring pulls the board order, not just a column",
+        "FBLeagueRank" in served and "if (lw > 0 && lr)" in served,
+    )
+    check(
+        "the league-fit control exists and is bound",
+        "League fit" in served and "{{ onLeagueWeight }}" in served,
+    )
     check(
         "the board-order slider reaches the displayed value",
         "(1 - w) * b.rank + w * mkt" in served,
