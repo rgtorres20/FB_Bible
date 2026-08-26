@@ -19,7 +19,20 @@ INDEX = Path("frontend/index.html").read_text(encoding="utf-8")
 
 
 def _index_for(*names):
-    return {"by_name": {players.match_key(n): {"id": str(i)} for i, n in enumerate(names)}}
+    """Built by the REAL builder, not hand-shaped.
+
+    The hand-shaped version keyed `by_name` to `{"id": ...}` dicts; the
+    real index keys it to bare id strings. Every test here passed against
+    the wrong shape while the live page raised AttributeError on the
+    first render (Aug 26). A fixture that disagrees with the producer
+    tests nothing, so this one goes through `build_index`.
+    """
+    return players.build_index(
+        {
+            str(i): {"active": True, "full_name": n, "position": "RB", "search_rank": i + 1}
+            for i, n in enumerate(names)
+        }
+    )
 
 
 def _stats(**by_id):

@@ -1,5 +1,40 @@
 # Gap review — Aug 15 2026
 
+## Found Aug 26 — fixed, and the failure class is the point
+
+- **A docstring was the source of truth, and it was wrong.**
+  `players.build_index` returns `{"by_name": {name: player_ID}}` and its
+  docstring said `{name: player_dict}`. Two callers read it as records:
+  `depth.cuff_usage` (shipped Aug 25) and `watchlist.resolve` (written
+  Aug 26, caught before it shipped). The first raised `AttributeError`
+  on the very first real page render.
+
+  Three things made it invisible, and each is worth more than the bug:
+
+  1. **Every unit test built its own index by hand**, to the shape the
+     docstring claimed. A fixture that disagrees with its producer tests
+     nothing. Both fixtures now go through `build_index`, and
+     `tests/test_players.py` pins the shape at the producer so a third
+     caller cannot repeat the read.
+  2. **One `except Exception` covered every overlay.** The raise did not
+     just cost the handcuff table — it skipped `stats.inject` below it,
+     so the Team-intel tab silently reverted to curated estimates.
+     One overlay failing now costs one overlay, and the handler logs a
+     traceback rather than one line of exception text with no location.
+  3. **No test rendered the actual page.** Everything was unit-level
+     against `frontend/index.html`, so nothing ran the overlays in the
+     order production runs them. `tests/test_page_render.py` does now,
+     against a store seeded the way the sync seeds it.
+
+  A fourth, smaller: **the live check written to catch this could never
+  pass.** It asserted `"GL carries" not in served` page-wide, and five
+  rows of unrelated curated prose say exactly that. It was scoped to the
+  handcuff block. A watchdog check added in the same commit as its
+  feature and never run live is a check nobody has tested.
+
+  Found by `verify-live.yml`, reading the log rather than the badge —
+  three failures, of which only one named the actual cause.
+
 ## Found Aug 24 — measured, needs an owner decision
 
 - **The 15-minute sync actually runs about every 80 minutes.** Measured

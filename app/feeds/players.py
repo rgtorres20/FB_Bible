@@ -215,9 +215,17 @@ def _cased_tokens(text: str) -> list[tuple[str, bool]]:
 def build_index(raw: dict) -> dict:
     """Reduce Sleeper's dump to what matching needs.
 
-    Returns {"by_name": {key: player_dict}, "players": {id: player_dict}} where
+    Returns {"by_name": {key: player_ID}, "players": {id: player_dict}} where
     key is a space-joined normalized name. Ambiguous surnames are excluded
     rather than resolved arbitrarily.
+
+    **`by_name` maps to an ID, not to a record.** This docstring said
+    "player_dict" until Aug 26 and two callers believed it -- one of them
+    shipped, raising AttributeError on the first real page render and
+    taking the Team-intel usage read down with it through a shared
+    `except Exception`. Look a name up here, then read the record out of
+    `players`. `tests/test_players.py` pins the shape so a third caller
+    cannot make the same read.
     """
     players: dict[str, dict] = {}
     full_keys: dict[str, str] = {}

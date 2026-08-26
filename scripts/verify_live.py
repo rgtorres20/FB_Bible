@@ -1021,11 +1021,18 @@ def main() -> int:
         "the backup table's usage is measured, not estimated",
         "usage measured from Sleeper" in served,
     )
+    # Scoped to the CUFFS block, and that scoping is not pedantry: five
+    # OTHER rows elsewhere on the page say "GL carries" in curated prose
+    # this injection does not touch, so a page-wide `not in` could never
+    # pass. Written that way on Aug 25 and never run live -- the check
+    # was as broken as the code it was watching.
+    cuffs = re.search(r"const CUFFS = \[.*?\n\];", served, re.S)
+    block = cuffs.group(0) if cuffs else ""
     check(
         "red-zone carries are not labelled goal-line",
-        "RZ carries" in served and "GL carries" not in served,
+        bool(block) and "RZ carries" in block and "GL carries" not in block,
     )
-    rz_rows = served.count("RZ carries")
+    rz_rows = block.count("RZ carries")
     print(f"  INFO  handcuff rows carrying measured red-zone work: {rz_rows}")
     check("Build-a-team shelved", '{ id: "build", label: "Build a team" }' not in served)
     # The Trusted-sources panel, after the Aug 21 design resync. Five of

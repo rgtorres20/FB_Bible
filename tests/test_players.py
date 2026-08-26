@@ -253,3 +253,61 @@ def test_dotted_and_initialed_names_still_enrich():
 
     assert seeded["players"][0]["id"] == "77"
     assert seeded["players"][0]["rank"] == 30
+
+
+# --- the index's own contract ---------------------------------------------
+
+
+def test_by_name_maps_to_an_id_not_to_a_record():
+    """The shape two callers got wrong on Aug 26.
+
+    `build_index`'s docstring said `{key: player_dict}` for months. It is
+    `{key: player_id}`. `depth.cuff_usage` believed the docstring, shipped,
+    and raised AttributeError on the first real page render — and because
+    main.py wraps the whole overlay pass in one `except Exception`, it took
+    the Team-intel usage read down with it and nothing said so. Every test
+    it had passed, because every fixture had been hand-built to the shape
+    the docstring claimed.
+
+    So the contract is pinned here, at the producer, where a fixture cannot
+    disagree with it.
+    """
+    index = players.build_index(
+        {
+            "4034": {
+                "active": True,
+                "position": "RB",
+                "full_name": "Isiah Pacheco",
+                "team": "DET",
+                "search_rank": 50,
+            }
+        }
+    )
+
+    assert index["by_name"]["isiah pacheco"] == "4034"
+    assert all(isinstance(v, str) for v in index["by_name"].values())
+    assert all(isinstance(v, str) for v in index["surnames"].values())
+    # And the record it points at is where the fields live.
+    assert index["players"]["4034"]["name"] == "Isiah Pacheco"
+
+
+def test_a_record_carries_no_meta_field():
+    """The other half of the same mistake: a caller read `.get("meta")`
+    off the record and would have printed an empty string beside every
+    name forever, reading as "we know nothing about him" rather than as a
+    bug. Position and team are what the index actually carries."""
+    index = players.build_index(
+        {
+            "4034": {
+                "active": True,
+                "position": "RB",
+                "full_name": "Isiah Pacheco",
+                "team": "DET",
+                "search_rank": 50,
+            }
+        }
+    )
+    record = index["players"]["4034"]
+
+    assert "meta" not in record
+    assert (record["position"], record["team"]) == ("RB", "DET")

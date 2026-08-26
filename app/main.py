@@ -310,10 +310,19 @@ if _FRONTEND_READY:
                 # real ones for /app/nextup since Aug 21 and nothing had
                 # joined them to this table -- STALE_DATA has named it the
                 # remaining step ever since.
-                html, n_cuffs = depth.inject_cuffs(html, index, stored.get("stats"))
-                if n_cuffs:
-                    log.info("board: %d handcuff rows measured", n_cuffs)
-                log = logging.getLogger(__name__)
+                #
+                # Its own guard, and that is the lesson rather than the
+                # feature: this raised on Aug 26 (it read `by_name` as
+                # records when it maps to ids) and, sharing one
+                # `except Exception` with everything below, silently took
+                # the Team-intel usage read down with it. One overlay
+                # failing must cost one overlay.
+                try:
+                    html, n_cuffs = depth.inject_cuffs(html, index, stored.get("stats"))
+                    if n_cuffs:
+                        log.info("board: %d handcuff rows measured", n_cuffs)
+                except Exception:
+                    log.exception("handcuff usage: not injected, table keeps its own numbers")
                 if marks["benched"]:
                     log.info(
                         "board: dropped %d players on a reserve list: %s",
@@ -332,13 +341,18 @@ if _FRONTEND_READY:
                 # Team-intel usage reads: the measured '25 pass rate and
                 # red-zone run share replace the curated estimates, labelled
                 # as such -- all 32 teams or nothing (see stats.usage_reads).
-                html, intel_live = stats.inject(html, stored.get("stats"))
-                if intel_live:
-                    logging.getLogger(__name__).info(
-                        "team intel: usage reads live from Sleeper '25 aggregates"
-                    )
-            except Exception as exc:  # noqa: BLE001 - overlays must never blank the page
-                logging.getLogger(__name__).warning("live page overlays unavailable: %s", exc)
+                try:
+                    html, intel_live = stats.inject(html, stored.get("stats"))
+                    if intel_live:
+                        log.info("team intel: usage reads live from Sleeper '25 aggregates")
+                except Exception:
+                    log.exception("team intel: not injected, tab keeps its curated estimates")
+            except Exception:  # noqa: BLE001 - overlays must never blank the page
+                # `exception`, not `warning`: the Aug 26 regression logged
+                # one line of exception text with no location, and the
+                # only reason it was found at all is that the live
+                # watchdog reads three separate surfaces.
+                log.exception("live page overlays unavailable")
         # The blend's inputs, published so the Draft analyzer can show how
         # its average is built (owner, Aug 21). Outside the store block on
         # purpose: these lists are committed data, so the panel is right

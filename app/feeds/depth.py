@@ -308,14 +308,20 @@ def cuff_usage(index: dict | None, stats_state: dict | None, names: list[str]) -
     the stats do not cover him, and the row says so rather than keeping a
     number nobody can source.
     """
+    # `by_name` maps a name to an ID, not to a record (players.build_index).
+    # Reading `.get("id")` off it raised AttributeError on every real page
+    # render -- and because main.py wraps the whole overlay pass in one
+    # `except Exception`, it also silently took the Team-intel usage read
+    # down with it. Caught live Aug 26, not by any test: every fixture here
+    # had been built to the shape the docstring wrongly claimed.
     lookup = (index or {}).get("by_name") or {}
     lines = ((stats_state or {}).get("players") or {}) if stats_state else {}
     out: dict[str, dict] = {}
     for name in names:
-        player = lookup.get(players_mod.match_key(name))
-        if not player:
+        pid = lookup.get(players_mod.match_key(name))
+        if not pid:
             continue
-        measured = usage(lines.get(str(player.get("id"))))
+        measured = usage(lines.get(str(pid)))
         if measured.get("rush_att") or measured.get("rec_tgt"):
             out[name] = measured
     return out

@@ -26,11 +26,28 @@ INDEX = pathlib.Path("frontend/index.html")
 
 
 def _index(*names):
-    return {
-        "by_name": {
-            players.match_key(n): {"id": str(i), "meta": "RB · LAR"} for i, n in enumerate(names)
+    """Built by the REAL builder, not hand-shaped.
+
+    The hand-shaped version keyed `by_name` to player dicts carrying a
+    `meta` field. The real index keys it to bare id strings and carries
+    no `meta` at all. Both mistakes came from a docstring that said
+    "player_dict", and a sibling module shipped the same read and raised
+    AttributeError on the live page (Aug 26). A fixture that disagrees
+    with its producer proves nothing, so this one goes through
+    `build_index`.
+    """
+    return players.build_index(
+        {
+            str(i): {
+                "active": True,
+                "full_name": n,
+                "position": "RB",
+                "team": "LAR",
+                "search_rank": i + 1,
+            }
+            for i, n in enumerate(names)
         }
-    }
+    )
 
 
 def _item(pid, title, published, source="PFF"):

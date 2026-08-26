@@ -72,14 +72,33 @@ def resolve(index: dict | None, names: list[str]) -> dict[str, dict]:
 
     A name nobody recognises stays on the list and simply gets no wire --
     dropping it silently would be the app overruling what somebody typed.
+
+    Two hops, and the second one is not optional: `by_name` maps a name to
+    an ID, and the record lives in `players`. Its docstring claimed
+    otherwise until Aug 26 and this function believed it, which would have
+    put a bare id string where every caller expects a dict.
     """
     lookup = (index or {}).get("by_name") or {}
+    records = (index or {}).get("players") or {}
     out: dict[str, dict] = {}
     for name in names:
-        player = lookup.get(players_mod.match_key(name))
-        if player:
-            out[name] = player
+        pid = lookup.get(players_mod.match_key(name))
+        player = records.get(str(pid)) if pid else None
+        if isinstance(player, dict):
+            out[name] = {**player, "id": player.get("id") or str(pid)}
     return out
+
+
+def _meta(player: dict | None) -> str:
+    """ "RB · DET", built from what the index actually carries.
+
+    Not a `meta` field: the index has none. Reading one would have printed
+    an empty string beside every name forever, and read as "we know
+    nothing about him" rather than as a bug.
+    """
+    if not player:
+        return ""
+    return " \u00b7 ".join(p for p in (player.get("position"), player.get("team")) if p)
 
 
 def thread(
@@ -141,7 +160,7 @@ def summary(index: dict | None, items: list[dict] | None, names: list[str]) -> d
                 # not carry will never collect wire, and the reader should
                 # know that is why, not wonder.
                 "known": name in known,
-                "meta": (known.get(name) or {}).get("meta") or "",
+                "meta": _meta(known.get(name)),
             }
             for name in names
         ],
