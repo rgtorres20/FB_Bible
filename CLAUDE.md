@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1377 tests green — 1361 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1385 tests green — 1369 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -407,7 +407,18 @@ written about reports **zero posts rather than being hidden** — "nobody
 is talking about him" is a real answer to what a sleeper list asks, and
 often the point of one — and a name the player index does not carry stays
 on the list, flagged, because dropping it would be the app overruling
-what somebody typed. The 19 analyst rows are **kept below it, dated and
+what somebody typed. The tab now holds **one list, not two** (owner, Aug 26). The page
+shipped its own `mySleepers` in localStorage, toggled by the stars on the
+analysts' table and the "Slpr" stars on the draft board, so starring a
+player did not put him in the panel and the panel's players wore no star
+— and the list lived on one device. `board.inject_sleepers` rewires all
+three halves together (the const the page reads, the seed that fills its
+state, the toggle that writes back), the panel hands the page its new
+list through `__fbSetSleepers`, and a star elsewhere dispatches
+`fb-sleepers-changed` so the panel re-reads — an event rather than a
+flag, because a flag is only noticed the next time something else
+redraws. A signed-out reader keeps their browser's list untouched.
+The 19 analyst rows are **kept below it, dated and
 retitled** "Analysts' picks · hand-read, not live": nineteen researched
 names are a fine place to start a list from, and the failure was that
 they were the *only* list. The app deliberately does not decide who your

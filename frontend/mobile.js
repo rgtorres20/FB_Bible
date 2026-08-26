@@ -327,6 +327,13 @@
         sleeperData = fresh;
         sleeperBusy = false;
         renderSleepers();
+        /* The page keeps its own copy of this list, because its star
+         * buttons render from component state. Hand it the new one so a
+         * player added here wears a star over there without a reload --
+         * one list, two places it is drawn. */
+        if (typeof window.__fbSetSleepers === 'function') {
+          window.__fbSetSleepers((fresh.watched || []).map(function (w) { return w.name; }));
+        }
       })
       .catch(function (err) {
         sleeperBusy = false;
@@ -431,6 +438,16 @@
   }
 
   var sleeperFetched = false;
+
+  /* A star clicked elsewhere on the page writes to the server itself and
+   * says so. Without this the panel would keep showing the list as it
+   * stood when the tab opened -- the same two-lists confusion, one
+   * session long instead of forever. */
+  window.addEventListener('fb-sleepers-changed', function () {
+    sleeperData = null;
+    sleeperFetched = false;
+    showSleepers();
+  });
 
   function showSleepers() {
     /* Navigating away re-renders the screen and takes the host with it, so

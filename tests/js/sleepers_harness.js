@@ -106,6 +106,20 @@ const document = {
 const frames = [];
 const observers = [];
 const requested = [];
+const posted = [];
+const handedToPage = [];
+let edited = false;
+
+// After an edit the server answers with the list MINUS the removed row,
+// which is what proves the panel re-renders from the response rather than
+// from what it already had.
+function served() {
+  if (!edited) return fixture.payload;
+  return {
+    watched: (fixture.payload.watched || []).slice(1),
+    posts: fixture.payload.posts || [],
+  };
+}
 
 const sandbox = {
   document,
@@ -115,10 +129,15 @@ const sandbox = {
   matchMedia: () => ({ matches: false, addEventListener() {} }),
   requestAnimationFrame: (fn) => { frames.push(fn); },
   MutationObserver: function (fn) { observers.push(fn); this.observe = function () {}; },
-  fetch: (url) => {
+  fetch: (url, opts) => {
     requested.push(url);
     if (String(url).indexOf('/app/data/sleepers.json') === 0) {
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(fixture.payload) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(served()) });
+    }
+    if (String(url).indexOf('/app/mine/sleepers') === 0) {
+      posted.push(String(opts && opts.body));
+      edited = true;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(served()) });
     }
     return Promise.reject(new Error('no network in the harness'));
   },
@@ -127,6 +146,9 @@ const sandbox = {
   console, JSON, Math, Object, Array, String, Number, Boolean, Date, parseInt, isNaN,
 };
 sandbox.window.document = document;
+// The hook `board.inject_sleepers` defines on the real page. The panel
+// must hand it the fresh list so the page's own stars agree.
+sandbox.window.__fbSetSleepers = (names) => { handedToPage.push(names); };
 
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('frontend/mobile.js', 'utf-8'), sandbox, { filename: 'mobile.js' });
@@ -141,6 +163,21 @@ vm.runInContext(fs.readFileSync('frontend/mobile.js', 'utf-8'), sandbox, { filen
     await new Promise((r) => setImmediate(r));
   }
 
+  // Click the first Remove, the way a reader would, then let the POST and
+  // the re-render settle. This is the whole round trip: button -> server ->
+  // fresh list -> panel redrawn -> page's own stars told.
+  const host0 = byId.get('fb-sleepers');
+  if (host0 && fixture.clickRemove) {
+    const walk = (n, out) => { out.push(n); n.children.forEach((k) => walk(k, out)); return out; };
+    const button = walk(host0, []).find((n) => n.tag === 'button' && n._text === 'Remove');
+    if (button && button.onclick) button.onclick();
+    for (let round = 0; round < 6; round++) {
+      await new Promise((r) => setImmediate(r));
+      observers.forEach((fn) => fn([]));
+      for (let i = 0; i < 20 && frames.length; i++) frames.splice(0).forEach((fn) => fn());
+    }
+  }
+
   function dump(node) {
     return {
       cls: node.className,
@@ -153,6 +190,8 @@ vm.runInContext(fs.readFileSync('frontend/mobile.js', 'utf-8'), sandbox, { filen
   }
   const host = byId.get('fb-sleepers');
   console.log(JSON.stringify({
+    posted,
+    handedToPage,
     rendered: !!host,
     // Inserted BEFORE the analysts' table, which is the owner's ask: the
     // tab should open on your own list.

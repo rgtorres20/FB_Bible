@@ -17,7 +17,19 @@ from fastapi.staticfiles import StaticFiles
 
 from . import leagues
 from .config import get_settings
-from .feeds import board, clock, curated, depth, page, previews, ranklists, skin, stats, vegas
+from .feeds import (
+    board,
+    clock,
+    curated,
+    depth,
+    page,
+    previews,
+    ranklists,
+    skin,
+    stats,
+    vegas,
+    watchlist,
+)
 from .feeds import players as players_mod
 from .feeds.store import FeedStore, StoredDataUnreadable
 from .routes import access, auth, feeds, league, leaguecfg, userdata
@@ -400,6 +412,16 @@ if _FRONTEND_READY:
             log.info("board: %d leagues in the analyzer", n_lg)
         else:
             log.warning("board: league picker anchors not found -- still the hardcoded two")
+        # One sleepers list, not two (owner, Aug 26). The page's own stars
+        # wrote to localStorage while the Sleepers panel wrote to the
+        # server, so starring a player did not put him on the list the
+        # panel showed. Only for a signed-in reader: without an account
+        # there is no server list, and `None` leaves the stars exactly as
+        # the design document shipped them.
+        html, n_slp = board.inject_sleepers(
+            html, watchlist.watched(user_data) if who and store is not None else None
+        )
+        log.info("board: sleeper stars wired to the server list (%d on it)", n_slp)
         # The user's own on/off choices, over both populations. Applied
         # HERE as well as in the JSON endpoint, and that is the point: the
         # panel and the blend have to read the same set, or the board

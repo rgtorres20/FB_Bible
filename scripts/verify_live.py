@@ -1174,6 +1174,24 @@ def main() -> int:
     # A POST, as above: anon_status sends a GET, and a GET on a POST-only
     # route is 405 whether it is guarded or not.
     code, _ = post_json("/app/mine/sleepers")
+    # Owner, Aug 26: one sleepers list, not two. The page's own stars wrote
+    # to localStorage while the panel wrote to the server, so starring a
+    # player did not put him on the list the panel showed -- and the list
+    # lived on one device. Checked in all three halves, because any one of
+    # them alone is a star wired to nothing.
+    check(
+        "the page's sleeper stars read the server list",
+        "const FB_SLEEPERS = " in served and 'typeof FB_SLEEPERS !== "undefined"' in served,
+    )
+    check(
+        "starring a player writes to the server",
+        '"/app/mine/sleepers", { method: "POST"' in served,
+    )
+    check(
+        "the panel can hand the page its new list",
+        "window.__fbSetSleepers" in served
+        and 'dispatchEvent(new Event("fb-sleepers-changed"))' in served,
+    )
     check(
         "the sleepers edit refuses a stranger",
         code == 401,

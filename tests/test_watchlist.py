@@ -19,7 +19,7 @@ import subprocess
 
 import pytest
 
-from app.feeds import page, players, watchlist
+from app.feeds import board, page, players, watchlist
 
 JS_DIR = pathlib.Path("tests/js")
 INDEX = pathlib.Path("frontend/index.html")
@@ -281,3 +281,123 @@ def test_the_thread_links_the_real_article(rendered):
     posts = [n for n in _flat(rendered["panel"]) if n["cls"] == "fb-sl-title"]
     assert [p["text"] for p in posts] == ["Corum pushing for a bigger share"]
     assert posts[0]["href"].startswith("https://x/")
+
+
+# --- one list, not two -----------------------------------------------------
+#
+# Owner, Aug 26. The tab grew a server-backed watchlist while the page kept
+# its own `mySleepers` in localStorage, toggled by the stars on the
+# analysts' table and on the draft board. Starring a player did not put him
+# in the panel, and the panel's players wore no star.
+
+
+def _served() -> str:
+    html, misses = page.apply(INDEX.read_text(encoding="utf-8"), page.PRE)
+    assert not misses
+    return html
+
+
+def test_the_page_seeds_its_stars_from_the_server_list():
+    """The list follows the account, not the browser. Two devices showed
+    two different sets of stars before this."""
+    out, n = board.inject_sleepers(_served(), ["Blake Corum", "Jaylen Warren"])
+
+    assert n == 2
+    assert 'const FB_SLEEPERS = ["Blake Corum","Jaylen Warren"];' in out
+    assert 'typeof FB_SLEEPERS !== "undefined"' in out
+
+
+def test_starring_a_player_writes_to_the_server():
+    """A seed rewired without a write would show the server list and then
+    silently stop saving to it — worse than the two lists it replaced."""
+    out, _ = board.inject_sleepers(_served(), [])
+
+    assert "/app/mine/sleepers" in out
+    assert 'body.set("drop", i === -1 ? "0" : "1")' in out
+
+
+def test_the_page_offers_a_way_back_in_for_the_panel():
+    """The panel edits the same list from the same screen. Without this
+    hook the stars would not agree until a reload."""
+    out, _ = board.inject_sleepers(_served(), [])
+
+    assert "window.__fbSetSleepers" in out
+    assert 'dispatchEvent(new Event("fb-sleepers-changed"))' in out
+
+
+def test_a_signed_out_reader_keeps_the_list_their_browser_holds():
+    """No account, no server list. Deleting their localStorage picks to
+    tidy up would be taking something away from somebody who never asked
+    for an account."""
+    served = _served()
+    out, n = board.inject_sleepers(served, None)
+
+    assert (n, out) == (0, served)
+    assert 'localStorage.getItem("ww_my_sleepers")' in out
+
+
+def test_every_edit_lands_or_none_of_them_do():
+    """Three anchors — the const, the seed, the toggle. Two out of three
+    is the half-wired state these transforms exist to prevent."""
+    for gone in (
+        "const toggleSleeper = (name) => {",
+        'const msl = localStorage.getItem("ww_my_sleepers");',
+        "const RAW_BOARD = [",
+    ):
+        broken = _served().replace(gone, gone.replace("const", "const_gone"), 1)
+        out, n = board.inject_sleepers(broken, ["Blake Corum"])
+        assert (n, out) == (0, broken), gone
+
+
+@pytest.fixture(scope="module")
+def after_edit(tmp_path_factory):
+    """The full round trip through the REAL mobile.js: click Remove, POST,
+    take the server's answer, redraw, and hand the page its new list."""
+    if shutil.which("node") is None:  # pragma: no cover - CI pins node
+        pytest.fail("node is required: this is the only proof the edit round-trips")
+    served, misses = page.apply(INDEX.read_text(encoding="utf-8"), page.PRE)
+    assert not misses
+    payload = watchlist.summary(
+        _index("Blake Corum", "Jaylen Warren"),
+        [_item("0", "Corum pushing for a bigger share", "2026-08-25T12:00:00Z")],
+        ["Blake Corum", "Jaylen Warren"],
+    )
+    work = tmp_path_factory.mktemp("sleepers-edit")
+    fixture = work / "fixture.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "hasAnchor": "data-fb-sleepers" in served,
+                "payload": payload,
+                "clickRemove": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["node", str(JS_DIR / "sleepers_harness.js"), str(fixture)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
+
+
+def test_remove_posts_the_edit_to_the_server(after_edit):
+    """Not localStorage. The list has to follow the account."""
+    assert after_edit["posted"] == ["name=Blake+Corum&drop=1"]
+
+
+def test_the_panel_redraws_from_the_servers_answer(after_edit):
+    """Not from what it already had. If the server rejected half the edit,
+    the screen must show what was actually stored."""
+    names = [n["text"] for n in _flat(after_edit["panel"]) if n["cls"] == "fb-src-name"]
+    assert names == ["Jaylen Warren"]
+
+
+def test_the_page_is_handed_the_new_list_so_its_stars_agree(after_edit):
+    """The other half of "one list". Without this the star on the analysts'
+    table and the draft board would still be lit for a player the panel has
+    already dropped — two lists again, just one session long."""
+    assert after_edit["handedToPage"] == [["Jaylen Warren"]]

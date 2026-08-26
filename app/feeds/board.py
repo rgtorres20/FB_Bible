@@ -1064,3 +1064,96 @@ def inject_leagues(html: str, leagues_list) -> tuple[str, int]:
     for old, new in edits:
         html = html.replace(old, new, 1)
     return html, len(names)
+
+
+# --- one sleepers list, not two -------------------------------------------
+#
+# Owner, Aug 26. The Sleepers tab grew a server-backed watchlist while the
+# page kept its own `mySleepers` in localStorage, toggled by the stars on
+# the analysts' table AND the "Slpr" stars on the draft board. Two lists,
+# both called "my sleepers": starring a player did not put him in the
+# panel, and the panel's players wore no star. It also meant the list
+# lived on one device, which is what a phone-and-laptop user notices
+# first.
+#
+# The server list wins, because it is the one that can follow you between
+# devices and be joined to the wire. localStorage stays as the signed-out
+# fallback rather than being deleted -- somebody with picks in it and no
+# account should not lose them.
+
+_SLEEPER_SEED = """      const msl = localStorage.getItem("ww_my_sleepers");
+      if (msl) try { this.setState({ mySleepers: JSON.parse(msl) }); } catch (e) {}"""
+
+# `FB_SLEEPERS` is absent for a signed-out reader, and that absence is the
+# switch: no account, no server list, keep using the device's own.
+_SLEEPER_SEED_REPLACEMENT = """      const msl = typeof FB_SLEEPERS !== "undefined"
+        ? JSON.stringify(FB_SLEEPERS)
+        : localStorage.getItem("ww_my_sleepers");
+      if (msl) try { this.setState({ mySleepers: JSON.parse(msl) }); } catch (e) {}"""
+
+_SLEEPER_TOGGLE = """    const toggleSleeper = (name) => {
+      const list = (this.state.mySleepers || []).slice();
+      const i = list.indexOf(name);
+      if (i === -1) list.push(name); else list.splice(i, 1);
+      this.setState({ mySleepers: list });
+      try { localStorage.setItem("ww_my_sleepers", JSON.stringify(list)); } catch (e) {}
+    };"""
+
+# Optimistic locally, then persisted. The star flips at once because
+# waiting on a round trip to colour a star is worse than being briefly
+# wrong; the POST follows, and the panel re-reads what the server actually
+# stored. `__fbSetSleepers` is the way back: the panel calls it after its
+# own edit so the stars agree without a reload, and it is redefined on
+# every render so it always holds the live component.
+#
+# An EVENT rather than a flag on `window`. A flag is only read the next
+# time something else happens to redraw, which on a quiet screen is
+# never -- the panel would sit there showing the list as it stood when
+# the tab opened. Dispatching says so at the moment it is true.
+_SLEEPER_TOGGLE_REPLACEMENT = """    const toggleSleeper = (name) => {
+      const list = (this.state.mySleepers || []).slice();
+      const i = list.indexOf(name);
+      if (i === -1) list.push(name); else list.splice(i, 1);
+      this.setState({ mySleepers: list });
+      try { localStorage.setItem("ww_my_sleepers", JSON.stringify(list)); } catch (e) {}
+      if (typeof FB_SLEEPERS !== "undefined") {
+        const body = new URLSearchParams();
+        body.set("name", name);
+        body.set("drop", i === -1 ? "0" : "1");
+        fetch("/app/mine/sleepers", { method: "POST", credentials: "same-origin", body: body,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" } })
+          .then(() => { window.dispatchEvent(new Event("fb-sleepers-changed")); })
+          .catch(() => {});
+      }
+    };
+    window.__fbSetSleepers = (names) => {
+      this.setState({ mySleepers: names });
+      try { localStorage.setItem("ww_my_sleepers", JSON.stringify(names)); } catch (e) {}
+    };"""
+
+
+def inject_sleepers(html: str, names: list[str] | None) -> tuple[str, int]:
+    """Point the page's own sleeper stars at the server-backed list.
+
+    Three edits, and all of them or none: the const the page reads, the
+    seed that fills its state on load, and the toggle that writes back. A
+    seed rewired without a toggle would show the server list and then
+    silently stop saving to it -- the exact half-wired state the named
+    transforms in this repo exist to make impossible.
+
+    `names is None` means nobody is signed in. Nothing is injected, the
+    page keeps its localStorage list, and the stars go on working the way
+    they always have.
+    """
+    if names is None:
+        return html, 0
+    if _LEAGUE_PTS_ANCHOR not in html or _SLEEPER_SEED not in html or _SLEEPER_TOGGLE not in html:
+        return html, 0
+    html = html.replace(
+        _LEAGUE_PTS_ANCHOR,
+        f"const FB_SLEEPERS = {_script_json(names)};\n{_LEAGUE_PTS_ANCHOR}",
+        1,
+    )
+    html = html.replace(_SLEEPER_SEED, _SLEEPER_SEED_REPLACEMENT, 1)
+    html = html.replace(_SLEEPER_TOGGLE, _SLEEPER_TOGGLE_REPLACEMENT, 1)
+    return html, len(names)
