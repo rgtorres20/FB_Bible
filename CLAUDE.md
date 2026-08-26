@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1426 tests green — 1410 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1436 tests green — 1420 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -410,6 +410,23 @@ a "Proj" label would swap one wrong claim for another. Both edits land
 together or neither does; a map injected beside a surviving formula would
 keep rendering the invented number.
 
+
+**No kicker types a date it cannot keep** (owner, Aug 26: *"Week
+review didnt update stayed on week 1 even though week 2"* and *"NBC
+player news is stale why not live"*). Both headings read "synced Fri Aug
+14" — true for about a day, a lie afterwards, printed identically
+whether the feed was an hour old or a month. **The NBC tab was never
+stale**: the live watchdog measured 40 live rows of 53, newest the night
+before, and only the heading said otherwise — a working feed reading as a
+dead one because of a typed string. Week review was the opposite: when no
+scoreboard is pushed the page falls back to , which is
+labelled "Preseason Week 1" and renders Aug 13–15 games as though they
+were current, under a sync date agreeing with them. 
+now reports the real pull time and says **OLDER THAN A WEEK** past
+ (8 days — a scoreboard describes one week, so an old one
+is last week wearing this week's heading), the NBC kicker reads whether
+its top row is live (curated seed rows carry no ; every live row
+does), and  replaces both typed dates.
 
 **Back goes where you came from** (owner, Aug 26: *"When i select
 areas and new pages are opened i should go back to the previous page im

@@ -1014,6 +1014,27 @@ def main() -> int:
         bool(nbc_live),
         f"{len(nbc_live)} live rows" if nbc_live else "every row is the Aug 14 hand-read seed",
     )
+    # And the heading has to agree with those rows. It said "synced Fri
+    # Aug 14" regardless -- which is why the tab read as stale while
+    # carrying 40 live items. Same typed date sat on the Week review.
+    check(
+        "no kicker still claims a typed sync date",
+        "synced Fri Aug 14" not in served,
+    )
+    check(
+        "the NBC heading reports what it is actually showing",
+        "ROTOWIRE[0] && ROTOWIRE[0].link" in served,
+    )
+    week = (page_data.get("weekrev") or {}) if isinstance(page_data, dict) else {}
+    print(
+        f"  INFO  week review: {week.get('week') or '(seed)'}"
+        f" · {week.get('stamp') or 'no pull stamp -- page is on its frozen seed'}"
+    )
+    check(
+        "the week review says when its scores were pulled",
+        "WEEKREV.stamp ||" in served,
+        week.get("stamp") or "live object carries no stamp yet (pre-deploy blob)",
+    )
 
     # Owner, Aug 26: "i should go back to the previous page im at right
     # now i go bak to main alerts page that doesnt help". Checked live in

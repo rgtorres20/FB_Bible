@@ -793,3 +793,38 @@ def test_a_missing_anchor_leaves_the_page_alone(index_html):
         # And nothing else was written either. `_apply` would have applied
         # the surviving four; these five are halves of one promise.
         assert served == broken, gone
+
+
+# --- kickers stop typing dates they cannot keep ----------------------------
+
+
+def test_no_kicker_still_claims_a_typed_sync_date(index_html):
+    """Owner, Aug 26: "Week review didnt update stayed on week 1 even
+    though week 2" and "NBC player news is stale why not live". Both tabs
+    declared "synced Fri Aug 14" in their heading — true for about a day,
+    a lie afterwards, and printed identically whether the feed was an hour
+    old or a month."""
+    served, misses = page.apply(index_html, page.PRE)
+
+    assert misses == []
+    assert "synced Fri Aug 14" not in served
+
+
+def test_the_week_review_reports_when_its_scores_were_pulled(index_html):
+    """And says so explicitly when it is sitting on its frozen seed —
+    which is the state the owner actually hit, because the seed is
+    labelled "Preseason Week 1" and renders as though it were current."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "WEEKREV.stamp ||" in served
+    assert "stored review" in served
+
+
+def test_the_nbc_tab_says_whether_it_is_looking_at_live_rows(index_html):
+    """Its rows ARE live. The heading was the only thing saying otherwise,
+    which is very likely the whole of that report. Live rows carry a
+    `link`; the curated seed rows never do."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "ROTOWIRE[0] && ROTOWIRE[0].link" in served
+    assert "no live wire right now" in served

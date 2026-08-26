@@ -146,3 +146,48 @@ async def test_scores_endpoint_sanitizes_and_stores(client):
         {"day": "Thu Aug 20", "score": "PIT 28 · GB 9", "status": "FINAL", "note": "NFLN"}
     ]
     assert saved["week_label"] == "Preseason Week 2"
+
+
+# --- how old is this? ------------------------------------------------------
+
+
+def test_a_fresh_scoreboard_reports_when_it_was_pulled():
+    """Owner, Aug 26: the tab "stayed on week 1 even though week 2". It
+    had no way to say how old it was in either direction."""
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime(2026, 8, 26, 2, 0, tzinfo=UTC)
+    state = {"fetched_at": (now - timedelta(hours=2)).isoformat()}
+
+    assert weekrev.stamp(state, now) == "scores pulled Tue Aug 25"
+
+
+def test_a_scoreboard_older_than_its_own_week_says_so_in_words():
+    """A scoreboard describes one week, so an old one is not a stale copy
+    of this week — it is last week wearing this week's heading."""
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime(2026, 8, 26, 2, 0, tzinfo=UTC)
+    state = {"fetched_at": (now - timedelta(days=12)).isoformat()}
+
+    assert "OLDER THAN A WEEK" in weekrev.stamp(state, now)
+
+
+def test_no_pull_time_reports_nothing_rather_than_guessing():
+    """An empty stamp is what makes the page print "stored review — no
+    live scoreboard" instead of inventing a date."""
+    assert weekrev.stamp({}) == ""
+    assert weekrev.stamp({"fetched_at": "not a timestamp"}) == ""
+
+
+def test_the_built_object_carries_the_stamp_for_the_page():
+    from datetime import UTC, datetime
+
+    now = datetime(2026, 8, 26, 2, 0, tzinfo=UTC)
+    built = weekrev.build(
+        {"fetched_at": now.isoformat(), "games": [{"day": "x"}], "week_label": "Preseason Week 3"},
+        stars=[{"name": "x"}],
+        now=now,
+    )
+
+    assert built["stamp"].startswith("scores pulled")

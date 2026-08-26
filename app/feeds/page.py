@@ -1038,6 +1038,78 @@ def back_where_you_were(html: str) -> tuple[str, list[str]]:
     return html, []
 
 
+# --- kickers stop typing dates they cannot keep -----------------------------------
+#
+# Owner, Aug 26: "Week review didnt update stayed on week 1 even though
+# week 2".
+#
+# Two things were wrong and they compounded. The kicker carried a
+# HARDCODED "synced Fri Aug 14", printed whether the scores were an hour
+# old or a month. And when the live build is unavailable -- no pushed
+# scoreboard, or the curated star column fails to parse -- the page falls
+# back to `WEEKREV_SEED`, which is labelled "Preseason Week 1" and
+# renders Aug 13-15 games as though they were this week.
+#
+# So the tab could show week 1 while claiming a sync date, and nothing on
+# screen distinguished that from working. The date now comes from the
+# data: the real pull time when there is live data, and an explicit
+# "stored review" when the page is sitting on its seed.
+
+_WEEKREV_KICKER = (
+    '      weekrev: [WEEKREV.week + " \u00b7 " + WEEKREV.range + '
+    '" \u00b7 results + high performers \u00b7 synced Fri Aug 14", "Week review"],'
+)
+_WEEKREV_KICKER_REPLACEMENT = (
+    '      weekrev: [WEEKREV.week + " \u00b7 " + WEEKREV.range + '
+    '" \u00b7 results + high performers \u00b7 " + '
+    '(WEEKREV.stamp || "stored review \u2014 no live scoreboard"), "Week review"],'
+)
+
+
+# The same typed date, on the NBC tab -- and this one is very likely why
+# the owner reported that tab as stale on Aug 26. Its rows ARE live
+# (player-tagged wire, newest first, curated blurbs below), but the
+# heading above them declared a fixed August date, so a reader glancing
+# at the kicker had every reason to conclude the feed had stopped.
+#
+# Live rows always carry a `link` (to_nbc_entry sets one); curated seed
+# rows never do. So the kicker can say which it is looking at, rather
+# than asserting a sync that may not have happened.
+_ROTO_KICKER = (
+    '      rotowire: ["NBC Sports (Rotoworld) player news \u00b7 past 24 hours '
+    '\u00b7 synced Fri Aug 14", "NBC player news"],'
+)
+_ROTO_KICKER_REPLACEMENT = (
+    '      rotowire: ["NBC Sports (Rotoworld) player news \u00b7 " + '
+    "((ROTOWIRE[0] && ROTOWIRE[0].link) "
+    '? "live wire \u00b7 newest " + ROTOWIRE[0].time '
+    ': "stored blurbs \u2014 no live wire right now"), "NBC player news"],'
+)
+
+
+def dated_kickers_read_the_data(html: str) -> tuple[str, list[str]]:
+    """Replace the two typed sync dates with what the data actually says.
+
+    A date typed into a kicker is a claim the page cannot keep. Both of
+    these read "synced Fri Aug 14" -- true for about a day, a lie
+    afterwards, and printed identically whether the feed was an hour old
+    or a month.
+
+    On the Week review it was loudest exactly when the tab had fallen
+    back to its frozen seed, because then the heading, the games and the
+    sync date all came from the same wrong week and agreed with each
+    other. On the NBC tab it was arguably worse: those rows are live, and
+    the heading was the only thing saying otherwise.
+    """
+    return _apply(
+        html,
+        (
+            ("weekrev kicker", _WEEKREV_KICKER, _WEEKREV_KICKER_REPLACEMENT, 1),
+            ("nbc kicker", _ROTO_KICKER, _ROTO_KICKER_REPLACEMENT, 1),
+        ),
+    )
+
+
 PRE = (
     head_tags,
     header_mark,
@@ -1055,6 +1127,7 @@ PRE = (
     sleepers_watchlist,
     alerts_is_the_wire,
     back_where_you_were,
+    dated_kickers_read_the_data,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

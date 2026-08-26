@@ -249,3 +249,12 @@ def test_the_way_back_reaches_the_browser_wired_to_the_last_tab(served):
     assert 'screen: this.state.lastNav || "alerts"' in served
     assert ">{{ backLabel }}</button>" in served
     assert 'localStorage.getItem("ww_screen")' in served
+
+
+def test_no_typed_sync_date_reaches_the_browser(served):
+    """Twin of the live check. Both kickers declared "synced Fri Aug 14"
+    forever — the NBC one while carrying 40 live rows, which is what made
+    a working feed read as a dead one."""
+    assert "synced Fri Aug 14" not in served
+    assert "ROTOWIRE[0] && ROTOWIRE[0].link" in served
+    assert "WEEKREV.stamp ||" in served
