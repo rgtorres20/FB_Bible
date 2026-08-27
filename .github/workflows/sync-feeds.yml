@@ -21,6 +21,14 @@ name: Sync feeds
 #    not GitHub's free tier (docs/GAP_REVIEW.md).
 #  - On a public repo, scheduled workflows are disabled automatically after
 #    60 days with no repository activity.
+#  - Degradation can also mean ZERO, not just a fifth: from Aug 26 ~16:30
+#    UTC to Aug 27 the shared scheduler fired nothing at all for over 30
+#    hours -- every scheduled workflow in the repo silent at once, state
+#    still "active", manual dispatch and push events working throughout.
+#    The recovery lever is this file itself: committing a change to it
+#    re-registers the schedule (this comment is that commit). If the
+#    stalls recur, stop relying on GitHub's shared cron and move the
+#    clock somewhere real (docs/GAP_REVIEW.md).
 
 on:
   schedule:
