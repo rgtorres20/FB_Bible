@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from . import adp, impact, injury, stats, vegas, weekrev
+from . import adp, impact, injury, projections, stats, vegas, weekrev
 from .clock import CENTRAL, DOT, format_time  # noqa: F401 - re-exported
 
 # The News tab is a reading surface, not an archive. The full set stays at
@@ -170,6 +170,8 @@ def merge_into_feeds(
     mover_reads: dict[str, str] | None = None,
     scores_state: dict | None = None,
     polled_at: str | None = None,
+    stars_state: dict | None = None,
+    week_proj_state: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -255,10 +257,16 @@ def merge_into_feeds(
         merged["vegas"] = live_vegas
 
     # The Week review tab: live scores from the runner-pushed current-week
-    # scoreboard, beside the page's own curated high-performer reads. None
-    # (no scores yet, or the seed's stars could not be parsed) leaves the
-    # committed seed standing whole -- see app/feeds/weekrev.py.
-    live_weekrev = weekrev.build(scores_state)
+    # scoreboard, beside the high performers -- measured from Sleeper's box
+    # scores when the sync has them FOR THIS WEEK, the page's curated reads
+    # otherwise. The label match is the gate: stars stored for a different
+    # week than the scoreboard now shows are last week's men under this
+    # week's heading, which is the exact lie the tab's stamp exists to
+    # prevent. None leaves the committed seed standing whole.
+    measured = None
+    if (stars_state or {}).get("week_label") == (scores_state or {}).get("week_label"):
+        measured = (stars_state or {}).get("stars") or None
+    live_weekrev = weekrev.build(scores_state, stars=measured)
     if live_weekrev:
         merged["weekrev"] = live_weekrev
 
@@ -353,6 +361,18 @@ def merge_into_feeds(
                 "source": (
                     "Pass rate + red-zone run share: Sleeper '25 season "
                     "(measured, all 32 teams) · projections still curated"
+                ),
+            }
+        # Only the TD-prop forecasts went live; DFS salaries have no open
+        # source and the builder is shelved at serve time, so the row says
+        # both halves rather than letting one live clause launder the rest.
+        elif feed == "FFBets salaries/projections" and (week_proj_state or {}).get("players"):
+            entry = {
+                **entry,
+                "asOf": as_of((week_proj_state or {}).get("fetched_at")) or entry.get("asOf"),
+                "source": (
+                    f"TD-prop forecasts: {projections.source_label(week_proj_state)}, "
+                    f"Wk {(week_proj_state or {}).get('week')} · salaries stay estimates"
                 ),
             }
         meta_rows.append(entry)

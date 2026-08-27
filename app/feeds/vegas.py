@@ -463,6 +463,26 @@ def apply_reviews(preds: list[dict], reviews: dict[str, str] | None) -> list[dic
     return out
 
 
+def apply_forecasts(preds: list[dict], forecasts: dict[str, str] | None) -> list[dict]:
+    """Append a labelled forecast clause to a row's why, and nothing else.
+
+    Same contract as `apply_reviews`: the lean and the confidence stay
+    exactly as computed. The clause arrives already labelled with whose
+    number it is (projections.td_forecasts), because a bare figure would
+    read as the owner's call -- the exact claim this tab refuses to make.
+    """
+    if not forecasts:
+        return preds
+    out = []
+    for pred in preds:
+        note = (forecasts.get(pred["name"]) or "").strip()
+        row = dict(pred)
+        if note:
+            row["why"] = f"{pred['why']} {note}"
+        out.append(row)
+    return out
+
+
 def inject_predictions(html: str, adjusted: list[dict]) -> str:
     """Swap the curated PREDICTIONS const for the live-adjusted rows."""
     if not adjusted:

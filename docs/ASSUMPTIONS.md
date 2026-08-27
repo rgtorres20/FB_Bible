@@ -431,3 +431,48 @@ for a return specialist as a floor.
 four fields, so the day Sleeper starts carrying them the test fails and
 the caveat comes off rather than outliving its reason.
 
+
+## ESPN's preseason weeks are Sleeper's plus one
+
+**Verified Aug 27, not chosen — recorded because it looks arbitrary.**
+
+ESPN's scoreboard counts the Hall of Fame game as its own preseason
+week; Sleeper's stats endpoint does not. Probed live the day this was
+built (probe runs 18/20/21): with ESPN reporting "Preseason Week 4",
+Sleeper's `pre/2026/3` was filling from that night's games, `pre/2026/2`
+held the full previous week (3,071 entries, 781KB) and `pre/2026/4` was
+a literal `{}`. So `weekrev.sleeper_week` maps a preseason label to
+ESPN's number minus one, refuses ESPN's week 1 (it would be a Sleeper
+week 0 that does not exist), and refuses playoffs outright — that
+numbering has never been probed. Regular-season weeks map straight
+across; the scorecard has graded on that equivalence since Aug 21.
+
+**If it is wrong** — say a future preseason drops the HOF week — the
+mapping breaks *empty*, not wrong-week: an unpublished Sleeper week is
+`{}`, `build_stars` produces nothing, and the curated column stands. The
+one failure it cannot catch is both numberings shifting together, which
+is why the coverage label on every measured star names the game count
+("through N of M games") a reader can check against the scores column
+beside it.
+
+## The Week review shows seven measured performers
+
+**Chosen Aug 27.** `weekrev.TOP_STARS = 7` — the curated seed's own row
+count, kept so the measured column occupies the same space the curated
+one did. Ranked by Sleeper's `pts_ppr`, which is their arithmetic under
+standard PPR, credited as such — not any of the owner's three leagues'
+scoring. Running league scoring here would need a league picker on a tab
+that has none; the honest cheap answer is one well-labelled market
+number. **If it is wrong:** one constant, and the read on every row says
+whose scoring it is.
+
+## The TD-lean forecast is pinned to Week 1
+
+**Chosen Aug 27, derived from the tab rather than the calendar.**
+`projections.PRED_WEEK = 1` because the Predictions rows are Week 1
+props — the caption says so, and the ledger snapshots them against
+regular-season weeks only. Fetching "the current week" instead would
+serve preseason numbers as evidence for a Week 1 line. **If it is
+wrong** — the owner starts writing leans for later weeks — the constant
+moves to whatever names the predictions' week, and the clause's own "Wk
+1" label is what makes the mismatch visible in the meantime.

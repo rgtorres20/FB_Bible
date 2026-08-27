@@ -342,3 +342,125 @@ def test_the_kept_set_covers_defenders_and_team_defenses_too():
 
     assert reduced["players"]["5"] == {"gp": 17, "idp_tkl_solo": 80, "idp_sack": 6.0}
     assert reduced["players"]["SF"] == {"gp": 17, "pts_allow": 280, "sack": 48}
+
+
+# --- weekly TD forecasts for the prediction leans ---------------------------
+# Shapes mirror the live probes of Aug 27 (runs 17 and 19): list rows with
+# week: 1, season_type 'regular', company 'rotowire', and the three TD
+# fields present on every row that projects the matching volume.
+
+WEEK_ROWS = [
+    {
+        "player_id": "4984",
+        "company": "rotowire",
+        "last_modified": 1787816709294,
+        "week": 1,
+        "stats": {"pass_td": 1.7, "rush_td": 0.3, "pts_ppr": 22.0},
+    },
+    {
+        "player_id": "6001",
+        "company": "rotowire",
+        "week": 1,
+        "stats": {"rec_td": 0.6, "pts_ppr": 14.2},
+    },
+    # A row with no TD field at all: nothing to say about any prop.
+    {"player_id": "7002", "company": "rotowire", "week": 1, "stats": {"pts_ppr": 3.0}},
+]
+
+
+def _week_raw():
+    return {
+        "rows": WEEK_ROWS,
+        "season": 2026,
+        "week": 1,
+        "fetched_at": "2026-08-27T23:00:00+00:00",
+    }
+
+
+def test_the_week_url_asks_for_the_predictions_week_and_only_prop_positions():
+    """The Predictions tab's rows are Week 1 TD props, so week 1 is the
+    one week whose forecast is evidence for them -- and no IDP group or
+    kicker has a prop there."""
+    url = proj.WEEK_URL.format(season=2026, week=proj.PRED_WEEK)
+
+    assert "projections/nfl/2026/1" in url
+    assert "season_type=regular" in url
+    for group in ("QB", "RB", "WR", "TE"):
+        assert f"position[]={group}" in url
+    for group in ("K", "DEF", "LB", "DB", "DL"):
+        assert f"position[]={group}" not in url
+
+
+def test_reduce_week_keeps_only_the_prop_fields_keyed_by_id():
+    out = proj.reduce_week(_week_raw())
+
+    assert out["players"] == {
+        "4984": {"pass_td": 1.7, "rush_td": 0.3},
+        "6001": {"rec_td": 0.6},
+    }
+    assert out["week"] == 1
+    assert out["companies"] == ["rotowire"]
+
+
+def test_forecast_clauses_join_by_id_and_say_whose_number_it_is():
+    state = proj.reduce_week(_week_raw())
+    preds = [
+        {"name": "Josh Allen", "meta": "QB · BUF", "prop": "Passing TDs"},
+        {"name": "Puka Nacua", "meta": "WR · LAR", "prop": "Receiving TDs"},
+    ]
+    name_to_id = {"josh allen": "4984", "puka nacua": "6001"}
+
+    clauses = proj.td_forecasts(state, preds, name_to_id)
+
+    assert clauses["Josh Allen"] == "Wk 1 forecast: 1.7 passing tds (Rotowire via Sleeper)."
+    assert clauses["Puka Nacua"] == "Wk 1 forecast: 0.6 receiving tds (Rotowire via Sleeper)."
+
+
+def test_no_clause_without_the_matching_field_prop_or_name():
+    """Absent is a fact, zero is a claim. A player the forecast does not
+    cover, a prop the table does not map, and a name the index cannot
+    resolve all say nothing rather than something invented."""
+    state = proj.reduce_week(_week_raw())
+    preds = [
+        # 6001 carries rec_td only -- a rushing prop about him has no evidence.
+        {"name": "Puka Nacua", "meta": "WR · LAR", "prop": "Rushing TDs"},
+        {"name": "Josh Allen", "meta": "QB · BUF", "prop": "Longest Completion"},
+        {"name": "Nobody Indexed", "meta": "QB · ???", "prop": "Passing TDs"},
+    ]
+    name_to_id = {"josh allen": "4984", "puka nacua": "6001"}
+
+    assert proj.td_forecasts(state, preds, name_to_id) == {}
+    assert proj.td_forecasts({}, preds, name_to_id) == {}
+    assert proj.td_forecasts(state, preds, None) == {}
+
+
+def test_the_ffbets_health_row_goes_live_only_when_forecasts_are_stored():
+    from datetime import UTC, datetime
+
+    from app.feeds import render
+
+    bundled = {
+        "news": [],
+        "meta": [
+            {
+                "feed": "FFBets salaries/projections",
+                "asOf": "2026-08-13T12:00",
+                "maxAgeH": 96,
+                "source": "Model estimates — no live sheet",
+                "tab": "FFBets",
+            }
+        ],
+    }
+    now = datetime(2026, 8, 27, 23, 30, tzinfo=UTC)
+    item = [{"id": "a", "title": "t", "summary": "", "published": "2026-08-27T01:00:00+00:00"}]
+
+    without = render.merge_into_feeds(dict(bundled), item, now)
+    assert without["meta"][0]["source"] == "Model estimates — no live sheet"
+
+    state = proj.reduce_week(_week_raw())
+    with_live = render.merge_into_feeds(dict(bundled), item, now, week_proj_state=state)
+    row = with_live["meta"][0]
+    assert "TD-prop forecasts: Rotowire via Sleeper, Wk 1" in row["source"]
+    # And it keeps saying what did NOT go live.
+    assert "salaries stay estimates" in row["source"]
+    assert row["asOf"].startswith("2026-08-27T")

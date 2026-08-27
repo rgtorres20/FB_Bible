@@ -347,3 +347,43 @@ def test_a_stored_blob_without_defenses_is_stale():
     fresh = stats.reduce(_raw())
     assert not stats.stale(fresh, datetime.now(UTC))
     assert stats.stale({**fresh, "defenses": {}}, datetime.now(UTC))
+
+
+# --- one week's box scores --------------------------------------------------
+# The URL's season-type segment was pinned to "regular" until Aug 27, when
+# the Week review's measured stars needed the preseason weeks probed live
+# that day (pre/2026/2 full, pre/2026/4 a literal {}).
+
+
+async def test_fetch_week_asks_for_the_season_type_it_was_given():
+    import httpx
+
+    seen = {}
+
+    def record(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"4984": {"pts_ppr": 24.3}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        box = await stats.fetch_week(2026, 3, client=client, season_type="pre")
+
+    assert "/v1/stats/nfl/pre/2026/3" in seen["url"]
+    assert box == {"4984": {"pts_ppr": 24.3}}
+
+
+async def test_fetch_week_defaults_to_regular_for_the_grader():
+    import httpx
+
+    seen = {}
+
+    def record(request):
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        box = await stats.fetch_week(2025, 1, client=client)
+
+    assert "/v1/stats/nfl/regular/2025/1" in seen["url"]
+    # Sleeper answers an unpublished week with a literal {} -- which must
+    # read as "not published", never as "everybody scored zero".
+    assert box is None

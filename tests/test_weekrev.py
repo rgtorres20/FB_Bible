@@ -191,3 +191,131 @@ def test_the_built_object_carries_the_stamp_for_the_page():
     )
 
     assert built["stamp"].startswith("scores pulled")
+
+
+# --- measured high performers ------------------------------------------------
+# The stars column's curated half going live. Week mapping and box shapes
+# mirror the probes of Aug 27: ESPN's "Preseason Week 4" was Sleeper's
+# pre/2026/3 (filling that night), pre/2026/2 held the full previous week,
+# pre/2026/4 was a literal {}.
+
+
+def test_espn_preseason_weeks_map_one_below_sleepers():
+    """ESPN counts the Hall of Fame game as its own week; Sleeper does not."""
+    assert weekrev.sleeper_week("Preseason Week 4") == ("pre", 3)
+    assert weekrev.sleeper_week("Preseason Week 2") == ("pre", 1)
+
+
+def test_unverifiable_weeks_map_to_nothing():
+    """The HOF week has no Sleeper number, playoffs numbering has never
+    been probed, and garbage is garbage. No mapping keeps the curated
+    stars -- wrong-week box scores under this week's heading is the exact
+    lie the tab's stamp exists to prevent."""
+    assert weekrev.sleeper_week("Preseason Week 1") is None
+    assert weekrev.sleeper_week("Playoffs Week 1") is None
+    assert weekrev.sleeper_week("This week") is None
+    assert weekrev.sleeper_week(None) is None
+
+
+def test_regular_season_weeks_map_straight_across():
+    """Both sides number the 18 regular weeks identically -- the scorecard
+    has graded against exactly this equivalence since Aug 21."""
+    assert weekrev.sleeper_week("Week 3") == ("regular", 3)
+
+
+def test_finals_count_reads_the_same_scoreboard_the_tab_shows():
+    scores = {
+        "games": [
+            {"status": "FINAL"},
+            {"status": "FINAL · OT"},
+            {"status": "7:00 PM CT"},
+        ]
+    }
+    assert weekrev.finals_count(scores) == (2, 3)
+    assert weekrev.finals_count({}) == (0, 0)
+
+
+_BOX = {
+    "4984": {"pts_ppr": 24.3, "pass_cmp": 24, "pass_att": 35, "pass_yd": 238, "pass_td": 2},
+    "6001": {"pts_ppr": 18.1, "rec": 7, "rec_tgt": 9, "rec_yd": 83, "rec_td": 1},
+    "7002": {"pts_ppr": 15.0, "rush_att": 14, "rush_yd": 112},
+    "8003": {"pts_ppr": 9.9, "rush_att": 6, "rush_yd": 40},
+    # The populations build_stars must skip: team aggregates and zeros.
+    "TEAM_CAR": {"pts_ppr": 109.0},
+    "BUF": {"pts_allow": 9},
+    "9004": {"pts_ppr": 0},
+}
+
+_INDEX = {
+    "players": {
+        "4984": {"name": "Josh Allen", "position": "QB", "team": "BUF"},
+        "6001": {"name": "Puka Nacua", "position": "WR", "team": "LAR"},
+        "7002": {"name": "Jahmyr Gibbs", "position": "RB", "team": "DET"},
+        "8003": {"name": "Chuba Hubbard", "position": "RB", "team": "CAR"},
+    }
+}
+
+
+def test_stars_rank_by_sleepers_own_ppr_and_skip_team_rows():
+    stars = weekrev.build_stars(_BOX, _INDEX, "Sleeper box scores · all 3 games")
+
+    assert [s["name"] for s in stars] == [
+        "Josh Allen",
+        "Puka Nacua",
+        "Jahmyr Gibbs",
+        "Chuba Hubbard",
+    ]
+    assert stars[0]["meta"] == "QB · BUF"
+    assert stars[0]["line"] == "24/35 · 238 yds · 2 TD passing"
+    assert stars[1]["line"] == "7-83-1 rec"
+    assert stars[2]["line"] == "112 rush yds"
+    # The read is arithmetic and says whose: no invented judgement.
+    assert "#1" in stars[0]["read"] and "Sleeper" in stars[0]["read"]
+    assert all(s["src"] == "Sleeper box scores · all 3 games" for s in stars)
+
+
+def test_a_box_id_the_index_cannot_name_is_skipped_not_rendered_bare():
+    box = {"999": {"pts_ppr": 30.0}, "4984": {"pts_ppr": 20.0, "pass_att": 1, "pass_cmp": 1}}
+
+    stars = weekrev.build_stars(box, _INDEX, "src")
+
+    assert [s["name"] for s in stars] == ["Josh Allen"]
+
+
+def test_an_empty_box_builds_no_stars():
+    assert weekrev.build_stars({}, _INDEX, "src") == []
+    assert weekrev.build_stars(None, _INDEX, "src") == []
+
+
+def test_overlay_uses_measured_stars_only_for_the_week_it_is_showing():
+    """The label match is the gate: stars stored for a different week than
+    the scoreboard now shows are last week's men under this week's
+    heading."""
+    scores = {
+        "week_label": "Preseason Week 4",
+        "range": "Thu – Sun",
+        "games": [{"day": "d", "score": "PIT 28 · GB 9", "status": "FINAL", "note": ""}],
+    }
+    measured = [{"name": "Josh Allen", "meta": "QB · BUF", "line": "x", "read": "r", "src": "s"}]
+    now = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
+    item = [{"id": "a", "title": "t", "summary": "", "published": "2026-08-27T01:00:00+00:00"}]
+
+    same_week = render.merge_into_feeds(
+        {"news": []},
+        item,
+        now,
+        scores_state=scores,
+        stars_state={"week_label": "Preseason Week 4", "stars": measured},
+    )
+    assert same_week["weekrev"]["stars"] == measured
+
+    stale_week = render.merge_into_feeds(
+        {"news": []},
+        item,
+        now,
+        scores_state=scores,
+        stars_state={"week_label": "Preseason Week 3", "stars": measured},
+    )
+    # Falls back to the page's own curated seed rather than last week's men.
+    assert stale_week["weekrev"]["stars"] != measured
+    assert len(stale_week["weekrev"]["stars"]) >= 5

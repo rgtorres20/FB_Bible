@@ -49,6 +49,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
+from . import players as players_mod
 from . import stats as stats_mod
 
 log = logging.getLogger(__name__)
@@ -168,6 +169,141 @@ def stale(state: dict | None, now: datetime) -> bool:
         return now - datetime.fromisoformat(fetched) > REFRESH
     except ValueError:
         return True
+
+
+# --- weekly forecasts for the TD-prop leans --------------------------------
+# The Predictions tab's rows are Week 1 touchdown props (vegas.PRED_CAPTION
+# says so), so the one week whose forecast is evidence for them is that
+# week -- not "the current week", which is a preseason number until
+# September.
+#
+# **Verified before a line of this was written** (probe runs 17 and 19,
+# 2026-08-27): the same host serves per-week rows -- HTTP 200, 4.7MB,
+# list(7659) with week: 1, season_type: 'regular', company: 'rotowire' --
+# and the field census found the three TD fields under the scorer's own
+# names with no gaps in coverage: every row projecting pass attempts
+# carries pass_td (33 of 33), every rusher rush_td (297 of 297), every
+# receiver rec_td (427 of 427). So "field present" is the whole test; a
+# missing field means Rotowire has nothing to say, never a hidden zero.
+PRED_WEEK = 1
+
+# Only the positions the TD-prop rows can name. The IDP groups and kickers
+# have no prop on that tab, and 4.7MB is already plenty to carry.
+WEEK_POSITIONS = ("QB", "RB", "WR", "TE")
+
+WEEK_URL = (
+    "https://api.sleeper.com/projections/nfl/{season}/{week}"
+    "?season_type=regular&order_by=pts_ppr&" + "&".join(f"position[]={p}" for p in WEEK_POSITIONS)
+)
+
+# What a TD prop is settled by, per prop wording. The keys are the page's
+# own prop strings (vegas.curated_predictions reads them from the PREDICTIONS
+# const), the values are Sleeper's verified field names.
+PROP_FIELDS = {
+    "Passing TDs": "pass_td",
+    "Rushing TDs": "rush_td",
+    "Receiving TDs": "rec_td",
+}
+
+
+async def fetch_week(week: int = PRED_WEEK, client: httpx.AsyncClient | None = None) -> dict:
+    """One week's projection rows, or {} on any failure. Never raises --
+    same contract as `fetch`, for the same reason."""
+    owned = client is None
+    client = client or httpx.AsyncClient(
+        timeout=60.0, headers={"User-Agent": "FBBible/1.0 (draft prep, daily)"}
+    )
+    try:
+        resp = await client.get(WEEK_URL.format(season=SEASON, week=week))
+        resp.raise_for_status()
+        rows = resp.json()
+        if not isinstance(rows, list):
+            log.warning("week projections: expected a list, got %s", type(rows).__name__)
+            return {}
+        return {
+            "rows": rows,
+            "season": SEASON,
+            "week": week,
+            "fetched_at": datetime.now(UTC).isoformat(),
+        }
+    except Exception as exc:  # noqa: BLE001 - a missing clause is not an outage
+        log.warning("week projections: fetch failed (%s)", type(exc).__name__)
+        return {}
+    finally:
+        if owned:
+            await client.aclose()
+
+
+def reduce_week(raw: dict | None) -> dict:
+    """{player_id: {td fields present}} plus provenance, same joins-by-id
+    rule as `reduce` and for the same reason."""
+    rows = (raw or {}).get("rows") or []
+    keep = frozenset(PROP_FIELDS.values())
+    players: dict[str, dict] = {}
+    companies: set[str] = set()
+    newest = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        pid = str(row.get("player_id") or "")
+        stats = row.get("stats")
+        if not pid or not isinstance(stats, dict):
+            continue
+        line = {k: v for k, v in stats.items() if k in keep and isinstance(v, int | float)}
+        if not line:
+            continue
+        players[pid] = line
+        if row.get("company"):
+            companies.add(str(row["company"]))
+        stamp = row.get("last_modified") or 0
+        if isinstance(stamp, int | float):
+            newest = max(newest, int(stamp))
+    return {
+        "players": players,
+        "season": (raw or {}).get("season") or SEASON,
+        "week": (raw or {}).get("week") or PRED_WEEK,
+        "companies": sorted(companies),
+        "updated_ms": newest,
+        "fetched_at": (raw or {}).get("fetched_at"),
+    }
+
+
+def week_stale(state: dict | None, now: datetime) -> bool:
+    """Same daily budget as the season forecast, same reasoning."""
+    return stale(state, now)
+
+
+def td_forecasts(
+    state: dict | None, preds: list[dict], name_to_id: dict[str, str] | None
+) -> dict[str, str]:
+    """{prediction row name: one labelled forecast sentence}.
+
+    The number is Rotowire's, the label says so, and the lean and the
+    confidence are never touched -- the same contract as the AI check
+    clause. A player the forecast does not cover, a prop this table does
+    not map, or a name the index cannot resolve all produce NO clause
+    rather than a zero: absent is a fact, zero is a claim.
+    """
+    players = (state or {}).get("players") or {}
+    week = (state or {}).get("week") or PRED_WEEK
+    if not players or not name_to_id:
+        return {}
+    label = source_label(state)
+    out: dict[str, str] = {}
+    for pred in preds:
+        field = PROP_FIELDS.get(pred.get("prop") or "")
+        if not field:
+            continue
+        # match_key is THE join key -- the same one name_to_id was built
+        # with (scorecard.name_index), so the two sides cannot disagree
+        # on suffixes or apostrophes.
+        key = players_mod.match_key(pred.get("name") or "")
+        line = players.get(str(name_to_id.get(key) or ""))
+        if not line or field not in line:
+            continue
+        value = line[field]
+        out[pred["name"]] = f"Wk {week} forecast: {value:.1f} {pred['prop'].lower()} ({label})."
+    return out
 
 
 def as_of(state: dict | None) -> str:

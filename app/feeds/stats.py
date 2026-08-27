@@ -37,7 +37,7 @@ STATS_URL = "https://api.sleeper.app/v1/stats/nfl/regular/2025"
 # HTTP 200, rush_att / rush_yd / rush_rz_att and the rest of the same
 # vocabulary). This is what settles a TD lean -- a prediction graded
 # against anything other than the real box score is not graded.
-WEEK_STATS_URL = "https://api.sleeper.app/v1/stats/nfl/regular/{season}/{week}"
+WEEK_STATS_URL = "https://api.sleeper.app/v1/stats/nfl/{season_type}/{season}/{week}"
 SEASON = 2025
 
 # Final-season data is static; a weekly refetch only guards against the
@@ -188,7 +188,10 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
 
 
 async def fetch_week(
-    season: int, week: int, client: httpx.AsyncClient | None = None
+    season: int,
+    week: int,
+    client: httpx.AsyncClient | None = None,
+    season_type: str = "regular",
 ) -> dict | None:
     """One week's per-player box scores, or None if the week is not
     published yet.
@@ -196,6 +199,14 @@ async def fetch_week(
     None rather than {} on purpose: an unplayed week and a week where
     everybody scored zero are different facts, and the grader must not
     settle predictions against the second when it means the first.
+    Sleeper answers an unpublished week with a literal {} (probed live
+    2026-08-27: pre/2026/4 -> HTTP 200, 2 bytes), which the last line
+    already folds into None.
+
+    `season_type` is "regular" (the grader's only case) or "pre" -- the
+    Week review's, during August. Preseason weeks were probed live the
+    same day: pre/2026/2 is a full played week (3,071 entries, 781KB) in
+    the same field vocabulary.
     """
     own_client = client is None
     if own_client:
@@ -204,7 +215,9 @@ async def fetch_week(
             headers={"User-Agent": "FBBible/1.0 (personal fantasy tool, weekly)"},
         )
     try:
-        response = await client.get(WEEK_STATS_URL.format(season=season, week=week))
+        response = await client.get(
+            WEEK_STATS_URL.format(season_type=season_type, season=season, week=week)
+        )
         if response.status_code == 404:
             return None
         response.raise_for_status()

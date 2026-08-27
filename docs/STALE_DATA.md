@@ -25,6 +25,8 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | Data health stamps | overlay-stamped per feed | every request |
 | Out & returning wire stamps | latest wire mention per player | every request |
 | AI draft verdicts (news tab) | Google AI Studio over the newest wire items | hourly (live since Aug 18) |
+| TD-lean forecasts (FFBets · Predictions) | Sleeper Wk-1 projections (Rotowire), joined by player id | daily (Aug 27) |
+| Week review high performers | Sleeper per-week box scores, once the shown week has finals | every sync (Aug 27) |
 
 ## The AI layer — what is live and what is only shipped
 
@@ -152,16 +154,36 @@ Ordered by how much staleness actually costs.
    open API, and scraping their slates is both against their terms and
    fragile — the honest label is the ceiling here. Build-a-team is
    already shelved at serve time, which is why those numbers are not on
-   screen. **Projections can:** Sleeper serves
-   `/v1/projections/nfl/regular/{season}/{week}` (probed live Aug 21 —
-   HTTP 200, same field vocabulary as the season stats). Not built yet;
-   it is the largest remaining honest win on that tab.
+   screen. **Projections can — RESOLVED Aug 27.** The weekly endpoint
+   was re-probed the same day (runs 17/19: HTTP 200, 7,659 rows for
+   regular/2026/1, `pass_td`/`rush_td`/`rec_td` present on every row
+   projecting the matching volume, `company: rotowire`), and every TD
+   lean on the Predictions tab now carries a labelled clause — "Wk 1
+   forecast: 1.7 passing tds (Rotowire via Sleeper)." — appended by
+   `vegas.apply_forecasts` beside the owner's lean, which stays
+   untouched, exactly like the AI check clause. Joined by Sleeper
+   player id via the index; a player, prop or name the forecast cannot
+   cover gets no clause rather than a zero. The Data health row says
+   which half went live and that salaries stay estimates.
+   *Also resolved Aug 27, the other half of this item:* **the Week
+   review's high performers are measured** once the shown week has
+   finished games — Sleeper's per-week box scores (`stats.fetch_week`,
+   now season-type aware) ranked by Sleeper's own `pts_ppr`, with the
+   real stat line, the rank as the read, and coverage in the source
+   ("through N of M games"). ESPN's preseason weeks map one above
+   Sleeper's (docs/ASSUMPTIONS.md, verified by probe); an unmappable
+   week (HOF, playoffs) or a week with no finals keeps the curated
+   seed, and stored stars for a different week than the scoreboard
+   shows are refused by a label match rather than rendered.
    *Partially resolved Aug 20:* weekrev's **games** are live — the
    sync-feeds runner pushes ESPN's current-week scoreboard (scores,
    FINAL/clock/kickoff status, broadcast as the only note) to
    /internal/scores and the overlay serves F.weekrev. The high-performer
-   column stays the curated seed, passed through, until per-player box
-   scores exist to rank honestly (September, Sleeper weekly stats).
+   column stayed the curated seed until **Aug 27** — it turned out not
+   to need September: Sleeper publishes preseason box scores too
+   (probed: pre/2026/2 full at 3,071 entries), so the column is measured
+   from whichever week the scoreboard shows, preseason included, the
+   moment that week has finals.
    *Partially resolved Aug 18:* Team intel's **usage numbers** (pass rate
    and what was "GL % run") are now measured from Sleeper's '25 season team
    aggregates and injected at serve time, relabelled **"RZ x% run share

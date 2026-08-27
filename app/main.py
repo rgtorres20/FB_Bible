@@ -25,7 +25,9 @@ from .feeds import (
     page,
     prefs,
     previews,
+    projections,
     ranklists,
+    scorecard,
     skin,
     stats,
     vegas,
@@ -285,6 +287,10 @@ if _FRONTEND_READY:
         if store is not None:
             try:
                 stored = await store.load()
+                # Loaded here rather than beside board.decorate because two
+                # consumers now join on it: the board's decorations below,
+                # and the TD-lean forecast clauses joined by player id.
+                index = await store.load_players()
                 state = stored.get("vegas") or {}
                 games = state.get("games") or []
                 if games:
@@ -295,8 +301,18 @@ if _FRONTEND_READY:
                         vegas.implied_by_team(games),
                     )
                     # The owner's leans, confidence tracking the live line,
-                    # and a labelled AI clause where one was drafted.
+                    # a labelled AI clause where one was drafted, and
+                    # Rotowire's Week 1 TD forecast where Sleeper carries
+                    # one (owner's FFBets flag, Aug 21; STALE_DATA #7).
                     adjusted = vegas.apply_reviews(adjusted, stored.get("pred_reviews"))
+                    adjusted = vegas.apply_forecasts(
+                        adjusted,
+                        projections.td_forecasts(
+                            stored.get("week_projections"),
+                            adjusted,
+                            scorecard.name_index(index),
+                        ),
+                    )
                     html = vegas.inject_predictions(html, adjusted)
                     html = vegas.inject_schedule(
                         html,
@@ -317,7 +333,6 @@ if _FRONTEND_READY:
                 # seat the starting lineups (docs/BOARD_EXPECTED.md). Depth
                 # comes from the live player index, marked as index depth
                 # rather than given an invented scouting note.
-                index = await store.load_players()
                 # Who is on the board, then what the rows say about
                 # them -- `board.decorate` owns that order and explains
                 # why. Both decorations are name-keyed maps, so one built

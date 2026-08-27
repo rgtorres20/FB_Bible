@@ -121,3 +121,37 @@ def test_only_leans_with_a_posted_line_are_sent_for_review():
     # The lean travels so the model can judge it -- but it is not asked to
     # return one, and the endpoint would ignore it if it did.
     assert {"player", "prop", "line", "lean"} <= set(rows[0])
+
+
+# --- the forecast clause ----------------------------------------------------
+# Same append-only contract as the AI check, and tested for the same
+# reasons: the lean and the confidence belong to the owner, and a clause
+# arrives already labelled with whose number it carries.
+
+
+def test_a_forecast_appends_its_labelled_clause_and_changes_nothing_else():
+    pred = {
+        "name": "Josh Allen",
+        "meta": "QB · BUF",
+        "prop": "Passing TDs",
+        "line": "1.5",
+        "lean": "OVER",
+        "conf": 78,
+        "why": "Threw 2+ in 11 of 17.",
+    }
+    out = vegas.apply_forecasts(
+        [pred], {"Josh Allen": "Wk 1 forecast: 1.7 passing tds (Rotowire via Sleeper)."}
+    )[0]
+
+    assert out["why"] == (
+        "Threw 2+ in 11 of 17. Wk 1 forecast: 1.7 passing tds (Rotowire via Sleeper)."
+    )
+    assert out["lean"] == "OVER"
+    assert out["conf"] == 78
+
+
+def test_rows_without_a_forecast_are_returned_unchanged():
+    pred = {"name": "A", "why": "w", "lean": "OVER", "conf": 60}
+    assert vegas.apply_forecasts([pred], {"B": "note"})[0] == pred
+    assert vegas.apply_forecasts([pred], None)[0] == pred
+    assert vegas.apply_forecasts([pred], {"A": "   "})[0] == pred

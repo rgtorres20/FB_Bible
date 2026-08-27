@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1436 tests green — 1420 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1453 tests green — 1437 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -419,6 +419,25 @@ a "Proj" label would swap one wrong claim for another. Both edits land
 together or neither does; a map injected beside a surviving formula would
 keep rendering the invented number.
 
+
+**The TD leans carry Rotowire's Week 1 forecast, and the Week review's
+high performers are measured** (Aug 27, the two halves of STALE_DATA #7
+that could go live). Sleeper's weekly projections endpoint was re-probed
+before either line was written — the three TD fields exist under the
+scorer's names on every row projecting the matching volume — and each
+Predictions row now carries a labelled "Wk 1 forecast: …(Rotowire via
+Sleeper)" clause appended beside the owner's lean, which stays untouched
+(`vegas.apply_forecasts`, same contract as the AI check). DFS salaries
+stay estimates — no open source — and the Data health row names both
+halves. The Week review's stars column, curated since Aug 14, is now the
+shown week's top seven PPR scorers from Sleeper's real box scores once
+that week has finished games — preseason included, because Sleeper
+publishes those too (probed). ESPN's preseason numbering runs one above
+Sleeper's (HOF week); the mapping, its verified probes, and its
+fails-empty property are in docs/ASSUMPTIONS.md. Stored stars for a
+different week than the scoreboard shows are refused by a label match —
+last week's men under this week's heading is the lie the tab's stamp
+exists to prevent.
 
 **No kicker types a date it cannot keep** (owner, Aug 26: *"Week
 review didnt update stayed on week 1 even though week 2"* and *"NBC

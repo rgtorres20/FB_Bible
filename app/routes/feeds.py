@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from .. import authn
 from .. import leagues as leagues_mod
-from ..config import Settings, get_settings
+from ..config import SEASON_YEAR, Settings, get_settings
 from ..feeds import (
     accuracy,
     adp,
@@ -45,6 +45,7 @@ from ..feeds import (
     teams,
     topscorers,
     vegas,
+    weekrev,
 )
 from ..feeds.store import FeedStore
 
@@ -115,6 +116,8 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         mover_reads=stored.get("mover_reads"),
         scores_state=stored.get("scores"),
         polled_at=stored.get("polled_at"),
+        stars_state=stored.get("week_stars"),
+        week_proj_state=stored.get("week_projections"),
     )
     return render.rename_leagues(merged)
 
@@ -883,6 +886,56 @@ async def sync(
             # forecast is a better column than no column.
             log.warning("projections: fetch returned nothing, keeping previous state")
 
+    # Week 1 forecasts for the TD-prop leans (the FFBets tab's remaining
+    # honest win, docs/STALE_DATA.md #7). Same daily budget and same
+    # keep-on-failure rule as the season forecast above.
+    wkproj_state = existing.get("week_projections") or {}
+    if projections.week_stale(wkproj_state, datetime.now(UTC)):
+        raw = await projections.fetch_week()
+        if raw:
+            wkproj_state = projections.reduce_week(raw)
+            log.info(
+                "week projections: %d players carry a Wk %s TD forecast",
+                len(wkproj_state.get("players") or {}),
+                wkproj_state.get("week"),
+            )
+        else:
+            log.warning("week projections: fetch returned nothing, keeping previous state")
+
+    # The Week review's high performers, measured (the column's curated
+    # half until now -- see app/feeds/weekrev.py). Only once the week the
+    # tab is showing has finished games, and refetched every sync while it
+    # does: a box score grows as the slate plays out, and the coverage
+    # label says how much of the week is in ("through N of M games").
+    stars_state = existing.get("week_stars") or {}
+    week_label = str(scores_state.get("week_label") or "")
+    mapping = weekrev.sleeper_week(week_label)
+    finals, slate = weekrev.finals_count(scores_state)
+    if mapping and finals:
+        try:
+            stype, wk = mapping
+            box = await stats.fetch_week(SEASON_YEAR, wk, season_type=stype)
+            coverage = (
+                f"Sleeper box scores · all {slate} games"
+                if finals == slate
+                else f"Sleeper box scores · through {finals} of {slate} games"
+            )
+            stars = weekrev.build_stars(box, await store.load_players(), coverage)
+            if stars:
+                stars_state = {
+                    "week_label": week_label,
+                    "stars": stars,
+                    "fetched_at": polled["polled_at"],
+                }
+                log.info("week stars: %d measured performers for %s", len(stars), week_label)
+            else:
+                # An unpublished or empty week keeps whatever stood --
+                # render gates on the label match, so a previous week's
+                # stars can never wear this week's heading.
+                log.info("week stars: no box scores yet for %s", week_label)
+        except Exception as exc:  # noqa: BLE001 - stars must never sink the sync
+            log.warning("week stars: skipped this run: %s", exc)
+
     # The prediction ledger (app/feeds/scorecard.py). Two separate jobs,
     # deliberately in this order: snapshot what the app is claiming right
     # now, then settle anything the box scores can already decide. The
@@ -959,6 +1012,8 @@ async def sync(
             "verdicts": verdicts,
             "stats": stats_state,
             "projections": proj_state,
+            "week_projections": wkproj_state,
+            "week_stars": stars_state,
             "pred_reviews": pred_reviews,
             "capsules": capsule_state,
             "mover_reads": mover_reads,
@@ -1002,6 +1057,10 @@ async def sync(
         "predictions_recorded": ledger_recorded,
         "predictions_settled": ledger_settled,
         "predictions_week": week if week is not None else week_reason,
+        # Both new live halves, in the runner log for the same reason as
+        # the ledger counts: zero during the season is a silent problem.
+        "week_forecasts": len(wkproj_state.get("players") or {}),
+        "week_stars": len(stars_state.get("stars") or []),
         "stats_defenses": len(stats_state.get("defenses", {})),
         "stats_defenses_complete": (stats_state.get("coverage") or {}).get(
             "defense_pa_complete", 0

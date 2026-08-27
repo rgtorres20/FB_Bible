@@ -233,6 +233,33 @@ def main() -> int:
         len(wk.get("games") or []) >= 4 and bool(wk.get("stars")),
         wk.get("week_label") or wk.get("week") or "absent",
     )
+    # The high-performer column, measured (Aug 27): once the shown week has
+    # finished games, the stars must be Sleeper's box scores rather than
+    # the Aug-14 curated seed. A week with no finals keeps the seed
+    # honestly, and the two labels Sleeper cannot number (the HOF week,
+    # playoffs) are exempt rather than failed -- the mapping refuses them
+    # on purpose (app/feeds/weekrev.py).
+    wk_label = str(wk.get("week") or "")
+    wk_mappable = wk_label.startswith("Week ") or (
+        wk_label.startswith("Preseason Week ") and wk_label != "Preseason Week 1"
+    )
+    wk_finals = sum(
+        1 for g in wk.get("games") or [] if str(g.get("status", "")).startswith("FINAL")
+    )
+    wk_stars = wk.get("stars") or []
+    wk_measured = bool(wk_stars) and all("Sleeper box scores" in s.get("src", "") for s in wk_stars)
+    if wk_mappable and wk_finals:
+        star_src = wk_stars[0].get("src", "none") if wk_stars else "no stars"
+        check(
+            "week review performers are measured once games finish",
+            wk_measured,
+            f"{wk_finals} finals · src {star_src}",
+        )
+    else:
+        print(
+            f"  INFO  week review performers: {'measured' if wk_measured else 'curated'}"
+            f" · {wk_finals} finals · {wk_label or 'no live week'}"
+        )
     check(
         "Vegas slate marked live in Data health",
         "live" in meta.get("Vegas lines", {}).get("source", ""),
@@ -745,6 +772,17 @@ def main() -> int:
     )
     check("menu script injected", 'src="mobile.js"' in served)
     check("FFBets lands on Predictions", 'gdMode: "predict",' in served)
+    # The TD leans' forecast clause (Aug 27): Rotowire's Wk 1 number via
+    # Sleeper, appended beside the owner's lean. Hard checks, per the rule
+    # that a gone-live surface must not quietly revert: the store keeps
+    # the last good forecast on a failed refetch, so absence means the
+    # pipeline broke, not that Sleeper had a slow hour.
+    check("TD leans carry the Wk 1 forecast", "Wk 1 forecast:" in served)
+    check(
+        "FFBets forecasts marked live in Data health",
+        "TD-prop forecasts" in meta.get("FFBets salaries/projections", {}).get("source", ""),
+        meta.get("FFBets salaries/projections", {}).get("source", "row missing"),
+    )
     # Owner, Aug 25: the Yahoo sign-in card comes off until Yahoo's
     # fantasy-access approval lands. Checked live because a control that
     # cannot succeed costs somebody a session of trying, and the panel

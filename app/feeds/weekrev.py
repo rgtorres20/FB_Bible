@@ -146,6 +146,130 @@ def build_games(payload: dict) -> list[dict]:
     return rows
 
 
+# --- measured high performers ----------------------------------------------
+# The stars column was the honesty split's curated half: "a real performer
+# ranking needs per-player box scores this feed does not carry." Sleeper
+# carries them (stats.fetch_week), so the column can be measured once the
+# week has finished games -- and falls back to the curated seed, labelled
+# as ever, when it has none.
+
+# ESPN counts the Hall of Fame game as its own preseason week; Sleeper does
+# not. Probed live 2026-08-27 (runs 18/20/21): with ESPN reporting
+# "Preseason Week 4", Sleeper's pre/2026/3 was filling from that night's
+# games, pre/2026/2 held the full previous week (3,071 entries) and
+# pre/2026/4 was a literal {}. So the preseason offset is -1, verified
+# rather than assumed -- and if a future preseason drops the HOF week the
+# mapping breaks EMPTY (an unpublished week is {}), never wrong-week
+# (docs/ASSUMPTIONS.md).
+_WEEK_LABEL = re.compile(r"^(Preseason |Playoffs )?Week (\d+)$")
+
+
+def sleeper_week(week_label: str | None) -> tuple[str, int] | None:
+    """('pre'|'regular', week) for Sleeper's stats endpoint, or None.
+
+    None for anything unverified: playoffs numbering has never been
+    probed, and ESPN's HOF week maps to a Sleeper week 0 that does not
+    exist. No mapping means the curated stars stand -- wrong-week box
+    scores under this week's heading is the exact lie weekrev.stamp()
+    exists to prevent.
+    """
+    match = _WEEK_LABEL.match((week_label or "").strip())
+    if not match:
+        return None
+    prefix, week = match.group(1), int(match.group(2))
+    if prefix == "Preseason ":
+        return ("pre", week - 1) if week >= 2 else None
+    if prefix == "Playoffs ":
+        return None
+    return ("regular", week)
+
+
+def finals_count(scores_state: dict | None) -> tuple[int, int]:
+    """(finished games, games on the slate), from the same scoreboard the
+    tab already shows -- so the coverage label can never disagree with the
+    games column beside it."""
+    games = (scores_state or {}).get("games") or []
+    finals = sum(1 for g in games if str(g.get("status") or "").startswith("FINAL"))
+    return finals, len(games)
+
+
+# How many performers the column carries -- the seed's own count, kept so
+# the measured column occupies the same space the curated one did.
+TOP_STARS = 7
+
+
+def build_stars(
+    box: dict | None,
+    index: dict | None,
+    coverage: str,
+) -> list[dict]:
+    """The week's top PPR scorers, in the page's star-row shape.
+
+    Ranked by Sleeper's own pts_ppr -- their arithmetic, credited as
+    such, not a house opinion. The line is the measured stat line and the
+    read is the rank, because this column's judgement half ("still
+    undrafted in most leagues") cannot be computed and is not faked.
+    Team entries (bare club codes, TEAM_XXX) are skipped: a defense's
+    week is not comparable to a player's on one number.
+    """
+    players = (index or {}).get("players") or {}
+    scored = []
+    for pid, line in (box or {}).items():
+        if not isinstance(line, dict) or not pid.isdigit():
+            continue
+        pts = line.get("pts_ppr")
+        if not isinstance(pts, int | float) or pts <= 0:
+            continue
+        scored.append((float(pts), pid, line))
+    scored.sort(key=lambda s: s[0], reverse=True)
+
+    stars = []
+    for rank, (pts, pid, line) in enumerate(scored[:TOP_STARS], start=1):
+        player = players.get(pid) or {}
+        name = player.get("name")
+        if not name:
+            # A box-score id the index cannot name would render as a bare
+            # number; skip it and let the next scorer up take the row.
+            continue
+        meta = " · ".join(p for p in (player.get("position"), player.get("team")) if p)
+        stars.append(
+            {
+                "name": name,
+                "meta": meta or "?",
+                "line": _stat_line(line),
+                "read": f"{pts:.1f} PPR pts — the week's #{rank} scorer (Sleeper scoring).",
+                "src": coverage,
+            }
+        )
+    return stars
+
+
+def _stat_line(line: dict) -> str:
+    """A factual stat line: '24/35 · 238 yds · 2 TD passing · 7-83-1 rec'.
+
+    Built only from fields the box actually carries; a quiet category is
+    absent, not zeroed.
+    """
+    parts = []
+    if line.get("pass_att"):
+        piece = f"{line.get('pass_cmp', 0):g}/{line.get('pass_att', 0):g}"
+        piece += f" · {line.get('pass_yd', 0):g} yds"
+        if line.get("pass_td"):
+            piece += f" · {line['pass_td']:g} TD"
+        parts.append(piece + " passing")
+    if line.get("rush_att"):
+        piece = f"{line.get('rush_yd', 0):g} rush yds"
+        if line.get("rush_td"):
+            piece += f" · {line['rush_td']:g} TD"
+        parts.append(piece)
+    if line.get("rec_tgt") or line.get("rec"):
+        piece = f"{line.get('rec', 0):g}-{line.get('rec_yd', 0):g}"
+        if line.get("rec_td"):
+            piece += f"-{line['rec_td']:g}"
+        parts.append(piece + " rec")
+    return " · ".join(parts) or "box score carries no volume line"
+
+
 def curated_stars() -> list[dict]:
     """The owner's high-performer reads, parsed out of the page's own seed
     so the served object keeps the column the page would otherwise show."""
