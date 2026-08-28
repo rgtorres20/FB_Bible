@@ -84,11 +84,12 @@ def test_every_anchor_fires_against_the_committed_document():
 
 
 def test_a_page_without_the_anchors_reports_every_miss():
-    """Six edits that must land together: a foot pager bound to handlers
-    nobody added renders two dead buttons, and a sliced list with no
-    pager hides items with no way to reach them."""
+    """Eight edits that must land together: a foot pager bound to handlers
+    nobody added renders two dead buttons, a sliced list with no
+    pager hides items with no way to reach them, and a scroll handler
+    with no marker falls back to the page-top jump the owner reported."""
     _, misses = page.feed_paging("<html>nothing to patch</html>")
-    assert len(misses) == 6
+    assert len(misses) == 8
 
 
 # --- alerts gets a way onward at the foot ----------------------------------
@@ -113,6 +114,38 @@ def test_the_foot_pager_scrolls_back_to_the_top_and_the_head_one_does_not():
     )
     assert head in served
     assert foot in served
+
+
+# --- the scroll lands on the section, not the page --------------------------
+#
+# Owner report (Aug 28, via the sleeper-pipeline handoff): pressing Next on
+# Alerts jumped to the top of the WHOLE page on a phone, dumping the reader
+# above the screen header. The foot pagers now scroll their own section's
+# marked top into view; page-top survives only as the fallback for a
+# document where the marker edit missed.
+
+
+def test_each_foot_pager_scrolls_to_its_own_section():
+    served = _served()
+    assert served.count("data-fb-alerts-top") >= 2, "the marker, and the handler that seeks it"
+    assert served.count("data-fb-news-top") >= 2
+    assert 'document.querySelector("[data-fb-alerts-top]")' in served
+    assert 'document.querySelector("[data-fb-news-top]")' in served
+
+
+def test_the_alerts_marker_lands_on_the_section_bar():
+    """On the bar that names the section and holds the head pager — so the
+    scroll shows the label, the page count, and the first fresh row."""
+    served = _served()
+    assert "data-fb-alerts-top" in served.split("Player pool status feed")[0].rsplit("<div", 1)[1]
+
+
+def test_page_top_survives_only_as_the_fallback():
+    """A document where the marker edit missed must still move — the old
+    behavior is worse than the fix but better than a dead button."""
+    served = _served()
+    assert "else window.scrollTo(0, 0);" in served
+    assert "window.scrollTo({ top: 0" not in served, "the unconditional page-top jump is gone"
 
 
 # --- news gets paging at all -----------------------------------------------
