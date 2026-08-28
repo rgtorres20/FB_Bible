@@ -44,13 +44,3 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python3 scripts/probe_endpoint.py
-
-      # TEMPORARY (branch claude/new-session-n469gu only): sleepers.yml is
-      # not registered until it reaches main, so its check mode cannot be
-      # dispatched yet. This step runs the same probe from the already-
-      # registered workflow. Reverted before merge.
-      - name: Check sleeper feed sources
-        if: ${{ !cancelled() }}
-        run: |
-          python3 -m pip install --quiet httpx feedparser trafilatura
-          python3 scripts/fetch_sleepers.py --check-feeds

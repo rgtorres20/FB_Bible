@@ -509,7 +509,16 @@ are recommending; almost every constant in it is a judgement call:
 
 **If any of it is wrong:** every constant is a one-line edit in the file
 that owns it, and the panel's own as-of stamp plus the dissent column are
-what keep a bad tuning visible instead of authoritative. The article
-sources themselves were unverifiable from both build sandboxes (no route
-to the publishers); the workflow's check mode is the verifier of record,
-and its OK/DEAD log decides the `SOURCES` list, not anybody's memory.
+what keep a bad tuning visible instead of authoritative.
+
+The sources, unlike the constants, are **measured**: neither build
+sandbox could reach the publishers, so the check ran from the Actions
+runner (probe runs 22-23, Aug 28). Ten candidates, five answering — PFF
+25 entries, PlayerProfiler 100, Razzball 30, DynastyLeagueFootball 10,
+RotoBaller 15 — and five dead, kept commented in `SOURCES` with their
+failure modes (ESPN's feed URL 0 entries, FantasySP 0, Reddit 403s
+datacenter IPs, both FantasyPros WordPress-shape guesses 0). Sleeper's
+trending add/drop and the `research/regular/2026/1` ownership endpoint
+(831 players) all answered with the shapes the script reads. The
+workflow's check mode re-verifies all of it on demand; its OK/DEAD log
+decides the list, not anybody's memory.

@@ -77,33 +77,33 @@ REQUEST_DELAY = 1.5
 AI_CALL_DELAY = 6.0
 UA = "FBBible/0.1 (personal fantasy tool)"
 
-# name, feed url, kind. The seven active ones were chosen in the handoff
-# thread; NONE were reachable from the dev sandbox, so the check-feeds
-# mode of the sleepers workflow is the verifier — prune what it calls
-# DEAD there, not from guesswork here.
+# name, feed url, kind. Every entry here was MEASURED from the Actions
+# runner on Aug 28 (probe runs 22-23, riding the registered workflow
+# because the dev sandbox cannot reach any of these hosts): the five
+# active ones answered with real entry counts, the block below did not.
+# Re-verify with the sleepers workflow's check mode before trusting a
+# change — the OK/DEAD log decides this list, not anybody's memory.
 SOURCES = [
-    ("PFF", "https://www.pff.com/feed", "rss"),
-    ("PlayerProfiler", "https://www.playerprofiler.com/feed", "rss"),
-    ("Razzball", "https://football.razzball.com/feed", "rss"),
-    ("DynastyLeagueFootball", "https://dynastyleaguefootball.com/feed", "rss"),
-    ("ESPN NFL", "https://www.espn.com/espn/rss/nfl/news", "rss"),
-    # FantasySP's feeds are free for NON-COMMERCIAL use only — fine for a
-    # personal tool, but docs/LICENSING.md lists it among the things that
-    # must be dropped or licensed before Fantasy Bible is ever sold.
-    ("FantasySP", "https://www.fantasysp.com/rss/nfl/headlines/", "rss"),
-    (
-        "r/fantasyfootball",
-        "https://www.reddit.com/r/fantasyfootball/search.json"
-        "?q=sleeper+OR+breakout&sort=new&restrict_sr=1&t=week&limit=40",
-        "reddit",
-    ),
-    # --- UNVERIFIED, enabled for one check run (Aug 28) ---
-    # FantasyPros publishes no RSS URL anywhere findable — they push their
-    # paid API (fantasypros.com/api-data/). These are WordPress-shape
-    # guesses; the check run decides whether they stay.
-    ("FantasyPros Sleepers", "https://www.fantasypros.com/content/sleepers-nfl/feed/", "rss"),
-    ("FantasyPros Articles", "https://www.fantasypros.com/nfl/articles/feed/", "rss"),
-    ("RotoBaller", "https://www.rotoballer.com/category/nfl/feed", "rss"),
+    ("PFF", "https://www.pff.com/feed", "rss"),  # 25 entries
+    ("PlayerProfiler", "https://www.playerprofiler.com/feed", "rss"),  # 100
+    ("Razzball", "https://football.razzball.com/feed", "rss"),  # 30
+    ("DynastyLeagueFootball", "https://dynastyleaguefootball.com/feed", "rss"),  # 10
+    ("RotoBaller", "https://www.rotoballer.com/category/nfl/feed", "rss"),  # 15
+    # --- measured DEAD from the runner, Aug 28 — do not re-enable without
+    #     a fresh check run saying otherwise ---
+    # ("ESPN NFL", "https://www.espn.com/espn/rss/nfl/news", "rss"),
+    #     0 entries — the feed URL is retired or refuses runner IPs.
+    # ("FantasySP", "https://www.fantasysp.com/rss/nfl/headlines/", "rss"),
+    #     0 entries. Also non-commercial-only terms (docs/LICENSING.md);
+    #     if it ever comes back, that constraint comes back with it.
+    # ("r/fantasyfootball", "https://www.reddit.com/r/fantasyfootball/search.json"
+    #     "?q=sleeper+OR+breakout&sort=new&restrict_sr=1&t=week&limit=40", "reddit"),
+    #     HTTP 403 — Reddit blocks datacenter IPs without OAuth; reviving
+    #     this means a Reddit app credential, not a different URL.
+    # ("FantasyPros Sleepers", "https://www.fantasypros.com/content/sleepers-nfl/feed/", "rss"),
+    # ("FantasyPros Articles", "https://www.fantasypros.com/nfl/articles/feed/", "rss"),
+    #     0 entries each — the WordPress-shape guesses from the handoff
+    #     thread do not exist; FantasyPros pushes its paid API instead.
 ]
 
 # Offensive skill positions, plus every defender the owner's IDP leagues

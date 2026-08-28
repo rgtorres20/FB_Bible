@@ -530,7 +530,7 @@ sleepers are.
 The tab's third section is the **community consensus** (Aug 28, from a
 handoff thread — the other half of the owner's Aug 25 *"we also show
 sleepers alerts in seperate thread where we search for new articles on
-sleepers"*): a nightly job reads full articles from seven fantasy
+sleepers"*): a nightly job reads full articles from five fantasy
 publishers, has the AI reader classify each author's **actual stance**
 per player named — a mere mention is dropped, not inflated — and blends
 the positive calls with Sleeper's add/drop trends into one ranked list.
@@ -546,10 +546,14 @@ design: the section renders only once a push exists, wears the data's own
 fetch date, labels every one-liner "AI read:", reports dissent beside the
 score rather than averaging it away, credits Sleeper, and an empty run
 leaves the stored block alone (the verdict-wipe class, again). The
-publisher list could not be verified from either sandbox — the
-workflow's check mode is the verifier of record, and every tuned
-constant is in docs/ASSUMPTIONS.md. FantasySP's feed is non-commercial
-only: docs/LICENSING.md says drop-or-licence before any sale. The anchor is a named transform (`page.sleepers_watchlist`)
+publisher list was **measured from the Actions runner** (Aug 28, probe
+runs 22-23 — neither sandbox could reach the hosts): ten candidates
+checked, five answered (PFF, PlayerProfiler, Razzball,
+DynastyLeagueFootball, RotoBaller), and the dead five — ESPN's feed URL,
+FantasySP, Reddit (403s runner IPs), both FantasyPros guesses — are kept
+commented in `SOURCES` with their failure modes. The workflow's check
+mode re-verifies the list; every tuned constant is in
+docs/ASSUMPTIONS.md. The anchor is a named transform (`page.sleepers_watchlist`)
 and the panel is built client-side, so `tests/test_watchlist.py` runs the
 real `mobile.js` under node against the real **served** page — the anchor
 does not exist on disk, and reading the file would test something no

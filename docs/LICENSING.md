@@ -72,7 +72,7 @@ Source: their RSS terms (stated on the feed pages).
 
 | Term | Effect here |
 |---|---|
-| RSS feeds are free for **non-commercial** use only | Fine for the personal build. The nightly community-sleepers job (`scripts/fetch_sleepers.py`) reads their NFL headlines feed; **drop it from `SOURCES` or licence it before Fantasy Bible is sold.** |
+| RSS feeds are free for **non-commercial** use only | Moot for now: the feed measured DEAD from the runner (Aug 28) and is disabled in `scripts/fetch_sleepers.py` `SOURCES`. If it ever revives and is re-enabled, this constraint revives with it — **drop or licence before Fantasy Bible is sold.** |
 
 ## Not yet reviewed
 
