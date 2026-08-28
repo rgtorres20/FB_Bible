@@ -364,8 +364,105 @@
   function sleeperStamp(d) {
     return JSON.stringify([
       (d.watched || []).map(function (w) { return w.name + '/' + w.alerts + '/' + w.known; }),
-      (d.alerts || []).map(function (p) { return p.url || p.title; })
+      (d.alerts || []).map(function (p) { return p.url || p.title; }),
+      d.consensus
+        ? (d.consensus.fetched_at || '') + '/' + (d.consensus.players || []).length
+        : ''
     ]);
+  }
+
+  /* --- Community consensus: what the wire is recommending ---------------
+   *
+   * The other half of the owner's Aug 25 ask: a thread that SEARCHES the
+   * wire for sleeper talk, not just the wire about players already on
+   * the list. A nightly job reads full articles from the fantasy
+   * publishers, has the AI reader classify each author's actual stance,
+   * and blends the positive calls with Sleeper's add/drop trends into
+   * one ranked list (scripts/fetch_sleepers.py).
+   *
+   * Honesty rules, same as everywhere: the section only exists when a
+   * push has landed (no empty frame under a live-sounding heading), it
+   * wears the date it was measured, every one-liner is labelled as the
+   * AI reader's paraphrase, and the links go to the real articles. */
+
+  /* Ranked already, so the tail is noise on a phone; the tap-out links
+   * carry anyone who wants the rest. */
+  var CONSENSUS_SHOWN = 12;
+
+  function consensusRow(p) {
+    var row = document.createElement('div');
+    row.className = 'fb-cs-row';
+    var name = document.createElement('div');
+    name.className = 'fb-cs-name';
+    var who = [p.position, p.team].filter(Boolean).join(' · ');
+    name.textContent = p.name + (who ? ' · ' + who : '');
+    row.appendChild(name);
+    var meta = document.createElement('div');
+    meta.className = 'fb-cs-meta';
+    var bits = [
+      p.source_count + (p.source_count === 1 ? ' source' : ' sources'),
+      p.mention_count + (p.mention_count === 1 ? ' call' : ' calls')
+    ];
+    /* Dissent is shown, never averaged away: "three sites love him, one
+     * is out" is a finding, and hiding the one would be a false positive
+     * about the agreement. */
+    if (p.dissent_count) bits.push(p.dissent_count + ' against');
+    if (p.trending_adds_72h) bits.push(p.trending_adds_72h + ' Sleeper adds/72h');
+    if (p.roster_pct) bits.push(p.roster_pct + '% rostered');
+    meta.textContent = bits.join(' · ');
+    row.appendChild(meta);
+    if ((p.reasons || []).length) {
+      var why = document.createElement('div');
+      why.className = 'fb-cs-why';
+      /* The model's own paraphrase, labelled as such -- same rule as the
+       * "AI angle:" capsules. Never a quote from the article. */
+      why.textContent = 'AI read: ' + p.reasons[0];
+      row.appendChild(why);
+    }
+    if ((p.links || []).length) {
+      var links = document.createElement('div');
+      links.className = 'fb-cs-links';
+      p.links.forEach(function (l) {
+        var a = document.createElement('a');
+        a.href = l.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.className = 'fb-cs-link';
+        a.textContent = l.source || 'article';
+        a.title = l.title || '';
+        links.appendChild(a);
+      });
+      row.appendChild(links);
+    }
+    return row;
+  }
+
+  function consensusSection(c) {
+    if (!c || !(c.players || []).length) return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'fb-sl-thread fb-cs';
+    var head = document.createElement('div');
+    head.className = 'fb-src-head';
+    head.textContent = 'Community consensus · who the wire is recommending';
+    wrap.appendChild(head);
+    var note = document.createElement('div');
+    note.className = 'fb-src-note';
+    /* The as-of stamp is the data's own fetch time, never a typed date --
+     * the lesson every kicker in the app has already paid for. */
+    note.textContent = 'AI-read from ' + (c.article_count || 0) + ' articles across ' +
+      (c.sources_surveyed || []).length + ' feeds · as of ' +
+      String(c.fetched_at || '').slice(0, 10);
+    wrap.appendChild(note);
+    (c.players || []).slice(0, CONSENSUS_SHOWN).forEach(function (p) {
+      wrap.appendChild(consensusRow(p));
+    });
+    if (c.attribution) {
+      var foot = document.createElement('div');
+      foot.className = 'fb-src-foot';
+      foot.textContent = c.attribution;
+      wrap.appendChild(foot);
+    }
+    return wrap;
   }
 
   function renderSleepers() {
@@ -416,6 +513,10 @@
       empty.textContent = 'Nobody on the list yet. Add a player and every ' +
         'alert that mentions him shows up here.';
       host.appendChild(empty);
+      /* No list is exactly when the consensus earns its keep: it is the
+       * place to start one from. */
+      var starter = consensusSection(sleeperData.consensus);
+      if (starter) host.appendChild(starter);
       return;
     }
 
@@ -435,6 +536,9 @@
       sleeperData.alerts.forEach(function (p) { thread.appendChild(sleeperPost(p)); });
     }
     host.appendChild(thread);
+
+    var consensus = consensusSection(sleeperData.consensus);
+    if (consensus) host.appendChild(consensus);
   }
 
   var sleeperFetched = false;

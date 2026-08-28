@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1453 tests green — 1437 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1482 tests green — 1466 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -525,7 +525,35 @@ The 19 analyst rows are **kept below it, dated and
 retitled** "Analysts' picks · hand-read, not live": nineteen researched
 names are a fine place to start a list from, and the failure was that
 they were the *only* list. The app deliberately does not decide who your
-sleepers are. The anchor is a named transform (`page.sleepers_watchlist`)
+sleepers are.
+
+The tab's third section is the **community consensus** (Aug 28, from a
+handoff thread — the other half of the owner's Aug 25 *"we also show
+sleepers alerts in seperate thread where we search for new articles on
+sleepers"*): a nightly job reads full articles from five fantasy
+publishers, has the AI reader classify each author's **actual stance**
+per player named — a mere mention is dropped, not inflated — and blends
+the positive calls with Sleeper's add/drop trends into one ranked list.
+`scripts/fetch_sleepers.py` runs on the Actions runner (`sleepers.yml`)
+and **pushes** to `/internal/sleepers`; nothing is committed by a bot.
+The handoff's draft was adapted to the house rules before landing: the
+model call goes through `draft_verdicts.chat_with_retry` (the owner's
+provider, not the draft's hardcoded Anthropic), the name matching is
+`app.feeds.players` (one matcher, not two), defenders stay in because
+both verified leagues start eight of them, and rows are rebuilt field by
+field at the door (`watchlist.clean_consensus`). Honesty carries the
+design: the section renders only once a push exists, wears the data's own
+fetch date, labels every one-liner "AI read:", reports dissent beside the
+score rather than averaging it away, credits Sleeper, and an empty run
+leaves the stored block alone (the verdict-wipe class, again). The
+publisher list was **measured from the Actions runner** (Aug 28, probe
+runs 22-23 — neither sandbox could reach the hosts): ten candidates
+checked, five answered (PFF, PlayerProfiler, Razzball,
+DynastyLeagueFootball, RotoBaller), and the dead five — ESPN's feed URL,
+FantasySP, Reddit (403s runner IPs), both FantasyPros guesses — are kept
+commented in `SOURCES` with their failure modes. The workflow's check
+mode re-verifies the list; every tuned constant is in
+docs/ASSUMPTIONS.md. The anchor is a named transform (`page.sleepers_watchlist`)
 and the panel is built client-side, so `tests/test_watchlist.py` runs the
 real `mobile.js` under node against the real **served** page — the anchor
 does not exist on disk, and reading the file would test something no

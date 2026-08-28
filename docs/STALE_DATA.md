@@ -143,6 +143,21 @@ Ordered by how much staleness actually costs.
    your sleepers are — it can say a player is trending or projected above
    his ADP, it cannot say who you believe in, and that judgement is exactly
    what the frozen table was carrying on somebody else's behalf.
+   *Extended Aug 28:* the other half of the owner's Aug 25 ask — *"we also
+   show sleepers alerts in seperate thread where we search for new
+   articles on sleepers"* — went live as the **community consensus**: a
+   nightly job (`scripts/fetch_sleepers.py`, `sleepers.yml`) reads full
+   articles from the fantasy publishers, has the AI reader classify each
+   author's actual stance per player (a mere mention is dropped, not
+   inflated), blends the positive calls with Sleeper's add/drop trends,
+   and pushes the ranked list to `/internal/sleepers`. The tab renders it
+   under the owner's own list wearing its own fetch date, the AI
+   one-liners labelled, dissent shown beside the score, Sleeper credited.
+   It replaces nothing: the watchlist stays the reader's own judgement,
+   the analysts' 19 stay dated below, and an empty or failed night leaves
+   the stored block (and its honest date) alone rather than blanking it.
+   `verify_live` calls the block broken past 3 days
+   (docs/ASSUMPTIONS.md).
 
 7. **weekrev / Team intel / FFBets salaries** — curated estimates, already
    labelled "estimates / no live sheet" in Data health. Plan: revisit when

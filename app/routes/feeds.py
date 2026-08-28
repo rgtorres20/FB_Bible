@@ -45,6 +45,7 @@ from ..feeds import (
     teams,
     topscorers,
     vegas,
+    watchlist,
     weekrev,
 )
 from ..feeds.store import FeedStore
@@ -758,6 +759,51 @@ async def save_verdicts(
     await store.save(data)
 
     return {"accepted": len(accepted), "stored": len(data["verdicts"])}
+
+
+@router.post("/internal/sleepers", summary="Store the community sleeper consensus")
+async def save_sleeper_consensus(
+    payload: VegasIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """Pushed by the nightly sleepers workflow (scripts/fetch_sleepers.py),
+    never by the browser — the runner reads the publishers and the model,
+    the deployment stores and serves, same split as the Vegas slate.
+
+    Rows are rebuilt field by field (`watchlist.clean_consensus`): this
+    renders into the Sleepers tab, so only the known columns pass, and a
+    link that is not http(s) never becomes an anchor. An empty push is
+    refused rather than stored — a bad night at the publishers must not
+    replace a real list with nothing; the stored block keeps serving
+    under its own honest date.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    rows = watchlist.clean_consensus(payload.state.get("players"))
+    if not rows:
+        raise HTTPException(status_code=422, detail="No usable rows in state.players.")
+
+    data = await store.load()
+    data["sleeper_consensus"] = {
+        "fetched_at": datetime.now(UTC).isoformat(),
+        "season": str(payload.state.get("season") or "")[:8],
+        "article_count": _clamped_int(payload.state.get("article_count")),
+        "sources_surveyed": [
+            str(s)[:40] for s in (payload.state.get("sources_surveyed") or [])[:12]
+        ],
+        "players": rows,
+    }
+    await store.save(data)
+    return {"stored": len(rows), "fetched_at": data["sleeper_consensus"]["fetched_at"]}
+
+
+def _clamped_int(value: object, cap: int = 10_000) -> int:
+    try:
+        return max(0, min(cap, int(value)))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 @router.post("/internal/sync", summary="Poll every source and merge new items")

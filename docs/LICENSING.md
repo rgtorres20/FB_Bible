@@ -66,6 +66,14 @@ Source: <https://docs.sleeper.com/>
 | *"Please give attribution to Sleeper you are using our trending data"* | **Applies today.** The Alerts panel shows Sleeper trending adds/drops. Attribution should be visible in the UI now, commercial or not. |
 | Stay under ~1000 calls/minute or risk an IP block | Fine at current scale; matters if Phase 3 cron fans out. |
 
+## FantasySP feeds
+
+Source: their RSS terms (stated on the feed pages).
+
+| Term | Effect here |
+|---|---|
+| RSS feeds are free for **non-commercial** use only | Moot for now: the feed measured DEAD from the runner (Aug 28) and is disabled in `scripts/fetch_sleepers.py` `SOURCES`. If it ever revives and is re-enabled, this constraint revives with it — **drop or licence before Fantasy Bible is sold.** |
+
 ## Not yet reviewed
 
 These are used or planned as sources and have not been checked. Each needs the

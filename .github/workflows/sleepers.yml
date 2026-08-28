@@ -1,0 +1,69 @@
+name: Community sleepers
+
+# Nightly: read the fantasy wire's full articles, have the AI reader
+# classify who each author is actually recommending, blend the positive
+# calls with Sleeper's add/drop trends, and PUSH the ranked consensus to
+# the deployment (/internal/sleepers) — the same division of labour as
+# every other feed job here: the runner has the network vantage point,
+# the deployment stores and serves. Nothing is committed to the repo.
+#
+# Needs the same two secrets the verdicts job already uses: SYNC_TOKEN
+# and AI_API_KEY (GEMINI_API_KEY also accepted). Without the key the run
+# no-ops with a warning, so the schedule can be on before the first push.
+#
+# The check mode exists because the dev sessions cannot reach these
+# publishers at all (proxy policy — verified Aug 28): run this workflow
+# with check = anything and it probes every source plus both Sleeper
+# endpoints, prints OK/DEAD with entry counts, and spends no model
+# credits. Prune whatever it calls DEAD from SOURCES in
+# scripts/fetch_sleepers.py.
+
+on:
+  schedule:
+    # ~05:00 CT nightly, asked for at an unpopular minute — the top of the
+    # hour is the most contended slot on GitHub's shared scheduler (see
+    # sync-feeds.yml for the measurements). Timing is best effort; a night
+    # slipping an hour costs nothing, the list wears its own fetch date.
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+    inputs:
+      check:
+        description: "Set to anything to only probe the sources (--check-feeds): no model credits, no push"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sleepers
+  cancel-in-progress: false
+
+jobs:
+  sleepers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # httpx for app.feeds.players (the script reuses the app's own
+      # player matcher), feedparser for the RSS pulls, trafilatura for
+      # article extraction. The model call itself is stdlib, through
+      # draft_verdicts.chat_with_retry — one call path for every model
+      # request in the repo.
+      - name: Install deps
+        run: python3 -m pip install --quiet httpx feedparser trafilatura
+
+      - name: Read the wire
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERDICT_API_URL: ${{ vars.VERDICT_API_URL }}
+          VERDICT_MODEL: ${{ vars.VERDICT_MODEL }}
+          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+        run: |
+          if [ -n "${{ inputs.check }}" ]; then
+            python3 scripts/fetch_sleepers.py --check-feeds
+          else
+            python3 scripts/fetch_sleepers.py
+          fi
