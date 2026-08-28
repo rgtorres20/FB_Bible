@@ -97,14 +97,13 @@ SOURCES = [
         "?q=sleeper+OR+breakout&sort=new&restrict_sr=1&t=week&limit=40",
         "reddit",
     ),
-    # --- UNVERIFIED, disabled by default ---
+    # --- UNVERIFIED, enabled for one check run (Aug 28) ---
     # FantasyPros publishes no RSS URL anywhere findable — they push their
     # paid API (fantasypros.com/api-data/). These are WordPress-shape
-    # guesses. Uncomment, run check-feeds from the workflow, keep what
-    # answers.
-    # ("FantasyPros Sleepers", "https://www.fantasypros.com/content/sleepers-nfl/feed/", "rss"),
-    # ("FantasyPros Articles", "https://www.fantasypros.com/nfl/articles/feed/", "rss"),
-    # ("RotoBaller", "https://www.rotoballer.com/category/nfl/feed", "rss"),
+    # guesses; the check run decides whether they stay.
+    ("FantasyPros Sleepers", "https://www.fantasypros.com/content/sleepers-nfl/feed/", "rss"),
+    ("FantasyPros Articles", "https://www.fantasypros.com/nfl/articles/feed/", "rss"),
+    ("RotoBaller", "https://www.rotoballer.com/category/nfl/feed", "rss"),
 ]
 
 # Offensive skill positions, plus every defender the owner's IDP leagues
