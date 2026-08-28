@@ -552,6 +552,16 @@ def data_health_stamps(html: str) -> tuple[str, list[str]]:
 # paging it never had. Both foot pagers scroll back to the top of the list on
 # the way through -- landing at the bottom of a fresh page is how a pager
 # feels broken even when the arithmetic is right.
+#
+# "The top of the list", literally -- corrected Aug 28 from the owner's
+# report (via the sleeper-pipeline handoff): the first cut scrolled to the
+# top of the WHOLE PAGE, which on a phone dumps the reader above the screen
+# header and costs them their place -- the same class of wrong as the back
+# button that forgot where you came from. Each foot pager now scrolls its
+# own section's top marker into view (the marker is added below, in this
+# same edit set), inside requestAnimationFrame so the re-render lands
+# first; a document without the marker falls back to the old page-top
+# scroll rather than not moving at all.
 
 _ALERT_IIFE = """      ...(() => {
         const PAGE = 8;"""
@@ -561,7 +571,7 @@ _ALERT_IIFE = """      ...(() => {
 # eye is on arrival, and it should not start moving the page.
 _ALERT_IIFE_PAGED = """      ...(() => {
         const PAGE = 8;
-        const toTop = () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } };"""  # noqa: E501
+        const toTop = () => { requestAnimationFrame(() => { const el = document.querySelector("[data-fb-alerts-top]"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); else window.scrollTo(0, 0); }); };"""  # noqa: E501
 
 _ALERT_RETURN = """          alertPrev: () => this.setState({ alertPage: Math.max(0, page - 1) }),
           alertNext: () => this.setState({ alertPage: Math.min(pages - 1, page + 1) })"""
@@ -617,7 +627,7 @@ _NEWS_BINDING = """      news: NEWS.map(n => Object.assign({}, n, {
 
 _NEWS_BINDING_PAGED = """      ...(() => {
         const NPAGE = 12;
-        const nToTop = () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) { window.scrollTo(0, 0); } };
+        const nToTop = () => { requestAnimationFrame(() => { const el = document.querySelector("[data-fb-news-top]"); if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); else window.scrollTo(0, 0); }); };
         const npages = Math.max(1, Math.ceil(NEWS.length / NPAGE));
         const npage = Math.min(s.newsPage || 0, npages - 1);
         return {
@@ -650,14 +660,36 @@ _NEWS_LIST_END_PAGED = (
 )
 
 
+# Where each foot pager's scroll lands: the section's own top, marked so
+# the handler can find it. The alerts marker is the "Player pool status
+# feed" bar (label + head pager, right above the first row); the news
+# marker is the list's own column, disambiguated by the sc-for it opens
+# with because the bare div style is shared with the injury screen.
+_ALERT_SECTION_HEAD = (
+    '<div style="font-size:11px; font-weight:700; letter-spacing:0.14em; '
+    'text-transform:uppercase;">Player pool status feed</div>'
+)
+_ALERT_SECTION_HEAD_MARKED = _ALERT_SECTION_HEAD.replace("<div ", "<div data-fb-alerts-top ", 1)
+
+_NEWS_COLUMN = (
+    '<div style="padding:0 var(--space-8) var(--space-8); '
+    'border-right:1px solid var(--color-neutral-300);">\n'
+    '          <sc-for list="{{ news }}" as="n" hint-placeholder-count="8">'
+)
+_NEWS_COLUMN_MARKED = _NEWS_COLUMN.replace("<div ", "<div data-fb-news-top ", 1)
+
+
 def feed_paging(html: str) -> tuple[str, list[str]]:
     """Prev/Next at the foot of Alerts, and paging for News at all.
 
-    Five edits, and they are all-or-nothing in practice: a foot pager
+    Eight edits, and they are all-or-nothing in practice: a foot pager
     bound to handlers that were never added would render two dead
-    buttons, and a sliced News list with no pager would hide items with
-    no way to reach them. Each reports its own miss, and the test asserts
-    the set fires together against the committed document.
+    buttons, a sliced News list with no pager would hide items with
+    no way to reach them, and a scroll handler looking for a marker
+    nobody planted would fall back to the page-top jump the owner
+    already reported as losing their place. Each reports its own miss,
+    and the test asserts the set fires together against the committed
+    document.
     """
     return _apply(
         html,
@@ -665,9 +697,11 @@ def feed_paging(html: str) -> tuple[str, list[str]]:
             ("alerts foot-pager handlers", _ALERT_IIFE, _ALERT_IIFE_PAGED, 1),
             ("alerts foot-pager bindings", _ALERT_RETURN, _ALERT_RETURN_PAGED, 1),
             ("alerts foot pager", _ALERT_LIST_END, _ALERT_LIST_END_PAGED, 1),
+            ("alerts scroll target", _ALERT_SECTION_HEAD, _ALERT_SECTION_HEAD_MARKED, 1),
             ("news page state", _NEWS_STATE, _NEWS_STATE_PAGED, 1),
             ("news paging", _NEWS_BINDING, _NEWS_BINDING_PAGED, 1),
             ("news foot pager", _NEWS_LIST_END, _NEWS_LIST_END_PAGED, 1),
+            ("news scroll target", _NEWS_COLUMN, _NEWS_COLUMN_MARKED, 1),
         ),
     )
 

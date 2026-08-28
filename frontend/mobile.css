@@ -528,6 +528,16 @@ aside > div:nth-child(2) {
   font-size: 11px;
   color: var(--color-neutral-600, inherit);
 }
+/* Where the Alerts and News foot pagers scroll back to (page.feed_paging
+ * marks both). A little headroom so the section bar is not flush against
+ * the viewport edge; nothing fixed sits over content on the phone layout
+ * (the menu control is a floating button), so this is spacing, not
+ * clearance. */
+[data-fb-alerts-top],
+[data-fb-news-top] {
+  scroll-margin-top: 12px;
+}
+
 /* Community consensus: the nightly AI read of the wider wire. Same visual
  * family as the thread above it -- a ranked list, not a new component. */
 .fb-cs-row { padding: 7px 0; }
