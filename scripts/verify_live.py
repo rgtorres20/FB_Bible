@@ -65,6 +65,12 @@ BASE = os.environ.get("FBBIBLE_BASE") or "https://fb-bible-torro2.vercel.app"
 # on free public repos; three hours means "genuinely broken", not "jittery".
 MAX_FEED_AGE = timedelta(hours=3)
 
+# The community consensus is pushed nightly, and GitHub's shared scheduler
+# delivers roughly a fifth of what is asked (measured in sync-feeds.yml) --
+# so one slipped night is jitter and three days is "genuinely broken".
+# Chosen, not measured: docs/ASSUMPTIONS.md.
+MAX_CONSENSUS_AGE = timedelta(days=3)
+
 failures: list[str] = []
 passes: list[str] = []
 
@@ -1342,6 +1348,53 @@ def main() -> int:
         b"__fbSetSleepers" in mobile_js and b"fb-sleepers-changed" in mobile_js,
     )
     check("sleepers panel styles serve", b"fb-sl-thread" in mobile_css)
+    check(
+        "community consensus decorator serves",
+        b"Community consensus" in mobile_js and b"fb-cs-row" in mobile_css,
+    )
+
+    # The nightly community read (scripts/fetch_sleepers.py). Absent is a
+    # legitimate state -- the feature ships before its first push, and an
+    # empty run deliberately leaves the store alone -- but a block that IS
+    # there has to be fresh and has to carry its credit: a consensus older
+    # than the window below is the nightly job broken while the tab keeps
+    # wearing a live-sounding heading, exactly the lie the dated kickers
+    # were built to kill.
+    sleeper_payload = get_json("/app/data/sleepers.json")
+    consensus = sleeper_payload.get("consensus") if isinstance(sleeper_payload, dict) else None
+    if consensus is None:
+        check(
+            "community consensus absent, honestly",
+            True,
+            "no block stored yet -- the nightly workflow has not pushed",
+        )
+    else:
+        try:
+            fetched = datetime.fromisoformat(str(consensus.get("fetched_at")))
+            age = datetime.now(UTC) - fetched
+        except ValueError:
+            age = None
+        check(
+            "community consensus is fresh",
+            age is not None and age <= MAX_CONSENSUS_AGE,
+            f"pushed {age} ago" if age is not None else "unparseable fetched_at",
+        )
+        check(
+            "community consensus credits Sleeper for trend data",
+            "Sleeper" in str(consensus.get("attribution", "")),
+        )
+        rows = consensus.get("players") or []
+        check(
+            "community consensus rows carry names and real links",
+            bool(rows)
+            and all(r.get("name") for r in rows)
+            and any(
+                link.get("url", "").startswith("http")
+                for r in rows
+                for link in r.get("links") or []
+            ),
+            f"{len(rows)} rows",
+        )
 
     # --- verdict -----------------------------------------------------------
     print(f"\n{len(passes)} passed, {len(failures)} failed")

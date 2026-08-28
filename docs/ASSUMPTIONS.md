@@ -476,3 +476,40 @@ serve preseason numbers as evidence for a Week 1 line. **If it is
 wrong** — the owner starts writing leans for later weeks — the constant
 moves to whatever names the predictions' week, and the clause's own "Wk
 1" label is what makes the mismatch visible in the meantime.
+
+## The community sleeper consensus is chosen numbers all the way down
+
+**Chosen Aug 28**, in the handoff thread that designed
+`scripts/fetch_sleepers.py`, and inherited here deliberately rather than
+re-guessed. The nightly job reads the fantasy wire and ranks who writers
+are recommending; almost every constant in it is a judgement call:
+
+- **A stance under 0.4 confidence is dropped** (`MIN_CONFIDENCE`), and
+  `"mentioned"` is dropped at any confidence — the model classifying a
+  teammate reference as a recommendation is the false positive the whole
+  pipeline is built to avoid. Lower it and the list fills with noise;
+  raise it and quiet-but-real recommendations vanish.
+- **The score is** `sources × recency × (1 + buzz) / (1 + roster% / 20)`
+  with recency doubling calls made in the last 3 days and buzz reading
+  Sleeper adds minus half the drops, per thousand. None of those
+  constants is measured; they encode "breadth of agreement beats volume,
+  recent beats stale, and a player everyone already holds is not a
+  sleeper". Dissent (bust/fade calls) is **reported, never subtracted**
+  — an average would hide both the love and the warning.
+- **Windows and caps:** 10-day lookback, 40 articles a night, 15
+  candidates per article, 40 rows stored
+  (`watchlist.MAX_CONSENSUS_ROWS`), 12 rendered
+  (`CONSENSUS_SHOWN` in mobile.js), Reddit threads under 25 net upvotes
+  ignored, 6 s between model calls (the free tier's per-minute window,
+  measured on the verdicts job, is the real constraint).
+- **The live check calls the block broken at 3 days**
+  (`verify_live.MAX_CONSENSUS_AGE`): the job is nightly, GitHub's
+  scheduler delivers roughly a fifth of what is asked, so one slipped
+  night is jitter and three is a dead job wearing a live heading.
+
+**If any of it is wrong:** every constant is a one-line edit in the file
+that owns it, and the panel's own as-of stamp plus the dissent column are
+what keep a bad tuning visible instead of authoritative. The article
+sources themselves were unverifiable from both build sandboxes (no route
+to the publishers); the workflow's check mode is the verifier of record,
+and its OK/DEAD log decides the `SOURCES` list, not anybody's memory.

@@ -215,6 +215,41 @@ def rendered(tmp_path_factory):
         [_item("0", "Corum pushing for a bigger share", "2026-08-25T12:00:00Z")],
         ["Blake Corum", "Jaylen Warren", "Nobody Atall"],
     )
+    # The nightly community read rides the same payload (test_sleeper_consensus
+    # pins its server side; this proves the panel actually draws it).
+    payload["consensus"] = watchlist.consensus(
+        {
+            "fetched_at": "2026-08-28T09:17:00+00:00",
+            "season": "2026",
+            "article_count": 17,
+            "sources_surveyed": ["PFF", "Razzball", "ESPN NFL"],
+            "players": watchlist.clean_consensus(
+                [
+                    {
+                        "player_id": "9",
+                        "name": "Woody Marks",
+                        "position": "RB",
+                        "team": "HOU",
+                        "score": 6.1,
+                        "source_count": 3,
+                        "mention_count": 4,
+                        "dissent_count": 1,
+                        "trending_adds_72h": 1200,
+                        "roster_pct": 8.0,
+                        "reasons": ["passing-down role locked in"],
+                        "links": [
+                            {
+                                "source": "Razzball",
+                                "title": "Deep sleepers",
+                                "url": "https://x/deep-sleepers",
+                                "published": "2026-08-27T12:00:00+00:00",
+                            }
+                        ],
+                    }
+                ]
+            ),
+        }
+    )
     work = tmp_path_factory.mktemp("sleepers")
     fixture = work / "fixture.json"
     fixture.write_text(
@@ -281,6 +316,50 @@ def test_the_thread_links_the_real_article(rendered):
     posts = [n for n in _flat(rendered["panel"]) if n["cls"] == "fb-sl-title"]
     assert [p["text"] for p in posts] == ["Corum pushing for a bigger share"]
     assert posts[0]["href"].startswith("https://x/")
+
+
+# --- the community consensus renders under it -------------------------------
+#
+# The nightly job's output (test_sleeper_consensus.py pins the server side).
+# The section's honesty rules are the render: it wears the data's own fetch
+# date, labels its one-liners as the AI reader's, shows dissent instead of
+# averaging it away, and credits Sleeper for the trend data.
+
+
+def test_the_consensus_renders_dated(rendered):
+    heads = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-src-head"]
+    assert any("Community consensus" in h for h in heads)
+    notes = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-src-note"]
+    assert any("17 articles" in n and "as of 2026-08-28" in n for n in notes), (
+        "the as-of stamp is the data's own fetch time, not a typed date"
+    )
+
+
+def test_consensus_rows_show_the_numbers_and_the_dissent(rendered):
+    meta = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-cs-meta"]
+    assert meta == ["3 sources · 4 calls · 1 against · 1200 Sleeper adds/72h · 8% rostered"]
+
+
+def test_the_one_liner_is_labelled_as_the_ai_readers(rendered):
+    whys = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-cs-why"]
+    assert whys == ["AI read: passing-down role locked in"]
+
+
+def test_consensus_links_go_to_the_real_articles(rendered):
+    links = [n for n in _flat(rendered["panel"]) if n["cls"] == "fb-cs-link"]
+    assert [(n["text"], n["href"]) for n in links] == [("Razzball", "https://x/deep-sleepers")]
+
+
+def test_the_trend_data_credit_travels_with_the_numbers(rendered):
+    feet = [n["text"] for n in _flat(rendered["panel"]) if n["cls"] == "fb-src-foot"]
+    assert any("Trend data via Sleeper" in f for f in feet)
+
+
+def test_no_consensus_pushed_means_no_section(after_edit):
+    """Absent is honest; an empty frame under a live-sounding heading is
+    not. This payload carries no consensus, so nothing may render one."""
+    classes = [n["cls"] for n in _flat(after_edit["panel"])]
+    assert not any("fb-cs" in c for c in classes)
 
 
 # --- one list, not two -----------------------------------------------------

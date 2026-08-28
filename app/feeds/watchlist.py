@@ -138,6 +138,96 @@ def thread(
     return out
 
 
+def clean_consensus(rows: list | None) -> list[dict]:
+    """Rebuild pushed consensus rows field by field, or [] when unusable.
+
+    Same rule as the Vegas slate: this renders into the page, so only the
+    known columns pass — an injected key dies here, a non-dict row dies
+    here, and a link whose url is not http(s) dies here because it would
+    become a clickable anchor.
+    """
+    out: list[dict] = []
+    for row in rows or []:
+        if not isinstance(row, dict) or not str(row.get("name") or "").strip():
+            continue
+        clean: dict = {
+            field: str(row.get(field) or "")[:cap] for field, cap in _CONSENSUS_STR_FIELDS
+        }
+        for field in _CONSENSUS_INT_FIELDS:
+            try:
+                clean[field] = max(0, int(row.get(field) or 0))
+            except (TypeError, ValueError):
+                clean[field] = 0
+        for field in _CONSENSUS_FLOAT_FIELDS:
+            try:
+                clean[field] = round(float(row.get(field) or 0), 2)
+            except (TypeError, ValueError):
+                clean[field] = 0.0
+        reasons = row.get("reasons") if isinstance(row.get("reasons"), list) else []
+        clean["reasons"] = [str(r)[:200] for r in reasons[:3] if str(r).strip()]
+        links = row.get("links")
+        clean["links"] = [
+            {
+                "source": str(link.get("source") or "")[:40],
+                "title": str(link.get("title") or "")[:200],
+                "url": str(link.get("url") or "")[:400],
+                "published": str(link.get("published") or "")[:40],
+            }
+            for link in (links if isinstance(links, list) else [])[:5]
+            if isinstance(link, dict)
+            and str(link.get("url") or "").startswith(("https://", "http://"))
+        ]
+        out.append(clean)
+        if len(out) >= MAX_CONSENSUS_ROWS:
+            break
+    return out
+
+
+def consensus(block: dict | None) -> dict | None:
+    """The stored consensus as the tab's payload carries it, or None.
+
+    None rather than an empty shell: until the nightly job has pushed
+    once, the panel simply has no consensus section — an absent section
+    is honest, an empty frame under a live-sounding heading is not.
+    """
+    if not isinstance(block, dict):
+        return None
+    rows = block.get("players")
+    if not isinstance(rows, list) or not rows:
+        return None
+    return {
+        "fetched_at": str(block.get("fetched_at") or ""),
+        "season": str(block.get("season") or ""),
+        "article_count": block.get("article_count") or 0,
+        "sources_surveyed": [str(s) for s in block.get("sources_surveyed") or []],
+        "players": rows,
+        # Sleeper's terms require crediting them for trend data — now, not
+        # just commercially (docs/LICENSING.md). Set here so the page
+        # cannot render the numbers without the credit travelling along.
+        "attribution": "Trend data via Sleeper · article links credit their publishers",
+    }
+
+
+# The consensus list renders at most this many rows; the score already
+# ranked them, so the tail is noise. Chosen, not measured.
+MAX_CONSENSUS_ROWS = 40
+
+_CONSENSUS_STR_FIELDS = (
+    ("player_id", 16),
+    ("name", 80),
+    ("position", 8),
+    ("team", 8),
+    ("injury_status", 16),
+)
+_CONSENSUS_INT_FIELDS = (
+    "source_count",
+    "mention_count",
+    "dissent_count",
+    "trending_adds_72h",
+)
+_CONSENSUS_FLOAT_FIELDS = ("score", "roster_pct")
+
+
 def summary(index: dict | None, items: list[dict] | None, names: list[str]) -> dict:
     """What the tab needs: the list, and how much wire each name has.
 

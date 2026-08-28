@@ -610,13 +610,19 @@ async def _sleeper_payload(request: Request, settings: Settings, store) -> dict:
             log.warning("sleepers: user data unavailable: %s", exc)
     index: dict = {}
     items: list[dict] = []
+    consensus: dict | None = None
     if store is not None:
         try:
             index = await store.load_players() or {}
-            items = (await store.load()).get("items") or []
+            data = await store.load()
+            items = data.get("items") or []
+            # The nightly community read, one block for every reader --
+            # unlike the list above it, this is the wire's judgement, not
+            # anybody's own, so it does not live in the user's layer.
+            consensus = watchlist.consensus(data.get("sleeper_consensus"))
         except Exception as exc:  # noqa: BLE001 - an empty thread, not a 500
             log.warning("sleepers: wire unavailable: %s", exc)
-    return watchlist.summary(index, items, watchlist.watched(stored))
+    return {**watchlist.summary(index, items, watchlist.watched(stored)), "consensus": consensus}
 
 
 @router.get("/app/data/sleepers.json", include_in_schema=False)

@@ -66,6 +66,14 @@ Source: <https://docs.sleeper.com/>
 | *"Please give attribution to Sleeper you are using our trending data"* | **Applies today.** The Alerts panel shows Sleeper trending adds/drops. Attribution should be visible in the UI now, commercial or not. |
 | Stay under ~1000 calls/minute or risk an IP block | Fine at current scale; matters if Phase 3 cron fans out. |
 
+## FantasySP feeds
+
+Source: their RSS terms (stated on the feed pages).
+
+| Term | Effect here |
+|---|---|
+| RSS feeds are free for **non-commercial** use only | Fine for the personal build. The nightly community-sleepers job (`scripts/fetch_sleepers.py`) reads their NFL headlines feed; **drop it from `SOURCES` or licence it before Fantasy Bible is sold.** |
+
 ## Not yet reviewed
 
 These are used or planned as sources and have not been checked. Each needs the

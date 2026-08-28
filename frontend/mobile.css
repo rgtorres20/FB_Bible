@@ -528,3 +528,28 @@ aside > div:nth-child(2) {
   font-size: 11px;
   color: var(--color-neutral-600, inherit);
 }
+/* Community consensus: the nightly AI read of the wider wire. Same visual
+ * family as the thread above it -- a ranked list, not a new component. */
+.fb-cs-row { padding: 7px 0; }
+.fb-cs-row + .fb-cs-row {
+  border-top: 1px solid var(--color-neutral-300, rgba(128, 128, 128, 0.3));
+}
+.fb-cs-name { font-size: 13px; font-weight: 700; line-height: 1.4; }
+.fb-cs-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-neutral-600, inherit);
+}
+.fb-cs-why {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.fb-cs-links { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 10px; }
+.fb-cs-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-accent-700, inherit);
+  text-decoration: none;
+}
+.fb-cs-link:hover { text-decoration: underline; }
