@@ -509,8 +509,15 @@ are recommending; almost every constant in it is a judgement call:
   candidates per article, 40 rows stored
   (`watchlist.MAX_CONSENSUS_ROWS`), 12 rendered
   (`CONSENSUS_SHOWN` in mobile.js), Reddit threads under 25 net upvotes
-  ignored, 6 s between model calls (the free tier's per-minute window,
-  measured on the verdicts job, is the real constraint).
+  ignored, and **5 articles per model call** (`BATCH_SIZE`) with 6 s
+  between batch calls. The batching was tuned against the first two
+  live runs (Aug 29): at one call per article the free tier's throttle
+  marched all 40 requests through the full backoff ladder and the runs
+  took 38 and 58 minutes — the same calls-fight-for-one-quota failure
+  the verdicts job measured on Aug 18. Eight requests instead of forty;
+  each article's stances are filtered against that article's own
+  candidate list so a row the model files under the wrong article dies
+  instead of crediting a source that never said it.
 - **The live check calls the block broken at 3 days**
   (`verify_live.MAX_CONSENSUS_AGE`): the job is nightly, GitHub's
   scheduler delivers roughly a fifth of what is asked, so one slipped

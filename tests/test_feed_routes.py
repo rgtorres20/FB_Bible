@@ -228,6 +228,36 @@ async def test_sync_rejects_a_wrong_token(sync_client, monkeypatch):
     assert response.status_code == 401
 
 
+async def test_a_failed_source_keeps_the_stamp_of_its_last_success(sync_client, monkeypatch):
+    """Status is rebuilt wholesale every sync; without the carry, one
+    transient refusal erases that the publisher answered an hour ago and
+    the watchdog reads a bad minute as a dead feed (GAP_REVIEW)."""
+    c, store = sync_client
+    await store.save_players(
+        {"v": players_mod.INDEX_VERSION, "players": {}, "by_name": {}, "surnames": {}}
+    )
+
+    ok = fake_poll([])
+    monkeypatch.setattr(feeds_route.poller, "poll", ok)
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    async def failing_poll(*args, **kwargs):
+        polled = await ok()
+        polled["sources"]["espn"]["ok"] = False
+        polled["sources"]["espn"]["error"] = "HTTP 503"
+        polled["sources"]["espn"]["fetched_at"] = "2026-08-15T03:00:00+00:00"
+        return polled
+
+    monkeypatch.setattr(feeds_route.poller, "poll", failing_poll)
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    stored = (await store.load())["sources"]["espn"]
+    assert stored["ok"] is False, "the failure itself is still reported honestly"
+    assert stored["last_ok_at"] == "2026-08-15T02:00:00+00:00", (
+        "but the last real answer survives the failed poll"
+    )
+
+
 async def test_sync_stores_items_and_reports_counts(sync_client, monkeypatch):
     c, store = sync_client
     items = [

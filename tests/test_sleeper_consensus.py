@@ -17,6 +17,8 @@ and dissent is reported beside the score rather than averaged away.
 
 from __future__ import annotations
 
+import json
+import re
 import urllib.error
 from datetime import UTC, datetime
 
@@ -422,11 +424,97 @@ def test_a_junk_block_in_the_store_reads_as_none():
         assert watchlist.consensus(junk) is None
 
 
-# --- the batch stops paying for a dead model --------------------------------
+# --- batched classification -------------------------------------------------
+#
+# One model call per BATCH_SIZE articles, not one per article. The
+# per-article version made 40 calls a night and the free tier's throttle
+# marched every one through the full backoff ladder — the first two live
+# runs took 38 and 58 minutes. Same lesson the verdicts job bought on
+# Aug 18: calls fight each other for one quota.
 
 
-def test_a_permanently_rejected_model_stops_the_batch(monkeypatch):
-    """Retrying a retired model 40 times is a slower way to be wrong —
+def _wire(monkeypatch, reply_fn, candidates_fn=None):
+    """The non-model plumbing, stubbed identically across these tests."""
+    calls: list[list[str]] = []
+
+    def chat(messages, api_key):
+        keys = re.findall(r"ARTICLE (a\d+) ", messages[1]["content"])
+        calls.append(keys)
+        return {"choices": [{"message": {"content": reply_fn(keys)}}]}
+
+    monkeypatch.setattr(fs, "chat_with_retry", chat)
+    monkeypatch.setattr(fs, "article_text", lambda item: "x" * 500)
+    monkeypatch.setattr(fs, "candidates_in", candidates_fn or (lambda text, index: [_candidate()]))
+    monkeypatch.setattr(fs, "fetch_trending", lambda *a, **k: {})
+    monkeypatch.setattr(fs, "fetch_ownership", lambda: {})
+    monkeypatch.setattr(fs, "AI_CALL_DELAY", 0)
+    return calls
+
+
+def _items(n):
+    return [
+        {
+            "source": f"S{i}",
+            "title": f"t{i}",
+            "url": f"https://x/{i}",
+            "published": "2026-08-27T12:00:00+00:00",
+        }
+        for i in range(n)
+    ]
+
+
+def test_articles_travel_in_batches_of_five(monkeypatch):
+    calls = _wire(monkeypatch, lambda keys: "{}")
+
+    _, read = fs.build_consensus(_items(12), {}, "key")
+
+    assert [len(c) for c in calls] == [5, 5, 2], "12 articles, 3 requests"
+    assert read == 12
+
+
+def test_a_stance_lands_on_the_article_that_said_it(monkeypatch):
+    """The rows come back keyed by article, and each article's rows are
+    filtered against its OWN candidates — a stance the model files under
+    the wrong article must die there, not credit a source that never
+    said it."""
+    per_article = {
+        0: [{"id": "1", "name": "Blake Corum", "position": "RB", "team": "LAR"}],
+        1: [{"id": "2", "name": "Edgerrin Cooper", "position": "LB", "team": "GB"}],
+    }
+    seen = iter(per_article.values())
+
+    def reply(keys):
+        return json.dumps(
+            {
+                "a1": [{"player_id": "1", "verdict": "sleeper", "confidence": 0.9, "reason": "r"}],
+                # Filed under a2 but names a1's player: must be dropped.
+                "a2": [{"player_id": "1", "verdict": "sleeper", "confidence": 0.9, "reason": "r"}],
+            }
+        )
+
+    _wire(monkeypatch, reply, candidates_fn=lambda text, index: next(seen))
+
+    rows, read = fs.build_consensus(_items(2), {}, "key")
+
+    assert read == 2
+    assert [r["name"] for r in rows] == ["Blake Corum"]
+    assert [link["source"] for link in rows[0]["links"]] == ["S0"], (
+        "the stance credits the article that actually said it"
+    )
+
+
+def test_one_garbled_reply_costs_only_its_batch(monkeypatch):
+    replies = iter(["this is not json", '{"a6": []}'])
+    calls = _wire(monkeypatch, lambda keys: next(replies))
+
+    _, read = fs.build_consensus(_items(7), {}, "key")
+
+    assert len(calls) == 2, "the second batch still ran"
+    assert read == 2, "only the good batch counts as read"
+
+
+def test_a_permanently_rejected_model_stops_the_run(monkeypatch):
+    """Retrying a retired model eight times is a slower way to be wrong —
     the exact failure the verdicts job shipped with once. The run keeps
     what it earned and stops spending."""
     calls = []
@@ -440,14 +528,11 @@ def test_a_permanently_rejected_model_stops_the_batch(monkeypatch):
     monkeypatch.setattr(fs, "candidates_in", lambda text, index: [_candidate()])
     monkeypatch.setattr(fs, "fetch_trending", lambda *a, **k: {})
     monkeypatch.setattr(fs, "fetch_ownership", lambda: {})
+    monkeypatch.setattr(fs, "AI_CALL_DELAY", 0)
 
-    items = [
-        {"source": "PFF", "title": f"t{i}", "url": "https://x", "published": "2026-08-27"}
-        for i in range(5)
-    ]
-    rows, read = fs.build_consensus(items, {}, "key")
+    rows, read = fs.build_consensus(_items(12), {}, "key")
 
-    assert calls == [1], "one rejection, no second spend"
+    assert calls == [1], "one rejection, no second spend — batch 2 and 3 never fire"
     assert (rows, read) == ([], 0)
 
 

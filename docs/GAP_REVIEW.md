@@ -517,19 +517,26 @@ Ordered by draft-day value.
    *Still open here:* the Sleepers tab itself (`TARGETS`) is untouched, so
    its as-of date is its own; and the `/12` round arithmetic elsewhere in
    the page is still 12-team-only (see item 2).
-2. **Draft-day pick math.** No draft-slot input, no snake math, no "gone
-   before my next pick" flag, no 10-vs-12-team awareness outside `/12`
-   arithmetic. Live ADP + pick count is all it needs — and now that the
-   board carries real per-league ADP, this is mostly arithmetic on data
-   already in the page.
-3. **"Rank QBs per league" is one browser heuristic with 12 of 24 QBs
-   classified.** Unclassified QBs (including Kyler Murray, whose own row
-   says "plays in both leagues") get the worst multiplier ×0.32 in The
-   Trenches. Also: the Trenches view re-sorts the whole board by a
-   synthetic projection with no K entry, floating kickers above real
-   RB/WR picks. Fix: classify all 24 (default 1.0 + "unclassified" tag),
-   sort by ADP and adjust QBs only, emit a Trenches QB column server-side
-   so board and cheat sheet agree.
+2. **Draft-day pick math.** ~~No draft-slot input, no snake math~~ —
+   *mostly superseded Aug 20 by `/app/mock`* (marked Aug 29 so no
+   session rebuilds it): the mock room takes a league and a draft slot,
+   runs real snake math at each league's true seat count, and Autopilot
+   plans the owner's picks round by round. What genuinely remains is the
+   **Draft analyzer board's own** "gone before my next pick" flag — the
+   room simulates a draft; the board still does not project one onto its
+   ADP column while you shop it.
+3. ~~**"Rank QBs per league" is one browser heuristic with 12 of 24 QBs
+   classified.**~~ — *superseded by the Aug 19–26 scoring work* (marked
+   Aug 29): the premise died with the "rushing league" rule — both
+   leagues are QB-premium now (docs/LEAGUES.md, verified from the real
+   settings) — and the mechanism died with it: league scoring comes from
+   `app/leagues.py` arithmetic (`/app/scoring`, the board's league
+   points column, the mock room's `qb_spread_premium_per_game`), not
+   from a browser-side classification of 24 names. The league names here
+   were retired Aug 19. Nothing left to build from this entry; the one
+   live descendant of its question is the owner finding recorded under
+   "the QB boost" in CLAUDE.md — two leagues with identical spread
+   premiums drafting QBs differently.
 4. ~~**IDP is invisible to the live pipeline**~~ — FIXED Aug 20: defenders
    joined the index (v3) with a coarse DB/LB/DL group, the '25 stats carry
    the idp_* fields (names verified via the probe's field census), and
@@ -556,18 +563,38 @@ Ordered by draft-day value.
    which silently resets first_seen/history on a bad read.
 9. **The watchdog dies with the patient** — GitHub disables all crons
    (including verify-live) after 60 days of repo inactivity, silently.
-   Fix: external dead-man's switch (healthchecks.io ping in sync-feeds).
-10. **No Redis backup** — a flush loses the 21-day item archive,
-    first_seen stamps (next merge would badge everything NEW), ADP
-    history (~a week of movers), verdicts. Nightly artifact dump.
+   *Narrowed Aug 29:* the external clock (docs/HOSTING.md) now fires
+   sync-feeds by `workflow_dispatch`, which the 60-day rule does not
+   touch — so the wire survives repo quiet. Verify-live and the nightly
+   jobs still ride GitHub's own cron, so the watchdog half of this stands:
+   an external dead-man's switch (healthchecks.io ping) is still the fix.
+10. ~~**No Redis backup**~~ — *DONE Aug 29, for the halves that matter
+    most*: `/internal/backup` hands the feeds blob and the scorecard
+    ledger out as one blob **sealed under TOKEN_ENCRYPTION_KEY**, and
+    `backup-store.yml` archives it nightly as an Actions artifact
+    (30-day retention). The repo is public, so the pinned property is "a
+    READABLE backup cannot exist": a keyless deployment gets a named 503
+    rather than plaintext, the workflow refuses to archive anything
+    unsealed, and a dump that will not open raises `BackupUnreadable`
+    rather than reading as an empty store (the verdict-wipe rule,
+    extended). Restore = `store.open_export` + the sections' own write
+    paths. *Remaining:* per-email user blobs and the access list are not
+    in the dump — enumerating their keys is store surgery, and they are
+    at least already sealed at rest.
 11. **`/api/*` stays outside the login gate** (docs/ACCESS.md) — it
     carries the same feed data the gated page shows, left open because
     the annotate runner GETs its work lists bare. Fine for a
     friends-only app; before any wider audience, move the runner GETs
     behind X-Sync-Token and gate /api too.
-11. **verify-live false-alarms on a single transient publisher error** —
-    FAILED should only be fatal when the data is also stale; needs a
-    `last_ok_at` carried per source through the sync.
+11. ~~**verify-live false-alarms on a single transient publisher
+    error**~~ — *FIXED Aug 29, the way this entry prescribed*:
+    `poller.carry_last_ok` stamps each source with its last real answer
+    and the stamp survives failed polls (status was rebuilt wholesale
+    each sync, which is why one refusal read as a dead feed). The
+    watchdog now fails a FAILED source only when it has *also* been
+    silent past its own `budget_hours`; the panel's FAILED label is
+    untouched, because the source did fail that poll and saying
+    otherwise would be the app editing its own news.
 12. **Quiet degraders**: ~~verdicts job returns green on permanent model
     failure~~ (fixed — permanent codes exit non-zero, transient ones retry
     with backoff); ADP/vegas fetch failures never annotate the workflow; ESPN

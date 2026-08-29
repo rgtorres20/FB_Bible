@@ -181,7 +181,27 @@ def main() -> int:
     sources = feeds.get("sources", {})
     check("all sources present", len(sources) >= 6, f"got {len(sources)}")
     for key, status in sorted(sources.items()):
-        check(f"source {key} not FAILED", status.get("state") != "FAILED", status.get("state", "?"))
+        if status.get("state") != "FAILED":
+            check(f"source {key} healthy", True, status.get("state", "?"))
+            continue
+        # One missed poll is jitter — publishers refuse a request now and
+        # then, and the sync overwrites status wholesale, so the old
+        # check turned every transient refusal into a red watchdog
+        # (GAP_REVIEW). Fatal only when the source has ALSO not answered
+        # within its own freshness budget: failed now AND silent past
+        # budget is a dead feed, not a bad minute.
+        budget = timedelta(hours=status.get("budget_hours") or 24)
+        try:
+            ok_age = datetime.now(UTC) - datetime.fromisoformat(str(status.get("last_ok_at")))
+        except ValueError:
+            ok_age = None
+        check(
+            f"source {key} healthy",
+            ok_age is not None and ok_age <= budget,
+            f"failed this poll, last answered {ok_age} ago (budget {budget})"
+            if ok_age is not None
+            else "failed this poll, and no recorded success to fall back on",
+        )
 
     # --- what the page actually receives ----------------------------------
     page_data = get_json("/app/data/feeds.json")
@@ -1351,6 +1371,17 @@ def main() -> int:
     check(
         "community consensus decorator serves",
         b"Community consensus" in mobile_js and b"fb-cs-row" in mobile_css,
+    )
+
+    # The nightly backup's endpoint: wired (not a 404 from a missing
+    # route) and shut to anyone without the sync token. What it serves is
+    # sealed ciphertext, so the refusal IS the check — a 200 here would
+    # mean the store dump is open to strangers.
+    backup_code = anon_status("/internal/backup")
+    check(
+        "backup endpoint is wired and refuses a stranger",
+        backup_code == 401,
+        f"HTTP {backup_code}",
     )
 
     # The nightly community read (scripts/fetch_sleepers.py). Absent is a

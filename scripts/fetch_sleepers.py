@@ -111,17 +111,19 @@ SOURCES = [
 # name in a headline is a story about a team, not a sleeper.
 OFFENSE = frozenset({"QB", "RB", "WR", "TE"})
 
-SYSTEM_PROMPT = """You analyze fantasy football articles and extract the author's \
+SYSTEM_PROMPT = """You analyze fantasy football articles and extract each author's \
 stance on specific players.
 
-You will receive an article and a list of candidate players that were detected in \
-its text. For each candidate, decide what the author is actually saying about them.
+You will receive several articles. Each has an id, a source, and a list of candidate \
+players that were detected in its text. For each article, decide what ITS author is \
+actually saying about each of ITS candidates — judge every article independently.
 
-Return ONLY a JSON array. No preamble, no markdown fences, no explanation.
+Return ONLY a JSON object mapping each article id to an array. No preamble, no \
+markdown fences, no explanation.
 
-Each element:
+Each array element:
 {
-  "player_id": "<the id given to you>",
+  "player_id": "<the id given to you for that article>",
   "verdict": "sleeper" | "breakout" | "bust" | "fade" | "mentioned",
   "reason": "<your own one-sentence summary, max 25 words, in your own words>",
   "confidence": 0.0-1.0
@@ -133,7 +135,17 @@ Rules:
 - "mentioned" for players named only as context (a teammate, a comparison, a \
 competitor for touches). Most candidates are this. Do not inflate.
 - reason must be YOUR paraphrase, never a quote or near-quote from the article.
-- Omit no candidate. If unsure, use "mentioned" with low confidence."""
+- Omit no article and no candidate. If unsure, use "mentioned" with low confidence."""
+
+# One model call covers a whole batch of articles. The per-article version
+# made 40 calls a night, and the free tier's throttle marched each one
+# through the full backoff ladder — the first two live runs took 38 and
+# 58 minutes, almost all of it waiting out 429s. The verdicts job learned
+# this exact lesson on Aug 18 (runs 50-52): calls fight each other for
+# the same quota, so everything travels as sections of one request. Five
+# articles a call turns 40 requests into 8; well inside the model's
+# context at 12k chars an article. docs/ASSUMPTIONS.md.
+BATCH_SIZE = 5
 
 POSITIVE = frozenset({"sleeper", "breakout"})
 NEGATIVE = frozenset({"bust", "fade"})
@@ -331,34 +343,41 @@ def _strip_fence(content: str) -> str:
     return content.strip()
 
 
-def classify(text: str, candidates: list[dict], api_key: str) -> list[dict]:
-    """One model call: the article and its candidates in, stances out.
+def classify_batch(batch: list[dict], api_key: str) -> dict[str, list] | None:
+    """One model call for a whole batch of articles; stances keyed by article.
 
-    Raises urllib.error.HTTPError on a permanent rejection (bad key, dead
-    model) so the caller can stop the batch — retrying a retired model 40
-    times is just a slower way to be wrong. Anything else malformed
-    returns [] and costs only this article.
+    Returns {article key: stance rows}, or None when the reply was
+    unusable — the caller skips just this batch, so a garbled answer
+    costs five articles, never the run. Raises urllib.error.HTTPError so
+    a permanent rejection (bad key, dead model) can stop the run instead
+    of failing identically eight times.
     """
-    if not candidates:
-        return []
-    roster = "\n".join(
-        f"- {c['id']}: {c['name']} ({c.get('position')} - {c.get('team') or 'FA'})"
-        for c in candidates
-    )
+    sections = []
+    for entry in batch:
+        roster = "\n".join(
+            f"- {c['id']}: {c['name']} ({c.get('position')} - {c.get('team') or 'FA'})"
+            for c in entry["candidates"]
+        )
+        sections.append(
+            f"ARTICLE {entry['key']} (source: {entry['source']}): {entry['title']}\n"
+            f"CANDIDATE PLAYERS:\n{roster}\nTEXT:\n{entry['text']}"
+        )
     response = chat_with_retry(
         [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"CANDIDATE PLAYERS:\n{roster}\n\nARTICLE:\n{text}"},
+            {"role": "user", "content": "\n\n".join(sections)},
         ],
         api_key,
     )
     try:
         content = response["choices"][0]["message"]["content"]
-        rows = json.loads(_strip_fence(content))
-        return rows if isinstance(rows, list) else []
+        verdicts = json.loads(_strip_fence(content))
+        if not isinstance(verdicts, dict):
+            raise TypeError(f"expected an object, got {type(verdicts).__name__}")
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-        print(f"    reply unusable, skipping article: {type(exc).__name__}: {exc}")
-        return []
+        print(f"    reply unusable, skipping this batch: {type(exc).__name__}: {exc}")
+        return None
+    return {key: rows for key, rows in verdicts.items() if isinstance(rows, list)}
 
 
 # ------------------------------------------------------------ aggregation
@@ -449,11 +468,14 @@ def rank_consensus(
 
 
 def build_consensus(items: list[dict], index: dict, api_key: str) -> tuple[list[dict], int]:
-    """Read every article, collect stances, rank. Returns (rows, articles_read)."""
-    mentions: dict[str, list[dict]] = defaultdict(list)
-    meta: dict[str, dict] = {}
-    read = 0
+    """Read every article, classify in batched model calls, rank.
 
+    Returns (rows, articles_read). The stance rows come back keyed by
+    article, and each article's rows are filtered against that article's
+    OWN candidate list — a stance the model files under the wrong
+    article dies there rather than crediting a source that never said it.
+    """
+    readable: list[dict] = []
     for i, item in enumerate(items, 1):
         print(f"[{i}/{len(items)}] {item['title'][:70]}")
         text = article_text(item)
@@ -462,35 +484,56 @@ def build_consensus(items: list[dict], index: dict, api_key: str) -> tuple[list[
         candidates = candidates_in(text, index)
         if not candidates:
             continue
-        print(f"    {len(candidates)} candidates -> classifying")
+        print(f"    {len(candidates)} candidates")
+        readable.append(
+            {
+                "key": f"a{len(readable) + 1}",
+                "item": item,
+                "source": item["source"],
+                "title": item["title"],
+                "text": text,
+                "candidates": candidates,
+            }
+        )
+
+    mentions: dict[str, list[dict]] = defaultdict(list)
+    meta: dict[str, dict] = {}
+    read = 0
+    chunks = [readable[i : i + BATCH_SIZE] for i in range(0, len(readable), BATCH_SIZE)]
+    for n, chunk in enumerate(chunks, 1):
+        print(f"batch {n}/{len(chunks)}: classifying {len(chunk)} articles")
         try:
-            rows = classify(text, candidates, api_key)
+            verdicts = classify_batch(chunk, api_key)
         except urllib.error.HTTPError as exc:
             if exc.code in PERMANENT_CODES:
-                # A dead model fails the same way 40 times; stop paying for
-                # the lesson and keep whatever the run has already earned.
-                print(f"::error::model rejected permanently (HTTP {exc.code}); stopping batch")
+                # A dead model fails the same way eight times; stop paying
+                # for the lesson and keep whatever the run has earned.
+                print(f"::error::model rejected permanently (HTTP {exc.code}); stopping run")
                 break
-            print(f"    model call failed (HTTP {exc.code}), skipping article")
-            continue
-        read += 1
-        by_id = {c["id"]: c for c in candidates}
-        for row in rows:
-            pid = str(row.get("player_id", ""))
-            if pid not in by_id or not keep_stance(row):
-                continue
-            meta[pid] = by_id[pid]
-            mentions[pid].append(
-                {
-                    "source": item["source"],
-                    "title": item["title"],
-                    "url": item["url"],
-                    "published": item["published"],
-                    "verdict": row["verdict"],
-                    "reason": str(row.get("reason", ""))[:200],
-                }
-            )
-        time.sleep(AI_CALL_DELAY)
+            print(f"    model call failed (HTTP {exc.code}), skipping this batch")
+            verdicts = None
+        if verdicts is not None:
+            read += len(chunk)
+            for entry in chunk:
+                item = entry["item"]
+                by_id = {c["id"]: c for c in entry["candidates"]}
+                for row in verdicts.get(entry["key"]) or []:
+                    pid = str(row.get("player_id", ""))
+                    if pid not in by_id or not keep_stance(row):
+                        continue
+                    meta[pid] = by_id[pid]
+                    mentions[pid].append(
+                        {
+                            "source": item["source"],
+                            "title": item["title"],
+                            "url": item["url"],
+                            "published": item["published"],
+                            "verdict": row["verdict"],
+                            "reason": str(row.get("reason", ""))[:200],
+                        }
+                    )
+        if n < len(chunks):
+            time.sleep(AI_CALL_DELAY)
 
     trending_add = fetch_trending("add")
     trending_drop = fetch_trending("drop")
