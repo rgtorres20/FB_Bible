@@ -144,6 +144,30 @@ async def poll(sources: tuple[Source, ...] = FEED_SOURCES, timeout: float = 20.0
     return {"items": items, "sources": status, "polled_at": now.isoformat()}
 
 
+def carry_last_ok(status: dict, previous: dict | None) -> dict:
+    """Stamp each source with the last time it actually answered.
+
+    A source's status is rebuilt wholesale every sync, so one transient
+    refusal used to erase the fact that the publisher answered an hour
+    ago — and the watchdog treated that single miss as fatal
+    (GAP_REVIEW: verify-live false-alarms on one transient publisher
+    error). The stamp survives failed polls, so a checker can tell
+    "missed one poll" from "has not answered inside its own freshness
+    budget" — the first is jitter, the second is the real alarm. The
+    panel's FAILED label is untouched: the source did fail this poll,
+    and saying otherwise would be the app editing its own news.
+
+    Mutates and returns `status`, keyed like poll()'s sources dict;
+    `previous` is the stored copy from the last sync.
+    """
+    for key, entry in status.items():
+        if entry.get("ok"):
+            entry["last_ok_at"] = entry.get("fetched_at")
+        else:
+            entry["last_ok_at"] = ((previous or {}).get(key) or {}).get("last_ok_at")
+    return status
+
+
 def freshness(status: dict, now: datetime) -> str:
     """LIVE / STALE / FAILED for one source.
 

@@ -118,3 +118,45 @@ async def test_an_identifying_user_agent_is_sent():
     await poller.poll((A,))
 
     assert "FBBible" in route.calls[0].request.headers["user-agent"]
+
+
+# --- last_ok_at survives a failed poll --------------------------------------
+#
+# Status is rebuilt wholesale every sync, so one transient refusal used to
+# erase the fact that a publisher answered an hour ago -- and the watchdog
+# treated that single miss as fatal (GAP_REVIEW: verify-live false-alarms
+# on one transient error). The stamp is what lets a checker tell "missed
+# one poll" from "silent past its own budget".
+
+
+def test_a_successful_poll_stamps_its_own_fetch_time():
+    status = {"a": {"ok": True, "fetched_at": "2026-08-29T10:00:00+00:00"}}
+
+    out = poller.carry_last_ok(status, {"a": {"last_ok_at": "2026-08-29T02:00:00+00:00"}})
+
+    assert out["a"]["last_ok_at"] == "2026-08-29T10:00:00+00:00"
+
+
+def test_a_failed_poll_keeps_the_previous_success_stamp():
+    status = {"a": {"ok": False, "fetched_at": "2026-08-29T10:00:00+00:00"}}
+
+    out = poller.carry_last_ok(status, {"a": {"last_ok_at": "2026-08-29T09:00:00+00:00"}})
+
+    assert out["a"]["last_ok_at"] == "2026-08-29T09:00:00+00:00"
+
+
+def test_a_source_that_never_answered_says_so():
+    """None, not a fabricated stamp -- a feed that has never once
+    answered is a dead config, and the checker should see that."""
+    status = {"a": {"ok": False}}
+
+    assert poller.carry_last_ok(status, {})["a"]["last_ok_at"] is None
+    assert poller.carry_last_ok({"a": {"ok": False}}, None)["a"]["last_ok_at"] is None
+
+
+def test_the_stamp_survives_a_previous_blob_without_the_field():
+    """Stored status from before this field existed carries no
+    last_ok_at; the carry must degrade to None rather than KeyError."""
+    status = {"a": {"ok": False, "fetched_at": "x"}}
+
+    assert poller.carry_last_ok(status, {"a": {"ok": True}})["a"]["last_ok_at"] is None

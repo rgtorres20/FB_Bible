@@ -891,6 +891,10 @@ async def sync(
         players.tag_items(polled["items"], index)
 
     existing = await store.load()
+    # One transient refusal must not erase that a publisher answered an
+    # hour ago; the watchdog reads last_ok_at to tell jitter from a
+    # genuinely dead source (poller.carry_last_ok).
+    poller.carry_last_ok(polled["sources"], existing.get("sources"))
     merged = poller.merge(existing, polled["items"], datetime.now(UTC))
 
     # ADP rides the same hourly sync. A failed fetch keeps the previous board
