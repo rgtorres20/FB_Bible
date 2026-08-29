@@ -146,6 +146,11 @@ competitor for touches). Most candidates are this. Do not inflate.
 # articles a call turns 40 requests into 8; well inside the model's
 # context at 12k chars an article. docs/ASSUMPTIONS.md.
 BATCH_SIZE = 5
+# And each of those eight answers is long — the default 120s read window
+# died mid-generation on the first batched run (Aug 29). Four minutes is
+# headroom, not a target; chat_with_retry still retries and falls back
+# under it.
+BATCH_TIMEOUT = 240.0
 
 POSITIVE = frozenset({"sleeper", "breakout"})
 NEGATIVE = frozenset({"bust", "fade"})
@@ -368,6 +373,10 @@ def classify_batch(batch: list[dict], api_key: str) -> dict[str, list] | None:
             {"role": "user", "content": "\n\n".join(sections)},
         ],
         api_key,
+        # A five-article generation is long, and the default 120s read
+        # window is what killed run 4 mid-answer. Chosen, not measured:
+        # docs/ASSUMPTIONS.md.
+        timeout=BATCH_TIMEOUT,
     )
     try:
         content = response["choices"][0]["message"]["content"]
@@ -511,6 +520,12 @@ def build_consensus(items: list[dict], index: dict, api_key: str) -> tuple[list[
                 print(f"::error::model rejected permanently (HTTP {exc.code}); stopping run")
                 break
             print(f"    model call failed (HTTP {exc.code}), skipping this batch")
+            verdicts = None
+        except (TimeoutError, urllib.error.URLError) as exc:
+            # chat_with_retry already retried and fell back; a network
+            # failure that outlived the whole ladder costs this batch,
+            # never the run — the crash that ate runs 3 and 4 whole.
+            print(f"    unreachable after retries ({type(exc).__name__}), skipping this batch")
             verdicts = None
         if verdicts is not None:
             read += len(chunk)

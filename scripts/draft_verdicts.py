@@ -97,7 +97,12 @@ SYSTEM_PROMPT = (
 )
 
 
-def http_json(url: str, payload: dict | None = None, headers: dict | None = None) -> dict:
+def http_json(
+    url: str,
+    payload: dict | None = None,
+    headers: dict | None = None,
+    timeout: float = 120,
+) -> dict:
     body = json.dumps(payload).encode() if payload is not None else None
     request = urllib.request.Request(
         url,
@@ -105,7 +110,7 @@ def http_json(url: str, payload: dict | None = None, headers: dict | None = None
         headers={"Content-Type": "application/json", **(headers or {})},
         method="POST" if body else "GET",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read())
 
 
@@ -189,7 +194,7 @@ def draft(items: list[dict], api_key: str) -> dict[str, str]:
     return {k: v for k, v in verdicts.items() if isinstance(v, str) and v.strip()}
 
 
-def chat_with_retry(messages: list[dict], api_key: str) -> dict:
+def chat_with_retry(messages: list[dict], api_key: str, timeout: float = 120) -> dict:
     """One chat-completions call: ride out transient codes on the primary
     model, then walk the same ladder on the fallback.
 
@@ -198,6 +203,14 @@ def chat_with_retry(messages: list[dict], api_key: str) -> dict:
     primary hands off to FALLBACK_MODEL rather than losing the hour; the
     permanent codes that would fail on any model -- bad key, bad request
     -- raise immediately so a dead setup cannot pass as a busy one.
+
+    The network's own failures ride the transient ladder too. They were
+    not in it at all until Aug 29, when a read that outlived the socket
+    timeout crashed two sleepers runs with a bare traceback -- one
+    before batching and one after, so the hole was this function's, not
+    the caller's, and every hourly job shared it. A caller expecting a
+    long generation (the batched classifier) can widen `timeout` rather
+    than hoping 120s is enough.
     """
     chain = list(dict.fromkeys((MODEL, FALLBACK_MODEL)))
     for position, model in enumerate(chain):
@@ -208,6 +221,7 @@ def chat_with_retry(messages: list[dict], api_key: str) -> dict:
                     MODELS_URL,
                     payload={"model": model, "temperature": 0.2, "messages": messages},
                     headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=timeout,
                 )
             except urllib.error.HTTPError as exc:
                 # A 404 on the primary is the name-vanished failure this job
@@ -226,6 +240,26 @@ def chat_with_retry(messages: list[dict], api_key: str) -> dict:
                     break
                 wait = BACKOFF_SECONDS[attempt - 1]
                 print(f"HTTP {exc.code} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s")
+                time.sleep(wait)
+            except (TimeoutError, urllib.error.URLError) as exc:
+                # HTTPError subclasses URLError, so it is handled above and
+                # what lands here is the transport itself failing: a stalled
+                # read, a reset, a DNS miss. Transient in exactly the way a
+                # 503 is -- retry, then hand the fallback model the hour,
+                # and only raise once both models have been unreachable
+                # every attempt.
+                if attempt == MAX_ATTEMPTS and last:
+                    raise
+                if attempt == MAX_ATTEMPTS:
+                    print(
+                        f"{model} unreachable ({type(exc).__name__}); "
+                        f"falling back to {chain[position + 1]}"
+                    )
+                    break
+                wait = BACKOFF_SECONDS[attempt - 1]
+                print(
+                    f"{type(exc).__name__} on attempt {attempt}/{MAX_ATTEMPTS}, retrying in {wait}s"
+                )
                 time.sleep(wait)
     raise AssertionError("unreachable")  # pragma: no cover
 

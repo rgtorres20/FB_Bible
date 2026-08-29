@@ -38,7 +38,7 @@ def _record_models(monkeypatch, outcome):
     the result to `outcome(model, call_number)`."""
     calls: list[str] = []
 
-    def fake(url, payload=None, headers=None):
+    def fake(url, payload=None, headers=None, timeout=120):
         calls.append(payload["model"])
         return outcome(payload["model"], len(calls))
 
@@ -94,6 +94,46 @@ def test_a_key_or_request_problem_fails_on_the_first_attempt(monkeypatch):
     with pytest.raises(urllib.error.HTTPError):
         dv.chat_with_retry([], "k")
     assert calls == [dv.MODEL]
+
+
+def test_a_stalled_read_rides_the_same_ladder_as_a_503(monkeypatch):
+    """The network's own failures were not in the ladder at all until two
+    sleepers runs died to a socket read timeout with a bare traceback
+    (Aug 29) — one before batching, one after, so the hole was here."""
+
+    def outcome(model, n):
+        if model == dv.MODEL:
+            raise TimeoutError("The read operation timed out")
+        return OK
+
+    calls = _record_models(monkeypatch, outcome)
+    assert dv.chat_with_retry([], "k") == OK
+    assert calls == [dv.MODEL] * dv.MAX_ATTEMPTS + [dv.FALLBACK_MODEL]
+
+
+def test_a_dead_network_still_raises_once_both_models_are_exhausted(monkeypatch):
+    """Riding the ladder is not swallowing: if neither model answers on
+    any attempt, the caller gets the truth, not a fabricated reply."""
+    calls = _record_models(
+        monkeypatch, lambda model, n: (_ for _ in ()).throw(urllib.error.URLError("reset"))
+    )
+    with pytest.raises(urllib.error.URLError):
+        dv.chat_with_retry([], "k")
+    assert len(calls) == 2 * dv.MAX_ATTEMPTS
+
+
+def test_a_caller_expecting_a_long_generation_can_widen_the_timeout(monkeypatch):
+    """The batched classifier's five-article answers outlive the default
+    120s window — the exact way run 4 died mid-generation."""
+    seen: list[float] = []
+
+    def fake(url, payload=None, headers=None, timeout=120):
+        seen.append(timeout)
+        return OK
+
+    monkeypatch.setattr(dv, "http_json", fake)
+    dv.chat_with_retry([], "k", timeout=240)
+    assert seen == [240]
 
 
 def test_the_transient_and_permanent_code_sets_never_overlap():

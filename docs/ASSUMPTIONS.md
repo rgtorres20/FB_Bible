@@ -514,7 +514,11 @@ are recommending; almost every constant in it is a judgement call:
   live runs (Aug 29): at one call per article the free tier's throttle
   marched all 40 requests through the full backoff ladder and the runs
   took 38 and 58 minutes — the same calls-fight-for-one-quota failure
-  the verdicts job measured on Aug 18. Eight requests instead of forty;
+  the verdicts job measured on Aug 18. Eight requests instead of forty,
+  each given a **240 s read window** (`BATCH_TIMEOUT` — the default
+  120 s died mid-generation on the first batched run, Aug 29, and a
+  five-article answer is long; network failures now ride
+  `chat_with_retry`'s transient ladder instead of crashing the run);
   each article's stances are filtered against that article's own
   candidate list so a row the model files under the wrong article dies
   instead of crediting a source that never said it.
