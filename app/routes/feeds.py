@@ -939,6 +939,13 @@ async def sync(
     mover_reads = existing.get("mover_reads") or {}
     preview_state = existing.get("previews") or {}
     scores_state = existing.get("scores") or {}
+    # The nightly community consensus rides the same rule. Omitting it
+    # here is not hypothetical: the block shipped Aug 28 without this
+    # line and every sync wiped it within 15 minutes of a push — the
+    # verdict-wipe failure, replayed to the letter, caught Aug 29 by the
+    # watchdog's "absent, honestly" line reading absent a day after a
+    # 40-row push.
+    sleeper_state = existing.get("sleeper_consensus") or {}
 
     # Season stats are final numbers, not a feed: refetch weekly (or when the
     # store lost them), keep the previous state on any failure. Same rule as
@@ -1081,6 +1088,7 @@ async def sync(
     scores_state = fresh.get("scores") or scores_state
     if fresh.get("verdicts"):
         verdicts = {k: v for k, v in fresh["verdicts"].items() if k in surviving}
+    sleeper_state = fresh.get("sleeper_consensus") or sleeper_state
     fresh_vegas = fresh.get("vegas") or {}
     if (fresh_vegas.get("fetched_at") or "") > ((vegas_state or {}).get("fetched_at") or ""):
         vegas_state = fresh_vegas
@@ -1106,6 +1114,7 @@ async def sync(
             "mover_reads": mover_reads,
             "previews": preview_state,
             "scores": scores_state,
+            "sleeper_consensus": sleeper_state,
             # Why the player index is empty, when it is. Carried forward
             # from the previous run so a failure that has stopped
             # recurring still shows until a fetch actually succeeds.
