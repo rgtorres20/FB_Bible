@@ -424,6 +424,44 @@ def test_a_junk_block_in_the_store_reads_as_none():
         assert watchlist.consensus(junk) is None
 
 
+async def test_the_consensus_survives_a_sync(push_client, monkeypatch):
+    """The verdict-wipe class, caught LIVE on Aug 29: /internal/sync
+    rebuilds the stored blob from an enumerated list of keys, the
+    consensus was not on the list, and every sync wiped the block within
+    15 minutes of a push — while the watchdog passed, because it ran 4
+    minutes after the push, inside the window. Exactly how the hourly
+    verdicts once lived for minutes. This is the test that should have
+    shipped with the key."""
+    import httpx as _httpx
+
+    c, store = push_client
+
+    async def _offline(*args, **kwargs):
+        raise _httpx.ConnectError("offline")
+
+    monkeypatch.setattr(_feeds_route.adp, "fetch", _offline)
+    monkeypatch.setattr(_feeds_route.vegas, "fetch", _offline)
+    monkeypatch.setattr(_feeds_route.stats, "fetch", _offline)
+
+    async def fake_poll(*args, **kwargs):
+        return {"items": [], "sources": {}, "polled_at": "2026-08-29T15:00:00+00:00"}
+
+    monkeypatch.setattr(_feeds_route.poller, "poll", fake_poll)
+
+    c.post(
+        "/internal/sleepers",
+        json={"state": {"players": [_row()]}},
+        headers={"X-Sync-Token": "secret-token"},
+    )
+    c.post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
+
+    saved = await store.load()
+    assert saved.get("sleeper_consensus", {}).get("players"), (
+        "the sync must carry the consensus forward, not rebuild the blob without it"
+    )
+    assert c.get("/app/data/sleepers.json").json()["consensus"] is not None
+
+
 # --- batched classification -------------------------------------------------
 #
 # One model call per BATCH_SIZE articles, not one per article. The
