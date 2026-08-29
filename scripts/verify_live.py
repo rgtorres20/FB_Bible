@@ -1026,6 +1026,18 @@ def main() -> int:
     flags = json.loads(hurt.group(1)) if hurt else {}
     out_now = sum(1 for v in flags.values() if v.get("out"))
     print(f"  INFO  board injury flags: {len(flags)} carrying one, {out_now} out")
+    # Out & returning rows carry Sleeper's CURRENT flag beside the
+    # curated status (Aug 29). The overlay writes the map only when an
+    # index exists, and the index check above already requires one -- so
+    # here an absent or empty map means the join broke, not that Sleeper
+    # is quiet: every watched name is a real player the index carries.
+    live_flags = page_data.get("injury_status") or {}
+    unflagged = sum(1 for v in live_flags.values() if not v)
+    check(
+        "Out & returning rows carry Sleeper's current flag",
+        len(live_flags) >= 5,
+        f"{len(live_flags)} rows measured · {unflagged} listed men Sleeper no longer flags",
+    )
 
     # Owner's rule, Aug 22: a reserve designation takes a player off the
     # board; a weekly status leaves him on it. Reported rather than

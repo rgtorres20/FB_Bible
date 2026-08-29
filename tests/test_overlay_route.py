@@ -301,3 +301,47 @@ async def test_served_page_carries_no_duplicate_board_rows(page_client):
     assert len(names) == len(set(names))
     assert '[7,"Jayden Reed","WR · GB","WR32"' in served
     assert '[11,"Jayden Reed"' not in served
+
+
+async def test_overlay_carries_sleepers_current_flag_for_the_injury_tab(client):
+    """The Out & returning rows' live half (Aug 29): with an index in the
+    store, each watched row gets Sleeper's CURRENT flag beside the
+    curated status -- and an unflagged listed man reads "" (the
+    cut-down-day signal), never nothing."""
+    from app.feeds import players
+
+    c, store = client
+    await store.save(
+        {
+            "items": [_wire_item()],
+            "sources": {},
+            "polled_at": "2026-08-15T02:00:00+00:00",
+        }
+    )
+    await store.save_players(
+        players.build_index(
+            {
+                "1001": {
+                    "active": True,
+                    "position": "WR",
+                    "full_name": "Puka Nacua",
+                    "team": "LAR",
+                    "injury_status": "Questionable",
+                },
+                "1002": {
+                    "active": True,
+                    "position": "WR",
+                    "full_name": "Ricky Pearsall",
+                    "team": "SF",
+                    "injury_status": None,
+                },
+            }
+        )
+    )
+
+    body = c.get("/app/data/feeds.json").json()
+
+    assert body["injury_status"]["Puka Nacua"] == "Questionable"
+    # Pearsall is on the page's OUTLIST; Sleeper carrying no flag for him
+    # is a measurement the row must show, not an absence.
+    assert body["injury_status"]["Ricky Pearsall"] == ""

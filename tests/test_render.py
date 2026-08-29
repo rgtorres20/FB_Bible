@@ -333,6 +333,57 @@ def test_injury_wire_is_present_but_empty_when_nothing_matches():
     assert "injury_wire" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)
 
 
+def _injury_index():
+    from app.feeds import players
+
+    return players.build_index(
+        {
+            "9001": {
+                "active": True,
+                "position": "WR",
+                "full_name": "Ricky Pearsall",
+                "team": "SF",
+                "injury_status": "Out",
+            },
+            "9002": {
+                "active": True,
+                "position": "TE",
+                "full_name": "George Kittle",
+                "team": "SF",
+                "injury_status": None,
+            },
+        }
+    )
+
+
+def test_sleepers_current_flag_rides_beside_the_curated_status():
+    """Cut-down weekend (Aug 29): the tab's statuses are the owner's
+    Aug-14 calls, and the index refreshes every player's live flag
+    anyway. The map is three-valued like the wire stamps: a flag, "" for
+    indexed-but-unflagged (the signal that a listed man was activated or
+    cut), and absent for a name the index cannot resolve -- nothing said
+    rather than something invented."""
+    merged = render.merge_into_feeds(
+        BUNDLED,
+        [ITEM],
+        NOW,
+        index=_injury_index(),
+        injury_names=("Ricky Pearsall", "George Kittle", "Unknown Man"),
+    )
+
+    assert merged["injury_status"]["Ricky Pearsall"] == "Out"
+    assert merged["injury_status"]["George Kittle"] == ""
+    assert "Unknown Man" not in merged["injury_status"]
+
+
+def test_no_index_means_no_status_claim():
+    """Without a dump there is nothing to measure, and an empty map would
+    read as "Sleeper flags nobody" -- a claim, not a measurement."""
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, injury_names=("Ricky Pearsall",))
+
+    assert "injury_status" not in merged
+
+
 def test_vegas_meta_row_stamps_when_lines_are_live():
     bundled = {
         **BUNDLED,

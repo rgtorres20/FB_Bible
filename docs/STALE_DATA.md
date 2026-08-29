@@ -86,6 +86,15 @@ Ordered by how much staleness actually costs.
    wire stamps (Aug 15) now show per-row age honestly, and Sleeper injury
    flags catch status flips in Alerts. Plan: keep curated (the notes are
    judgement), refresh at chat-sync, rely on stamps for honesty.
+   *Sharpened Aug 29 (cut-down weekend made the Aug-14 statuses' age
+   visible):* each row now also carries **Sleeper's CURRENT flag**,
+   labelled "Sleeper now:", beside the curated status — the same live
+   measurement the draft board's badges already read, put where the
+   curated claim is. A listed man Sleeper no longer flags reads "no
+   injury flag" (activated, or cut — the reader decides which), and a
+   name the index cannot resolve says nothing rather than something
+   invented. The notes stay the owner's; only the measurement moved in
+   beside them.
 4. **Alerts tab** — curated judgements over live-flagged players. The
    judgement *is* the product (see PHASE2_SPEC); it should never be
    auto-generated. Plan: stays curated by design; AI drafts already

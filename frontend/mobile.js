@@ -180,9 +180,21 @@
     for (var j = 0; j < names.length; j++) {
       var row = names[j].parentElement && names[j].parentElement.parentElement;
       if (!row || row.querySelector('.fb-wire-stamp')) continue;
-      var info = wire[names[j].textContent.trim()];
+      var rowName = names[j].textContent.trim();
+      var info = wire[rowName];
       var stamp = document.createElement('div');
       stamp.className = 'fb-wire-stamp';
+      /* Sleeper's CURRENT flag beside the curated status (Aug 29). The
+       * map is three-valued like the wire stamps: a flag string, "" for
+       * indexed-but-unflagged (the cut-down-day signal), and absent for
+       * a name the index cannot resolve -- which says nothing rather
+       * than something invented. */
+      var statuses = data.injury_status;
+      if (statuses && (rowName in statuses)) {
+        var live = document.createElement('span');
+        live.textContent = 'Sleeper now: ' + (statuses[rowName] || 'no injury flag') + ' · ';
+        stamp.appendChild(live);
+      }
       if (info) {
         var text = 'Wire ' + (info.time ? '· ' + info.time + ' ' : '') +
           (info.source ? '· ' + info.source + ' ' : '') + '— ' + info.head;
@@ -194,17 +206,18 @@
           a.textContent = text;
           stamp.appendChild(a);
         } else {
-          stamp.textContent = text;
+          stamp.appendChild(document.createTextNode(text));
         }
       } else if (data && ('injury_wire' in data)) {
         /* The negative is only a measurement when the server actually
          * checked: injury_wire present-but-empty means "checked, quiet",
          * while an absent key means no poll has run -- claiming 21
          * quiet days off the bundled file would be an unmeasured
-         * measurement. */
-        stamp.textContent = 'No wire mention in the last 21 days';
+         * measurement. appendChild, not textContent: assignment would
+         * wipe the Sleeper-status span prepended above. */
+        stamp.appendChild(document.createTextNode('No wire mention in the last 21 days'));
       } else {
-        stamp.textContent = 'Wire check pending — no poll yet';
+        stamp.appendChild(document.createTextNode('Wire check pending — no poll yet'));
       }
       row.appendChild(stamp);
     }

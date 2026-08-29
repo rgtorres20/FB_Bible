@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1505 tests green — 1489 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1508 tests green — 1492 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -438,6 +438,18 @@ fails-empty property are in docs/ASSUMPTIONS.md. Stored stars for a
 different week than the scoreboard shows are refused by a label match —
 last week's men under this week's heading is the lie the tab's stamp
 exists to prevent.
+
+**Out & returning rows carry Sleeper's current flag** (Aug 29 —
+cut-down weekend made the Aug-14 curated statuses' age visible). The
+index refreshes every player's live flag each sync and the draft
+board's badges already read it; the same measurement now sits on the
+one tab whose whole subject is availability, labelled "Sleeper now:"
+beside the owner's status, which stays untouched. Three-valued like
+the wire stamps (`injury.live_status`): a flag, "no injury flag" for
+an indexed-but-unflagged listed man (activated or cut — the reader
+decides), and silence for a name the index cannot resolve. Joined
+through `by_name`, which resolves shared names by rank — a second
+resolver would be a second place to get Josh Allen wrong.
 
 **No kicker types a date it cannot keep** (owner, Aug 26: *"Week
 review didnt update stayed on week 1 even though week 2"* and *"NBC

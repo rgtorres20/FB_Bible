@@ -69,3 +69,36 @@ def wire_stamps(items: list[dict], names: tuple[str, ...]) -> dict[str, dict]:
                 "source": item.get("source_name", ""),
             }
     return best
+
+
+def live_status(index: dict | None, names: tuple[str, ...]) -> dict[str, str]:
+    """Sleeper's CURRENT injury flag per watched player: {name: "Out"|""...}.
+
+    The tab's statuses are the owner's, written Aug 14 and aging ever
+    since -- and the app refreshes every player's live flag with the
+    index anyway (the draft board's badges already read it). This puts
+    the same measurement beside the curated call, so a listed man whom
+    Sleeper no longer flags -- activated, or cut -- says so on the row
+    instead of only on a board two tabs away.
+
+    Three-valued on purpose, like the wire stamps above:
+    - "Out"/"PUP"/... -- Sleeper flags him, and this is the flag.
+    - ""              -- Sleeper indexes him and flags nothing. A real
+                          measurement (the cut-down-day signal), never
+                          a claim that the curated status is wrong.
+    - absent          -- the index cannot resolve the name, so nothing
+                          is said rather than something invented.
+    """
+    players = (index or {}).get("players") or {}
+    by_name = (index or {}).get("by_name") or {}
+    out: dict[str, str] = {}
+    for name in names:
+        # by_name rather than a local scan: it already resolves a shared
+        # name by rank (Josh Allen the quarterback, not the linebacker),
+        # and a second resolver here would be a second place to get that
+        # wrong.
+        player = players.get(str(by_name.get(players_mod.match_key(name)) or ""))
+        if player is None:
+            continue
+        out[name] = str(player.get("injury_status") or "")
+    return out

@@ -285,6 +285,12 @@ def merge_into_feeds(
             name: {**stamp, "time": format_time(stamp["published"])}
             for name, stamp in stamps.items()
         }
+        # Sleeper's current flag beside the curated status (Aug 29 --
+        # cut-down weekend made the Aug-14 statuses' age visible). Only
+        # when an index exists: the flag is a measurement of Sleeper's
+        # dump, and without a dump there is nothing to measure.
+        if index:
+            merged["injury_status"] = injury.live_status(index, injury_names)
 
     # Curated alerts keep their editorial judgement and lose their
     # relative timestamps -- see absolute_alert_times.
