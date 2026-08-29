@@ -45,6 +45,70 @@ Option 2 is cheaper and, if the project is ever sold, more portable — a plain
 Dockerfile deploys to any buyer's infrastructure, where `vercel.json` does not.
 It is deliberately not being done now.
 
+## The external clock (owner's call, Aug 28)
+
+GitHub's shared cron failed twice in one week: first degrading to a fifth
+of the asked-for rate (measured Aug 24 — one run every 1.32h against a
+15-minute cron, docs/GAP_REVIEW.md), then stalling to **zero for 32+
+hours** from Aug 26 ~16:30 UTC — every scheduled workflow silent at once,
+state still "active", dispatch and push events fine throughout. A commit
+touching the workflow file re-registered the schedule and it resumed
+about an hour later, at the same degraded cadence. During draft season
+that clock does not deserve to be the only one.
+
+**The fix: a free external cron fires `sync-feeds.yml` via
+`workflow_dispatch`, so GitHub stops being the clock but stays the
+runner.** Deliberately *not* a pinger hitting `/internal/sync` directly,
+for two reasons:
+
+- The workflow does two jobs: the sync call, **plus pushing the Vegas
+  slate and ESPN scoreboard from the runner** (ESPN 403s Vercel's IPs).
+  A direct pinger would keep the wire fresh while the odds and the Week
+  review's scoreboard quietly went stale — the exact tab the owner
+  already caught doing that.
+- The credential is safer. A fine-grained PAT scoped to this repo with
+  only Actions write can start workflow runs and nothing else; the sync
+  token in a third party's hands could also *push data* (scores, odds,
+  AI annotations) into the app.
+
+Both clocks coexist: the workflow's `concurrency` group serializes
+overlapping fires, and the external minutes (`3,18,33,48`) interleave
+with GitHub's own (`7,22,37,52`) instead of colliding.
+
+### Setup (once, ~10 minutes)
+
+1. **Token** — github.com → Settings → Developer settings → Fine-grained
+   personal access tokens → Generate new token. Repository access: *only*
+   `rgtorres20/FB_Bible`. Permissions: **Actions → Read and write**
+   (Metadata read is added automatically), nothing else. Note the expiry
+   date somewhere you will see it — the job dies silently when the token
+   does (the failure mode below).
+2. **Cron job** — on cron-job.org (or any equivalent), one job:
+   - URL: `https://api.github.com/repos/rgtorres20/FB_Bible/actions/workflows/sync-feeds.yml/dispatches`
+   - Method: `POST`, body (raw JSON): `{"ref":"main"}`
+   - Headers:
+     `Authorization: Bearer <the PAT>` ·
+     `Accept: application/vnd.github+json` ·
+     `X-GitHub-Api-Version: 2022-11-28` ·
+     `User-Agent: fbbible-clock` (GitHub rejects requests without one)
+   - Schedule: minutes `3,18,33,48`, every hour.
+   - Success is HTTP **204** with an empty body; tell the service to
+     treat non-2xx as failure and email on it.
+3. Optional second job, same everything, hourly at minute `45`, with
+   `verdicts.yml` in the URL — covers the AI verdicts if GitHub's own
+   cron stalls again. `verify-live.yml` needs no external fire; it
+   watches, it does not feed.
+
+### How this fails, so it is diagnosable
+
+A dead external job looks exactly like the GitHub stall did — absence,
+not redness. The tells, in the order to check: `sync-feeds.yml`'s run
+history stops showing `workflow_dispatch` runs at `:03/:18/:33/:48`; the
+cron service's own dashboard shows 401 (token expired or revoked — issue
+a new one, update the job) or 404 (token lost repo access). Data health
+keeps reporting honestly through any of it, and the 24h feed budgets
+mean nothing on screen lies before someone notices.
+
 ## Vercel deployment notes
 
 **There is no `vercel.json`, and that is deliberate.** Vercel's Python runtime

@@ -84,6 +84,16 @@ above now have twins; the signed-in half is pinned separately in
   a cost decision (docs/PRODUCTIZE.md puts the Pro floor at ~$21/mo),
   so it is recorded rather than chosen.
 
+  *Chosen Aug 28, after the degradation escalated to a full 32-hour
+  stall (zero scheduled runs from Aug 26 ~16:30 UTC; recovered only
+  after a commit touching the workflow file re-registered the
+  schedule).* The owner's call: a **free external cron firing the
+  workflow via `workflow_dispatch`** — GitHub stops being the clock but
+  stays the runner, which keeps the Vegas/scoreboard pushes that a bare
+  `/internal/sync` pinger would lose. Costs nothing, so the Pro-floor
+  trade above never had to be taken. Design, setup and failure modes:
+  docs/HOSTING.md, "The external clock".
+
 ## Found Aug 22 (stale-data audit) — fixed
 
 - **Data health re-stamped the wire feeds with the browser's own Sleeper
