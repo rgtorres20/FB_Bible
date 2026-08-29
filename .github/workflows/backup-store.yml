@@ -1,0 +1,70 @@
+name: Backup store
+
+# GAP_REVIEW #10: a Redis flush loses the 21-day wire archive, the
+# first_seen stamps, the ADP history, the verdicts — and the scorecard's
+# prediction ledger, which is the app's immutable evidence and cannot be
+# re-derived from anywhere. Nightly, this pulls a dump from
+# /internal/backup and archives it as an Actions artifact for 30 days.
+#
+# The repo is public, so artifacts are downloadable by anyone with a
+# GitHub account. The dump therefore arrives SEALED under the
+# deployment's TOKEN_ENCRYPTION_KEY, and this job refuses to archive
+# anything that says otherwise — a plaintext dump in a public artifact
+# store would be a leak wearing a backup's name.
+#
+# Restore: download an artifact, then open it with the deployment's key
+# via app.feeds.store.open_export and push the sections back through
+# their own write paths (feeds via store.save, ledger via
+# save_scorecard). The opener lives beside the sealer so the two cannot
+# drift.
+
+on:
+  schedule:
+    # Nightly at an unpopular minute (see sync-feeds.yml for why not the
+    # top of the hour), before the sleepers read touches the store.
+    - cron: "53 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-store
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull the sealed dump
+        env:
+          BASE_URL: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN secret is not set. Add it under Settings > Secrets > Actions."
+            exit 1
+          fi
+          # The token travels in a header, never the URL, so it stays out
+          # of logs and referrers.
+          curl -sS --fail -H "X-Sync-Token: $SYNC_TOKEN" \
+            "$BASE_URL/internal/backup" -o store-backup.json
+
+          python3 - <<'PY'
+          import json
+
+          dump = json.load(open("store-backup.json"))
+          # The refusal that matters: never archive a readable dump in a
+          # public artifact store. The endpoint already 503s a keyless
+          # deployment; this catches a regression on either side.
+          assert dump.get("encrypted") is True, "dump is not sealed -- refusing to archive it"
+          assert isinstance(dump.get("sealed"), str) and len(dump["sealed"]) > 100, "dump is empty"
+          assert not dump["sealed"].lstrip().startswith("{"), "sealed field holds readable JSON"
+          print(f"sealed dump: {len(dump['sealed'])} chars, taken {dump.get('taken_at')}")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: store-backup-${{ github.run_number }}
+          path: store-backup.json
+          retention-days: 30

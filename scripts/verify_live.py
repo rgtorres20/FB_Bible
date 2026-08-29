@@ -1353,6 +1353,17 @@ def main() -> int:
         b"Community consensus" in mobile_js and b"fb-cs-row" in mobile_css,
     )
 
+    # The nightly backup's endpoint: wired (not a 404 from a missing
+    # route) and shut to anyone without the sync token. What it serves is
+    # sealed ciphertext, so the refusal IS the check — a 200 here would
+    # mean the store dump is open to strangers.
+    backup_code = anon_status("/internal/backup")
+    check(
+        "backup endpoint is wired and refuses a stranger",
+        backup_code == 401,
+        f"HTTP {backup_code}",
+    )
+
     # The nightly community read (scripts/fetch_sleepers.py). Absent is a
     # legitimate state -- the feature ships before its first push, and an
     # empty run deliberately leaves the store alone -- but a block that IS

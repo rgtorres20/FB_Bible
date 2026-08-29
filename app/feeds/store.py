@@ -159,6 +159,40 @@ class _Vault:
         return self._cipher.encrypt(payload)
 
 
+class BackupUnreadable(StoredDataUnreadable):
+    """A nightly dump that would not open — wrong key, or truncated."""
+
+    what = "backup"
+
+
+def sealed_export(payload: dict, encryption_key: str) -> str:
+    """One sealed string only a TOKEN_ENCRYPTION_KEY holder can open.
+
+    The nightly backup lands in a public repo's artifact store, where
+    anyone with a GitHub account can download it — so a readable dump
+    must never leave the deployment. No key configured is therefore a
+    refusal, not a plaintext fallback: the one place _Vault's
+    write-plaintext migration behaviour would be a leak instead of a
+    kindness.
+    """
+    vault = _Vault(encryption_key)
+    if not vault.encrypting:
+        raise BackupUnreadable(
+            "TOKEN_ENCRYPTION_KEY is not set; refusing to export a readable dump"
+        )
+    return vault.write(payload)
+
+
+def open_export(sealed: str, encryption_key: str) -> dict:
+    """The restore half, kept beside its producer so the two cannot drift.
+
+    Restoring is: download the artifact, open it with the deployment's
+    key, and push the sections back through their own write paths — the
+    feeds blob via store.save, the ledger via save_scorecard.
+    """
+    return _Vault(encryption_key).read(sealed, BackupUnreadable)
+
+
 class FeedStore(Protocol):
     async def load(self) -> dict: ...
 

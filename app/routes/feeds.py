@@ -48,7 +48,7 @@ from ..feeds import (
     watchlist,
     weekrev,
 )
-from ..feeds.store import FeedStore
+from ..feeds.store import BackupUnreadable, FeedStore, sealed_export
 
 log = logging.getLogger(__name__)
 
@@ -804,6 +804,43 @@ def _clamped_int(value: object, cap: int = 10_000) -> int:
         return max(0, min(cap, int(value)))  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0
+
+
+@router.get("/internal/backup", summary="Sealed dump of the store for the nightly backup")
+async def backup_store(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """GAP_REVIEW #10: a Redis flush loses the 21-day wire archive, the
+    first_seen stamps, the ADP history, the verdicts — and the
+    scorecard's prediction ledger, which is supposed to be immutable
+    evidence. The nightly backup workflow GETs this and archives it as
+    an Actions artifact.
+
+    The repo is public, so the dump leaves here only sealed under
+    TOKEN_ENCRYPTION_KEY (`store.sealed_export`): ciphertext in a public
+    artifact is fine, a readable dump is not, and a deployment without
+    the key gets a named 503 rather than a quiet plaintext leak. User
+    blobs and the access list are deliberately not included — they need
+    per-email key enumeration the store does not expose; the remaining
+    gap stays recorded under GAP_REVIEW #10.
+    """
+    _require_sync_token(settings, x_sync_token)
+
+    taken_at = datetime.now(UTC).isoformat()
+    try:
+        sealed = sealed_export(
+            {
+                "taken_at": taken_at,
+                "feeds": await store.load(),
+                "scorecard": await store.load_scorecard(),
+            },
+            settings.token_encryption_key,
+        )
+    except BackupUnreadable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"taken_at": taken_at, "encrypted": True, "sealed": sealed}
 
 
 @router.post("/internal/sync", summary="Poll every source and merge new items")
