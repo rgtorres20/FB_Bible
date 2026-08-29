@@ -196,6 +196,45 @@ def test_dissent_is_reported_beside_the_score_never_subtracted():
     assert rows[0]["score"] == 1.0, "the fade informed nothing but the dissent column"
 
 
+def test_a_trending_spike_cannot_outrank_a_second_source():
+    """Tuned Aug 29, owner call, from the first live run: roster-cut week
+    put a one-article player at 60,579 adds and (adds/1000) multiplied
+    his single mention 61x past every real consensus. Buzz leans; a
+    second writer always outweighs any amount of it."""
+    spike = fs.rank_consensus(
+        {"1": [_mention()]},
+        {"1": {"name": "One Article", "position": "WR", "team": "CIN"}},
+        {"1": 60579},
+        {},
+        {},
+        now=NOW,
+    )[0]
+    agreed = fs.rank_consensus(
+        {"2": [_mention(), _mention(source="Razzball", url="https://x/b")]},
+        {"2": {"name": "Two Writers", "position": "RB", "team": "HOU"}},
+        {},
+        {},
+        {},
+        now=NOW,
+    )[0]
+
+    assert agreed["score"] > spike["score"]
+    assert spike["trending_adds_72h"] == 60579, "the spike stays visible on the row"
+
+
+def test_buzz_doubles_at_most_and_halves_at_most():
+    args = (
+        {"1": [_mention(published="2026-08-20T12:00:00+00:00")]},
+        {"1": {"name": "Blake Corum", "position": "RB", "team": "LAR"}},
+    )
+    plain = fs.rank_consensus(*args, {}, {}, {}, now=NOW)[0]["score"]
+    spiked = fs.rank_consensus(*args, {"1": 10**6}, {}, {}, now=NOW)[0]["score"]
+    dumped = fs.rank_consensus(*args, {}, {"1": 10**6}, {}, now=NOW)[0]["score"]
+
+    assert spiked == pytest.approx(plain * 2)
+    assert dumped == pytest.approx(plain / 2)
+
+
 def test_a_player_with_only_negative_calls_is_not_on_the_list():
     """This is a sleeper list, not a bust list. A pure fade consensus is
     a different surface; inventing a row for it here would file a warning
