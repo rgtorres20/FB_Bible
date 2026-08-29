@@ -188,11 +188,13 @@ over HTTPS. `app/mailer.py` now carries both transports — stdlib
 `urllib` to Resend's API when `RESEND_API_KEY` is set, SMTP otherwise
 for local and self-hosted runs — so the code side is done.
 
-**What remains is the domain, and it is now blocking rather than
-cosmetic.** Resend will only deliver to your own account address until a
-domain is verified. So automated invites to the five testers are not
-available at any price until the domain exists. That moves email from
-"nice polish" to a hard dependency of step 1.
+**The domain exists — verified live Aug 29** (probe run 24:
+`https://fantasysportsbible.com/health` answers with the production
+app's own health JSON). What remains for email is the Resend half:
+verify `fantasysportsbible.com` in Resend and set
+`MAIL_FROM=invites@fantasysportsbible.com`. Until that is done Resend
+still delivers only to the owner's own address — the blocker moved from
+"no domain" to "domain not verified with the sender".
 
 ## Mobile: do the app stores actually help?
 
@@ -305,6 +307,18 @@ Neither is worth doing at six users. Both are worth doing before an
 audience, and fix 1 is worth doing purely for page speed.
 
 ## Buying and wiring the domain — the runbook
+
+**Status, measured Aug 29:** `fantasysportsbible.com` is bought and
+serves production — `/health` on it answers with the app's own JSON
+(probe run 24). One divergence from the runbook below: DNS resolves to
+Cloudflare *proxy* addresses (104.21.x / 172.67.x), which is the
+orange-cloud shape step 3 warns against. It works today; if the domain
+ever serves stale pages, odd TLS errors, or sync posts start failing,
+the first thing to check is flipping those records to **grey cloud /
+DNS only** so Vercel's CDN is the only one in the path. The machinery
+(sync scheduler, watchdog, verify-live) deliberately stays pointed at
+`fb-bible-torro2.vercel.app` — the same deployment without the extra
+proxy hop — while the custom domain is what people visit.
 
 Registrar: **Cloudflare**, on price integrity rather than features —
 $10.44/yr at cost, the *same* at renewal, where most registrars advertise
