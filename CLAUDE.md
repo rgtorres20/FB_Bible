@@ -630,7 +630,12 @@ Phase 4 is **Productize** — the transition from "owner + 5 testers, free" to
 something sellable: [docs/PRODUCTIZE.md](docs/PRODUCTIZE.md) has the real
 costs (~$21/mo floor: Vercel Pro, since Hobby is non-commercial, plus a
 ~$10/yr domain), the licensing blockers, and the *order*. **Planning only —
-do not build from it without the owner asking.** One item there is
-time-sensitive rather than money-sensitive: passkeys are bound to the
-hostname, so the custom domain should be bought and pointed before more
-people register Face ID, or they all re-register.
+do not build from it without the owner asking.** The custom domain
+exists: **`fantasysportsbible.com` serves production**, verified live
+Aug 29 (probe run 24 — `/health` answers with the app's own JSON; DNS
+sits behind Cloudflare's proxy, a divergence from the runbook's
+grey-cloud advice that PRODUCTIZE.md now records). The time-sensitive
+item narrowed accordingly: passkeys are bound to the hostname, so
+`PASSKEY_RP_ID=fantasysportsbible.com` should be set (docs/ACCESS.md)
+and registrations should happen at the domain — a key registered at the
+vercel.app URL is not offered there.

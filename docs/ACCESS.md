@@ -149,6 +149,14 @@ How it behaves, deliberately:
 
 ### Pinning the RP ID before you move again
 
+**This is live now, not hypothetical** (Aug 29): `fantasysportsbible.com`
+is bought and serves production. Two consequences, both time-sensitive:
+any passkey registered at `fb-bible-torro2.vercel.app` is scoped to that
+hostname and will not be offered at the domain — re-register there — and
+every *new* registration should happen at `fantasysportsbible.com`, with
+`PASSKEY_RP_ID` set first, so the credentials people create this week
+survive any later hop to a subdomain.
+
 A passkey is scoped to an **RP ID**, which defaults to the hostname. That
 makes `fantasysportsbible.com` and `app.fantasysportsbible.com` two
 different relying parties: every credential registered under one is dead
