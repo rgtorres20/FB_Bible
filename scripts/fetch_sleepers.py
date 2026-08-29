@@ -141,6 +141,18 @@ NEGATIVE = frozenset({"bust", "fade"})
 # measured — docs/ASSUMPTIONS.md.
 MIN_CONFIDENCE = 0.4
 
+# Trending leans on the score; it must never drive it. Tuned Aug 29
+# (owner call) after the first live run put a one-article player 30x
+# above a two-source consensus: it was roster-cut week, his add count
+# was 60,579, and (adds/1000) multiplied a single mention by 61. With
+# the clamp the hottest add-spike can at most DOUBLE a consensus and a
+# heavy drop-wave can at most HALVE it, so a second writer is always
+# worth more than any amount of buzz. The raw add count still renders
+# on the row, so the spike stays visible — it just stops outranking
+# agreement. docs/ASSUMPTIONS.md.
+BUZZ_CEILING = 1.0
+BUZZ_FLOOR = -0.5
+
 
 def _get(url: str, timeout: float = 25.0) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -375,8 +387,10 @@ def rank_consensus(
 
     The shape of the score (docs/ASSUMPTIONS.md): sources × recency say
     how broad and how current the recommendation is, add/drop buzz leans
-    on it, and roster% divides it — a player everyone already holds is
-    not a sleeper whatever the wire says. Dissent (bust/fade calls) is
+    on it — clamped, so it can double or halve a consensus but never
+    replace one — and roster% divides it, because a player everyone
+    already holds is not a sleeper whatever the wire says. Dissent
+    (bust/fade calls) is
     reported beside the score rather than subtracted from it: "three
     sites love him, one is out" is a finding the reader should see, not
     an average that hides both.
@@ -400,7 +414,7 @@ def rank_consensus(
         drops = trending_drop.get(pid, 0)
         roster_pct = owned.get(pid, 0) or 0
 
-        buzz = (adds - drops * 0.5) / 1000.0
+        buzz = min(BUZZ_CEILING, max(BUZZ_FLOOR, (adds - drops * 0.5) / 1000.0))
         score = (len(sources) * recency * (1 + buzz)) / (1 + roster_pct / 20.0)
 
         p = meta[pid]

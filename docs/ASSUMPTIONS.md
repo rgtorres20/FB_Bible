@@ -491,11 +491,20 @@ are recommending; almost every constant in it is a judgement call:
   raise it and quiet-but-real recommendations vanish.
 - **The score is** `sources × recency × (1 + buzz) / (1 + roster% / 20)`
   with recency doubling calls made in the last 3 days and buzz reading
-  Sleeper adds minus half the drops, per thousand. None of those
-  constants is measured; they encode "breadth of agreement beats volume,
-  recent beats stale, and a player everyone already holds is not a
-  sleeper". Dissent (bust/fade calls) is **reported, never subtracted**
-  — an average would hide both the love and the warning.
+  Sleeper adds minus half the drops, per thousand — **clamped to
+  [-0.5, +1.0]** (`BUZZ_CEILING` / `BUZZ_FLOOR`). The clamp is the one
+  constant here that was *tuned against a live run* rather than
+  inherited: the first night was roster-cut week, one player's 60,579
+  adds multiplied a single article 61× past every two-source consensus,
+  and the list read as Sleeper's trending page with citations. Owner
+  call, Aug 29: consensus drives, buzz leans — the hottest spike can at
+  most double a score and a drop-wave at most halve it, so a second
+  writer always outweighs any amount of trending. The raw add count
+  still renders on the row, so the spike stays visible. The remaining
+  constants encode "breadth of agreement beats volume, recent beats
+  stale, and a player everyone already holds is not a sleeper". Dissent
+  (bust/fade calls) is **reported, never subtracted** — an average would
+  hide both the love and the warning.
 - **Windows and caps:** 10-day lookback, 40 articles a night, 15
   candidates per article, 40 rows stored
   (`watchlist.MAX_CONSENSUS_ROWS`), 12 rendered
