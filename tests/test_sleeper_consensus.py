@@ -475,7 +475,7 @@ def _wire(monkeypatch, reply_fn, candidates_fn=None):
     """The non-model plumbing, stubbed identically across these tests."""
     calls: list[list[str]] = []
 
-    def chat(messages, api_key):
+    def chat(messages, api_key, timeout=120):
         keys = re.findall(r"ARTICLE (a\d+) ", messages[1]["content"])
         calls.append(keys)
         return {"choices": [{"message": {"content": reply_fn(keys)}}]}
@@ -549,6 +549,24 @@ def test_one_garbled_reply_costs_only_its_batch(monkeypatch):
 
     assert len(calls) == 2, "the second batch still ran"
     assert read == 2, "only the good batch counts as read"
+
+
+def test_a_network_failure_that_outlives_the_retries_costs_only_its_batch(monkeypatch):
+    """The crash that ate runs 3 and 4 whole (Aug 29): a socket read
+    timeout escaping chat_with_retry killed the run with a traceback and
+    nothing was pushed. It now costs the batch, like a garbled reply."""
+
+    def reply(keys):
+        if "a1" in keys:
+            raise TimeoutError("The read operation timed out")
+        return '{"a6": []}'
+
+    calls = _wire(monkeypatch, reply)
+
+    _, read = fs.build_consensus(_items(7), {}, "key")
+
+    assert len(calls) == 2, "the run went on to the second batch"
+    assert read == 2, "the timed-out batch is not counted as read"
 
 
 def test_a_permanently_rejected_model_stops_the_run(monkeypatch):
