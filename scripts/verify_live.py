@@ -1129,6 +1129,14 @@ def main() -> int:
         "the app reopens on the tab you were last using",
         'localStorage.getItem("ww_screen")' in served,
     )
+    # And it re-asks for the wire when it does. Checked live because the
+    # transform is a serve-time edit: a missed anchor here means every
+    # installed instance is back to fetching the overlay exactly once.
+    check(
+        "the page re-pulls the overlay when the app wakes",
+        "__fbPullFeeds" in served
+        and 'document.addEventListener("visibilitychange", __fbFeedsWake)' in served,
+    )
     check("one door into the wire, not two", 'label: "News & posts"' not in served)
     check(
         "the alerts badge counts the live feed, not six curated rows",
@@ -1364,6 +1372,13 @@ def main() -> int:
     mobile_js = get("/app/mobile.js")
     check("mobile.js serves", b"fb-menu-btn" in mobile_js)
     check("overlay decorator serves", b"fb-new-badge" in mobile_js and b"injury_wire" in mobile_js)
+    # Owner, Sep 1: three tabs "stuck on Aug 14th" on an installed app
+    # instance that had not cold-started in weeks. Both pullers -- the
+    # page's own feeds fetch and this decorator's -- must re-ask on wake.
+    check(
+        "the overlay re-pulls when the app wakes",
+        b"wakeFeeds" in mobile_js and b"visibilitychange" in mobile_js,
+    )
     check(
         "source panel decorator serves",
         b"fb-rank-sources" in mobile_js and b"Board order" in mobile_js,

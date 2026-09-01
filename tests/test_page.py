@@ -798,6 +798,34 @@ def test_a_missing_anchor_leaves_the_page_alone(index_html):
 # --- kickers stop typing dates they cannot keep ----------------------------
 
 
+def test_the_overlay_is_repulled_when_the_app_wakes(index_html):
+    """Owner, Sep 1: alerts, NBC news and the Week review all "stuck on
+    Aug 14th" while the server, measured the same minute, was serving
+    that afternoon's wire. The page fetched `data/feeds.json` once at
+    load and never again — fine for a page, wrong for an installed app
+    that lives in memory for weeks. The fetch is now a named function
+    re-run on visibilitychange/focus, throttled to five minutes."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert 'const __fbPullFeeds = () => fetch("data/feeds.json")' in served
+    assert "__fbFeedsAt" in served
+    assert 'document.addEventListener("visibilitychange", __fbFeedsWake)' in served
+    assert 'window.addEventListener("focus", __fbFeedsWake)' in served
+    # The bare one-shot fetch must not survive beside the wrapped one.
+    assert served.count('fetch("data/feeds.json")') == 1
+
+
+def test_a_moved_fetch_reports_the_miss(index_html):
+    """A design resync that rewrites the startup fetch must say so, not
+    quietly go back to a page that never re-asks."""
+    broken = index_html.replace('fetch("data/feeds.json")', 'fetch("data/feeds2.json")', 1)
+    assert broken != index_html
+
+    _, misses = page.feeds_follow_the_wake(broken)
+
+    assert misses == ["feeds wake re-pull"]
+
+
 def test_no_kicker_still_claims_a_typed_sync_date(index_html):
     """Owner, Aug 26: "Week review didnt update stayed on week 1 even
     though week 2" and "NBC player news is stale why not live". Both tabs

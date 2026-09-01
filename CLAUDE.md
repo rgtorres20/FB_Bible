@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1508 tests green — 1492 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1512 tests green — 1496 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -246,6 +246,16 @@ The served page reads live data: the `/app/data/feeds.json` overlay merges the
 polled wire (impact-ranked, deduped, `first_seen`-stamped) into the page's own
 startup fetch, and `mobile.js` decorates NEW badges and Out & returning wire
 stamps onto the rendered rows. See docs/RESUME.md for the live-state detail.
+**The overlay re-pulls when the app wakes** (Sep 1 — the owner's installed
+app showed mid-August wire on three tabs while the server, measured the
+same minute by the watchdog run against the production domain, was
+fresh). Both pullers fetched once at page load and never again, which a
+browser tab survives and a PWA held in memory for weeks does not.
+`page.feeds_follow_the_wake` wraps the page's own fetch and re-runs it on
+`visibilitychange`/`focus`, `mobile.js` does the same for its decorator
+copy, both throttled to five minutes (docs/ASSUMPTIONS.md has the number
+and why nothing polls in the background). A failed re-pull keeps what is
+on screen — the dated kickers are the surface that says how old that is.
 
 `/app/mock` is the mock draft room (owner request, Aug 20): pick a league and
 a slot, the other nine teams autopick from the live pool — market ADP with

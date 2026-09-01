@@ -132,10 +132,29 @@
     requestAnimationFrame(function () { pending = false; decorate(); });
   }
 
-  fetch('data/feeds.json')
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (f) { if (f) { data = f; schedule(); } })
-    .catch(function () {});
+  /* Pulled at load and again on wake: an installed app instance can sit
+   * in memory for weeks, and a copy fetched once at startup quietly ages
+   * into last month's wire (owner hit this Sep 1 — three tabs "stuck on
+   * Aug 14th" while the server was fresh). Throttled to once per five
+   * minutes; a failed re-pull keeps what is on screen, same as the page's
+   * own fallback. */
+  var pulledAt = 0;
+  function pullFeeds() {
+    pulledAt = Date.now();
+    fetch('data/feeds.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (f) { if (f) { data = f; schedule(); } })
+      .catch(function () {});
+  }
+  pullFeeds();
+
+  function wakeFeeds() {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - pulledAt < 5 * 60 * 1000) return;
+    pullFeeds();
+  }
+  document.addEventListener('visibilitychange', wakeFeeds);
+  window.addEventListener('focus', wakeFeeds);
 
   function newTexts() {
     /* First-ever visit: everything would be "new", which marks nothing. */

@@ -1121,6 +1121,45 @@ _ROTO_KICKER_REPLACEMENT = (
 )
 
 
+# The overlay was fetched once, at page load, and never again. On a
+# laptop that is fine -- pages get reloaded. An installed app is not a
+# page: a phone keeps the instance alive in memory for weeks, and every
+# tab that reads `feeds` (Alerts, NBC player news, Week review, the wire
+# stamps) kept showing whatever the wire said the last time the app
+# cold-started. The owner hit exactly this on Sep 1: three tabs "stuck on
+# Aug 14th" while the server, measured the same minute, was serving that
+# afternoon's wire. Nothing was down; nothing ever asked again.
+_FEEDS_FETCH = (
+    'fetch("data/feeds.json").then(r => (r.ok ? r.json() : null))'
+    ".then(f => { if (f) this.setState({ feeds: f }); }).catch(() => {});"
+)
+_FEEDS_FETCH_REPLACEMENT = (
+    "const __fbPullFeeds = () => " + _FEEDS_FETCH + " "
+    "__fbPullFeeds(); let __fbFeedsAt = Date.now(); "
+    "const __fbFeedsWake = () => { "
+    'if (document.visibilityState !== "visible") return; '
+    "if (Date.now() - __fbFeedsAt < 300000) return; "
+    "__fbFeedsAt = Date.now(); __fbPullFeeds(); }; "
+    'document.addEventListener("visibilitychange", __fbFeedsWake); '
+    'window.addEventListener("focus", __fbFeedsWake);'
+)
+
+
+def feeds_follow_the_wake(html: str) -> tuple[str, list[str]]:
+    """Re-pull the live overlay when the app comes back to the front.
+
+    One anchor: the page's own startup fetch of `data/feeds.json` is
+    wrapped in a function and re-run on `visibilitychange`/`focus`, at
+    most once every five minutes (docs/ASSUMPTIONS.md). A failed re-pull
+    keeps the state already on screen -- same silence as the startup
+    fetch, and the dated kickers below say how old that state really is.
+    """
+    return _apply(
+        html,
+        (("feeds wake re-pull", _FEEDS_FETCH, _FEEDS_FETCH_REPLACEMENT, 1),),
+    )
+
+
 def dated_kickers_read_the_data(html: str) -> tuple[str, list[str]]:
     """Replace the two typed sync dates with what the data actually says.
 
@@ -1161,6 +1200,7 @@ PRE = (
     sleepers_watchlist,
     alerts_is_the_wire,
     back_where_you_were,
+    feeds_follow_the_wake,
     dated_kickers_read_the_data,
 )
 
