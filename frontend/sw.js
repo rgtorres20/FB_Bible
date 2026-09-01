@@ -9,7 +9,13 @@
 //
 // Behaviour matches the original: always fresh when online, still usable off.
 
-const VERSION = 'fb-v11';
+// Bump on any change to the served shell (index.html transforms, mobile.js,
+// feeds shape) -- the version is the cache name, so a new value is what makes
+// an installed PWA drop its old precache and re-fetch. An unchanged version
+// leaves a phone that has not cold-started running the shell it installed
+// weeks ago (Sep 1: the frozen-wire report was partly this -- the worker
+// never updated because this string never moved).
+const VERSION = 'fb-v12';
 
 // Enough to open the app offline. Everything else is cached as you browse.
 const SHELL = [
