@@ -542,3 +542,37 @@ trending add/drop and the `research/regular/2026/1` ownership endpoint
 (831 players) all answered with the shapes the script reads. The
 workflow's check mode re-verifies all of it on demand; its OK/DEAD log
 decides the list, not anybody's memory.
+
+
+## The overlay re-pulls on wake, at most every five minutes
+
+**Chosen Sep 1, when the frozen-instance bug was found.**
+
+The served page and `mobile.js` each fetched `data/feeds.json` once, at
+load, and never again. A browser tab gets reloaded; an installed app
+does not — a phone keeps the instance alive in memory for weeks, and on
+Sep 1 the owner's tabs (Alerts, NBC player news, Week review) were all
+showing mid-August wire while the server, measured the same minute by
+the watchdog against the production domain, was serving that
+afternoon's. Both fetches now re-run when the document becomes visible
+again (`visibilitychange`, plus `focus` for desktop window switches).
+
+**The chosen number: five minutes** between re-pulls. Zero would re-fetch
+on every app switch — a reader flipping between the app and a group chat
+during games would hammer the endpoint for data that syncs every ~15
+minutes anyway. An hour would leave a Sunday-afternoon reader a quarter
+behind. Five minutes is well under the sync cadence, so a woken app is
+never staler than the store plus five.
+
+**What it deliberately does not do:** a failed re-pull keeps what is on
+screen, silently — same contract as the startup fetch, and the dated
+kickers (`page.dated_kickers_read_the_data`) are the surface that says
+how old that state really is. And nothing polls in the background: the
+re-pull fires on wake, not on a timer, because a hidden app asking every
+five minutes is battery spent on rows nobody is looking at.
+
+**If it is wrong:** the constant sits in two places on purpose —
+`_FEEDS_FETCH_REPLACEMENT` in `app/feeds/page.py` (300000 ms) and
+`wakeFeeds` in `frontend/mobile.js` (5 × 60 × 1000) — one per puller,
+each beside the fetch it throttles. Change both or the two halves of the
+overlay age apart.
