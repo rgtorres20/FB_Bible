@@ -123,28 +123,50 @@ async def app_access_gate(request: Request, call_next):
     """
     s = get_settings()
     path = request.url.path
-    if s.app_auth_enabled and (path == "/app" or path.startswith("/app/")):
-        # The sign-in page is public but its artwork is not, and that is
-        # a contradiction the gate used to enforce: /login rendered fine
-        # while the mark, the favicon and the theme stylesheet all came
-        # back 401, because every one of them lives under /app. The page
-        # looked broken to exactly the people it exists for -- anyone not
-        # signed in yet.
-        #
-        # A tight allowlist rather than "static files are public": these
-        # four carry brand art and colour tokens and no user data of any
-        # kind. Everything else under /app stays behind the gate.
-        if (
-            path.startswith(("/app/assets/", "/app/icons/"))
-            or path == "/app/teams.css"
-            or path == "/app/manifest.webmanifest"
-        ):
-            return await call_next(request)
+    in_app = path == "/app" or path.startswith("/app/")
+    # The sign-in page is public but its artwork is not, and that is
+    # a contradiction the gate used to enforce: /login rendered fine
+    # while the mark, the favicon and the theme stylesheet all came
+    # back 401, because every one of them lives under /app. The page
+    # looked broken to exactly the people it exists for -- anyone not
+    # signed in yet.
+    #
+    # A tight allowlist rather than "static files are public": these
+    # four carry brand art and colour tokens and no user data of any
+    # kind. Everything else under /app stays behind the gate.
+    public_asset = (
+        path.startswith(("/app/assets/", "/app/icons/"))
+        or path == "/app/teams.css"
+        or path == "/app/manifest.webmanifest"
+    )
+    if s.app_auth_enabled and in_app and not public_asset:
         if not await access.request_allowed(request, s):
+            # no-store here too: a cached copy of this refusal would keep
+            # turning away signed-in readers for as long as it lived.
             if "text/html" in request.headers.get("accept", ""):
-                return RedirectResponse("/login", status_code=303)
-            return JSONResponse({"detail": "sign-in required"}, status_code=401)
-    return await call_next(request)
+                return RedirectResponse(
+                    "/login", status_code=303, headers={"Cache-Control": "no-store"}
+                )
+            return JSONResponse(
+                {"detail": "sign-in required"},
+                status_code=401,
+                headers={"Cache-Control": "no-store"},
+            )
+    response = await call_next(request)
+    # Everything gated is also uncacheable (Sep 1). These responses carried
+    # no Cache-Control at all, which leaves the caching decision to whoever
+    # sits in the path -- and production sits behind Cloudflare's proxy
+    # (docs/PRODUCTIZE.md records the orange-cloud divergence), with the
+    # browser's own heuristics behind that. A cached copy of the app page
+    # or feeds.json is one reader's old wire served to whoever the cache
+    # covers, wearing this morning's URL; the page then renders its Aug-14
+    # seeds and every tab looks dead while the server is fresh. no-store is
+    # the header that says this answer was for this request only. The four
+    # public brand assets stay cacheable -- teams.css already declares its
+    # own hour, and none of them carries user data or freshness claims.
+    if in_app and not public_asset and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/", include_in_schema=False)

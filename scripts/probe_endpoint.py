@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 MAX_SAMPLE_KEYS = 25
@@ -80,12 +81,41 @@ def main() -> int:
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             status = response.status
+            resp_headers = response.headers
             raw = response.read()
+    except urllib.error.HTTPError as exc:
+        # An error status is still an answer, and its headers are often the
+        # whole finding: a 401's cf-cache-status says whether Cloudflare is
+        # caching a gated page, which no green watchdog run can reveal.
+        status = exc.code
+        resp_headers = exc.headers
+        raw = exc.read()
     except Exception as exc:  # noqa: BLE001 - the failure IS the finding
         print(f"::error::{type(exc).__name__}: {exc}")
         return 1
 
     print(f"HTTP {status} · {len(raw):,} bytes\n")
+    # A fixed allowlist rather than "print them all": headers carry cookies
+    # and tokens, and never-log-a-token binds this script too. These name
+    # who served the response and whether anything in the path cached it.
+    caching = (
+        "content-type",
+        "cache-control",
+        "age",
+        "etag",
+        "last-modified",
+        "cf-cache-status",
+        "cf-ray",
+        "x-vercel-cache",
+        "x-vercel-id",
+        "server",
+        "via",
+    )
+    for name in caching:
+        value = resp_headers.get(name)
+        if value:
+            print(f"  {name}: {value}")
+    print()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:

@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1512 tests green — 1496 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1526 tests green — 1510 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -256,6 +256,13 @@ browser tab survives and a PWA held in memory for weeks does not.
 copy, both throttled to five minutes (docs/ASSUMPTIONS.md has the number
 and why nothing polls in the background). A failed re-pull keeps what is
 on screen — the dated kickers are the surface that says how old that is.
+And nothing gated is cacheable (same day): every `/app` response outside
+the four public brand assets now carries `Cache-Control: no-store` —
+they carried no cache header at all, which left the decision to whoever
+sits in the path, and production sits behind Cloudflare's proxy. The
+gate's own 401/redirect wear it too; a cached refusal is the same poison
+pointed the other way. Stamped once in the gate middleware, tested in
+`tests/test_navigation.py`.
 
 `/app/mock` is the mock draft room (owner request, Aug 20): pick a league and
 a slot, the other nine teams autopick from the live pool — market ADP with

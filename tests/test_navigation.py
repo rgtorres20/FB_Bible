@@ -168,3 +168,58 @@ def test_the_slash_redirect_lands_somewhere_real(client):
     for path in skin.SERVED_PAGES:
         resp = client.get(path + "/", follow_redirects=True)
         assert resp.status_code != 404, f"{path}/ still ends at a 404"
+
+
+# --- nothing gated is cacheable (Sep 1) ------------------------------------
+#
+# Production sits behind Cloudflare's proxy (docs/PRODUCTIZE.md records the
+# orange-cloud divergence), and every gated response shipped with no
+# Cache-Control at all -- leaving the caching decision to whoever sits in
+# the path. A cached feeds.json is one reader's old wire served to everyone
+# behind that cache; the page then falls back to its Aug-14 seed constants
+# and every tab looks dead while the server is fresh.
+
+
+@pytest.mark.parametrize("path", SERVED_PAGES)
+def test_every_served_page_refuses_to_be_cached(client, path):
+    response = client.get(path)
+    assert response.headers.get("cache-control") == "no-store", path
+
+
+def test_the_overlay_data_refuses_to_be_cached(client):
+    """The one response whose staleness broke three tabs at once."""
+    response = client.get("/app/data/feeds.json")
+    assert response.headers.get("cache-control") == "no-store"
+
+
+def test_the_gates_refusal_refuses_to_be_cached(tmp_path, monkeypatch):
+    """A cached 401 keeps turning away signed-in readers for as long as it
+    lives, which is the same poison in the other direction."""
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    s = get_settings()
+    monkeypatch.setattr(s, "app_auth", True, raising=False)
+    monkeypatch.setattr(s, "owner_email", "owner@example.com", raising=False)
+    monkeypatch.setattr(s, "app_owner_code", "open-sesame", raising=False)
+    monkeypatch.setattr(s, "session_secret", "unit-test-secret", raising=False)
+    main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
+    monkeypatch.setattr(access_route, "build_feed_store", lambda _s: store)
+    stranger = TestClient(main.app)
+    try:
+        refused = stranger.get("/app/data/feeds.json")
+        assert refused.status_code == 401
+        assert refused.headers.get("cache-control") == "no-store"
+        redirected = stranger.get("/app/", headers={"accept": "text/html"}, follow_redirects=False)
+        assert redirected.status_code == 303
+        assert redirected.headers.get("cache-control") == "no-store"
+    finally:
+        main.app.dependency_overrides.clear()
+
+
+def test_the_public_brand_assets_stay_cacheable(client):
+    """The four public paths carry no user data and no freshness claims;
+    teams.css declares its own hour and the middleware must not take it
+    away."""
+    css = client.get("/app/teams.css")
+    assert css.headers.get("cache-control") == "public, max-age=3600"
+    manifest = client.get("/app/manifest.webmanifest")
+    assert manifest.headers.get("cache-control") != "no-store"
