@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 MAX_SAMPLE_KEYS = 25
@@ -75,17 +76,77 @@ def main() -> int:
         headers["Authorization"] = f"Bearer {api_key}"
         print("(authorized with the AI key)")
 
+    # Opt-in sync-token auth for the app's own gated endpoints -- the same
+    # X-Sync-Token the runner and watchdog hold. Needed to probe
+    # /app/data/feeds.json, which is behind the login gate. The token rides
+    # in from the workflow secret env and is never echoed.
+    if os.environ.get("PROBE_SYNC") == "1":
+        sync_token = os.environ.get("SYNC_TOKEN", "")
+        if not sync_token:
+            print("::error::PROBE_SYNC=1 but no SYNC_TOKEN secret is set")
+            return 2
+        headers["X-Sync-Token"] = sync_token
+        print("(authorized with the sync token)")
+
     print(f"probing {url}\n")
     request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             status = response.status
+            resp_headers = response.headers
             raw = response.read()
+    except urllib.error.HTTPError as exc:
+        # An error status is still an answer, and its headers are often the
+        # whole finding: a 401's cf-cache-status says whether Cloudflare is
+        # caching a gated page, which no green watchdog run can reveal.
+        status = exc.code
+        resp_headers = exc.headers
+        raw = exc.read()
     except Exception as exc:  # noqa: BLE001 - the failure IS the finding
         print(f"::error::{type(exc).__name__}: {exc}")
         return 1
 
     print(f"HTTP {status} · {len(raw):,} bytes\n")
+    # A fixed allowlist rather than "print them all": headers carry cookies
+    # and tokens, and never-log-a-token binds this script too. These name
+    # who served the response and whether anything in the path cached it.
+    caching = (
+        "content-type",
+        "cache-control",
+        "age",
+        "etag",
+        "last-modified",
+        "cf-cache-status",
+        "cf-ray",
+        "x-vercel-cache",
+        "x-vercel-id",
+        "server",
+        "via",
+    )
+    for name in caching:
+        value = resp_headers.get(name)
+        if value:
+            print(f"  {name}: {value}")
+    print()
+    print(f"  body bytes: {len(raw):,}")
+
+    # Strict, browser-equivalent parse. Python's json.loads accepts the
+    # literals NaN, Infinity and -Infinity (via parse_constant); a browser's
+    # JSON.parse rejects all three and throws. So a response Python calls
+    # "valid JSON" can be one the app's fetch(...).then(r => r.json())
+    # silently rejects into its .catch, leaving the page on its seed data
+    # while a raw NAVIGATION to the same URL (which never parses) looks
+    # fine. This is the one check that tells them apart.
+    def _reject(tok: str) -> None:
+        raise ValueError(f"non-standard JSON literal: {tok}")
+
+    try:
+        json.loads(raw, parse_constant=_reject)
+        print("  strict JSON (browser JSON.parse): OK")
+    except ValueError as exc:
+        print(f"  ::error::strict JSON (browser JSON.parse) FAILS: {exc}")
+        print("  -> a browser's fetch().json() rejects this; the page keeps its seed data")
+    print()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:

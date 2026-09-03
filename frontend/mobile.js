@@ -141,7 +141,10 @@
   var pulledAt = 0;
   function pullFeeds() {
     pulledAt = Date.now();
-    fetch('data/feeds.json')
+    // Absolute path + no-store for the same reason the page's own puller
+    // uses them: a relative path can misresolve under an installed-app
+    // scope, and a stale intermediary must not stand in for the live wire.
+    fetch('/app/data/feeds.json', { credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (f) { if (f) { data = f; schedule(); } })
       .catch(function () {});
