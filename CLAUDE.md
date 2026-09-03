@@ -237,7 +237,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1526 tests green — 1510 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1527 tests green — 1511 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -263,6 +263,26 @@ sits in the path, and production sits behind Cloudflare's proxy. The
 gate's own 401/redirect wear it too; a cached refusal is the same poison
 pointed the other way. Stamped once in the gate middleware, tested in
 `tests/test_navigation.py`.
+
+**And the feeds fetch stopped hiding its own failure** (Sep 2, after the
+report persisted through the re-pull and cache fixes). The whole pipeline
+was proven healthy end to end — the server serves fresh, strict-JSON-valid
+bytes (probe run 27, sync-token), `renderVals` renders them fresh under
+node, and the relative fetch resolves right at `/app` and `/app/` in a
+real browser — yet the page still showed the Aug-14 SEED constants,
+because the one fetch every feed tab depends on caught its own failure
+with a bare `.catch(() => {})` and fell back to the seeds with nothing on
+screen saying so. That silent fallback is the defect: it violated the
+no-false-freshness rule on the tab whose subject is freshness.
+`page.feeds_follow_the_wake` now fetches the **absolute** `/app/data/feeds.json`
+(a relative path can misresolve under an installed-app scope), `no-store`,
+retries 3× with backoff, and on final failure raises a fixed banner naming
+the HTTP status (`Live feed didn't load (HTTP 401) …`) plus a console
+warning — so the next failure is diagnosable instead of a silent month on
+the seed. `mobile.js`'s decorator fetch took the absolute-path/no-store
+half too. The probe grew a strict browser-equivalent JSON parse and
+`PROBE_SYNC=1` (X-Sync-Token) to reach the gated feed — that is what
+proved the bytes are browser-parseable.
 
 `/app/mock` is the mock draft room (owner request, Aug 20): pick a league and
 a slot, the other nine teams autopick from the live pool — market ADP with

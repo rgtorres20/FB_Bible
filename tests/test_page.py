@@ -807,12 +807,30 @@ def test_the_overlay_is_repulled_when_the_app_wakes(index_html):
     re-run on visibilitychange/focus, throttled to five minutes."""
     served, _ = page.apply(index_html, page.PRE)
 
-    assert 'const __fbPullFeeds = () => fetch("data/feeds.json")' in served
+    assert "const __fbPullFeeds = (tries) =>" in served
     assert "__fbFeedsAt" in served
     assert 'document.addEventListener("visibilitychange", __fbFeedsWake)' in served
     assert 'window.addEventListener("focus", __fbFeedsWake)' in served
-    # The bare one-shot fetch must not survive beside the wrapped one.
-    assert served.count('fetch("data/feeds.json")') == 1
+    # The bare relative one-shot fetch must not survive: the wrapped puller
+    # uses an absolute path that cannot misresolve.
+    assert served.count('fetch("data/feeds.json")') == 0
+    assert 'fetch("/app/data/feeds.json"' in served
+
+
+def test_a_failed_overlay_fetch_is_shown_not_swallowed(index_html):
+    """The defect behind the frozen-wire report: the one fetch every feed
+    tab depends on caught its own failure with a bare `.catch(() => {})`,
+    so the page fell back to its Aug-14 SEED constants with nothing on
+    screen saying the live feed had not loaded. The puller now retries and,
+    on final failure, raises a banner naming the HTTP status."""
+    served, _ = page.apply(index_html, page.PRE)
+
+    assert "__fbBanner" in served
+    assert '"HTTP " + r.status' in served
+    assert "Live feed didn't load" in served
+    # The feeds fetch specifically no longer swallows its failure: the
+    # relative one-shot with the bare catch is gone (asserted above), and
+    # the puller that replaced it surfaces the status instead.
 
 
 def test_a_moved_fetch_reports_the_miss(index_html):

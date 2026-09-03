@@ -1121,20 +1121,51 @@ _ROTO_KICKER_REPLACEMENT = (
 )
 
 
-# The overlay was fetched once, at page load, and never again. On a
-# laptop that is fine -- pages get reloaded. An installed app is not a
-# page: a phone keeps the instance alive in memory for weeks, and every
-# tab that reads `feeds` (Alerts, NBC player news, Week review, the wire
-# stamps) kept showing whatever the wire said the last time the app
-# cold-started. The owner hit exactly this on Sep 1: three tabs "stuck on
-# Aug 14th" while the server, measured the same minute, was serving that
-# afternoon's wire. Nothing was down; nothing ever asked again.
+# The overlay was fetched once, at page load, and never again -- and when
+# that one fetch failed, the failure was swallowed by a bare `.catch(() =>
+# {})`, so every tab that reads `feeds` (Alerts, NBC player news, Week
+# review, the wire stamps) fell back to the page's embedded Aug-14 SEED
+# constants with nothing on screen saying the live feed had not loaded.
+# The owner hit this repeatedly: the server was serving that day's wire
+# (measured fresh the same minute, and strict-JSON-valid so a browser can
+# parse it), a raw navigation to the feed URL read September, yet the app
+# showed August on every device including a fresh private window -- the
+# signature of the page's own fetch failing and the seed fallback hiding
+# it. So this rewrite does three things the old line did not:
+#
+#   1. absolute path -- "/app/data/feeds.json" cannot misresolve against a
+#      base the runtime or an installed-app scope sets differently than a
+#      plain page at /app/;
+#   2. retries (3x, backing off) and no-store, so a transient blip or a
+#      stale intermediary does not become a day on the seed;
+#   3. when it ultimately fails, it SAYS SO -- a fixed banner naming the
+#      HTTP status, and a console warning -- instead of silently serving
+#      August. Honest-failure is this repo's rule; a swallowed error on
+#      the one fetch every feed tab depends on broke it.
+#
+# It still re-pulls on wake (visibilitychange/focus, throttled to five
+# minutes -- docs/ASSUMPTIONS.md), which a warm installed instance needs.
 _FEEDS_FETCH = (
     'fetch("data/feeds.json").then(r => (r.ok ? r.json() : null))'
     ".then(f => { if (f) this.setState({ feeds: f }); }).catch(() => {});"
 )
 _FEEDS_FETCH_REPLACEMENT = (
-    "const __fbPullFeeds = () => " + _FEEDS_FETCH + " "
+    "const __fbBanner = (msg) => { try { var el = "
+    'document.getElementById("__fb_feed_warn"); '
+    "if (!msg) { if (el) el.remove(); return; } "
+    "if (!el) { el = document.createElement(\"div\"); el.id = '__fb_feed_warn'; "
+    "el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;"
+    "background:#8a1c1c;color:#fff;font:12px/1.4 system-ui,sans-serif;"
+    "padding:8px 12px;text-align:center'; document.body.appendChild(el); } "
+    "el.textContent = msg; } catch (e) {} }; "
+    "const __fbPullFeeds = (tries) => { tries = tries || 0; return "
+    'fetch("/app/data/feeds.json", { credentials: "same-origin", cache: "no-store" })'
+    '.then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })'
+    '.then(f => { if (f && f.news) { this.setState({ feeds: f }); __fbBanner(""); } })'
+    ".catch(err => { if (tries < 3) { return new Promise(res => "
+    "setTimeout(res, 1500 * (tries + 1))).then(() => __fbPullFeeds(tries + 1)); } "
+    '__fbBanner("Live feed didn\'t load (" + ((err && err.message) || "network") + ") '
+    '— showing saved data. Reopen or pull to refresh."); }); }; '
     "__fbPullFeeds(); let __fbFeedsAt = Date.now(); "
     "const __fbFeedsWake = () => { "
     'if (document.visibilityState !== "visible") return; '

@@ -129,6 +129,7 @@ def main() -> int:
             print(f"  {name}: {value}")
     print()
     print(f"  body bytes: {len(raw):,}")
+
     # Strict, browser-equivalent parse. Python's json.loads accepts the
     # literals NaN, Infinity and -Infinity (via parse_constant); a browser's
     # JSON.parse rejects all three and throws. So a response Python calls
