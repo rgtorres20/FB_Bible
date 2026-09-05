@@ -271,6 +271,7 @@ def reduce_week(raw: dict | None) -> dict:
         if isinstance(stamp, int | float):
             newest = max(newest, int(stamp))
     return {
+        "v": WEEK_REDUCE_VERSION,
         "players": players,
         "season": (raw or {}).get("season") or SEASON,
         "week": (raw or {}).get("week") or PRED_WEEK,
@@ -280,9 +281,29 @@ def reduce_week(raw: dict | None) -> dict:
     }
 
 
+# The vocabulary the weekly reduce keeps. Bumped when it widens: the
+# blob in the store was reduced by whichever code ran last, and a
+# consumer that needs the wider line cannot tell a TD-only blob from a
+# full one by looking at it -- both are dicts of numbers. Sep 5: the
+# reduce grew from the three TD fields to the scorer's whole line, and
+# the deployed game stack ranked a day's worth of TD points under a
+# "projected fantasy points" heading (Burrow 14.1 in every league)
+# because the stored blob was the old cut and its 24h budget had not
+# run out. Same mechanism as `players.INDEX_VERSION`.
+WEEK_REDUCE_VERSION = 2
+
+
+def week_has_full_line(state: dict | None) -> bool:
+    """Whether the stored weekly blob carries the scorer's whole line.
+    A blob reduced before the version stamp carries TD fields only and is
+    evidence for a TD lean, never a ranking."""
+    return (state or {}).get("v") == WEEK_REDUCE_VERSION
+
+
 def week_stale(state: dict | None, now: datetime) -> bool:
-    """Same daily budget as the season forecast, same reasoning."""
-    return stale(state, now)
+    """Same daily budget as the season forecast, same reasoning -- and a
+    blob reduced under an older vocabulary is stale whatever its age."""
+    return not week_has_full_line(state) or stale(state, now)
 
 
 def td_forecasts(

@@ -580,6 +580,20 @@ overlay age apart.
 
 ## The game stack, the weekly stars and the Predictions clauses (Sep 3–5)
 
+**The weekly blob carries a vocabulary stamp** (`projections.WEEK_REDUCE_VERSION`,
+Sep 5). Found live an hour after the merge: the stored weekly forecast
+had been reduced by the previous code, which kept the three TD fields
+only, and its 24-hour budget had not run out — so the game stack ranked
+the slate by touchdowns under a "projected fantasy points" heading
+(Burrow 14.1 in every league, Ja'Marr Chase 4.4). A dict of numbers
+cannot say which cut it is, so the reduce stamps its version, a blob
+without the current stamp is stale whatever its age, and the ranking
+surfaces (`gamestack.build`, `weekly_stars`, `projected_top_by_team`)
+return nothing for an unstamped blob rather than score it. The TD-lean
+forecast clause keeps reading the old cut, because touchdowns are all it
+needs. Same mechanism as the player index's `INDEX_VERSION`.
+
+
 **Chosen Sep 3–5, owner asks:** rank the slate by expected fantasy
 points, a weekly stars list to drive who to play, an IDP tracker that
 leads with tackles, and Predictions rows that read the wire, the line

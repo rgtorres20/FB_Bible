@@ -488,3 +488,21 @@ def test_the_ffbets_health_row_goes_live_only_when_forecasts_are_stored():
     # And it keeps saying what did NOT go live.
     assert "salaries stay estimates" in row["source"]
     assert row["asOf"].startswith("2026-08-27T")
+
+
+def test_the_weekly_reduce_stamps_its_vocabulary_and_an_old_cut_is_stale():
+    """The reduce widened from three TD fields to the whole line on Sep 5
+    and the store still held the old cut under a fresh date, so the game
+    stack ranked touchdowns as points for a day. A blob without the
+    current stamp is refetched on the next sync whatever its age."""
+    from datetime import UTC, datetime
+
+    out = proj.reduce_week(_week_raw())
+    assert out["v"] == proj.WEEK_REDUCE_VERSION
+    now = datetime(2026, 9, 5, 5, 0, tzinfo=UTC)
+    fresh = {**out, "fetched_at": "2026-09-05T04:00:00+00:00"}
+    assert proj.week_stale(fresh, now) is False
+    assert proj.week_has_full_line(fresh) is True
+    old_cut = {k: v for k, v in fresh.items() if k != "v"}
+    assert proj.week_stale(old_cut, now) is True
+    assert proj.week_has_full_line(old_cut) is False
