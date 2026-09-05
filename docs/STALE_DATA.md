@@ -26,6 +26,8 @@ Audited Aug 15, every tab and const in the page plus every feeds.json key.
 | Out & returning wire stamps | latest wire mention per player | every request |
 | AI draft verdicts (news tab) | Google AI Studio over the newest wire items | hourly (live since Aug 18) |
 | TD-lean forecasts (FFBets · Predictions) | Sleeper Wk-1 projections (Rotowire), joined by player id | daily (Aug 27) |
+| Game stack (Schedule) · Weekly stars (Position analysis) · IDP tracker (`/app/idpweek`) | Sleeper weekly projections (Rotowire, QB/RB/WR/TE/LB/DB/DL) scored per league, joined by id; slate + line history; Sleeper flags, depth chart and practice report; the tagged wire | daily forecast, ~15-min slate, every index refresh (Sep 5) |
+| Predictions clauses: wire, Sleeper flag, line-vs-projected-TDs, out-impact, weather | the same joins, appended beside the owner's lean; lean and confidence never touched | every page render (Sep 5) |
 | Week review high performers | Sleeper per-week box scores, once the shown week has finals | every sync (Aug 27) |
 
 ## The AI layer — what is live and what is only shipped

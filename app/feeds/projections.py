@@ -187,9 +187,12 @@ def stale(state: dict | None, now: datetime) -> bool:
 # missing field means Rotowire has nothing to say, never a hidden zero.
 PRED_WEEK = 1
 
-# Only the positions the TD-prop rows can name. The IDP groups and kickers
-# have no prop on that tab, and 4.7MB is already plenty to carry.
-WEEK_POSITIONS = ("QB", "RB", "WR", "TE")
+# Since Sep 5 the weekly pull covers the defenders too: both verified
+# leagues start eight of them, and the IDP tracker ranks the week's
+# projected tacklers under each league's IDP values. The prop clauses
+# still only read the three TD fields; `reduce_week` keeps the scorer's
+# whole vocabulary, so the stored blob stays a fraction of the download.
+WEEK_POSITIONS = ("QB", "RB", "WR", "TE", "LB", "DB", "DL")
 
 WEEK_URL = (
     "https://api.sleeper.com/projections/nfl/{season}/{week}"

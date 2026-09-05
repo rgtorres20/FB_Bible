@@ -437,3 +437,14 @@ def test_schedule_meta_row_stamps_when_kickoffs_are_live():
     odds_only = {"fetched_at": live["fetched_at"], "games": [{"game": "NE @ SEA"}]}
     merged = render.merge_into_feeds(bundled, [ITEM], NOW, vegas_state=odds_only)
     assert merged["meta"][0] == bundled["meta"][0]
+
+
+def test_merge_carries_the_game_stack_only_when_one_was_built():
+    """The composer builds the ranked slate (four units joined); the merge
+    just carries it. None means nothing honest to rank, and the key is
+    then absent -- the panel says so rather than drawing an empty table."""
+    stack = {"week": 1, "games": [{"game": "A @ B", "rank": 1}]}
+    merged = render.merge_into_feeds(BUNDLED, [ITEM], NOW, game_stack=stack)
+    assert merged["game_stack"] == stack
+    assert "game_stack" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW)
+    assert "game_stack" not in render.merge_into_feeds(BUNDLED, [ITEM], NOW, game_stack=None)

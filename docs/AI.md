@@ -29,9 +29,12 @@ Aug 15, on cost.
    live ADP, '25 usage, injury flag and newest wire item. Shown on the
    top-300 alert board and in the mock room's why-panel, prefixed
    **"AI angle:"**.
-2. **Matchup previews** — one read per game from the Vegas slate and the
-   '25 team-offence profile. Appended to a schedule row prefixed
-   **"AI preview:"**.
+2. **Matchup previews** — one read per game from the Vegas slate, the
+   '25 team-offence profile and, since Sep 5, each side's projected top
+   scorers for the week (`projected_top`: Rotowire's line via Sleeper,
+   scored under the owner's first league, with the flag or practice
+   status Sleeper carries). Appended to a schedule row prefixed
+   **"AI preview:"**, and shown again on the ranked game stack.
 3. **Wire verdicts** — a one-line take on the newest wire items.
 4. **Week review prose** — commentary beside live scores. The scores
    themselves are facts and never model output.

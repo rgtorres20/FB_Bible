@@ -227,6 +227,48 @@ def main() -> int:
             for entry in page_data.get("rotowire", [])
         ),
     )
+    # The game stack and the weekly stars (owner, Sep 3): both ride the
+    # overlay and both are arithmetic over stored feeds, so their absence
+    # once the weekly forecast is stored is a real failure -- and their
+    # ranking must actually be a ranking.
+    stack = page_data.get("game_stack")
+    if stack:
+        totals = [g["points"][stack["default_league"]]["total"] for g in stack.get("games") or []]
+        check(
+            "game stack ranks the slate highest first",
+            totals == sorted(totals, reverse=True),
+            f"{len(totals)} games",
+        )
+        check(
+            "game stack names its forecaster and week",
+            bool(stack.get("source")) and bool(stack.get("week")),
+        )
+        with_top = sum(1 for g in stack.get("games") or [] if g.get("top"))
+        print(
+            f"  INFO  game stack: {len(totals)} ranked, {with_top} with projected scorers, "
+            f"{len(stack.get('uncovered') or [])} uncovered; "
+            f"default league {stack['default_league']}"
+        )
+        moved = sum(1 for g in stack.get("games") or [] if g.get("movement"))
+        weather = sum(1 for g in stack.get("games") or [] if g.get("weather"))
+        print(f"  INFO  line movement on {moved} games; weather forecast on {weather}")
+    else:
+        print("  INFO  game stack absent (no weekly forecast stored yet, or no slate)")
+    stars = page_data.get("weekly_stars")
+    if stars:
+        check(
+            "weekly stars cover the started positions",
+            bool(stars.get("positions")),
+            ", ".join(stars["positions"]),
+        )
+        idp = [p for p in stars["positions"] if p in ("LB", "DB", "DL")]
+        print(
+            f"  INFO  weekly stars: {len(stars['positions'])} positions, "
+            f"IDP groups: {', '.join(idp) or 'none yet'}"
+        )
+    else:
+        print("  INFO  weekly stars absent (no weekly forecast stored yet)")
+
     meta = {m.get("feed"): m for m in page_data.get("meta", [])}
     news_as_of = meta.get("News & posts", {}).get("asOf", "")
     # asOf is naive Central ("2026-08-15T02:27"); yesterday's date means the
@@ -1143,6 +1185,20 @@ def main() -> int:
         "String(ALERTS.length + NEWS.length)" in served and 'badge: "6"' not in served,
     )
     check("the sidebar heading says alerts", "News & status" not in served)
+    # The two doors for the Sep 3 panels: a missed anchor here means the
+    # ranked games and the weekly stars are wired to nothing live.
+    check("the schedule tab carries the game-stack anchor", "data-fb-gamestack" in served)
+    check("position analysis carries the weekly-stars anchor", "data-fb-weeklystars" in served)
+    # The Predictions clauses (owner, Sep 3). Counted, not asserted: a lean
+    # with no wire this week or no line posted legitimately carries none.
+    for label, needle in (
+        ("line-vs-projection", "Vegas implies "),
+        ("wire", "Wire: "),
+        ("Sleeper flag", "Sleeper flag: "),
+        ("out-impact", "Out on "),
+        ("weather", "Weather: "),
+    ):
+        print(f"  INFO  TD leans carrying a {label} clause: {served.count(needle)}")
 
     frozen = re.findall(r'"time":\s*"((?:Today|Yesterday)[^"]*|[^"]*\bago\b[^"]*)"', served)
     check(
@@ -1379,6 +1435,12 @@ def main() -> int:
         "the overlay re-pulls when the app wakes",
         b"wakeFeeds" in mobile_js and b"visibilitychange" in mobile_js,
     )
+    check(
+        "game-stack panel decorator serves",
+        b"showGameStack" in mobile_js and b"fb-gs-row" in mobile_js,
+    )
+    check("weekly-stars panel decorator serves", b"showWeeklyStars" in mobile_js)
+    check("the IDP tracker is linked from the analyzer", b"/app/idpweek" in mobile_js)
     check(
         "source panel decorator serves",
         b"fb-rank-sources" in mobile_js and b"Board order" in mobile_js,

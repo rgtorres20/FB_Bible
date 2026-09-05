@@ -53,12 +53,24 @@ def _week():
         "companies": ["rotowire"],
         "updated_ms": 1756000000000,
         "players": {
-            "1": {"pass_cmp": 24.0, "pass_yd": 280.0, "pass_td": 2.1, "rush_yd": 30.0, "rush_td": 0.4},
+            "1": {
+                "pass_cmp": 24.0,
+                "pass_yd": 280.0,
+                "pass_td": 2.1,
+                "rush_yd": 30.0,
+                "rush_td": 0.4,
+            },
             "2": {"rush_att": 15.0, "rush_yd": 70.0, "rush_td": 0.5, "rec": 2.0, "rec_yd": 15.0},
             "3": {"rush_yd": 40.0, "rush_td": 0.2, "rec": 1.0, "rec_yd": 8.0},
             "4": {"pass_cmp": 22.0, "pass_yd": 250.0, "pass_td": 1.6},
             "5": {"rec": 6.5, "rec_yd": 90.0, "rec_td": 0.6},
-            "6": {"pass_cmp": 20.0, "pass_yd": 230.0, "pass_td": 1.4, "rush_yd": 45.0, "rush_td": 0.5},
+            "6": {
+                "pass_cmp": 20.0,
+                "pass_yd": 230.0,
+                "pass_td": 1.4,
+                "rush_yd": 45.0,
+                "rush_td": 0.5,
+            },
             "7": {"fgm": 2.0},
             "8": {"rec": 7.0, "rec_yd": 95.0, "rec_td": 0.7},
         },
@@ -67,7 +79,9 @@ def _week():
 
 def _stats():
     # '25 usage: Cook led BUF's backfield, Davis was behind him.
-    return {"players": {"2": {"rush_att": 200, "rec_tgt": 40}, "3": {"rush_att": 60, "rec_tgt": 10}}}
+    return {
+        "players": {"2": {"rush_att": 200, "rec_tgt": 40}, "3": {"rush_att": 60, "rec_tgt": 10}}
+    }
 
 
 def _slate():
@@ -163,7 +177,10 @@ def test_every_league_gets_its_own_figure_and_they_differ():
     game = _build()["games"][0]
     assert set(game["points"]) == {lg.key for lg in LEAGUES}
     assert game["points"][RED_EYE]["total"] > game["points"][NDDPL]["total"]
-    assert game["points"][NDDPL]["BUF"] + game["points"][NDDPL]["MIA"] == game["points"][NDDPL]["total"]
+    assert (
+        game["points"][NDDPL]["BUF"] + game["points"][NDDPL]["MIA"]
+        == game["points"][NDDPL]["total"]
+    )
 
 
 def test_washington_joins_across_the_espn_sleeper_split():
@@ -267,9 +284,14 @@ def test_lean_clauses_put_the_line_beside_the_projection_and_name_the_out_man():
     allen = clauses["Josh Allen"]
     assert allen.startswith("Vegas implies BUF 26")
     assert "Rotowire via Sleeper projects BUF skill players for 1.1 TDs in Wk 1" in allen
-    assert "Out on BUF: James Cook (RB, Out), 240 '25 touches/targets come loose → Ray Davis, projected" in allen
+    assert (
+        "Out on BUF: James Cook (RB, Out), 240 '25 touches/targets come loose "
+        "→ Ray Davis, projected" in allen
+    )
     assert "Vegas implies DAL 22" in clauses["CeeDee Lamb"]
-    assert "Nobody Here" not in clauses  # ATL has no projected player: nothing measured, nothing said
+    assert (
+        "Nobody Here" not in clauses
+    )  # ATL has no projected player: nothing measured, nothing said
 
 
 def test_lean_clauses_never_touch_the_lean_or_confidence():
@@ -277,3 +299,102 @@ def test_lean_clauses_never_touch_the_lean_or_confidence():
     preds = [{"name": "Josh Allen", "meta": "QB · BUF", "lean": "OVER", "conf": 78}]
     gamestack.lean_clauses(_build(), preds)
     assert preds[0] == {"name": "Josh Allen", "meta": "QB · BUF", "lean": "OVER", "conf": 78}
+
+
+# --- line movement and weather ------------------------------------------------
+
+
+def test_movement_reads_the_oldest_snapshot_the_store_still_holds():
+    slate = _slate()
+    slate["history"] = [
+        {
+            "at": "2026-09-08T14:15:00+00:00",
+            "lines": {"MIA @ BUF": {"total": "47.5", "fav": "BUF -3"}},
+        },
+        {
+            "at": "2026-09-09T02:00:00+00:00",
+            "lines": {"MIA @ BUF": {"total": "48.5", "fav": "BUF -3.5"}},
+        },
+    ]
+    assert gamestack.movement(slate, "MIA @ BUF") == "O/U 47.5 → 48.5 since Tue Sep 8 · 9:15 AM"
+    # One snapshot is not a move; a game the history never saw says nothing.
+    assert gamestack.movement({"history": slate["history"][:1]}, "MIA @ BUF") == ""
+    assert gamestack.movement(slate, "DAL @ WSH") == ""
+    game = _build(vegas_state=slate)["games"][0]
+    assert game["movement"].startswith("O/U 47.5 → 48.5")
+
+
+def test_the_weather_read_is_a_labelled_rule_and_absent_without_a_forecast():
+    assert gamestack.weather_read("Rain showers · 61°F").startswith("wet:")
+    assert gamestack.weather_read("Snow · 28°F").startswith("snow:")
+    assert gamestack.weather_read("Windy · 55°F").startswith("wind:")
+    assert gamestack.weather_read("Partly cloudy · 72°F").startswith("fair:")
+    assert gamestack.weather_read("") == ""
+    slate = _slate()
+    slate["games"][0]["weather"] = "Rain showers · 61°F"
+    stack = _build(vegas_state=slate)
+    wet, dry = stack["games"][0], stack["games"][1]
+    assert wet["weather"] == {
+        "summary": "Rain showers · 61°F",
+        "read": gamestack.weather_read("rain"),
+    }
+    assert dry["weather"] is None  # no forecast means nothing said, never "fair" by default
+    clause = gamestack.lean_clauses(stack, [{"name": "Josh Allen", "meta": "QB · BUF"}])[
+        "Josh Allen"
+    ]
+    assert "Weather: Rain showers · 61°F — wet:" in clause and "(rule)" in clause
+
+
+# --- the AI work list and the weekly stars ---------------------------------
+
+
+def test_projected_top_by_team_hands_the_model_only_fetched_numbers():
+    top = gamestack.projected_top_by_team(_slate(), _week(), _index(), LEAGUES, limit=2)
+    assert list(top["BUF"][0].keys()) == ["name", "position", "projected_points", "league"]
+    assert top["BUF"][0]["name"] == "Josh Allen" and top["BUF"][0]["league"] == "NDDPL"
+    # Tua's passing line out-scores Hill's receiving line under NDDPL, so
+    # Hill is second -- and carries his flag, which Tua's row does not.
+    assert [p["name"] for p in top["MIA"]] == ["Tua Tagovailoa", "Tyreek Hill"]
+    assert top["MIA"][1] == {
+        "name": "Tyreek Hill",
+        "position": "WR",
+        "projected_points": LEAGUES[0].score_offense(_week()["players"]["5"]),
+        "league": "NDDPL",
+        "injury": "Questionable",
+    }
+    assert "WSH" in top and "ATL" not in top  # WAS joins the slate's WSH; ATL has no line
+
+
+def test_weekly_stars_rank_each_position_and_score_defenders_by_tackles():
+    index = _index()
+    index["players"]["9"] = {
+        **_player("9", "Roquan Smith", "MIKE", "BAL", rank=40),
+        "idp": "LB",
+        "practice": "Full",
+    }
+    index["players"]["10"] = {**_player("10", "Kyle Hamilton", "S", "BAL", rank=45), "idp": "DB"}
+    week = _week()
+    week["players"]["9"] = {"idp_tkl_solo": 6.5, "idp_tkl_ast": 3.0, "idp_sack": 0.2}
+    week["players"]["10"] = {"idp_tkl_solo": 4.0, "idp_tkl_ast": 2.0, "idp_int": 0.1}
+    stars = gamestack.weekly_stars(week, index, _items(), LEAGUES, now=NOW, per_position=2)
+    assert stars["positions"] == ["QB", "RB", "WR", "DB", "LB"]
+    qbs = stars["groups"]["QB"]
+    assert [q["name"] for q in qbs] == [
+        "Josh Allen",
+        "Jayden Daniels",
+    ]  # highest projected first, capped at 2
+    assert qbs[0]["tackles"] is None
+    lb = stars["groups"]["LB"][0]
+    assert lb["name"] == "Roquan Smith" and lb["slot"] == "MIKE"
+    assert lb["tackles"] == 9.5 and lb["solo"] == 6.5
+    assert lb["practice"] == "Full"
+    assert lb["points"][NDDPL] == LEAGUES[0].score_player(week["players"]["9"], idp_group="LB")
+    # BALLAPALOSA starts a team defense, not individual defenders: a dash, never a zero.
+    assert lb["points"]["ballapalosa"] is None
+    hill = next(p for p in stars["groups"]["WR"] if p["name"] == "Tyreek Hill")
+    assert hill["injury"] == "Questionable" and hill["wire"]["head"].startswith("Hill limited")
+
+
+def test_weekly_stars_need_a_forecast_and_an_index():
+    assert gamestack.weekly_stars(None, _index(), [], LEAGUES) is None
+    assert gamestack.weekly_stars(_week(), None, [], LEAGUES) is None

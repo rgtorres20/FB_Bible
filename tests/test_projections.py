@@ -377,17 +377,20 @@ def _week_raw():
     }
 
 
-def test_the_week_url_asks_for_the_predictions_week_and_only_prop_positions():
+def test_the_week_url_asks_for_the_predictions_week_and_the_started_positions():
     """The Predictions tab's rows are Week 1 TD props, so week 1 is the
-    one week whose forecast is evidence for them -- and no IDP group or
-    kicker has a prop there."""
+    one week whose forecast is evidence for them. Since Sep 5 the pull
+    also covers the three IDP groups -- both verified leagues start eight
+    defenders and the IDP tracker ranks the week's projected tacklers --
+    but still no kicker or team defense: neither has a weekly line the
+    app scores."""
     url = proj.WEEK_URL.format(season=2026, week=proj.PRED_WEEK)
 
     assert "projections/nfl/2026/1" in url
     assert "season_type=regular" in url
-    for group in ("QB", "RB", "WR", "TE"):
+    for group in ("QB", "RB", "WR", "TE", "LB", "DB", "DL"):
         assert f"position[]={group}" in url
-    for group in ("K", "DEF", "LB", "DB", "DL"):
+    for group in ("K", "DEF"):
         assert f"position[]={group}" not in url
 
 

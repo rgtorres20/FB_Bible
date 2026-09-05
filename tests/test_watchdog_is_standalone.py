@@ -77,7 +77,7 @@ def test_the_watchdog_reads_the_same_pages_the_app_serves():
     )
     exec(compile(ast.Module(tree.body[: cut + 1], []), "verify_live", "exec"), namespace)
     assert namespace["SERVED_PAGES"] == skin.SERVED_PAGES
-    assert len(namespace["SERVED_PAGES"]) == 11
+    assert len(namespace["SERVED_PAGES"]) == 12
 
 
 def test_owner_only_pages_are_checked_by_what_a_watchdog_can_actually_see():

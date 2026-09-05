@@ -89,6 +89,7 @@ SURFACES = frozenset(
         # surface by the definition above, even though it owns no page of
         # its own -- it owns a panel on one and a clause on another.
         "gamestack",
+        "idpweek",
     }
 )
 

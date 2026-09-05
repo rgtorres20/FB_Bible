@@ -393,3 +393,39 @@ def test_two_unranked_players_still_resolve_the_same_way_twice():
         players.build_index(raw)["by_name"]["john doe"]
         == (players.build_index(reversed_raw)["by_name"]["john doe"])
     )
+
+
+def test_the_index_keeps_sleepers_depth_chart_and_practice_report():
+    """Verified live Sep 5 (probe run 31). Present only when Sleeper has
+    them: an absent key is "Sleeper says nothing", never an invented
+    slot or a clean practice."""
+    raw = {
+        "1": {
+            "active": True,
+            "full_name": "Josh Allen",
+            "position": "QB",
+            "team": "BUF",
+            "search_rank": 1,
+            "depth_chart_order": 1,
+            "depth_chart_position": "QB",
+            "practice_participation": "Full",
+            "practice_description": "Full Participation in Practice",
+            "injury_notes": "Allen was a full participant Wednesday.",
+        },
+        "2": {
+            "active": True,
+            "full_name": "Ray Davis",
+            "position": "RB",
+            "team": "BUF",
+            "search_rank": 90,
+        },
+    }
+    players_out = players.build_index(raw)["players"]
+    allen = players_out["1"]
+    assert allen["depth_order"] == 1 and allen["depth_position"] == "QB"
+    assert allen["practice"] == "Full"
+    assert allen["practice_note"].startswith("Full Participation")
+    assert allen["injury_note"].startswith("Allen was")
+    davis = players_out["2"]
+    for key in ("depth_order", "depth_position", "practice", "practice_note", "injury_note"):
+        assert key not in davis

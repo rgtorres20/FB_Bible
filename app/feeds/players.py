@@ -155,6 +155,19 @@ class Player:
     # DB/LB/DL for defenders, absent for offense -- how the owner's leagues
     # slot them (docs/LEAGUES.md).
     idp: str | None = None
+    # Sleeper's own depth chart and practice report, verified live Sep 5
+    # (probe run 31: depth_chart_order, depth_chart_position,
+    # practice_participation, practice_description and injury_notes are on
+    # 12,194 of 12,226 players). Until then the app DERIVED a depth chart
+    # from last season's measured touches, which cannot see a rookie, a
+    # trade or a camp battle -- the owner's question "where do we pull
+    # starting depth charts from" had the honest answer "nowhere". These
+    # are Sleeper's, carried as-is; None when Sleeper has nothing.
+    depth_order: int | None = None
+    depth_position: str | None = None
+    practice: str | None = None
+    practice_note: str | None = None
+    injury_note: str | None = None
 
     def to_dict(self) -> dict:
         out = {
@@ -167,6 +180,18 @@ class Player:
         }
         if self.idp:
             out["idp"] = self.idp
+        # Present only when Sleeper has them: an absent key is "Sleeper
+        # says nothing", which every reader must render as silence.
+        if self.depth_order is not None:
+            out["depth_order"] = self.depth_order
+        if self.depth_position:
+            out["depth_position"] = self.depth_position
+        if self.practice:
+            out["practice"] = self.practice
+        if self.practice_note:
+            out["practice_note"] = self.practice_note
+        if self.injury_note:
+            out["injury_note"] = self.injury_note
         return out
 
 
@@ -334,6 +359,7 @@ def build_index(raw: dict) -> dict:
             continue
 
         raw_rank = rec.get("search_rank")
+        depth_order = rec.get("depth_chart_order")
         player = Player(
             id=pid,
             name=name,
@@ -343,6 +369,11 @@ def build_index(raw: dict) -> dict:
             # Sleeper uses 9999999 for "effectively unranked".
             rank=raw_rank if isinstance(raw_rank, int) and raw_rank < 9999999 else None,
             idp=group,
+            depth_order=depth_order if isinstance(depth_order, int) else None,
+            depth_position=(rec.get("depth_chart_position") or None),
+            practice=(rec.get("practice_participation") or None),
+            practice_note=(rec.get("practice_description") or None),
+            injury_note=(rec.get("injury_notes") or None),
         ).to_dict()
         players[pid] = player
 
