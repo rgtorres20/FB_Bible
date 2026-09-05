@@ -71,6 +71,10 @@ def team_lines(week_proj_state: dict | None, index: dict | None) -> dict[str, li
     """{index team code: projected skill players on it}, each carrying the
     stat line the scorer reads and Sleeper's current injury flag."""
     players = (index or {}).get("players") or {}
+    if not projections.week_has_full_line(week_proj_state):
+        # A blob reduced before the full-line cut carries touchdowns only.
+        # Scoring it would rank the slate by TDs under a points heading.
+        return {}
     lines = (week_proj_state or {}).get("players") or {}
     out: dict[str, list[dict]] = {}
     for pid, line in lines.items():
@@ -407,6 +411,8 @@ def weekly_stars(
     players = (index or {}).get("players") or {}
     if not lines or not players or not leagues:
         return None
+    if not projections.week_has_full_line(week_proj_state):
+        return None  # TD-only blob: evidence for a lean, not a start/sit list
     now = now or datetime.now(UTC)
     mentions = depth.latest_mentions(items, set(lines))
     groups: dict[str, list[dict]] = {}

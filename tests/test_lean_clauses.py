@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from app import main
-from app.feeds import injury
+from app.feeds import injury, projections
 from app.feeds import players as players_mod
 from app.feeds.store import FileFeedStore
 from app.routes import feeds as feeds_route
@@ -93,6 +93,7 @@ def test_the_served_predictions_carry_the_new_clauses(tmp_path, monkeypatch):
     index = _index()
     # Josh Allen's row is a curated Passing TDs lean (the page's PREDICTIONS const).
     week = {
+        "v": projections.WEEK_REDUCE_VERSION,
         "week": 1,
         "companies": ["rotowire"],
         "players": {"1": {"pass_td": 2.1, "rush_td": 0.4, "pass_yd": 280.0}},

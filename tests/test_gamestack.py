@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app import leagues as leagues_mod
-from app.feeds import gamestack
+from app.feeds import gamestack, projections
 
 NOW = datetime(2026, 9, 3, 18, 0, tzinfo=UTC)
 LEAGUES = leagues_mod.defaults()
@@ -50,6 +50,7 @@ def _index():
 def _week():
     return {
         "week": 1,
+        "v": projections.WEEK_REDUCE_VERSION,
         "companies": ["rotowire"],
         "updated_ms": 1756000000000,
         "players": {
@@ -398,3 +399,15 @@ def test_weekly_stars_rank_each_position_and_score_defenders_by_tackles():
 def test_weekly_stars_need_a_forecast_and_an_index():
     assert gamestack.weekly_stars(None, _index(), [], LEAGUES) is None
     assert gamestack.weekly_stars(_week(), None, [], LEAGUES) is None
+
+
+def test_a_blob_reduced_before_the_full_line_is_refused_not_ranked():
+    """Sep 5, live: the stored weekly blob was the old TD-only cut and the
+    deployed stack ranked the slate by touchdowns under a points heading
+    (Burrow 14.1 in every league, Chase 4.4). A blob without the version
+    stamp is evidence for a TD lean and nothing else."""
+    week = _week()
+    del week["v"]
+    assert gamestack.build(_slate(), week, _index(), _stats(), [], LEAGUES, now=NOW) is None
+    assert gamestack.weekly_stars(week, _index(), [], LEAGUES, now=NOW) is None
+    assert gamestack.projected_top_by_team(_slate(), week, _index(), LEAGUES) == {}
