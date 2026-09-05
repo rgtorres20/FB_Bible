@@ -154,6 +154,53 @@ def main() -> int:
         print(raw[:300].decode("utf-8", errors="replace"))
         return 0
 
+    # A path into the payload, printed in full. The shape view stops two
+    # levels down, which is exactly where ESPN keeps the interesting
+    # things (events[0].competitions[0].weather) -- and "does this field
+    # exist at all" is the question the never-trust-a-name rule makes us
+    # ask before building on it. Dotted keys and list indexes:
+    # PROBE_PATH=events.0.competitions.0.weather
+    walk = os.environ.get("PROBE_PATH") or ""
+    if walk:
+        node: object = payload
+        for step in walk.split("."):
+            if isinstance(node, list) and step.isdigit():
+                node = node[int(step)] if int(step) < len(node) else None
+            elif isinstance(node, dict):
+                node = node.get(step)
+            else:
+                node = None
+            if node is None:
+                break
+        print(f"path {walk}:")
+        print(json.dumps(node, indent=2)[:4000] if node is not None else "  (absent)")
+        # Census the same path across every sibling at the first list
+        # index, so one game without weather does not read as "ESPN has
+        # no weather": how many events carry it, and which keys.
+        parts = walk.split(".")
+        if len(parts) > 2 and parts[1].isdigit() and isinstance(payload, dict):
+            rows = payload.get(parts[0]) or []
+            rest = parts[2:]
+            carrying = 0
+            keys: set[str] = set()
+            for row in rows if isinstance(rows, list) else []:
+                cur: object = row
+                for step in rest:
+                    if isinstance(cur, list) and step.isdigit():
+                        cur = cur[int(step)] if int(step) < len(cur) else None
+                    elif isinstance(cur, dict):
+                        cur = cur.get(step)
+                    else:
+                        cur = None
+                    if cur is None:
+                        break
+                if cur is not None:
+                    carrying += 1
+                    if isinstance(cur, dict):
+                        keys |= set(cur)
+            print(f"  {carrying} of {len(rows)} {parts[0]} carry it; keys seen: {sorted(keys)}")
+        return 0
+
     # Field census: every field name across a big id-keyed map, with holder
     # counts. The shape view below shows ONE entry; this mode answers "which
     # fields exist at all, and how many entries carry each" -- what you need

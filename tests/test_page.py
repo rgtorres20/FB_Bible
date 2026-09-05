@@ -874,3 +874,23 @@ def test_the_nbc_tab_says_whether_it_is_looking_at_live_rows(index_html):
 
     assert "ROTOWIRE[0] && ROTOWIRE[0].link" in served
     assert "no live wire right now" in served
+
+
+# --- the game stack's door on the schedule tab (owner, Sep 3) ---------------
+
+
+def test_the_schedule_tab_gets_the_ranked_games_anchor(index_html):
+    """One anchor directly under the slate heading; the panel itself is
+    built client-side from the feeds overlay (tests/test_gamestack_panel.py)."""
+    served, _ = page.apply(index_html, page.PRE)
+    assert served.count("data-fb-gamestack") == 1
+    heading = served.index("confirmed slate</div>")
+    assert served.index("data-fb-gamestack") > heading
+    assert served.index("data-fb-gamestack") - heading < 120  # right under it, not somewhere later
+
+
+def test_a_moved_slate_heading_reports_the_miss(index_html):
+    broken = index_html.replace("confirmed slate</div>", "confirmed games</div>", 1)
+    assert broken != index_html
+    _, misses = page.game_stack_anchor(broken)
+    assert misses == ["game stack anchor"]

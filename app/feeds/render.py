@@ -172,6 +172,8 @@ def merge_into_feeds(
     polled_at: str | None = None,
     stars_state: dict | None = None,
     week_proj_state: dict | None = None,
+    game_stack: dict | None = None,
+    weekly_stars: dict | None = None,
 ) -> dict:
     """Overlay live wire items onto the committed feeds file.
 
@@ -291,6 +293,18 @@ def merge_into_feeds(
         # dump, and without a dump there is nothing to measure.
         if index:
             merged["injury_status"] = injury.live_status(index, injury_names)
+
+    # The slate ranked by projected fantasy points (app/feeds/gamestack.py),
+    # built by the composer because it joins four units. The page's
+    # template ignores the key; mobile.js builds the schedule panel from
+    # it. Absent when there is nothing honest to rank -- the panel then
+    # says so rather than rendering an empty table.
+    if game_stack:
+        merged["game_stack"] = game_stack
+    # The week's projected leaders by position, same contract: built by
+    # the composer, drawn by mobile.js on the Position analysis screen.
+    if weekly_stars:
+        merged["weekly_stars"] = weekly_stars
 
     # Curated alerts keep their editorial judgement and lose their
     # relative timestamps -- see absolute_alert_times.

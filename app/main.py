@@ -22,6 +22,8 @@ from .feeds import (
     clock,
     curated,
     depth,
+    gamestack,
+    injury,
     page,
     prefs,
     previews,
@@ -333,6 +335,38 @@ if _FRONTEND_READY:
                             stored.get("week_projections"),
                             adjusted,
                             scorecard.name_index(index),
+                        ),
+                    )
+                    # The Predictions tab's "more active" half (owner, Sep 3):
+                    # the newest wire item tagging the man and Sleeper's
+                    # current flag, then the line beside Rotowire's projected
+                    # team TDs and any starter out on that team with the next
+                    # man's own projection. Four more labelled clauses; the
+                    # lean and the confidence stay the owner's.
+                    lean_names = tuple(p["name"] for p in adjusted)
+                    adjusted = vegas.apply_forecasts(
+                        adjusted,
+                        injury.lean_clauses(stored.get("items", []), index, lean_names),
+                    )
+                    stack = gamestack.build(
+                        state,
+                        stored.get("week_projections"),
+                        index,
+                        stored.get("stats"),
+                        stored.get("items", []),
+                        leagues.defaults(),
+                    )
+                    adjusted = vegas.apply_forecasts(
+                        adjusted,
+                        gamestack.lean_clauses(
+                            stack,
+                            adjusted,
+                            gamestack.vacancies(
+                                index,
+                                stored.get("stats"),
+                                stored.get("week_projections"),
+                                leagues.defaults(),
+                            ),
                         ),
                     )
                     html = vegas.inject_predictions(html, adjusted)

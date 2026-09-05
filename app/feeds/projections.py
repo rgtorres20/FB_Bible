@@ -187,9 +187,12 @@ def stale(state: dict | None, now: datetime) -> bool:
 # missing field means Rotowire has nothing to say, never a hidden zero.
 PRED_WEEK = 1
 
-# Only the positions the TD-prop rows can name. The IDP groups and kickers
-# have no prop on that tab, and 4.7MB is already plenty to carry.
-WEEK_POSITIONS = ("QB", "RB", "WR", "TE")
+# Since Sep 5 the weekly pull covers the defenders too: both verified
+# leagues start eight of them, and the IDP tracker ranks the week's
+# projected tacklers under each league's IDP values. The prop clauses
+# still only read the three TD fields; `reduce_week` keeps the scorer's
+# whole vocabulary, so the stored blob stays a fraction of the download.
+WEEK_POSITIONS = ("QB", "RB", "WR", "TE", "LB", "DB", "DL")
 
 WEEK_URL = (
     "https://api.sleeper.com/projections/nfl/{season}/{week}"
@@ -235,10 +238,19 @@ async def fetch_week(week: int = PRED_WEEK, client: httpx.AsyncClient | None = N
 
 
 def reduce_week(raw: dict | None) -> dict:
-    """{player_id: {td fields present}} plus provenance, same joins-by-id
-    rule as `reduce` and for the same reason."""
+    """{player_id: {scorer's stat line for the week}} plus provenance, same
+    joins-by-id rule as `reduce` and for the same reason.
+
+    Kept the whole `_KEEP` vocabulary since Sep 3, not just the three TD
+    fields: the TD-prop clauses only ever read those three, but ranking a
+    slate's games by projected fantasy points (the schedule tab's game
+    stack) needs the yards, receptions and completions the league scorer
+    multiplies -- the same line `reduce` keeps for the season forecast,
+    one week at a time. The stored blob grows from three keys a player to
+    the scorer's ~25; still a fraction of the 4.7MB Sleeper sends.
+    """
     rows = (raw or {}).get("rows") or []
-    keep = frozenset(PROP_FIELDS.values())
+    keep = _KEEP
     players: dict[str, dict] = {}
     companies: set[str] = set()
     newest = 0

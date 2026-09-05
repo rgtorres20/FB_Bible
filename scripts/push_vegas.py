@@ -34,6 +34,17 @@ def main() -> int:
 
     try:
         state = asyncio.run(vegas.fetch())
+        # Measured, not assumed: how many slate rows carry a forecast this
+        # run. This line in the sync log is the evidence the weather column
+        # is built on (the probe's plain urllib client gets a 403 from
+        # ESPN's edge; this httpx fetch does not).
+        with_weather = [g for g in state.get("games") or [] if g.get("weather")]
+        print(
+            f"weather: {len(with_weather)} of {len(state.get('games') or [])} games "
+            "carry a forecast"
+        )
+        for g in with_weather[:3]:
+            print(f"  {g['game']}: {g['weather']} (condition {g.get('weather_id') or '-'})")
     except Exception as exc:  # noqa: BLE001 - a missed hour is fine, the slate persists
         print(f"ESPN fetch failed, skipping this run: {type(exc).__name__}: {exc}")
         return 0

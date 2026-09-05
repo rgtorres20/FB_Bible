@@ -155,12 +155,24 @@ def chart(index: dict | None, stats_state: dict | None) -> dict[tuple[str, str],
                 "rank": rank,
                 "opportunity": opportunity(entry, position),
                 "usage": usage(entry),
+                # Sleeper's live depth chart (Sep 5) and practice report,
+                # absent when Sleeper has nothing to say.
+                "depth_order": player.get("depth_order"),
+                "practice": player.get("practice") or "",
             }
         )
 
+    # Sleeper's published depth order leads when it is there -- it sees a
+    # rookie, a trade and a camp battle that last season's touches cannot.
+    # Measured '25 opportunity breaks ties and orders anyone Sleeper has
+    # not slotted, and rank is the last resort for a man with neither.
     for players in out.values():
         players.sort(
-            key=lambda p: (-p["opportunity"], p["rank"] if p["rank"] is not None else 10**6)
+            key=lambda p: (
+                p["depth_order"] if isinstance(p["depth_order"], int) else 10**6,
+                -p["opportunity"],
+                p["rank"] if p["rank"] is not None else 10**6,
+            )
         )
     return out
 

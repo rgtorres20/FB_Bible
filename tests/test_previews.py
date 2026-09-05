@@ -184,3 +184,21 @@ async def test_pending_endpoint_serves_the_work_list(client):
     await store.save({"items": [], "vegas": _slate(), "stats": _stats()})
     payload = c.get("/api/previews/pending").json()
     assert [g["game"] for g in payload["games"]] == ["DAL @ PHI", "KC @ LAC"]
+
+
+def test_pending_carries_the_projected_top_scorers_when_the_composer_has_them():
+    """Sep 5: the model may cite who is projected to carry each side --
+    numbers we fetched, passed in by the composer like `implied`."""
+    projected = {
+        "PHI": [
+            {
+                "name": "Saquon Barkley",
+                "position": "RB",
+                "projected_points": 19.4,
+                "league": "NDDPL",
+            }
+        ],
+    }
+    work = previews.pending(_slate(), _stats(), {}, projected=projected)
+    assert work[0]["teams"]["PHI"]["projected_top"] == projected["PHI"]
+    assert "projected_top" not in work[0]["teams"]["DAL"]

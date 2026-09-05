@@ -31,7 +31,9 @@ from ..feeds import (
     build_feed_store,
     capsules,
     cheatsheet,
+    gamestack,
     idp,
+    idpweek,
     injury,
     mock,
     nextup,
@@ -76,7 +78,11 @@ def get_optional_feed_store(settings: Settings = Depends(get_settings)) -> FeedS
 
 
 @router.get("/app/data/feeds.json", include_in_schema=False)
-async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
+async def app_feeds(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
     """Serve the page's own data file, with live news overlaid.
 
     Declared before the /app static mount so this wins over the file on disk.
@@ -98,6 +104,7 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         return bundled
 
     index = await store.load_players()
+    visitor_leagues = await _leagues_for(request, settings, store)
     ranks = {
         pid: p["rank"]
         for pid, p in (index or {}).get("players", {}).items()
@@ -119,6 +126,25 @@ async def app_feeds(store: FeedStore = Depends(get_feed_store)) -> dict:
         polled_at=stored.get("polled_at"),
         stars_state=stored.get("week_stars"),
         week_proj_state=stored.get("week_projections"),
+        # The slate ranked by projected fantasy points, scored under this
+        # visitor's own leagues (the owner's verified three, plus any they
+        # defined at /app/leagues) -- the same set every other board is
+        # scored with. Joins four units, so the composer builds it.
+        game_stack=gamestack.build(
+            stored.get("vegas"),
+            stored.get("week_projections"),
+            index,
+            stored.get("stats"),
+            stored.get("items", []),
+            visitor_leagues,
+            previews=previews.by_matchup(stored.get("vegas"), stored.get("previews")),
+        ),
+        weekly_stars=gamestack.weekly_stars(
+            stored.get("week_projections"),
+            index,
+            stored.get("items", []),
+            visitor_leagues,
+        ),
     )
     return render.rename_leagues(merged)
 
@@ -179,6 +205,28 @@ async def alerts_top300(store: FeedStore = Depends(get_feed_store)) -> HTMLRespo
             capsules=stored.get("capsules") or {},
         )
     )
+
+
+@router.get("/app/idpweek", include_in_schema=False, response_class=HTMLResponse)
+async def idp_week(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> HTMLResponse:
+    """The IDP tracker (owner, Sep 3): this week's projected tacklers,
+    tackles first, points beside them under each league's IDP values.
+    Declared before the /app static mount so it wins; zero scripts."""
+    try:
+        stored = await store.load()
+        index = await store.load_players()
+    except Exception as exc:  # noqa: BLE001 - a broken store yields the honest empty page
+        log.warning("idp tracker: store unavailable: %s", exc)
+        stored, index = {}, None
+    visitor = await _leagues_for(request, settings, store)
+    stars = gamestack.weekly_stars(
+        stored.get("week_projections"), index, stored.get("items", []), visitor
+    )
+    return HTMLResponse(idpweek.build_html(stars, datetime.now(UTC), board_leagues=visitor))
 
 
 @router.get("/app/idp", include_in_schema=False, response_class=HTMLResponse)
@@ -455,8 +503,14 @@ _VEGAS_ROW_FIELDS = (
     "away_name",
     "home_name",
     "tv",
+    # Sep 5: the forecast for outdoor games, as ESPN states it, plus its
+    # condition id -- both strings, both empty for a dome or a slate too
+    # far out for a forecast.
+    "weather",
+    "weather_id",
 )
 MAX_VEGAS_ROWS = 32
+MAX_LINE_SNAPSHOTS = 96
 
 
 @router.post("/internal/vegas", summary="Store the Vegas slate pushed by the scheduler")
@@ -485,10 +539,27 @@ async def save_vegas(
         raise HTTPException(status_code=422, detail="No usable rows in state.games.")
 
     data = await store.load()
+    now = datetime.now(UTC).isoformat()
+    # Line movement (owner, Sep 3: "Vegas lines movements for point
+    # totals"): every push appends one snapshot of each game's total and
+    # favorite, capped at the newest MAX_LINE_SNAPSHOTS. The slate arrives
+    # ~4x an hour, so 96 snapshots is about a day; the game stack reads
+    # "since open" as the oldest snapshot for that game. A week's history
+    # is not kept because a week-old opener is a different market.
+    history = [h for h in ((data.get("vegas") or {}).get("history") or []) if isinstance(h, dict)][
+        -(MAX_LINE_SNAPSHOTS - 1) :
+    ]
+    history.append(
+        {
+            "at": now,
+            "lines": {g["game"]: {"total": g["total"], "fav": g["fav"]} for g in games},
+        }
+    )
     data["vegas"] = {
-        "fetched_at": datetime.now(UTC).isoformat(),
+        "fetched_at": now,
         "week_label": str(payload.state.get("week_label") or "")[:40],
         "games": games,
+        "history": history,
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
@@ -647,6 +718,12 @@ async def previews_pending(store: FeedStore = Depends(get_feed_store)) -> dict:
         data.get("stats"),
         data.get("previews"),
         implied=vegas.implied_by_team(slate),
+        projected=gamestack.projected_top_by_team(
+            data.get("vegas"),
+            data.get("week_projections"),
+            await store.load_players(),
+            leagues_mod.defaults(),
+        ),
     )
     return {"games": work}
 

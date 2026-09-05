@@ -84,6 +84,12 @@ SURFACES = frozenset(
         "accuracy",
         "cheatsheet",
         "alerts300",
+        # gamestack composes odds, usage, the wire and the index into the
+        # schedule tab's ranked slate and the Predictions clauses: a
+        # surface by the definition above, even though it owns no page of
+        # its own -- it owns a panel on one and a clause on another.
+        "gamestack",
+        "idpweek",
     }
 )
 

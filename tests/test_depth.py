@@ -617,3 +617,56 @@ def test_a_room_where_nobody_played_last_season_falls_back_to_rank():
         "Touted Rookie",  # rank 150
         "Deep Rookie",  # rank 400
     ]
+
+
+# --- Sleeper's live depth chart leads the ordering (Sep 5) --------------------
+
+
+def test_sleepers_depth_order_leads_and_measured_touches_break_ties():
+    """Verified live Sep 5 (probe run 31): Sleeper publishes
+    depth_chart_order on 12,194 of 12,226 players. It sees a rookie, a
+    trade and a camp battle that last season's touches cannot, so it
+    orders the room; '25 opportunity settles anyone Sleeper has not
+    slotted and breaks ties."""
+    index = {
+        "players": {
+            "a": {
+                "id": "a",
+                "name": "Vet Back",
+                "position": "RB",
+                "team": "SEA",
+                "rank": 30,
+                "depth_order": 2,
+            },
+            "b": {
+                "id": "b",
+                "name": "Rookie Back",
+                "position": "RB",
+                "team": "SEA",
+                "rank": 80,
+                "depth_order": 1,
+            },
+            "c": {
+                "id": "c",
+                "name": "Unslotted Back",
+                "position": "RB",
+                "team": "SEA",
+                "rank": 200,
+            },
+        }
+    }
+    stats = {"players": {"a": {"rush_att": 250, "rec_tgt": 40}, "c": {"rush_att": 10}}}
+    room = depth.chart(index, stats)[("SEA", "RB")]
+    assert [p["name"] for p in room] == ["Rookie Back", "Vet Back", "Unslotted Back"]
+    assert room[0]["depth_order"] == 1 and room[2]["depth_order"] is None
+
+
+def test_without_a_published_order_the_measured_chart_stands():
+    index = {
+        "players": {
+            "a": {"id": "a", "name": "Lead", "position": "WR", "team": "DET", "rank": 5},
+            "b": {"id": "b", "name": "Second", "position": "WR", "team": "DET", "rank": 40},
+        }
+    }
+    stats = {"players": {"a": {"rec_tgt": 150}, "b": {"rec_tgt": 60}}}
+    assert [p["name"] for p in depth.chart(index, stats)[("DET", "WR")]] == ["Lead", "Second"]

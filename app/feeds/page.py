@@ -1191,6 +1191,51 @@ def feeds_follow_the_wake(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- the game stack's door on the schedule tab (owner, Sep 3) ---------------
+#
+# "Show who would be the potential best games for fantasy points and list
+# them from highest to lowest and show me the expected projection for
+# highest scores." The ranking is arithmetic the server does
+# (app/feeds/gamestack.py) and ships in the feeds overlay; the panel is
+# built client-side by mobile.js, because the design document owns the
+# template and a hand-written table in it would be the next resync's
+# casualty. This transform only opens the door: one anchor, directly under
+# the slate's heading, for the panel to hang off.
+_SCHED_HEADING = (
+    'border-bottom:2px solid var(--color-text);">'
+    "Week 1 \u00b7 Sep 9\u201314 \u00b7 confirmed slate</div>"
+)
+_GAMESTACK_ANCHOR = '<div data-fb-gamestack style="margin:var(--space-4) 0;"></div>'
+
+
+_ROSTER_SCREEN = '<sc-if value="{{ isRoster }}" hint-placeholder-val="{{ false }}">'
+_STARS_ANCHOR = '<div data-fb-weeklystars style="padding:0 var(--space-8) var(--space-6);"></div>'
+
+
+def weekly_stars_anchor(html: str) -> tuple[str, list[str]]:
+    """The week's projected leaders, at the top of Position analysis.
+
+    Owner, Sep 3: "for positions analyzer let change that I want to put a
+    weekly stars where players with best value for the week -- this helps
+    drive who I play". The screen graded a curated pool by position with
+    hand-written verdicts; this puts the measured week above it: every
+    position's projected leaders under each league's scoring, defenders
+    by projected tackles. Same door-only contract as the game stack.
+    """
+    return _apply(
+        html,
+        (("weekly stars anchor", _ROSTER_SCREEN, _ROSTER_SCREEN + _STARS_ANCHOR, 1),),
+    )
+
+
+def game_stack_anchor(html: str) -> tuple[str, list[str]]:
+    """Insert the anchor mobile.js builds the ranked-games panel into."""
+    return _apply(
+        html,
+        (("game stack anchor", _SCHED_HEADING, _SCHED_HEADING + _GAMESTACK_ANCHOR, 1),),
+    )
+
+
 def dated_kickers_read_the_data(html: str) -> tuple[str, list[str]]:
     """Replace the two typed sync dates with what the data actually says.
 
@@ -1233,6 +1278,8 @@ PRE = (
     back_where_you_were,
     feeds_follow_the_wake,
     dated_kickers_read_the_data,
+    game_stack_anchor,
+    weekly_stars_anchor,
 )
 
 # Applied after, so a rename also reaches the text the overlays injected.

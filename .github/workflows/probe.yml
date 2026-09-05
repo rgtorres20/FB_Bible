@@ -29,6 +29,10 @@ on:
         description: "Print this one key's entry in full (e.g. DET) instead of the shape view"
         required: false
         default: ""
+      path:
+        description: "Print this path into the payload in full, e.g. events.0.competitions.0.weather"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -46,6 +50,7 @@ jobs:
           PROBE_SYNC: ${{ inputs.sync }}
           PROBE_MODE: ${{ inputs.mode }}
           PROBE_KEY: ${{ inputs.key }}
+          PROBE_PATH: ${{ inputs.path }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}

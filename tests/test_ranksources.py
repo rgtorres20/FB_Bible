@@ -322,8 +322,8 @@ def test_it_offers_the_way_to_change_the_set(rendered):
 
 def test_the_draft_tool_links_render(rendered):
     """Links into the mock room, league settings, Next man up, the
-    scorecard and the scoring board. They hang off the analyzer's "My
-    team" header, which the design project owns."""
+    scorecard, the scoring board and the IDP tracker. They hang off the
+    analyzer's "My team" header, which the design project owns."""
     ids = [x["id"] for x in rendered["links"]]
     assert set(ids) == {
         "fb-mock-link",
@@ -331,6 +331,7 @@ def test_the_draft_tool_links_render(rendered):
         "fb-nextup-link",
         "fb-score-link",
         "fb-scoring-link",
+        "fb-idpweek-link",
     }
 
 

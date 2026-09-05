@@ -563,3 +563,80 @@ aside > div:nth-child(2) {
   text-decoration: none;
 }
 .fb-cs-link:hover { text-decoration: underline; }
+
+/* --- the game stack: the slate ranked by projected fantasy points (Sep 3) --- */
+[data-fb-gamestack], [data-fb-weeklystars] { font-size: 12px; }
+.fb-gs-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600, inherit);
+  margin: 4px 0 6px;
+}
+.fb-gs-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-neutral-600, inherit);
+  margin: 0 0 10px;
+  max-width: 70ch;
+}
+.fb-gs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.fb-gs-chip {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-neutral-400, rgba(128, 128, 128, 0.5));
+  border-radius: 4px;
+  padding: 5px 9px;
+  min-height: 30px;
+  cursor: pointer;
+}
+.fb-gs-chip.on { background: var(--color-text); color: var(--color-bg, #fff); border-color: var(--color-text); }
+.fb-gs-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 96px;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-neutral-300, rgba(128, 128, 128, 0.3));
+  align-items: start;
+}
+.fb-gs-rank { font-family: var(--font-heading, inherit); font-weight: 900; font-size: 22px; line-height: 1; }
+.fb-gs-game { font-family: var(--font-heading, inherit); font-weight: 800; font-size: 15px; letter-spacing: -0.02em; }
+.fb-gs-meta { font-size: 11px; color: var(--color-neutral-600, inherit); margin-top: 2px; }
+.fb-gs-pts { text-align: right; }
+.fb-gs-pts b { display: block; font-family: var(--font-heading, inherit); font-weight: 900; font-size: 20px; line-height: 1; }
+.fb-gs-pts span { display: block; font-size: 10px; color: var(--color-neutral-600, inherit); margin-top: 3px; }
+.fb-gs-top { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+.fb-gs-player { font-size: 12px; white-space: nowrap; }
+.fb-gs-player b { font-weight: 700; }
+.fb-gs-player .fb-gs-pos { font-size: 10px; color: var(--color-neutral-600, inherit); letter-spacing: 0.05em; margin-left: 4px; }
+.fb-gs-flag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border: 1px solid var(--color-accent-700, currentColor);
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent-700, inherit);
+  vertical-align: 1px;
+}
+.fb-gs-wire { display: block; font-size: 11px; margin-top: 4px; color: var(--color-neutral-700, inherit); }
+.fb-gs-wire a { color: var(--color-accent-700, inherit); font-weight: 600; text-decoration: none; }
+.fb-gs-wire a:hover { text-decoration: underline; }
+.fb-gs-out { font-size: 11px; margin-top: 5px; color: var(--color-accent-700, inherit); font-weight: 600; }
+.fb-gs-ai { font-size: 11px; margin-top: 5px; color: var(--color-neutral-700, inherit); font-style: italic; }
+.fb-gs-foot { font-size: 11px; color: var(--color-neutral-600, inherit); margin-top: 8px; max-width: 70ch; line-height: 1.5; }
+@media (max-width: 480px) {
+  .fb-gs-row { grid-template-columns: 26px minmax(0, 1fr) 72px; }
+  .fb-gs-rank { font-size: 18px; }
+}
+.fb-ws-row { grid-template-columns: 78px minmax(0, 1fr) 0; }
+.fb-ws-pts { text-align: left; }

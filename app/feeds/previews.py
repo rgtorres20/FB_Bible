@@ -80,6 +80,7 @@ def pending(
     stats_state: dict | None,
     previews: dict | None,
     implied: dict[str, float] | None = None,
+    projected: dict[str, list[dict]] | None = None,
 ) -> list[dict]:
     """Games still needing a preview, each carrying every number the model
     is allowed to use. One batched call covers the whole slate.
@@ -115,6 +116,14 @@ def pending(
             profile = _team_profile(teams, code)
             if profile:
                 side["offense_2025"] = profile
+            # Rotowire's projected top scorers for the week (Sep 5), passed
+            # in by the composer like `implied` -- the game stack is a
+            # surface, and an AI unit reaching up into it would be the
+            # boundary breach `implied` was moved here to avoid. Numbers
+            # the model may cite; still never a number it may invent.
+            top = (projected or {}).get(code)
+            if top:
+                side["projected_top"] = top
             if side:
                 sides[code] = side
         if not sides:

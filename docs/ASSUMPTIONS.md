@@ -576,3 +576,72 @@ five minutes is battery spent on rows nobody is looking at.
 `wakeFeeds` in `frontend/mobile.js` (5 × 60 × 1000) — one per puller,
 each beside the fetch it throttles. Change both or the two halves of the
 overlay age apart.
+
+
+## The game stack, the weekly stars and the Predictions clauses (Sep 3–5)
+
+**Chosen Sep 3–5, owner asks:** rank the slate by expected fantasy
+points, a weekly stars list to drive who to play, an IDP tracker that
+leads with tackles, and Predictions rows that read the wire, the line
+and who is out. All of it is arithmetic over feeds already stored
+(`app/feeds/gamestack.py`, `app/feeds/idpweek.py`); these are the
+numbers that had to be picked rather than measured.
+
+- **The ranking league is the visitor's first league** (the owner's
+  NDDPL by default). Every league's figure ships in the payload and the
+  chips re-sort client-side, so this decides only what leads on first
+  paint — league scoring stays a column, not a hidden sort key.
+- **`TOP_N = 6` projected scorers per game row.** Two skill lineups'
+  worth of headline players: enough to see who carries a total, few
+  enough to read on a phone.
+- **A wire item is an "alert" for 7 days** (`WIRE_WINDOW`, and
+  `injury.LEAN_WIRE_WINDOW`). Older is history, and history beside a
+  lean reads as news.
+- **A game total is QB/RB/WR/TE only.** Kickers and team defenses have
+  no weekly line in the store, and are not what "best game for fantasy
+  points" means. Return yards are not in the forecast either (see the
+  projections entry above) — return specialists read a little low.
+- **Projected team TDs = rushing + receiving.** A passing TD and the
+  receiving TD it throws are one score; adding `pass_td` would count each
+  twice.
+- **WSH ↔ WAS.** ESPN's slate names Washington WSH, Sleeper's index (and
+  every projection row, which joins by Sleeper id) says WAS — the one
+  divergence between the two vocabularies, mapped in
+  `gamestack.SLATE_TO_INDEX`. `vegas.implied_by_team` already refused to
+  guess across it; without the map the Commanders were a game with nobody
+  in it. If ESPN or Sleeper renames another club, that map is the place.
+- **"Since open" is the oldest snapshot the store still holds** — 96
+  pushes at ~4 an hour, about a day (`MAX_LINE_SNAPSHOTS`), not the
+  book's true opener. A week-old opener is a different market, and the
+  Data health row would then be describing a number nobody can bet.
+- **The weather read is a rule, labelled "(rule)" wherever it renders**,
+  in the owner's own words: snow → fewer points and a run-leaning script;
+  rain/storms → passing volume falls, lean run and the short game; wind →
+  deep passing and kicking get harder; anything else on a forecast →
+  "fair: no weather penalty". Keyed on ESPN's forecast text
+  (`gamestack._WEATHER_RULES`). **Absent forecast means absent line** — a
+  dome game is never read as "fair" by default. Whether ESPN's scoreboard
+  actually carries a forecast is measured every sync
+  (`scripts/push_vegas.py` prints the census; the probe's plain urllib
+  client gets a 403 from ESPN's edge that the app's httpx fetch does
+  not).
+- **The IDP tracker orders by projected tackles (solo + assisted), points
+  beside.** Tackles are the volume that decides an IDP week and what the
+  owner said they read; a sack-heavy league still shows its own points
+  column, so the two orderings can disagree in the open.
+- **The next man's number is Rotowire's own line for him**, never a
+  redistributed share of the starter's. A multiplier would be this app's
+  invention wearing the forecaster's name; the vacancy is the starter's
+  measured '25 work, as `/app/nextup` reports it.
+- **Sleeper's `depth_chart_order` leads the depth chart, measured '25
+  opportunity breaks ties and orders anyone unslotted.** Verified live
+  Sep 5 (probe run 31: on 12,194 of 12,226 players). The new index
+  fields arrive with the next index refresh (≤20h); `INDEX_VERSION` was
+  deliberately not bumped, because a bump empties every board until the
+  next sync (the Aug 22 incident) and the ordering falls back cleanly
+  without them.
+
+**If any of it is wrong:** every constant is named above and lives beside
+the code it governs; the watchdog prints the counts (games ranked, with
+scorers, uncovered; movement and weather coverage; clauses per lean) so
+a wrong number shows up as a wrong count in the log, not as silence.

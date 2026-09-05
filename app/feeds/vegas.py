@@ -151,9 +151,21 @@ def build_rows(payload: dict) -> list[dict]:
             total = odds.get("overUnder")
             fav, imp = implied(odds.get("details") or "", total, away, home)
             broadcasts = competition.get("broadcasts") or []
+            # Weather, when the payload carries it (outdoor games, close to
+            # kickoff). Kept as one display string plus ESPN's condition
+            # id, both verified from the sync log's own census rather than
+            # assumed -- see scripts/push_vegas.py. Absent means absent:
+            # a dome game gets no weather line, never a made-up "fair".
+            weather = competition.get("weather") or event.get("weather") or {}
+            w_text = str(weather.get("displayValue") or "").strip()
+            w_temp = weather.get("temperature")
+            if w_text and isinstance(w_temp, int | float):
+                w_text = f"{w_text} · {w_temp:g}°F"
             rows.append(
                 {
                     "game": f"{away} @ {home}",
+                    "weather": w_text,
+                    "weather_id": str(weather.get("conditionId") or ""),
                     "fav": fav,
                     "total": f"{total:g}" if isinstance(total, int | float) else "—",
                     "imp": imp,

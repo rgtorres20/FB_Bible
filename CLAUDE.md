@@ -143,9 +143,10 @@ from Sleeper. Neither blocks personal single-user use.
   two and drifted the first time a page was added — `/app/scoring`
   reached the unit test's copy and not the watchdog's, so the new page
   shipped with its way home unverified live. Add a page, add it to
-  `skin.SERVED_PAGES`. The eleven: `/app/mine`, `/app/leagues`, `/app/mock`,
+  `skin.SERVED_PAGES`. The twelve: `/app/mine`, `/app/leagues`, `/app/mock`,
   `/app/mock/board`, `/app/nextup`, `/app/scorecard`, `/app/idp`,
-  `/app/scoring`, `/app/cheatsheet`, `/app/alerts300`, `/app/access`. `scripts/lint_docs.py`
+  `/app/scoring`, `/app/cheatsheet`, `/app/alerts300`, `/app/idpweek`,
+  `/app/access`. `scripts/lint_docs.py`
   fails if that list and this one disagree.
 - **Units have fences, and the fence is a test.** `app/` is a layer
   stack — kernel, data units, surfaces, composers — and
@@ -237,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1527 tests green — 1511 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1578 tests green — 1562 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -475,6 +476,58 @@ fails-empty property are in docs/ASSUMPTIONS.md. Stored stars for a
 different week than the scoreboard shows are refused by a label match —
 last week's men under this week's heading is the lie the tab's stamp
 exists to prevent.
+
+**The week's schedule ranks its own games, and the tabs that decide a
+lineup read the same forecast** (owner, Sep 3–5: *"show who would be the
+potential best games for fantasy points … list them from highest to
+lowest"*, *"weekly stars … this helps drive who I play"*, *"people being
+out impacts other player ceiling"*, *"put weather forecast"*, and *"another
+tab for idp trackers … usually I just want to know tackles"*). The weekly
+Rotowire forecast via Sleeper is now reduced in full (`projections.reduce_week`
+keeps the scorer's whole vocabulary, defenders included) and one surface,
+`app/feeds/gamestack.py`, turns it into everything downstream:
+
+- **The game stack** on the Schedule tab (`gamestack.build`, rendered by
+  `mobile.js showGameStack` under the `data-fb-gamestack` anchor): every
+  game on the pushed slate ranked by its projected fantasy points under
+  the league picked by chip, each with Vegas's implied score, the line's
+  movement since the runner first saw it (`save_vegas` keeps a history),
+  the forecaster's TD count, its top projected scorers with their live
+  flag and latest wire post, who is out and the man measured behind him,
+  and the weather where ESPN publishes one. A game the forecast does not
+  cover is listed as uncovered, never ranked at zero.
+- **Weather is read by a written rule** (`_WEATHER_RULES`, in
+  docs/ASSUMPTIONS.md): rain and snow read wet/lean run, wind reads
+  against passing, a fair day reads as easier to control. No forecast
+  means nothing is said — the app never types "fair" by default.
+- **Predictions carry the evidence beside the lean** (`injury.lean_clauses`
+  then `gamestack.lean_clauses`, applied in `main.py` before the rows are
+  injected): the latest wire post and Sleeper flag for the player, what
+  Vegas implies for his team against what the forecast projects, the
+  weather read, and which starter on his side is out. The owner's lean
+  and confidence stay untouched; the clauses are appended, labelled.
+- **Weekly stars** replace the Position analysis's curated column
+  (`gamestack.weekly_stars`, `showWeeklyStars`): the top projected
+  players per started position under each league, defenders measured in
+  projected tackles.
+- **`/app/idpweek`** is the IDP tracker: this week's projected tacklers
+  per group a league starts, ordered by tackles first with each IDP
+  league's points beside them, a dash naming the missing slot where a
+  league cannot start the group. Linked from the analyzer with the other
+  draft tools.
+- **Depth charts come from Sleeper now** (`depth_chart_order`, practice
+  participation and injury notes captured into the player index, probe
+  run 31). `depth.chart` orders by the published slot first and falls
+  back to '25 opportunity, so the Backup RBs usage and Next man up read
+  the club's own order instead of inferring it. The AI matchup previews
+  are handed the projected top scorers (`previews.pending(projected=)`)
+  so the model reads fetched numbers, never its own.
+
+Everything above is projection or measurement with its forecaster and
+pull date on it; `scripts/verify_live.py` checks the ranking order, the
+provenance and the clause counts against the deployment. Beat-writer
+polling for line movement and weather is *not* built — the source list
+has to be measured from the runner first (docs/GAP_REVIEW.md).
 
 **Out & returning rows carry Sleeper's current flag** (Aug 29 —
 cut-down weekend made the Aug-14 curated statuses' age visible). The

@@ -377,21 +377,27 @@ def _week_raw():
     }
 
 
-def test_the_week_url_asks_for_the_predictions_week_and_only_prop_positions():
+def test_the_week_url_asks_for_the_predictions_week_and_the_started_positions():
     """The Predictions tab's rows are Week 1 TD props, so week 1 is the
-    one week whose forecast is evidence for them -- and no IDP group or
-    kicker has a prop there."""
+    one week whose forecast is evidence for them. Since Sep 5 the pull
+    also covers the three IDP groups -- both verified leagues start eight
+    defenders and the IDP tracker ranks the week's projected tacklers --
+    but still no kicker or team defense: neither has a weekly line the
+    app scores."""
     url = proj.WEEK_URL.format(season=2026, week=proj.PRED_WEEK)
 
     assert "projections/nfl/2026/1" in url
     assert "season_type=regular" in url
-    for group in ("QB", "RB", "WR", "TE"):
+    for group in ("QB", "RB", "WR", "TE", "LB", "DB", "DL"):
         assert f"position[]={group}" in url
-    for group in ("K", "DEF", "LB", "DB", "DL"):
+    for group in ("K", "DEF"):
         assert f"position[]={group}" not in url
 
 
-def test_reduce_week_keeps_only_the_prop_fields_keyed_by_id():
+def test_reduce_week_keeps_the_scorers_line_keyed_by_id():
+    """Sleeper's pts_* columns are dropped (the app scores under each
+    league's own values, never someone else's points), and a row with no
+    scorer field at all is skipped rather than stored empty."""
     out = proj.reduce_week(_week_raw())
 
     assert out["players"] == {
@@ -400,6 +406,24 @@ def test_reduce_week_keeps_only_the_prop_fields_keyed_by_id():
     }
     assert out["week"] == 1
     assert out["companies"] == ["rotowire"]
+
+
+def test_reduce_week_keeps_yards_and_receptions_not_just_touchdowns():
+    """Since Sep 3 the weekly line carries everything the league scorer
+    multiplies -- the game stack ranks a slate by projected fantasy
+    points, and three TD fields cannot total a receiver's week."""
+    raw = _week_raw()
+    # A copy: WEEK_ROWS is module state shared by every test here.
+    raw["rows"] = list(raw["rows"]) + [
+        {
+            "player_id": "8001",
+            "company": "rotowire",
+            "week": 1,
+            "stats": {"rec": 6.2, "rec_yd": 78.0, "rec_td": 0.5, "rush_yd": 4.0, "pts_ppr": 19.1},
+        }
+    ]
+    line = proj.reduce_week(raw)["players"]["8001"]
+    assert line == {"rec": 6.2, "rec_yd": 78.0, "rec_td": 0.5, "rush_yd": 4.0}
 
 
 def test_forecast_clauses_join_by_id_and_say_whose_number_it_is():

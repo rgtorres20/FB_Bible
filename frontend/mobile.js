@@ -256,7 +256,8 @@
     ['fb-leagues-link', '/app/leagues', 'League settings — score with your own rules →'],
     ['fb-nextup-link', '/app/nextup', 'Next man up — who to grab when a starter is out →'],
     ['fb-score-link', '/app/scorecard', 'Scorecard — how these calls actually did →'],
-    ['fb-scoring-link', '/app/scoring', 'Scoring board — who scores most in each league →']
+    ['fb-scoring-link', '/app/scoring', 'Scoring board — who scores most in each league →'],
+    ['fb-idpweek-link', '/app/idpweek', 'IDP tracker — this week’s projected tacklers →']
   ];
 
   function linkDraftTools() {
@@ -903,12 +904,224 @@
   document.addEventListener('visibilitychange', refreshSources);
   window.addEventListener('focus', refreshSources);
 
+  /* --- the game stack: this week's slate ranked by projected fantasy points
+   * (owner, Sep 3: "show who would be the potential best games for fantasy
+   * points and list them from highest to lowest and show me the expected
+   * projection for highest scores").
+   *
+   * The ranking is arithmetic the server does (app/feeds/gamestack.py) and
+   * ships in the feeds overlay under `game_stack`; this only draws it. The
+   * league chips re-sort client-side because every league's figure is
+   * already in the payload -- league scoring is a column here, and the
+   * reader picks which column leads. Idempotent: the panel is rebuilt only
+   * when the payload or the chosen league changes. */
+  var stackLeague = null;
+
+  function gsEl(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function gsPoints(v) {
+    return (typeof v === 'number') ? v.toFixed(1) : '—';
+  }
+
+  function gsPlayer(p, lg) {
+    var el = gsEl('span', 'fb-gs-player');
+    var b = gsEl('b', '', p.name);
+    el.appendChild(b);
+    el.appendChild(gsEl('span', 'fb-gs-pos', p.position + ' · ' + p.team + ' · ' + gsPoints(p.points[lg])));
+    if (p.injury) el.appendChild(gsEl('span', 'fb-gs-flag', p.injury));
+    if (p.wire) {
+      var w = gsEl('span', 'fb-gs-wire', 'Wire · ' + p.wire.time + ' · ' + p.wire.source + ' — ');
+      var a = gsEl('a', '', p.wire.head);
+      a.href = p.wire.link; a.target = '_blank'; a.rel = 'noopener';
+      w.appendChild(a);
+      el.appendChild(w);
+    }
+    return el;
+  }
+
+  function gsRow(g, lg, leagueName) {
+    var row = gsEl('div', 'fb-gs-row');
+    row.appendChild(gsEl('div', 'fb-gs-rank', String(g.rank)));
+    var mid = gsEl('div', '');
+    mid.appendChild(gsEl('div', 'fb-gs-game', g.away + ' @ ' + g.home));
+    var line = [];
+    if (g.kickoff) line.push(g.kickoff);
+    if (g.tv) line.push(g.tv);
+    if (g.fav) line.push(g.fav);
+    if (g.total) line.push('O/U ' + g.total);
+    var imp = Object.keys(g.implied || {}).map(function (c) { return c + ' ' + g.implied[c]; });
+    if (imp.length) line.push('implied ' + imp.join(' · '));
+    if (g.movement) line.push(g.movement);
+    if (g.weather) line.push(g.weather.label || g.weather.summary);
+    mid.appendChild(gsEl('div', 'fb-gs-meta', line.join(' · ')));
+    var top = gsEl('div', 'fb-gs-top');
+    (g.top || []).forEach(function (p) { top.appendChild(gsPlayer(p, lg)); });
+    mid.appendChild(top);
+    (g.out || []).forEach(function (v) {
+      var nxt = v.next_points ? (' → ' + v.next + ' projected ' + gsPoints(v.next_points[lg])) : (' → ' + v.next + ' (no weekly line)');
+      mid.appendChild(gsEl('div', 'fb-gs-out',
+        'Out on ' + v.team + ': ' + v.starter + ' (' + v.position + ', ' + v.injury + ') · ' +
+        v.vacated + " '25 touches/targets come loose" + nxt));
+    });
+    if (g.weather && g.weather.read) mid.appendChild(gsEl('div', 'fb-gs-meta', 'Weather read (rule): ' + g.weather.read));
+    if (g.preview) mid.appendChild(gsEl('div', 'fb-gs-ai', 'AI preview: ' + g.preview));
+    row.appendChild(mid);
+    var pts = gsEl('div', 'fb-gs-pts');
+    var side = g.points[lg] || {};
+    pts.appendChild(gsEl('b', '', gsPoints(side.total)));
+    pts.appendChild(gsEl('span', '', g.away + ' ' + gsPoints(side[g.away]) + ' · ' + g.home + ' ' + gsPoints(side[g.home])));
+    pts.appendChild(gsEl('span', '', leagueName + ' pts'));
+    row.appendChild(pts);
+    return row;
+  }
+
+  function showGameStack() {
+    var host = document.querySelector('[data-fb-gamestack]');
+    if (!host) return;
+    var stack = data && data.game_stack;
+    if (!stack || !stack.games) {
+      if (host.getAttribute('data-fb-sig') === 'empty') return;
+      host.setAttribute('data-fb-sig', 'empty');
+      host.textContent = '';
+      host.appendChild(gsEl('div', 'fb-gs-head', 'Best games for fantasy points'));
+      host.appendChild(gsEl('div', 'fb-gs-note',
+        data ? 'No weekly forecast is stored yet. The ranking appears once the sync has this week’s ' +
+               'Rotowire lines (via Sleeper) and a posted slate to score them against.'
+             : 'Waiting for the live feed.'));
+      return;
+    }
+    var lg = stackLeague || stack.default_league;
+    var sig = [stack.week, stack.as_of, (stack.games || []).length, lg].join('|');
+    if (host.getAttribute('data-fb-sig') === sig) return;
+    host.setAttribute('data-fb-sig', sig);
+    host.textContent = '';
+    var names = {};
+    (stack.leagues || []).forEach(function (l) { names[l.key] = l.name; });
+    host.appendChild(gsEl('div', 'fb-gs-head',
+      'Best games for fantasy points · Wk ' + stack.week + ' projected · ' + stack.source +
+      (stack.as_of ? ' · revised ' + stack.as_of : '')));
+    host.appendChild(gsEl('div', 'fb-gs-note', stack.note || ''));
+    var chips = gsEl('div', 'fb-gs-chips');
+    (stack.leagues || []).forEach(function (l) {
+      var c = gsEl('button', 'fb-gs-chip' + (l.key === lg ? ' on' : ''), l.name);
+      c.type = 'button';
+      c.onclick = function () { stackLeague = l.key; host.setAttribute('data-fb-sig', ''); showGameStack(); };
+      chips.appendChild(c);
+    });
+    host.appendChild(chips);
+    var games = stack.games.slice().sort(function (a, b) {
+      return (b.points[lg] || {}).total - (a.points[lg] || {}).total;
+    });
+    games.forEach(function (g, i) { host.appendChild(gsRow(Object.assign({}, g, { rank: i + 1 }), lg, names[lg] || lg)); });
+    if (stack.uncovered && stack.uncovered.length) {
+      host.appendChild(gsEl('div', 'fb-gs-foot',
+        'No projected player on either side yet, so not ranked: ' + stack.uncovered.join(', ') + '.'));
+    }
+  }
+
+  /* --- weekly stars: the week's projected leaders by position (owner, Sep 3:
+   * "players with best value for the week -- this helps drive who I play").
+   * Same contract as the game stack: the server computes, this draws, the
+   * chips re-sort client-side. Defenders show projected tackles beside the
+   * points, because tackles are the IDP week. */
+  var starsLeague = null;
+  var starsPos = null;
+
+  function starRow(p, lg) {
+    var row = gsEl('div', 'fb-gs-row fb-ws-row');
+    var pts = p.points[lg];
+    var left = gsEl('div', 'fb-gs-pts fb-ws-pts');
+    left.appendChild(gsEl('b', '', pts === null || pts === undefined ? '—' : gsPoints(pts)));
+    left.appendChild(gsEl('span', '', p.tackles !== null && p.tackles !== undefined ? p.tackles + ' tkl' : 'pts'));
+    row.appendChild(left);
+    var mid = gsEl('div', '');
+    var nameLine = gsEl('div', 'fb-gs-game');
+    nameLine.appendChild(gsEl('span', '', p.name));
+    nameLine.appendChild(gsEl('span', 'fb-gs-pos', p.slot + ' · ' + p.team));
+    if (p.injury) nameLine.appendChild(gsEl('span', 'fb-gs-flag', p.injury));
+    if (p.practice) nameLine.appendChild(gsEl('span', 'fb-gs-flag', 'practice: ' + p.practice));
+    mid.appendChild(nameLine);
+    var meta = [];
+    if (p.solo !== null && p.solo !== undefined) meta.push(p.solo + ' solo of ' + p.tackles + ' projected tackles');
+    if (p.depth) meta.push('depth ' + p.depth);
+    if (meta.length) mid.appendChild(gsEl('div', 'fb-gs-meta', meta.join(' · ')));
+    if (p.wire) {
+      var w = gsEl('div', 'fb-gs-wire', 'Wire · ' + p.wire.time + ' · ' + p.wire.source + ' — ');
+      var a = gsEl('a', '', p.wire.head);
+      a.href = p.wire.link; a.target = '_blank'; a.rel = 'noopener';
+      w.appendChild(a);
+      mid.appendChild(w);
+    }
+    row.appendChild(mid);
+    row.appendChild(gsEl('div', ''));
+    return row;
+  }
+
+  function showWeeklyStars() {
+    var host = document.querySelector('[data-fb-weeklystars]');
+    if (!host) return;
+    var stars = data && data.weekly_stars;
+    if (!stars || !stars.groups) {
+      if (host.getAttribute('data-fb-sig') === 'empty') return;
+      host.setAttribute('data-fb-sig', 'empty');
+      host.textContent = '';
+      host.appendChild(gsEl('div', 'fb-gs-head', 'Weekly stars'));
+      host.appendChild(gsEl('div', 'fb-gs-note',
+        data ? 'No weekly forecast is stored yet. The week’s projected leaders appear once the sync ' +
+               'has this week’s Rotowire lines (via Sleeper).'
+             : 'Waiting for the live feed.'));
+      return;
+    }
+    var lg = starsLeague || stars.default_league;
+    var pos = (starsPos && stars.groups[starsPos]) ? starsPos : (stars.positions[0] || '');
+    var sig = [stars.week, stars.as_of, lg, pos].join('|');
+    if (host.getAttribute('data-fb-sig') === sig) return;
+    host.setAttribute('data-fb-sig', sig);
+    host.textContent = '';
+    var names = {};
+    (stars.leagues || []).forEach(function (l) { names[l.key] = l.name; });
+    host.appendChild(gsEl('div', 'fb-gs-head',
+      'Weekly stars · Wk ' + stars.week + ' projected · ' + stars.source +
+      (stars.as_of ? ' · revised ' + stars.as_of : '')));
+    host.appendChild(gsEl('div', 'fb-gs-note', stars.note || ''));
+    var chips = gsEl('div', 'fb-gs-chips');
+    (stars.positions || []).forEach(function (p) {
+      var c = gsEl('button', 'fb-gs-chip' + (p === pos ? ' on' : ''), p);
+      c.type = 'button';
+      c.onclick = function () { starsPos = p; host.setAttribute('data-fb-sig', ''); showWeeklyStars(); };
+      chips.appendChild(c);
+    });
+    host.appendChild(chips);
+    var lchips = gsEl('div', 'fb-gs-chips');
+    (stars.leagues || []).forEach(function (l) {
+      var c = gsEl('button', 'fb-gs-chip' + (l.key === lg ? ' on' : ''), l.name);
+      c.type = 'button';
+      c.onclick = function () { starsLeague = l.key; host.setAttribute('data-fb-sig', ''); showWeeklyStars(); };
+      lchips.appendChild(c);
+    });
+    host.appendChild(lchips);
+    var rows = (stars.groups[pos] || []).slice().sort(function (a, b) {
+      var av = a.points[lg], bv = b.points[lg];
+      return (bv === null || bv === undefined ? -1 : bv) - (av === null || av === undefined ? -1 : av);
+    });
+    rows.forEach(function (p) { host.appendChild(starRow(p, lg)); });
+    host.appendChild(gsEl('div', 'fb-gs-foot', (names[lg] || lg) + ' scoring · ' + pos +
+      (pos === 'LB' || pos === 'DB' || pos === 'DL' ? ' · tackles = solo + assisted, projected' : '')));
+  }
+
   function decorate() {
     applyTeamTheme();
     offerTeamPicker();
     linkDraftTools();
     showRankSources();
     showSleepers();
+    showGameStack();
+    showWeeklyStars();
     if (!data) return;
     badgeNews();
     stampInjury();

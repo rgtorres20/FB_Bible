@@ -16,10 +16,12 @@ immutable per deploy, so the parse is cached.
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
 from . import players as players_mod
+from .clock import format_time
 
 _FRONTEND_INDEX = Path(__file__).resolve().parent.parent.parent / "frontend" / "index.html"
 
@@ -101,4 +103,52 @@ def live_status(index: dict | None, names: tuple[str, ...]) -> dict[str, str]:
         if player is None:
             continue
         out[name] = str(player.get("injury_status") or "")
+    return out
+
+
+# A wire item older than this is context, not an alert (docs/ASSUMPTIONS.md).
+LEAN_WIRE_WINDOW = timedelta(days=7)
+
+
+def lean_clauses(
+    items: list[dict] | None,
+    index: dict | None,
+    names: tuple[str, ...],
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """{prediction row name: "Wire: <newest headline> (<source>, <when>). Sleeper flag: <status>."}
+
+    The Predictions tab's "more active" half (owner, Sep 3): each TD lean
+    already carries the owner's why, the line move, the AI check and
+    Rotowire's forecast; this puts the two things the wire actually knows
+    about the man beside them -- the newest polled item that TAGS him (a
+    join on the tagged players, never a text search) and Sleeper's current
+    flag. Same three-valued honesty as `live_status`: a flag that is set,
+    a flag that is clear, or nothing at all when the index cannot resolve
+    the name. Old news is left out rather than dressed up as an alert.
+    """
+    now = now or datetime.now(UTC)
+    stamps = wire_stamps(items or [], names)
+    flags = live_status(index, names)
+    out: dict[str, str] = {}
+    for name in names:
+        bits: list[str] = []
+        stamp = stamps.get(name)
+        if stamp and stamp.get("published"):
+            try:
+                when = datetime.fromisoformat(stamp["published"].replace("Z", "+00:00"))
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=UTC)
+                if now - when <= LEAN_WIRE_WINDOW and stamp.get("head"):
+                    bits.append(
+                        f"Wire: {stamp['head']} ({stamp.get('source') or 'wire'}, "
+                        f"{format_time(stamp['published'])})."
+                    )
+            except ValueError:
+                pass
+        flag = flags.get(name)
+        if flag:
+            bits.append(f"Sleeper flag: {flag}.")
+        if bits:
+            out[name] = " ".join(bits)
     return out

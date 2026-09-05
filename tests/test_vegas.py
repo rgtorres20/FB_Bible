@@ -236,6 +236,10 @@ async def test_vegas_push_sanitizes_rows_to_known_string_fields(push_client):
         "away_name",
         "home_name",
         "tv",
+        # Sep 5: the forecast for outdoor games, empty for a dome or a
+        # slate too far out (app/feeds/gamestack.py reads it).
+        "weather",
+        "weather_id",
     }
     assert row["total"] == "38.5"  # coerced to string
     assert row["kickoff"] == ""  # absent fields stay empty strings, not None

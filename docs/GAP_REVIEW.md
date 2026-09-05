@@ -499,6 +499,24 @@ one alone would have hidden the others.
   OpenAI-compatible endpoint. Shipped; waiting only on the
   `GEMINI_API_KEY` secret. See STALE_DATA.md.
 
+## Found Sep 5 — asked for, not built, and why
+
+**Beat-writer polling for line movement and weather.** The owner asked
+for *"some type of ai back end that polls top beat writers and Vegas
+lines movements for point totals or weather"*. Two of the three halves
+landed: line movement is measured from the runner's own Vegas pushes
+(`save_vegas` keeps a history, the game stack reports the change since
+the first snapshot) and weather is read off ESPN's per-game forecast
+where one is published. The beat-writer half is **not built**, on
+purpose. The consensus job taught the lesson: of ten publisher feeds
+guessed at from a sandbox, five were dead — so a beat-writer list has to
+be measured from the Actions runner (which hosts answer, which 403 the
+runner's IPs) before a line of poller is written. Until that probe is
+run, the wire the alerts panel already polls carries the beat-writer
+posts NBC, ESPN and Rotowire republish, and the Predictions clauses
+quote the latest one per player. What is missing is the *long tail* —
+team-specific writers with earlier practice reports.
+
 ## Backlog — high value, needs design or decisions
 
 Ordered by draft-day value.

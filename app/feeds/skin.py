@@ -135,6 +135,8 @@ SERVED_PAGES: tuple[str, ...] = (
     "/app/scoring",
     "/app/cheatsheet",
     "/app/alerts300",
+    # The IDP tracker (Sep 5): this week's projected tacklers.
+    "/app/idpweek",
     # Owner-only, and missed by the first pass of this list -- the docs
     # lint found it served as a full page with no way back (Aug 21).
     "/app/access",
