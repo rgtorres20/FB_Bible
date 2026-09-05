@@ -235,10 +235,19 @@ async def fetch_week(week: int = PRED_WEEK, client: httpx.AsyncClient | None = N
 
 
 def reduce_week(raw: dict | None) -> dict:
-    """{player_id: {td fields present}} plus provenance, same joins-by-id
-    rule as `reduce` and for the same reason."""
+    """{player_id: {scorer's stat line for the week}} plus provenance, same
+    joins-by-id rule as `reduce` and for the same reason.
+
+    Kept the whole `_KEEP` vocabulary since Sep 3, not just the three TD
+    fields: the TD-prop clauses only ever read those three, but ranking a
+    slate's games by projected fantasy points (the schedule tab's game
+    stack) needs the yards, receptions and completions the league scorer
+    multiplies -- the same line `reduce` keeps for the season forecast,
+    one week at a time. The stored blob grows from three keys a player to
+    the scorer's ~25; still a fraction of the 4.7MB Sleeper sends.
+    """
     rows = (raw or {}).get("rows") or []
-    keep = frozenset(PROP_FIELDS.values())
+    keep = _KEEP
     players: dict[str, dict] = {}
     companies: set[str] = set()
     newest = 0
