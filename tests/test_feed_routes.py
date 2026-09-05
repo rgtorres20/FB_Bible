@@ -4,6 +4,8 @@ test_routes.py covers the disabled/unauthorised cases; this covers what
 happens when it actually works, plus the read filters the UI depends on.
 """
 
+from datetime import UTC, datetime
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -191,9 +193,24 @@ def test_limit_is_validated(client):
 # --- sync success path ----------------------------------------------------
 
 
+# The sync fixtures are dated Aug 15 2026 and the poller keeps an item
+# for `MAX_AGE_DAYS`; on Sep 5 every one of them aged out and four tests
+# that had passed for three weeks failed on a runner that had not
+# changed. The sync route reads the real clock, so the merge is pinned
+# to the fixtures' own day rather than the fixtures being moved -- a
+# relative date would hide the retention rule the poller test covers.
+FIXTURE_NOW = datetime(2026, 8, 15, 3, 0, tzinfo=UTC)
+
+
 @pytest.fixture
 def sync_client(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+    real_merge = feeds_route.poller.merge
+    monkeypatch.setattr(
+        feeds_route.poller,
+        "merge",
+        lambda existing, fresh, now: real_merge(existing, fresh, FIXTURE_NOW),
+    )
     store = FileFeedStore(str(tmp_path / "feeds.json"))
     main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
     yield TestClient(main.app), store
