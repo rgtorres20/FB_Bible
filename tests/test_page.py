@@ -894,3 +894,19 @@ def test_a_moved_slate_heading_reports_the_miss(index_html):
     assert broken != index_html
     _, misses = page.game_stack_anchor(broken)
     assert misses == ["game stack anchor"]
+
+
+# --- a boot failure says so (Sep 6) ------------------------------------------
+
+
+def test_a_boot_time_throw_is_named_not_swallowed():
+    """The catch closing componentDidMount used to be `catch (e) {}`.
+    The storage shim's recursion threw inside that block for eleven days
+    and nothing on any screen said the live feed had never been fetched."""
+    html, misses = page.boot_failure_is_visible(INDEX.read_text(encoding="utf-8"))
+
+    assert misses == []
+    assert "} catch (e) {}\n    try {\n      const saved = JSON.parse" not in html
+    assert 'console.error("boot: "' in html
+    assert "__fb_boot_warn" in html
+    assert "the live feed was not loaded" in html

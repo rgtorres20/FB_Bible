@@ -1259,8 +1259,48 @@ def dated_kickers_read_the_data(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- a boot failure says so (Sep 6) -----------------------------------------
+#
+# The component's componentDidMount is one try block: nine storage reads,
+# the live-feed fetch, the Yahoo client, the theme -- and a catch that
+# swallows whatever throws. The Sep 2 fix made the FETCH's own failure
+# visible; it could not help when the fetch was never reached, which is
+# what the storage shim's recursion did for eleven days. Signed-in
+# readers saw Aug-14 seeds with nothing on screen saying why, on every
+# device, while the watchdog (never signed in) measured a healthy app.
+# The catch now names the error in the console and raises the same fixed
+# banner the fetch uses, so the next boot-time throw is a report, not a
+# month on the seed.
+_BOOT_CATCH = (
+    '      if (ds && typeof ds === "object") this.setState({ draftSlot: ds });\n'
+    "    } catch (e) {}\n"
+)
+_BOOT_CATCH_REPLACEMENT = (
+    '      if (ds && typeof ds === "object") this.setState({ draftSlot: ds });\n'
+    "    } catch (e) { "
+    'console.error("boot: " + ((e && e.stack) || e)); '
+    "try { var __fbBootEl = document.createElement(\"div\"); __fbBootEl.id = '__fb_boot_warn'; "
+    "__fbBootEl.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;"
+    "background:#8a1c1c;color:#fff;font:12px/1.4 system-ui,sans-serif;"
+    "padding:8px 12px;text-align:center'; "
+    '__fbBootEl.textContent = "The app hit an error while starting (" '
+    '+ ((e && e.message) || e) + ") — the live feed was not loaded, so this is saved data."; '
+    "document.body.appendChild(__fbBootEl); } catch (e2) {} }\n"
+)
+
+
+def boot_failure_is_visible(html: str) -> tuple[str, list[str]]:
+    """Name a boot-time throw instead of swallowing it.
+
+    One anchor: the catch that closes the component's startup block. A
+    design resync that restructures componentDidMount reports the miss.
+    """
+    return _apply(html, (("boot catch", _BOOT_CATCH, _BOOT_CATCH_REPLACEMENT, 1),))
+
+
 PRE = (
     head_tags,
+    boot_failure_is_visible,
     header_mark,
     header_links,
     yahoo_panel,
@@ -1321,13 +1361,33 @@ def apply(html: str, transforms: tuple) -> tuple[str, list[str]]:
 
 _PREFS_SHIM = """<script>(function(){
   var SAVED = %(saved)s, MANAGED = %(managed)s, PENDING = {}, timer = null;
-  var real = window.localStorage, own = {};
+  var real = null, realGet = null, realSet = null, realRemove = null, own = {};
+  // Probed FIRST, and the built-in methods are captured here, BOUND,
+  // before anything below replaces them. `real` is the same object whose
+  // methods get overridden -- a `real.getItem(k)` written after the
+  // override calls the override, which calls `real.getItem`, until the
+  // stack overflows (Sep 6: every signed-in reader's first unmanaged
+  // read, `ww_screen`, threw inside the page's boot try/catch, so the
+  // live-feed fetch below it never ran and every device showed the
+  // Aug-14 seeds for eleven days; signed-out readers and the watchdog,
+  // which never get this shim, saw a healthy app). A browser with
+  // storage disabled throws on the very first touch, and the guard is
+  // worthless below the code it protects.
+  try {
+    real = window.localStorage;
+    realGet = real.getItem.bind(real);
+    realSet = real.setItem.bind(real);
+    realRemove = real.removeItem.bind(real);
+    realGet("__fb_probe");
+  } catch (e) { return; }
   MANAGED.forEach(function (k) {
     // The account's copy wins on load. A key the account has never saved
     // falls back to whatever this browser holds, so somebody signing in
     // for the first time keeps the lists they built before they had an
     // account instead of watching them vanish.
-    own[k] = Object.prototype.hasOwnProperty.call(SAVED, k) ? SAVED[k] : null;
+    var device = null;
+    try { device = realGet(k); } catch (e) {}
+    own[k] = Object.prototype.hasOwnProperty.call(SAVED, k) ? SAVED[k] : device;
   });
   function managed(k) { return MANAGED.indexOf(k) !== -1; }
   function flush() {
@@ -1346,31 +1406,25 @@ _PREFS_SHIM = """<script>(function(){
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, 900);
   }
-  // Probed FIRST. A browser with storage disabled throws on the very
-  // first touch, and the guard is worthless below the code it protects:
-  // the listeners would already be bound and the overrides half-applied.
-  try {
-    real.getItem("__fb_probe");
-  } catch (e) { return; }
   window.addEventListener("pagehide", flush);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") flush();
   });
   localStorage.getItem = function (k) {
-    return managed(k) ? own[k] : real.getItem(k);
+    return managed(k) ? own[k] : realGet(k);
   };
   localStorage.setItem = function (k, v) {
-    if (!managed(k)) return real.setItem(k, v);
+    if (!managed(k)) return realSet(k, v);
     own[k] = String(v);
     // Written through to the device as well, so a later signed-out visit
     // still shows the lists rather than an empty app.
-    try { real.setItem(k, String(v)); } catch (e) {}
+    try { realSet(k, String(v)); } catch (e) {}
     queue(k, String(v));
   };
   localStorage.removeItem = function (k) {
-    if (!managed(k)) return real.removeItem(k);
+    if (!managed(k)) return realRemove(k);
     own[k] = null;
-    try { real.removeItem(k); } catch (e) {}
+    try { realRemove(k); } catch (e) {}
     queue(k, "");
   };
 })();</script>"""
