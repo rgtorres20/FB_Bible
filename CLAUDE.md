@@ -437,7 +437,11 @@ and instrumenting the swallowed catch. Three rules bought:
 The watchdog's blind spot stands: it sees the app signed out, so
 account-only transforms (the shim, the sleepers list, a user's leagues)
 are covered by node runs against the served page and by nothing live
-([docs/GAP_REVIEW.md](docs/GAP_REVIEW.md)).
+([docs/GAP_REVIEW.md](docs/GAP_REVIEW.md)). What it *can* now say is
+whether a deploy has landed: `/health` carries no commit and the page is
+gated, so `verify_live.py` compares the deployed service worker's
+`VERSION` with the checkout's — which is why `sw.js` is bumped on every
+shell change.
 
 The Settings panel stopped claiming to blend lists it does not have
 (Aug 21). Two different things were called **sources**: four hand-written

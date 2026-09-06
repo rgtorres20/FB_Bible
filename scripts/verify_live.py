@@ -1441,6 +1441,24 @@ def main() -> int:
     )
     check("weekly-stars panel decorator serves", b"showWeeklyStars" in mobile_js)
     check("the IDP tracker is linked from the analyzer", b"/app/idpweek" in mobile_js)
+    # The deployed shell is the committed one. Sep 6: a fix to the served
+    # page was merged and nothing here could say whether production was
+    # serving it yet -- /health carries no commit, and the page itself is
+    # gated. The service worker's VERSION is bumped on every shell change
+    # (frontend/sw.js says so), so the deployed worker naming the same
+    # version as the checkout is the cheapest honest "this deploy is live".
+    sw_version = re.search(
+        r"const VERSION = '([^']+)'",
+        (REPO_ROOT / "frontend" / "sw.js").read_text(encoding="utf-8"),
+    )
+    sw_live = get("/app/sw.js")
+    live_version = re.search(rb"const VERSION = '([^']+)'", sw_live)
+    check(
+        "the deployed service worker is the committed one",
+        bool(sw_version and live_version and sw_version.group(1).encode() == live_version.group(1)),
+        f"repo {sw_version.group(1) if sw_version else '?'} · "
+        f"live {live_version.group(1).decode() if live_version else '?'}",
+    )
     check(
         "source panel decorator serves",
         b"fb-rank-sources" in mobile_js and b"Board order" in mobile_js,
