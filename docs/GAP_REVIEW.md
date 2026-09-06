@@ -499,6 +499,30 @@ one alone would have hidden the others.
   OpenAI-compatible endpoint. Shipped; waiting only on the
   `GEMINI_API_KEY` secret. See STALE_DATA.md.
 
+## Found Sep 6 — fixed, and the watchdog could not have seen it
+
+**Every signed-in reader saw the Aug-14 seeds from Aug 26 to Sep 6.**
+The account storage shim (`page.prefs_shim`) replaced `localStorage`'s
+methods on the same object it had saved as `real`, so a read of any key
+it does not manage recursed until the stack overflowed. The page's boot
+block reads `ww_screen` (unmanaged) before it fetches the live feed,
+inside one try/catch, so the fetch never ran and nothing said so. The
+owner reported it four times; each time the server was measured fresh
+and the fixes went to the fetch (absolute path, retries, a banner), to
+the cache headers, and to the wake re-pull — all real, none of them the
+fault. Found by reproducing in headless Chromium against a local app
+with a minted session cookie and instrumenting the swallowed catch.
+
+Fixed: bound originals captured before the override; a behavioural
+node test against a faithful Storage stub (the old test asserted the
+text of the recursing line); the boot catch raises a banner.
+
+*Still open:* `verify-live.yml` runs with the sync token, never a
+session, so it exercises the signed-out page only. The account-only
+transforms — the shim, the sleepers list, per-user leagues — have no
+live check. A minted-session probe would need `SESSION_SECRET` on the
+runner, which is a secrets decision for the owner, not a code change.
+
 ## Found Sep 5 — asked for, not built, and why
 
 **Beat-writer polling for line movement and weather.** The owner asked

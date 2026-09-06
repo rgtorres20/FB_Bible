@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1580 tests green — 1564 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1584 tests green — 1568 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -400,6 +400,44 @@ tabs are two writers. Appearance keys stay per-device on purpose and
 `ww_my_sleepers` is excluded because it already has its own store — two
 writers for one list is how the copies disagree
 ([docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) records both, and the caps).
+
+**That shim broke the app for every signed-in reader for eleven days,
+and nothing green noticed** (Sep 6, after *"we are broken again, stuck on
+14th"*). The shim kept `real = window.localStorage` and then replaced
+that same object's methods, so `real.getItem(k)` for any *unmanaged* key
+called the override, which called `real.getItem`, until the stack
+overflowed. The page's first unmanaged read (`ww_screen`, from the same
+Aug 26 batch) sits inside the component's one boot-time try/catch,
+above the live-feed fetch — so the throw was swallowed, the fetch never
+ran, and every device showed the Aug-14 seeds under a healthy server.
+Signed-out readers never get the shim, and the watchdog is never signed
+in, so `verify-live.yml` measured 243 passes against a broken app and
+the Sep 1–2 fixes (re-pull on wake, no-store, the failure banner) were
+aimed at the wrong layer. It was found by driving the served page in
+headless Chromium with a minted session cookie (the sandbox cannot
+reach production, so a local app on the same code with a seeded store)
+and instrumenting the swallowed catch. Three rules bought:
+
+- **The shim captures the built-in methods, bound, before it overrides
+  anything** (`realGet`/`realSet`/`realRemove`), and a key the account
+  never saved now really does fall back to the device's copy, which the
+  comment had promised since Aug 26 while the code set null.
+- **A test asserts behaviour, never the text of the line under test.**
+  `tests/test_prefs.py` had asserted the string `return real.setItem(k,
+  v)` — the exact line that recursed — and `node --check` parsed it as
+  valid. It now runs the served shim under node against a faithful
+  Storage stub (prototype methods, `window.localStorage` and the bare
+  `localStorage` the same object) and reads an unmanaged key.
+- **A boot-time throw says so on screen** (`page.boot_failure_is_visible`):
+  the component's startup catch now names the error in the console and
+  raises the same fixed banner the feed fetch uses. The Sep 2 rule made
+  the *fetch's* failure visible; it could not help when the fetch was
+  never reached.
+
+The watchdog's blind spot stands: it sees the app signed out, so
+account-only transforms (the shim, the sleepers list, a user's leagues)
+are covered by node runs against the served page and by nothing live
+([docs/GAP_REVIEW.md](docs/GAP_REVIEW.md)).
 
 The Settings panel stopped claiming to blend lists it does not have
 (Aug 21). Two different things were called **sources**: four hand-written

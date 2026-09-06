@@ -141,14 +141,92 @@ def test_a_signed_out_reader_is_left_completely_alone():
     assert (out, misses) == (html, [])
 
 
-def test_an_unmanaged_key_passes_straight_through_to_the_browser():
-    """A theme, a cache or a dev override has to behave exactly as before.
-    This shim redirects nine keys, not localStorage itself."""
-    served = _served({})
-    shim = re.search(r"<script>\(function\(\)\{.*?\}\)\(\);</script>", served, re.S).group(0)
+# A faithful stand-in for the browser's Storage: the methods live on the
+# prototype and `window.localStorage` and the bare `localStorage` are the
+# SAME object, which is exactly the shape the shim's recursion needed.
+_STORAGE_STUB = """
+class Storage {
+  constructor() { this._d = {}; }
+  getItem(k) { return Object.prototype.hasOwnProperty.call(this._d, k) ? this._d[k] : null; }
+  setItem(k, v) { this._d[k] = String(v); }
+  removeItem(k) { delete this._d[k]; }
+}
+const ls = new Storage();
+%(device)s
+global.window = { localStorage: ls, addEventListener() {} };
+global.localStorage = ls;
+global.document = { addEventListener() {}, visibilityState: "visible" };
+global.fetch = () => Promise.resolve();
+"""
 
-    assert "if (!managed(k)) return real.setItem(k, v);" in shim
-    assert "if (!managed(k)) return real.removeItem(k);" in shim
+
+def _run_shim(tmp_path, saved, device: dict[str, str]):
+    """The shim under node against the stub, then a few reads and writes
+    the page really makes. Returns what each one answered."""
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:  # pragma: no cover - CI pins node
+        raise AssertionError("node is required to run the injected shim")
+    served = _served(saved)
+    shim = re.search(r"<script>(\(function\(\)\{.*?\}\)\(\);)</script>", served, re.S).group(1)
+    seed = "\n".join(f"ls.setItem({json.dumps(k)}, {json.dumps(v)});" for k, v in device.items())
+    script = tmp_path / "shim_run.js"
+    script.write_text(
+        _STORAGE_STUB % {"device": seed}
+        + shim
+        + """
+const out = {
+  theme: localStorage.getItem("ww_theme"),
+  screen_before: localStorage.getItem("ww_screen"),
+  cuffs: localStorage.getItem("ww_cuff_order"),
+  queue: localStorage.getItem("ww_queue"),
+};
+localStorage.setItem("ww_screen", "draft");
+out.screen_after = localStorage.getItem("ww_screen");
+localStorage.removeItem("ww_screen");
+out.screen_removed = localStorage.getItem("ww_screen");
+console.log(JSON.stringify(out));
+""",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(["node", str(script)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def test_an_unmanaged_key_passes_straight_through_to_the_browser(tmp_path):
+    """A theme, a cache or a dev override has to behave exactly as before.
+    This shim redirects nine keys, not localStorage itself.
+
+    Sep 6: this test used to assert the TEXT `return real.setItem(k, v)`
+    -- the exact line that recursed, since `real` is the object whose
+    methods the shim replaces. Every signed-in reader's first unmanaged
+    read (`ww_screen`, in the page's boot block) overflowed the stack,
+    the boot try/catch swallowed it, and the live-feed fetch below it
+    never ran: Aug-14 seeds on every device for eleven days while the
+    watchdog, never signed in, measured a healthy app. Behaviour, not
+    text, from here on."""
+    out = _run_shim(tmp_path, {"ww_cuff_order": "[3,1,2]"}, {"ww_theme": "dark"})
+
+    assert out["theme"] == "dark"
+    assert out["screen_before"] is None
+    assert out["screen_after"] == "draft"
+    assert out["screen_removed"] is None
+
+
+def test_the_account_s_copy_wins_and_a_never_saved_key_keeps_the_device_s(tmp_path):
+    """The comment above the seeding loop promised the second half since
+    Aug 26; the code set null. Somebody signing in for the first time
+    keeps the lists they built before they had an account."""
+    out = _run_shim(
+        tmp_path,
+        {"ww_cuff_order": "[3,1,2]"},
+        {"ww_cuff_order": "[9,9]", "ww_queue": '{"NDDPL":["x"]}'},
+    )
+
+    assert out["cuffs"] == "[3,1,2]"
+    assert out["queue"] == '{"NDDPL":["x"]}'
 
 
 def test_a_value_containing_a_script_tag_cannot_end_the_element():

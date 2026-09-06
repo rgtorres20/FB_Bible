@@ -411,6 +411,13 @@ async def test_sync_carries_verdicts_forward_for_surviving_items(client, monkeyp
 
     c, store = client
     monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+    # Same Aug-15 fixtures, same 21-day retention: pinned like sync_client.
+    real_merge = feeds_route.poller.merge
+    monkeypatch.setattr(
+        feeds_route.poller,
+        "merge",
+        lambda existing, fresh, now: real_merge(existing, fresh, FIXTURE_NOW),
+    )
 
     async def _offline(*args, **kwargs):
         raise _httpx.ConnectError("offline under test")

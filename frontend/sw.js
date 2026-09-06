@@ -15,7 +15,7 @@
 // leaves a phone that has not cold-started running the shell it installed
 // weeks ago (Sep 1: the frozen-wire report was partly this -- the worker
 // never updated because this string never moved).
-const VERSION = 'fb-v12';
+const VERSION = 'fb-v13';
 
 // Enough to open the app offline. Everything else is cached as you browse.
 const SHELL = [
