@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1584 tests green — 1568 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1593 tests green — 1577 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -762,6 +762,29 @@ verification required, public keys only, and the allowlist still governs
 (revoking an email deletes its passkeys). Bound to an RP ID — the hostname
 unless `PASSKEY_RP_ID` pins the registrable domain, which makes a later
 apex-to-subdomain move free instead of a re-registration for everybody. All of it in docs/ACCESS.md.
+
+**FFBets does not show hurt people** (owner, Sep 12). A touchdown prop on
+a man who will not play is a dead bet, not a weak one — and the board was
+serving exactly that, under a confidence bar, with the clause
+`Sleeper flag: Out.` written underneath it. The clause was true and
+labelled and still the wrong row to leave up. `vegas.drop_sidelined` takes
+it off before the const is injected and the caption names who went, because
+a board that quietly gets shorter is the same silent miss as a transform
+wired to nothing. The line is the kernel's existing one
+(`players.injury_tier`, not a second list of Sleeper's injury words): the
+**out tier** is pulled — Out, Doubtful, IR, PUP, NA, DNR, Sus — and
+**Questionable stays**, wearing the flag clause it already carried, because
+he plays most Sundays. An unclassifiable new flag reads as questionable, so
+a word Sleeper invents makes the board noisier, never quieter. Two things
+are load-bearing: the pull is carried to `inject_predictions` as its own
+half, so an **empty board with a pull** reaches the page while an empty one
+without a pull still leaves the curated const alone — collapsing them would
+have re-served every man just pulled, the verdict-wipe class again; and the
+pull reads the player index, so an index outage serves the full board
+(safe direction, but the promise is "while the index answers" —
+docs/ASSUMPTIONS.md). `verify_live.py` asserts no served lean carries an
+out-tier flag, reading the vocabulary out of `players.py` with `ast` rather
+than keeping a copy.
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.

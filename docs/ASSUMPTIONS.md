@@ -659,3 +659,47 @@ numbers that had to be picked rather than measured.
 the code it governs; the watchdog prints the counts (games ranked, with
 scorers, uncovered; movement and weather coverage; clauses per lean) so
 a wrong number shows up as a wrong count in the log, not as silence.
+
+## FFBets pulls a lean at the "out" tier, not at every flag (Sep 12)
+
+Owner, Sep 12: FFBets *"should not show hurt people."* A touchdown prop on
+a man who will not play is a dead bet, and it was sitting on the board
+under a confidence bar with `Sleeper flag: Out.` written underneath it —
+true, labelled, and still the wrong row to leave up. `vegas.drop_sidelined`
+now takes it off and the caption names who went.
+
+**Where the line falls is the chosen part.** It reuses the kernel's
+existing vocabulary (`players.injury_tier`) rather than a new list:
+
+- **Pulled — the "out" tier:** Out, Doubtful, IR, PUP, NA, DNR, Sus.
+  Doubtful is in because a doubtful player rarely plays, and a prop is a
+  one-game claim; the reserve flags are in for the same reason they take a
+  player off the draft board.
+- **Kept — Questionable, and any flag Sleeper invents that we cannot
+  classify.** A questionable man plays most Sundays, so the lean stands
+  and wears the labelled flag clause it already carried. `injury_tier`
+  deliberately reads an unrecognised flag as questionable, so a new
+  Sleeper word makes the board *noisier*, never quieter — a surface that
+  silently shrinks on a value nobody has seen is the worse failure.
+
+**If it is wrong:** move the test in `tests/test_sidelined_leans.py` that
+names Doubtful, and `injury.sidelined` is the one place to change. The
+whole pull is self-correcting either way — the flag is live, so a player
+who is activated reappears on the next sync with nobody editing a list.
+
+**The failure mode worth knowing.** The pull reads the player index, so
+**during an index outage nothing is pulled and the full board serves**,
+hurt players included. That is the safe direction — no row vanishes on a
+guess — but it does mean the promise is "no hurt people *while the index
+answers*", and the page does not say so. It is the same outage that clears
+every injury badge on the draft board (see *During an index outage the
+board shows no injury badges at all*, above); one honest third state would
+fix both, and neither has one today.
+
+**Empty is a real answer here.** If every lean on the slate is hurt, the
+board is served empty with the caption explaining why — `inject_predictions`
+takes the pulled half precisely so it can tell that apart from a failed
+curated parse, which still leaves the page's own const alone. Collapsing
+the two would have served the full curated table, including the men just
+pulled, exactly when the pull mattered most. Same class as the vault's
+`StoredDataUnreadable`.

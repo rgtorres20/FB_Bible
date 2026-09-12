@@ -106,6 +106,29 @@ def live_status(index: dict | None, names: tuple[str, ...]) -> dict[str, str]:
     return out
 
 
+def sidelined(index: dict | None, names: tuple[str, ...]) -> dict[str, str]:
+    """{name: flag} for the watched men Sleeper flags as not playing.
+
+    The same measurement as `live_status`, read through the kernel's own
+    vocabulary (`players.injury_tier`) instead of a second list of injury
+    words here -- the draft board already drops reserve rows by it, and
+    two copies of Sleeper's spelling is how one of them goes stale.
+
+    The "out" tier, not every flag: Out, Doubtful, IR, PUP, NA, DNR, Sus.
+    A Questionable man plays most Sundays, so his lean stands and carries
+    the labelled flag clause `lean_clauses` already writes
+    (docs/ASSUMPTIONS.md records where that line falls and why).
+
+    A name the index cannot resolve is absent from `live_status`, so it
+    is never pulled -- nothing said rather than something invented.
+    """
+    return {
+        name: flag
+        for name, flag in live_status(index, names).items()
+        if players_mod.injury_tier(flag) == "out"
+    }
+
+
 # A wire item older than this is context, not an alert (docs/ASSUMPTIONS.md).
 LEAN_WIRE_WINDOW = timedelta(days=7)
 

@@ -25,8 +25,8 @@ CENTRAL = ZoneInfo("America/Chicago")
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-def _skin_literal(name: str):
-    """A module-level literal out of `app/feeds/skin.py`, read with `ast`.
+def _module_literal(module: str, name: str):
+    """A module-level literal out of `app/feeds/<module>.py`, read with `ast`.
 
     Read rather than imported, and that is not fussiness. This script runs
     on a bare runner with nothing pip-installed, so `from app.feeds import
@@ -40,7 +40,7 @@ def _skin_literal(name: str):
     reached without importing the package. `scripts/lint_docs.py` reads
     the same file the same way for the same reason.
     """
-    tree = ast.parse((REPO_ROOT / "app" / "feeds" / "skin.py").read_text(encoding="utf-8"))
+    tree = ast.parse((REPO_ROOT / "app" / "feeds" / f"{module}.py").read_text(encoding="utf-8"))
     for node in tree.body:
         target = None
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
@@ -49,14 +49,32 @@ def _skin_literal(name: str):
             first = node.targets[0]
             target = first.id if isinstance(first, ast.Name) else None
         if target == name and getattr(node, "value", None) is not None:
-            return ast.literal_eval(node.value)
-    raise SystemExit(f"skin.{name} not found -- it moved or was renamed")
+            value = node.value
+            # `frozenset({...})` is a Call wrapping the literal, not a
+            # literal, and literal_eval refuses it. Unwrap one level so the
+            # kernel keeps its natural spelling rather than flattening a
+            # constant to suit this reader.
+            if (
+                isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Name)
+                and value.func.id in {"frozenset", "set", "tuple", "list"}
+                and len(value.args) == 1
+            ):
+                value = value.args[0]
+            return ast.literal_eval(value)
+    raise SystemExit(f"{module}.{name} not found -- it moved or was renamed")
 
 
-SERVED_PAGES = tuple(str(p) for p in _skin_literal("SERVED_PAGES"))
-OWNER_ONLY = frozenset(str(p) for p in _skin_literal("OWNER_ONLY"))
+SERVED_PAGES = tuple(str(p) for p in _module_literal("skin", "SERVED_PAGES"))
+OWNER_ONLY = frozenset(str(p) for p in _module_literal("skin", "OWNER_ONLY"))
 
-# Overridable so the same 35 checks can be pointed at a preview deployment.
+# Sleeper's "will not play" words, read from the kernel that owns them
+# rather than retyped here: the watchdog asserts that no lean on such a
+# player reaches the board, and a private copy of the vocabulary is how
+# the check quietly stops covering a flag the app still drops on.
+SIDELINED_FLAGS = frozenset(str(f) for f in _module_literal("players", "OUT_FLAGS"))
+
+# Overridable so the whole check set can be pointed at a preview deployment.
 # `or` rather than a get() default: an unset workflow input arrives as an
 # empty string, which must not silently blank the URL.
 BASE = os.environ.get("FBBIBLE_BASE") or "https://fb-bible-torro2.vercel.app"
@@ -1199,6 +1217,27 @@ def main() -> int:
         ("weather", "Weather: "),
     ):
         print(f"  INFO  TD leans carrying a {label} clause: {served.count(needle)}")
+
+    # FFBets does not show hurt people (owner, Sep 12). Asserted, not
+    # counted: a lean on a man Sleeper flags as not playing is a dead bet,
+    # and `drop_sidelined` takes the row off the board before it is served.
+    # The clause is the evidence -- `injury.lean_clauses` writes "Sleeper
+    # flag: Out." into the why of any flagged man, so one surviving in the
+    # served const means a row got past the pull. Questionable is left in
+    # deliberately and is not checked here.
+    # Anchored rather than scanned: without the const marker this would read
+    # the whole page and fail on a flag printed anywhere else, which is a
+    # different bug wearing this check's name.
+    _, marker, after = served.partition("const PREDICTIONS = ")
+    served_leans = after.split("];")[0] if marker else ""
+    survivors = [flag for flag in SIDELINED_FLAGS if f"Sleeper flag: {flag}." in served_leans]
+    check(
+        "no served TD lean is on a sidelined player",
+        bool(marker) and not survivors,
+        f"flags still on the board: {', '.join(sorted(survivors))}"
+        if survivors
+        else ("the PREDICTIONS const is not on the page" if not marker else ""),
+    )
 
     frozen = re.findall(r'"time":\s*"((?:Today|Yesterday)[^"]*|[^"]*\bago\b[^"]*)"', served)
     check(

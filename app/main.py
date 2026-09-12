@@ -369,7 +369,21 @@ if _FRONTEND_READY:
                             ),
                         ),
                     )
-                    html = vegas.inject_predictions(html, adjusted)
+                    # Last, after every clause is attached: a lean on a man
+                    # Sleeper flags as not playing comes off the board
+                    # entirely rather than sitting there under a confidence
+                    # bar with "Sleeper flag: Out." beneath it (owner,
+                    # Sep 12). The caption names whoever was pulled.
+                    adjusted, pulled = vegas.drop_sidelined(
+                        adjusted, injury.sidelined(index, lean_names)
+                    )
+                    if pulled:
+                        log.info(
+                            "predictions: pulled %d sidelined lean(s): %s",
+                            len(pulled),
+                            ", ".join(f"{row['name']} ({row['flag']})" for row in pulled),
+                        )
+                    html = vegas.inject_predictions(html, adjusted, pulled)
                     html = vegas.inject_schedule(
                         html,
                         vegas.schedule_rows(

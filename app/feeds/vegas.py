@@ -495,15 +495,62 @@ def apply_forecasts(preds: list[dict], forecasts: dict[str, str] | None) -> list
     return out
 
 
-def inject_predictions(html: str, adjusted: list[dict]) -> str:
-    """Swap the curated PREDICTIONS const for the live-adjusted rows."""
-    if not adjusted:
+def drop_sidelined(
+    preds: list[dict], flags: dict[str, str] | None
+) -> tuple[list[dict], list[dict]]:
+    """Split the leans into the ones still live and the ones pulled.
+
+    A touchdown prop on a man who will not play is not a weak lean, it is
+    a dead one, and leaving it on the board under a confidence bar is the
+    false positive this project bans (owner, Sep 12: FFBets "should not
+    show hurt people"). The clause underneath the row was already saying
+    "Sleeper flag: Out." -- the row itself had to go.
+
+    Both halves come back because the caption names what it pulled. A
+    board that quietly gets shorter is the same silent miss as a
+    transform that finds no anchor.
+    """
+    if not flags:
+        return list(preds), []
+    kept: list[dict] = []
+    pulled: list[dict] = []
+    for pred in preds:
+        flag = (flags.get(pred.get("name") or "") or "").strip()
+        if flag:
+            pulled.append({"name": pred.get("name") or "", "flag": flag})
+        else:
+            kept.append(pred)
+    return kept, pulled
+
+
+def pulled_caption(pulled: list[dict]) -> str:
+    """The sentence naming who came off the board, and on whose say-so."""
+    if not pulled:
+        return ""
+    who = ", ".join(f"{row['name']} ({row['flag']})" for row in pulled)
+    return f" Pulled as not playing — {who} (Sleeper's current flag)."
+
+
+def inject_predictions(html: str, adjusted: list[dict], pulled: list[dict] | None = None) -> str:
+    """Swap the curated PREDICTIONS const for the live-adjusted rows.
+
+    `pulled` is the sidelined half from `drop_sidelined`, and it is what
+    makes an EMPTY `adjusted` meaningful. Empty on its own still means the
+    curated parse found nothing, and leaves the page's own const alone.
+    Empty WITH a pull is a real measurement -- every lean on the slate is
+    hurt -- and has to reach the page, because the guard below would
+    otherwise serve the full curated table including the very men the
+    pull removed. Empty and legitimate is a different answer from empty
+    and unreadable, here as in the vault.
+    """
+    pulled = pulled or []
+    if not adjusted and not pulled:
         return html
     replacement = f"const PREDICTIONS = {json.dumps(adjusted)};"
     swapped, count = _PRED_BLOCK.subn(lambda _: replacement, html, count=1)
     if not count:
         return html
-    return swapped.replace(PRED_CAPTION, PRED_LIVE_CAPTION, 1)
+    return swapped.replace(PRED_CAPTION, PRED_LIVE_CAPTION + pulled_caption(pulled), 1)
 
 
 # --- the Week 1 schedule tab -----------------------------------------------
