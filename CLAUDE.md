@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1584 tests green — 1568 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1600 tests green — 1584 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -570,6 +570,21 @@ pull date on it; `scripts/verify_live.py` checks the ranking order, the
 provenance and the clause counts against the deployment. Beat-writer
 polling for line movement and weather is *not* built — the source list
 has to be measured from the runner first (docs/GAP_REVIEW.md).
+
+**FFBets looks at each game on its own** (owner, Sep 22: *"give the best
+senarios per game each week not just overall bets so we can look at each
+game indviually"*). Every ranked game in `game_stack` carries a
+`scenarios` block (`gamestack.scenarios`) — the same weekly forecast
+regrouped by bet: the game script the line implies (a written rule), the
+touchdown candidates with the forecast's expected TDs read as a Poisson
+chance, both passers, the rushing and receiving yardage leaders, and a
+stack on the side Vegas implies scores more with the opponent's
+bring-back. Anyone flagged out is left off every scenario. `mobile.js
+showGameBets` draws one card per game under the `data-fb-gamebets`
+anchor (`page.game_bets_anchor`, above the Predictions view's Vegas
+table) with a chip per matchup; the bands and the Poisson read are in
+docs/ASSUMPTIONS.md, and `verify_live.py` checks the anchor, the
+decorator and that no flagged-out man is offered as a TD bet.
 
 **Out & returning rows carry Sleeper's current flag** (Aug 29 —
 cut-down weekend made the Aug-14 curated statuses' age visible). The

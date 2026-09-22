@@ -411,3 +411,64 @@ def test_a_blob_reduced_before_the_full_line_is_refused_not_ranked():
     assert gamestack.build(_slate(), week, _index(), _stats(), [], LEAGUES, now=NOW) is None
     assert gamestack.weekly_stars(week, _index(), [], LEAGUES, now=NOW) is None
     assert gamestack.projected_top_by_team(_slate(), week, _index(), LEAGUES) == {}
+
+
+# --- per-game scenarios for the FFBets tab (owner, Sep 22) ------------------
+
+
+def _scen(game):
+    return next(g for g in _build()["games"] if g["game"] == game)["scenarios"]
+
+
+def test_each_game_carries_its_own_scenarios_from_its_own_players():
+    buf = _scen("MIA @ BUF")
+    teams = {p["team"] for p in buf["touchdowns"]} | {p["team"] for p in buf["passing"]}
+    assert teams <= {"MIA", "BUF"}
+    assert [p["name"] for p in buf["passing"]] == ["Josh Allen", "Tua Tagovailoa"]
+    assert buf["passing"][0] == {
+        "name": "Josh Allen",
+        "position": "QB",
+        "team": "BUF",
+        "yd": 280,
+        "td": 2.1,
+        "int": 0,
+    }
+    assert buf["receiving"]["name"] == "Tyreek Hill" and buf["receiving"]["rec"] == 6.5
+
+
+def test_a_player_flagged_out_is_not_offered_as_a_bet():
+    """James Cook is Out: projected for 0.5 rush TDs and 70 yards, which
+    would lead both lists -- and neither is a bet anyone can make."""
+    buf = _scen("MIA @ BUF")
+    named = [p["name"] for p in buf["touchdowns"]] + [buf["rushing"]["name"]]
+    assert "James Cook" not in named
+    assert buf["rushing"]["name"] == "Ray Davis"
+
+
+def test_td_candidates_rank_by_expected_tds_with_a_poisson_chance():
+    tds = _scen("MIA @ BUF")["touchdowns"]
+    assert [p["name"] for p in tds] == ["Tyreek Hill", "Josh Allen", "Ray Davis"]
+    assert tds[0]["chance"] == gamestack.td_chance(0.6) == 45
+    assert gamestack.td_chance(0) == 0
+
+
+def test_the_stack_is_built_on_the_side_vegas_expects_to_score_more():
+    stack = _scen("MIA @ BUF")["stack"]
+    assert stack["team"] == "BUF" and stack["qb"] == "Josh Allen"
+    assert stack["bring_back"] == "Tyreek Hill" and stack["bring_back_team"] == "MIA"
+    assert "26" in stack["why"]
+
+
+def test_no_pass_catcher_no_stack():
+    # WSH has a QB and no projected receiver; DAL has a receiver and no QB.
+    assert _scen("DAL @ WSH")["stack"] is None
+
+
+def test_the_script_read_follows_the_written_bands():
+    assert gamestack.script_read("KC -9.5", "44.5")[0].startswith("Lopsided: KC by 9.5")
+    assert gamestack.script_read("BUF -2.5", "")[0].startswith("Coin flip: BUF by 2.5")
+    assert gamestack.script_read("BUF -4", "")[0].startswith("Lean BUF by 4")
+    assert gamestack.script_read("", "49")[0].startswith("High total (49)")
+    assert gamestack.script_read("", "40.5")[0].startswith("Low total (40.5)")
+    assert gamestack.script_read("", "45") == []
+    assert gamestack.script_read("PK", "garbage") == []  # no usable line, no read

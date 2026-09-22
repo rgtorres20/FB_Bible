@@ -633,6 +633,9 @@ aside > div:nth-child(2) {
 .fb-gs-wire a:hover { text-decoration: underline; }
 .fb-gs-out { font-size: 11px; margin-top: 5px; color: var(--color-accent-700, inherit); font-weight: 600; }
 .fb-gs-ai { font-size: 11px; margin-top: 5px; color: var(--color-neutral-700, inherit); font-style: italic; }
+.fb-gb-card { padding: 12px 0; border-bottom: 1px solid var(--color-neutral-300, #ccc); }
+.fb-gb-line { font-size: 12px; margin-top: 5px; line-height: 1.45; text-wrap: pretty; }
+.fb-gb-line b { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-600, inherit); }
 .fb-gs-foot { font-size: 11px; color: var(--color-neutral-600, inherit); margin-top: 8px; max-width: 70ch; line-height: 1.5; }
 @media (max-width: 480px) {
   .fb-gs-row { grid-template-columns: 26px minmax(0, 1fr) 72px; }

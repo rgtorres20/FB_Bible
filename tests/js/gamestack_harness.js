@@ -7,7 +7,9 @@
 // what renders is what the server would have sent.
 //
 // Usage: node gamestack_harness.js <fixture.json>
-//   fixture.json = { hasAnchor: bool, feeds: {game_stack: ...} | {} }
+//   fixture.json = { hasAnchor: bool, feeds: {game_stack: ...} | {}, selector?: string }
+//   selector defaults to the schedule tab's '[data-fb-gamestack]'; the
+//   FFBets per-game panel passes '[data-fb-gamebets]'.
 
 'use strict';
 const fs = require('fs');
@@ -41,8 +43,9 @@ function el(tag) {
   };
 }
 
+const selector = fixture.selector || '[data-fb-gamestack]';
 const anchor = fixture.hasAnchor ? el('div') : null;
-if (anchor) anchor.setAttribute('data-fb-gamestack', '');
+if (anchor) anchor.setAttribute(selector.slice(1, -1), '');
 
 const document = {
   documentElement: { dataset: {} },
@@ -51,7 +54,7 @@ const document = {
   getElementById() { return null; },
   createElement: el,
   querySelector(sel) {
-    if (sel === '[data-fb-gamestack]') return anchor;
+    if (sel === selector) return anchor;
     if (sel === 'aside') return el('aside');
     return null;
   },

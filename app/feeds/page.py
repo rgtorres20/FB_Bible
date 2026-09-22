@@ -1236,6 +1236,32 @@ def game_stack_anchor(html: str) -> tuple[str, list[str]]:
     )
 
 
+# --- per-game scenarios on the FFBets tab (owner, Sep 22) -------------------
+#
+# "Give the best scenarios per game each week, not just overall bets, so we
+# can look at each game individually." The Predictions view listed props
+# across the whole slate; this opens a door directly above its Vegas lines
+# table for a game-by-game panel. The scenarios are server arithmetic over
+# the weekly forecast (`gamestack.scenarios`, shipped inside `game_stack`),
+# drawn by mobile.js -- the same door-only contract as the game stack.
+_VEGAS_HEADING = (
+    '<div style="margin-top:var(--space-7); display:flex; align-items:baseline; '
+    'gap:var(--space-4);">\n'
+    '            <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">'
+    "Vegas lines \u00b7 Week 1</div>"
+)
+_GAMEBETS_ANCHOR = '<div data-fb-gamebets style="margin:var(--space-7) 0 0;"></div>\n          '
+
+
+def game_bets_anchor(html: str) -> tuple[str, list[str]]:
+    """Insert the anchor mobile.js builds the per-game scenarios into."""
+    return _apply(
+        html,
+        (("game bets anchor", _VEGAS_HEADING, _GAMEBETS_ANCHOR + _VEGAS_HEADING, 1),),
+    )
+
+
 def dated_kickers_read_the_data(html: str) -> tuple[str, list[str]]:
     """Replace the two typed sync dates with what the data actually says.
 
@@ -1319,6 +1345,7 @@ PRE = (
     feeds_follow_the_wake,
     dated_kickers_read_the_data,
     game_stack_anchor,
+    game_bets_anchor,
     weekly_stars_anchor,
 )
 

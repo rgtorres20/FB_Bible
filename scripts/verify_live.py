@@ -252,6 +252,25 @@ def main() -> int:
         moved = sum(1 for g in stack.get("games") or [] if g.get("movement"))
         weather = sum(1 for g in stack.get("games") or [] if g.get("weather"))
         print(f"  INFO  line movement on {moved} games; weather forecast on {weather}")
+        # Per-game scenarios on FFBets (owner, Sep 22): every ranked game has
+        # projected players, so every one must carry its scenarios block --
+        # and nobody flagged out may be offered as a touchdown bet.
+        games = stack.get("games") or []
+        check(
+            "every ranked game carries its FFBets scenarios",
+            all(isinstance(g.get("scenarios"), dict) for g in games),
+            f"{sum(1 for g in games if g.get('scenarios'))} of {len(games)}",
+        )
+        out_flags = {"Out", "IR", "PUP", "Sus", "NA", "Doubtful", "DNR"}
+        offered_out = [
+            p["name"]
+            for g in games
+            for p in (g.get("scenarios") or {}).get("touchdowns") or []
+            if p.get("injury") in out_flags
+        ]
+        check("no flagged-out player is offered as a TD bet", not offered_out, str(offered_out))
+        stacks = sum(1 for g in games if (g.get("scenarios") or {}).get("stack"))
+        print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:
         print("  INFO  game stack absent (no weekly forecast stored yet, or no slate)")
     stars = page_data.get("weekly_stars")
@@ -1189,6 +1208,7 @@ def main() -> int:
     # ranked games and the weekly stars are wired to nothing live.
     check("the schedule tab carries the game-stack anchor", "data-fb-gamestack" in served)
     check("position analysis carries the weekly-stars anchor", "data-fb-weeklystars" in served)
+    check("FFBets carries the per-game scenarios anchor", "data-fb-gamebets" in served)
     # The Predictions clauses (owner, Sep 3). Counted, not asserted: a lean
     # with no wire this week or no line posted legitimately carries none.
     for label, needle in (
@@ -1440,6 +1460,10 @@ def main() -> int:
         b"showGameStack" in mobile_js and b"fb-gs-row" in mobile_js,
     )
     check("weekly-stars panel decorator serves", b"showWeeklyStars" in mobile_js)
+    check(
+        "FFBets per-game panel decorator serves",
+        b"showGameBets" in mobile_js and b"fb-gb-card" in mobile_js,
+    )
     check("the IDP tracker is linked from the analyzer", b"/app/idpweek" in mobile_js)
     # The deployed shell is the committed one. Sep 6: a fix to the served
     # page was merged and nothing here could say whether production was

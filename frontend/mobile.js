@@ -1024,6 +1024,115 @@
     }
   }
 
+  /* --- per-game scenarios on the FFBets tab (owner, Sep 22: "give the best
+   * scenarios per game each week not just overall bets so we can look at
+   * each game individually").
+   *
+   * The server regroups each game's projected lines by the bet a reader is
+   * weighing (app/feeds/gamestack.py `scenarios`, shipped inside
+   * `game_stack`); this draws one card per game, with a chip per matchup so
+   * a single game can be looked at on its own. Two reads are rules and say
+   * so: the script read off the line, and the Poisson TD chance. */
+  var betsGame = null;
+
+  function gbLine(label, text) {
+    var row = gsEl('div', 'fb-gb-line');
+    row.appendChild(gsEl('b', '', label + ' '));
+    row.appendChild(gsEl('span', '', text));
+    return row;
+  }
+
+  function gbCard(g) {
+    var sc = g.scenarios || {};
+    var card = gsEl('div', 'fb-gb-card');
+    card.appendChild(gsEl('div', 'fb-gs-game', g.away + ' @ ' + g.home));
+    var meta = [];
+    if (g.kickoff) meta.push(g.kickoff);
+    if (g.tv) meta.push(g.tv);
+    if (g.fav) meta.push(g.fav);
+    if (g.total) meta.push('O/U ' + g.total);
+    var imp = Object.keys(g.implied || {}).map(function (c) { return c + ' ' + g.implied[c]; });
+    if (imp.length) meta.push('implied ' + imp.join(' · '));
+    if (g.movement) meta.push(g.movement);
+    card.appendChild(gsEl('div', 'fb-gs-meta', meta.join(' · ') || 'No line posted yet'));
+    (sc.script || []).forEach(function (t) { card.appendChild(gbLine('Script (rule):', t)); });
+    if (sc.touchdowns && sc.touchdowns.length) {
+      card.appendChild(gbLine('Touchdown scorers:', sc.touchdowns.map(function (p) {
+        return p.name + ' (' + p.position + ' · ' + p.team + ') ' + p.tds + ' proj TDs ≈ ' + p.chance + '%' +
+          (p.injury ? ' [' + p.injury + ']' : '');
+      }).join(' · ')));
+    }
+    if (sc.passing && sc.passing.length) {
+      card.appendChild(gbLine('Passing:', sc.passing.map(function (p) {
+        return p.name + ' (' + p.team + ') ' + p.yd + ' yds · ' + p.td + ' TD' + (p.int ? ' · ' + p.int + ' INT' : '');
+      }).join(' · ')));
+    }
+    var yards = [];
+    if (sc.rushing) yards.push('rush ' + sc.rushing.name + ' (' + sc.rushing.team + ') ' + sc.rushing.yd + ' yds' +
+      (sc.rushing.rush_att ? ' on ' + sc.rushing.rush_att + ' carries' : ''));
+    if (sc.receiving) yards.push('rec ' + sc.receiving.name + ' (' + sc.receiving.team + ') ' + sc.receiving.yd + ' yds' +
+      (sc.receiving.rec ? ' on ' + sc.receiving.rec + ' catches' : ''));
+    if (yards.length) card.appendChild(gbLine('Yardage leaders:', yards.join(' · ')));
+    if (sc.stack) {
+      card.appendChild(gbLine('Stack:', sc.stack.qb + ' + ' + sc.stack.catchers.join(' + ') + ' (' + sc.stack.team + ')' +
+        (sc.stack.bring_back ? ' · bring-back ' + sc.stack.bring_back + ' (' + sc.stack.bring_back_team + ')' : '') +
+        ' — ' + sc.stack.why));
+    }
+    (g.out || []).forEach(function (v) {
+      card.appendChild(gsEl('div', 'fb-gs-out', 'Out on ' + v.team + ': ' + v.starter + ' (' + v.position + ', ' +
+        v.injury + ') → ' + v.next));
+    });
+    if (g.weather && g.weather.read) card.appendChild(gbLine('Weather (rule):', g.weather.summary + ' — ' + g.weather.read));
+    if (g.preview) card.appendChild(gsEl('div', 'fb-gs-ai', 'AI preview: ' + g.preview));
+    return card;
+  }
+
+  function showGameBets() {
+    var host = document.querySelector('[data-fb-gamebets]');
+    if (!host) return;
+    var stack = data && data.game_stack;
+    if (!stack || !stack.games || !stack.games.length) {
+      if (host.getAttribute('data-fb-sig') === 'empty') return;
+      host.setAttribute('data-fb-sig', 'empty');
+      host.textContent = '';
+      host.appendChild(gsEl('div', 'fb-gs-head', 'Game by game · best scenarios'));
+      host.appendChild(gsEl('div', 'fb-gs-note',
+        data ? 'No weekly forecast is stored yet. Each game’s scenarios appear once the sync has this ' +
+               'week’s Rotowire lines (via Sleeper) and a posted slate.'
+             : 'Waiting for the live feed.'));
+      return;
+    }
+    var pick = betsGame;
+    if (pick && !stack.games.some(function (g) { return g.game === pick; })) pick = null;
+    var sig = [stack.week, stack.as_of, stack.games.length, pick || 'ALL'].join('|');
+    if (host.getAttribute('data-fb-sig') === sig) return;
+    host.setAttribute('data-fb-sig', sig);
+    host.textContent = '';
+    host.appendChild(gsEl('div', 'fb-gs-head',
+      'Game by game · Wk ' + stack.week + ' best scenarios · ' + stack.source +
+      (stack.as_of ? ' · revised ' + stack.as_of : '')));
+    host.appendChild(gsEl('div', 'fb-gs-note',
+      'Each game’s projected lines grouped by bet: who scores, who throws, who piles up yards, and which ' +
+      'pair to stack. TD chance is the forecast’s expected TDs read as a Poisson chance of at least one; ' +
+      'script and weather reads are written rules. Players flagged out are left off.'));
+    var chips = gsEl('div', 'fb-gs-chips');
+    [{ game: null, label: 'All games' }].concat(stack.games.map(function (g) {
+      return { game: g.game, label: g.away + ' @ ' + g.home };
+    })).forEach(function (o) {
+      var c = gsEl('button', 'fb-gs-chip' + (o.game === pick ? ' on' : ''), o.label);
+      c.type = 'button';
+      c.onclick = function () { betsGame = o.game; host.setAttribute('data-fb-sig', ''); showGameBets(); };
+      chips.appendChild(c);
+    });
+    host.appendChild(chips);
+    stack.games.filter(function (g) { return !pick || g.game === pick; })
+      .forEach(function (g) { host.appendChild(gbCard(g)); });
+    if (stack.uncovered && stack.uncovered.length) {
+      host.appendChild(gsEl('div', 'fb-gs-foot',
+        'No projected player on either side yet, so no scenarios: ' + stack.uncovered.join(', ') + '.'));
+    }
+  }
+
   /* --- weekly stars: the week's projected leaders by position (owner, Sep 3:
    * "players with best value for the week -- this helps drive who I play").
    * Same contract as the game stack: the server computes, this draws, the
@@ -1121,6 +1230,7 @@
     showRankSources();
     showSleepers();
     showGameStack();
+    showGameBets();
     showWeeklyStars();
     if (!data) return;
     badgeNews();

@@ -659,3 +659,40 @@ numbers that had to be picked rather than measured.
 the code it governs; the watchdog prints the counts (games ranked, with
 scorers, uncovered; movement and weather coverage; clauses per lean) so
 a wrong number shows up as a wrong count in the log, not as silence.
+
+## The FFBets per-game scenarios (Sep 22)
+
+**Owner ask:** *"give the best scenarios per game each week not just
+overall bets so we can look at each game individually."* Each ranked
+game in `game_stack` now carries a `scenarios` block
+(`gamestack.scenarios`) drawn on the FFBets Predictions view, one card
+per game with a chip to look at a single game. It is the same weekly
+forecast regrouped by bet; these are the numbers chosen rather than
+measured:
+
+- **Script read bands** (`LOPSIDED_SPREAD = 7`, `CLOSE_SPREAD = 3`,
+  `HIGH_TOTAL = 48`, `LOW_TOTAL = 41`). A touchdown-plus spread is where
+  a blowout script is the base case; three is a field goal, so a coin
+  flip. The totals bracket roughly the top and bottom fifth of a typical
+  NFL slate. Labelled "(rule)" wherever it renders. If the owner reads
+  the market differently, move the constants; nothing else depends on
+  them.
+- **TD chance is Poisson on the forecast's expected TDs** —
+  `1 − e^(−(rush_td + rec_td))`. It assumes touchdowns arrive
+  independently, which slightly overstates the chance for a player whose
+  expected count is inflated by one big-play role. It is a translation
+  of the forecaster's number into the question a TD bet asks, not a
+  second opinion, and the note under the panel says so. Quarterbacks
+  appear there only for projected *rushing* TDs; their passing TDs are
+  the "Passing" line.
+- **`TD_CANDIDATES = 4` per game**, two passers, one rushing and one
+  receiving yardage leader — enough to read the game on a phone.
+- **The stack is built on the side Vegas implies scores more**, QB plus
+  his top two projected pass-catchers (receiving work valued the way the
+  1-per-catch, 20-yds/pt leagues value it), bring-back the opponent's
+  top pass-catcher. No line posted: the away side leads, and the reason
+  says it is just the QB and his top targets.
+- **Anyone flagged in `players.OUT_FLAGS` is left off every scenario**
+  (Doubtful included). A projection for a man who will not play is not a
+  bet; the card's "Out on" line still names him and the teammate his
+  work falls to.
