@@ -35,11 +35,14 @@ docs/ASSUMPTIONS.md.
 
 from __future__ import annotations
 
+import math
+import re
 from datetime import UTC, datetime, timedelta
 
 from .. import leagues as leagues_mod
 from . import depth, projections, vegas
 from .clock import format_time
+from .players import OUT_FLAGS
 
 # ESPN's slate names Washington WSH; Sleeper's index -- and every projection
 # row, which joins by Sleeper id -- says WAS. The one divergence between the
@@ -222,6 +225,165 @@ def vacancies(
     return out
 
 
+# --- per-game scenarios for the FFBets tab (owner, Sep 22) -------------------
+#
+# "Give the best scenarios per game each week, not just overall bets, so we
+# can look at each game individually." Everything below reads the same
+# forecast and slate the stack already joined -- one game's projected lines
+# regrouped as the questions a bettor asks of that game: who scores, who
+# throws for how much, who piles up yards, which pair to stack. Two reads
+# are rules, not measurements, and say so where they render: the game-script
+# read off the spread and total, and the Poisson chance of a touchdown
+# (docs/ASSUMPTIONS.md has both, with what changes if they are wrong).
+
+# Spread and total bands for the script read (docs/ASSUMPTIONS.md).
+LOPSIDED_SPREAD = 7.0
+CLOSE_SPREAD = 3.0
+HIGH_TOTAL = 48.0
+LOW_TOTAL = 41.0
+
+# How many touchdown candidates a game card names.
+TD_CANDIDATES = 4
+
+_FAV = re.compile(r"^([A-Z]{2,4})\s+-(\d+(?:\.\d+)?)$")
+
+
+def script_read(fav: str, total: str) -> list[str]:
+    """The game script the line implies, as written rules -- never a model.
+
+    Empty when the slate carries no usable line: no line, no read."""
+    out: list[str] = []
+    m = _FAV.match((fav or "").strip())
+    if m:
+        team, spread = m.group(1), float(m.group(2))
+        if spread >= LOPSIDED_SPREAD:
+            out.append(
+                f"Lopsided: {team} by {spread:g} — {team} leans on the run once ahead; "
+                "the underdog throws to chase, so its pass-catchers get late volume"
+            )
+        elif spread <= CLOSE_SPREAD:
+            out.append(
+                f"Coin flip: {team} by {spread:g} — neither side should abandon its "
+                "game plan, so both passing games stay live to the end"
+            )
+        else:
+            out.append(
+                f"Lean {team} by {spread:g} — the favorite projects the more scoring drives, "
+                "so its backfield sees the likelier goal-line work"
+            )
+    try:
+        t = float(total)
+    except (TypeError, ValueError):
+        t = None
+    if t is not None:
+        if t >= HIGH_TOTAL:
+            out.append(f"High total ({t:g}): shootout scenario — stack the passing games")
+        elif t <= LOW_TOTAL:
+            out.append(
+                f"Low total ({t:g}): points are scarce — prefer volume (catches, carries) "
+                "over touchdown-dependent plays"
+            )
+    return out
+
+
+def td_chance(expected: float) -> int:
+    """P(at least one TD) from the forecast's expected TDs, by Poisson."""
+    return round(100 * (1 - math.exp(-max(expected, 0.0))))
+
+
+def _catcher_score(line: dict) -> float:
+    """A pass-catcher's projected receiving work, as the 20-yds/pt,
+    1-per-catch leagues value it -- the pair a stack is built around."""
+    return line.get("rec", 0) + line.get("rec_yd", 0) / 20 + 6 * line.get("rec_td", 0)
+
+
+def scenarios(codes: tuple[str, str], by_side: dict[str, list[dict]], game: dict) -> dict:
+    """One game's projected lines regrouped by the bet a reader is weighing."""
+    # A man flagged out is not a bet; the card's "Out on" line already
+    # names him and the teammate his work falls to.
+    by_side = {
+        code: [p for p in by_side.get(code, []) if p["injury"] not in OUT_FLAGS] for code in codes
+    }
+    everyone = [p for code in codes for p in by_side[code]]
+
+    def named(p: dict) -> dict:
+        return {"name": p["name"], "position": p["position"], "team": p["team"]}
+
+    tds = sorted(
+        (
+            (p, p["line"].get("rush_td", 0) + p["line"].get("rec_td", 0))
+            for p in everyone
+            if p["position"] != "QB" or p["line"].get("rush_td", 0) > 0
+        ),
+        key=lambda pair: -pair[1],
+    )
+    touchdowns = [
+        {**named(p), "tds": round(x, 2), "chance": td_chance(x), "injury": p["injury"]}
+        for p, x in tds[:TD_CANDIDATES]
+        if x > 0
+    ]
+    passing = [
+        {
+            **named(p),
+            "yd": round(p["line"].get("pass_yd", 0)),
+            "td": round(p["line"].get("pass_td", 0), 1),
+            "int": round(p["line"].get("pass_int", 0), 1),
+        }
+        for p in sorted(everyone, key=lambda p: -p["line"].get("pass_yd", 0))
+        if p["position"] == "QB" and p["line"].get("pass_yd", 0) > 0
+    ][:2]
+
+    def leader(field: str, extra: str | None = None) -> dict | None:
+        pool = [p for p in everyone if p["line"].get(field, 0) > 0]
+        if not pool:
+            return None
+        p = max(pool, key=lambda p: p["line"].get(field, 0))
+        row = {**named(p), "yd": round(p["line"][field])}
+        if extra:
+            row[extra] = round(p["line"].get(extra, 0), 1)
+        return row
+
+    stack = None
+    sides = {}
+    for code in codes:
+        rows = by_side.get(code, [])
+        qbs = [p for p in rows if p["position"] == "QB"]
+        catchers = sorted(
+            (p for p in rows if p["position"] != "QB" and p["line"].get("rec", 0) > 0),
+            key=lambda p: -_catcher_score(p["line"]),
+        )
+        sides[code] = (
+            max(qbs, key=lambda p: p["line"].get("pass_yd", 0)) if qbs else None,
+            catchers,
+        )
+    implied = game.get("implied") or {}
+    order = sorted(codes, key=lambda c: -(implied.get(c) or 0))
+    primary, other = order[0], order[1]
+    qb, catchers = sides[primary]
+    if qb and catchers:
+        bring = sides[other][1]
+        stack = {
+            "team": primary,
+            "qb": qb["name"],
+            "catchers": [c["name"] for c in catchers[:2]],
+            "bring_back": bring[0]["name"] if bring else "",
+            "bring_back_team": other,
+            "why": (
+                f"{primary} carries the higher implied total ({implied[primary]:g})"
+                if implied.get(primary) is not None
+                else f"{primary} QB and his top projected targets"
+            ),
+        }
+    return {
+        "script": script_read(game.get("fav") or "", game.get("total") or ""),
+        "touchdowns": touchdowns,
+        "passing": passing,
+        "rushing": leader("rush_yd", "rush_att"),
+        "receiving": leader("rec_yd", "rec"),
+        "stack": stack,
+    }
+
+
 def build(
     vegas_state: dict | None,
     week_proj_state: dict | None,
@@ -257,8 +419,10 @@ def build(
         away, home = codes
         players: list[dict] = []
         sides: dict[str, dict] = {}
+        by_side: dict[str, list[dict]] = {}
         for code in codes:
             rows = by_team.get(_index_code(code), [])
+            by_side[code] = [{**r, "team": code} for r in rows]
             scored = [{**r, "points": _points(r["line"], leagues)} for r in rows]
             sides[code] = {
                 "points": {
@@ -315,6 +479,9 @@ def build(
                 ],
                 "out": game_out,
                 "preview": previews.get(f"{away_name} @ {home_name}", ""),
+                "scenarios": scenarios(
+                    codes, by_side, {**game, "implied": {c: implied.get(c) for c in codes}}
+                ),
             }
         )
     ranked.sort(key=lambda g: -g["points"][default]["total"])
