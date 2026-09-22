@@ -495,7 +495,7 @@ def apply_forecasts(preds: list[dict], forecasts: dict[str, str] | None) -> list
     return out
 
 
-def inject_predictions(html: str, adjusted: list[dict]) -> str:
+def inject_predictions(html: str, adjusted: list[dict], caption: str = PRED_LIVE_CAPTION) -> str:
     """Swap the curated PREDICTIONS const for the live-adjusted rows."""
     if not adjusted:
         return html
@@ -503,7 +503,77 @@ def inject_predictions(html: str, adjusted: list[dict]) -> str:
     swapped, count = _PRED_BLOCK.subn(lambda _: replacement, html, count=1)
     if not count:
         return html
-    return swapped.replace(PRED_CAPTION, PRED_LIVE_CAPTION, 1)
+    return swapped.replace(PRED_CAPTION, caption, 1)
+
+
+def picks_caption(week: int) -> str:
+    """The Predictions caption once the rows are the week's forecast picks
+    rather than the owner's Week 1 leans -- it says whose number it is and
+    that the line is the standard prop, not a posted book."""
+    return (
+        f"Week {week} touchdown picks — Rotowire's forecast (via Sleeper) against the "
+        "standard prop line (1.5 passing, 0.5 rushing/receiving); lean and confidence are "
+        "the Poisson chance of clearing it, not a posted book. Players flagged out are left off."
+    )
+
+
+# --- which week the slate is (Sep 22) ---------------------------------------
+#
+# Owner, Sep 22: "i still see week 1 no updates". The slate itself had
+# followed ESPN's current week since Aug 24, but three things around it were
+# typed as Week 1 -- the Vegas heading, the schedule heading, and the week
+# the forecast was fetched for. They all read this one parse now.
+
+
+def slate_week(state: dict | None) -> int | None:
+    """The regular-season week the stored slate describes, or None
+    (preseason, no slate, or a label with no number)."""
+    label = str((state or {}).get("week_label") or "").strip()
+    if not label or "pre" in label.lower():
+        return None
+    digits = "".join(ch for ch in label if ch.isdigit())
+    return int(digits) if digits else None
+
+
+_VEGAS_HEADING = "Vegas lines \u00b7 Week 1</div>"
+_SCHED_HEADING = "Week 1 \u00b7 Sep 9\u201314 \u00b7 confirmed slate</div>"
+
+
+def _date_span(state: dict) -> str:
+    """'Sep 24–28' / 'Sep 30–Oct 4' from the slate's kickoffs, Central."""
+    days = []
+    for game in state.get("games") or []:
+        try:
+            when = datetime.fromisoformat((game.get("kickoff") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        days.append(when.astimezone(CENTRAL).date())
+    if not days:
+        return ""
+    first, last = min(days), max(days)
+    if first == last:
+        return f"{first:%b} {first.day}"
+    if first.month == last.month:
+        return f"{first:%b} {first.day}\u2013{last.day}"
+    return f"{first:%b} {first.day}\u2013{last:%b} {last.day}"
+
+
+def relabel_week(html: str, state: dict | None) -> str:
+    """Replace the two typed "Week 1" headings with the slate's own week.
+
+    Leaves the page untouched when the slate is preseason or unlabelled --
+    Week 1 is then still the week everybody is preparing for."""
+    week = slate_week(state)
+    if week is None:
+        return html
+    html = html.replace(_VEGAS_HEADING, f"Vegas lines \u00b7 Week {week}</div>", 1)
+    span = _date_span(state or {})
+    sched = (
+        f"Week {week} \u00b7 {span} \u00b7 confirmed slate</div>"
+        if span
+        else (f"Week {week} \u00b7 confirmed slate</div>")
+    )
+    return html.replace(_SCHED_HEADING, sched, 1)
 
 
 # --- the Week 1 schedule tab -----------------------------------------------

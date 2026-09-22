@@ -70,6 +70,17 @@ def _points(line: dict, leagues: list[leagues_mod.League]) -> dict[str, float]:
     return {lg.key: lg.score_offense(line) for lg in leagues}
 
 
+def forecast_matches_slate(vegas_state: dict | None, week_proj_state: dict | None) -> bool:
+    """Whether the stored forecast is for the week the slate shows.
+
+    Until Sep 22 the forecast was fetched for Week 1 only, so from Week 2
+    on every panel joined Week 1 projections onto this week's games by
+    team -- a real number about the wrong game. A preseason or unlabelled
+    slate has no week to disagree with."""
+    week = vegas.slate_week(vegas_state)
+    return week is None or (week_proj_state or {}).get("week") == week
+
+
 def team_lines(week_proj_state: dict | None, index: dict | None) -> dict[str, list[dict]]:
     """{index team code: projected skill players on it}, each carrying the
     stat line the scorer reads and Sleeper's current injury flag."""
@@ -399,6 +410,8 @@ def build(
     games = (vegas_state or {}).get("games") or []
     if not games or not leagues:
         return None
+    if not forecast_matches_slate(vegas_state, week_proj_state):
+        return None
     by_team = team_lines(week_proj_state, index)
     if not by_team:
         return None
@@ -435,7 +448,10 @@ def build(
         if not players:
             uncovered.append(game.get("game") or "")
             continue
-        top = sorted(players, key=lambda p: -p["points"][default])[:TOP_N]
+        # A man flagged out is named on the "Out on" line with the teammate
+        # his work falls to -- not listed as one of the game's top scorers.
+        healthy = [p for p in players if p["injury"] not in OUT_FLAGS]
+        top = sorted(healthy, key=lambda p: -p["points"][default])[:TOP_N]
         game_out = []
         for code in codes:
             for v in outs.get(_index_code(code), []):
@@ -587,6 +603,8 @@ def weekly_stars(
         p = players.get(pid)
         if not p or p.get("dst") or not line:
             continue
+        if (p.get("injury_status") or "").strip() in OUT_FLAGS:
+            continue  # a start/sit list has no use for a man who will not play
         idp = p.get("idp")
         position = idp or (p.get("position") or "").upper()
         if position not in (*SKILL_POSITIONS, *IDP_GROUPS):
@@ -638,6 +656,90 @@ def weekly_stars(
             "assisted) beside them. A dash means that league cannot start him."
         ),
     }
+
+
+# --- the week's touchdown picks, once Week 1's leans are history (Sep 22) ----
+#
+# The Predictions rows were the owner's Week 1 leans, typed Aug 14. From
+# Week 2 on they were leans about games already played, with a live clause
+# or two appended. After Week 1 the tab shows this week's picks instead:
+# the forecast's expected TDs against the standard prop line, read as a
+# Poisson chance of clearing it. Arithmetic with its source on it, never a
+# lean the owner did not make (docs/ASSUMPTIONS.md).
+
+PICK_PROPS = (
+    ("Passing TDs", ("QB",), "pass_td", 1.5),
+    ("Rushing TDs", ("RB", "QB"), "rush_td", 0.5),
+    ("Receiving TDs", ("WR", "TE", "RB"), "rec_td", 0.5),
+)
+PICKS_PER_PROP = 4
+
+
+def clear_chance(expected: float, line: float) -> int:
+    """P(X > line) for Poisson X with mean `expected`, as a percent."""
+    lam = max(expected, 0.0)
+    need = math.floor(line) + 1
+    term, below = math.exp(-lam), 0.0
+    for k in range(need):
+        below += term
+        term *= lam / (k + 1)
+    return round(100 * (1 - below))
+
+
+def td_picks(
+    vegas_state: dict | None,
+    week_proj_state: dict | None,
+    index: dict | None,
+) -> list[dict]:
+    """PREDICTIONS-shaped rows for the slate's week, or [] in Week 1 (the
+    owner's leans' week) and whenever the forecast is not for the slate's
+    week (the page then keeps what it has)."""
+    week = vegas.slate_week(vegas_state)
+    if week is None or week <= projections.PRED_WEEK:
+        return []  # Week 1 is the owner's leans' week; they stand
+    if (week_proj_state or {}).get("week") != week:
+        return []
+    by_team = team_lines(week_proj_state, index)
+    if not by_team:
+        return []
+    on_slate = set()
+    for game in (vegas_state or {}).get("games") or []:
+        for code in vegas.matchup_teams(game.get("game")) or ():
+            on_slate.add(_index_code(code))
+    page_code = {v: k for k, v in SLATE_TO_INDEX.items()}
+    label = projections.source_label(week_proj_state)
+    rows: list[dict] = []
+    for prop, positions, field, line in PICK_PROPS:
+        pool = []
+        for team, players_on in by_team.items():
+            if team not in on_slate:
+                continue  # on bye, or not on this slate
+            for p in players_on:
+                if p["position"] not in positions or p["injury"] in OUT_FLAGS:
+                    continue
+                expected = p["line"].get(field, 0) or 0
+                if expected <= 0:
+                    continue
+                pool.append((clear_chance(expected, line), expected, p, team))
+        pool.sort(key=lambda row: (-row[0], -row[1]))
+        for chance, expected, p, team in pool[:PICKS_PER_PROP]:
+            over = chance >= 50
+            code = page_code.get(team, team)
+            rows.append(
+                {
+                    "name": p["name"],
+                    "meta": f"{p['position']} \u00b7 {code}",
+                    "prop": prop,
+                    "line": f"{line:g}",
+                    "lean": "OVER" if over else "UNDER",
+                    "conf": chance if over else 100 - chance,
+                    "why": (
+                        f"{label} projects {expected:.2f} {prop.lower()} in Wk {week} "
+                        f"\u2192 \u2248{chance}% to clear {line:g} (Poisson)."
+                    ),
+                }
+            )
+    return rows
 
 
 # --- clauses for the Predictions (FFBets) rows -------------------------------

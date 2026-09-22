@@ -466,16 +466,54 @@ that has none; the honest cheap answer is one well-labelled market
 number. **If it is wrong:** one constant, and the read on every row says
 whose scoring it is.
 
-## The TD-lean forecast is pinned to Week 1
+## The weekly forecast follows the slate's week (was: pinned to Week 1)
 
-**Chosen Aug 27, derived from the tab rather than the calendar.**
-`projections.PRED_WEEK = 1` because the Predictions rows are Week 1
-props — the caption says so, and the ledger snapshots them against
-regular-season weeks only. Fetching "the current week" instead would
-serve preseason numbers as evidence for a Week 1 line. **If it is
-wrong** — the owner starts writing leans for later weeks — the constant
-moves to whatever names the predictions' week, and the clause's own "Wk
-1" label is what makes the mismatch visible in the meantime.
+**Chosen Aug 27, reversed Sep 22** (owner: *"i still see week 1 no
+updates"*, then *"also is giving me people that are injured"*).
+`projections.PRED_WEEK = 1` pinned the weekly fetch to Week 1 because the
+Predictions rows were Week 1 props. From Week 2 on that joined Week 1
+projections onto this week's games by team — the game stack, the weekly
+stars, the IDP tracker and the per-game scenarios all read numbers about
+games already played, and a man hurt since Week 1 still carried a healthy
+Week 1 line, which is how injured players kept appearing as top scorers.
+
+Now the sync fetches the week the Vegas slate shows (`vegas.slate_week`,
+the one parse of ESPN's `week_label`); preseason keeps Week 1. A stored
+forecast for any other week is stale whatever its age
+(`projections.week_stale(..., week)`), and `gamestack.build` refuses to
+join a forecast to a slate of a different week — an empty panel rather
+than last week's numbers. `PRED_WEEK` now only names the owner's leans'
+week. **If this is wrong** — the owner writes leans for later weeks —
+the Predictions rows need a week of their own, not this constant.
+
+## Past Week 1 the Predictions rows are the week's forecast picks (Sep 22)
+
+The owner's Aug 14 leans are about Week 1. After it, the tab shows the
+slate week's touchdown picks (`gamestack.td_picks`) under a caption that
+says whose number it is. Chosen, not measured:
+
+- **The line is the standard prop line** — 1.5 passing TDs, 0.5 rushing
+  and receiving — not a posted book; no open source carries player prop
+  lines. The caption says so.
+- **Lean and confidence are the Poisson chance of clearing that line**
+  from Rotowire's expected TDs (`clear_chance`). OVER at 50% or more, and
+  confidence is the chance on the side of the lean. Same independence
+  assumption as the per-game TD chance below.
+- **Four picks per prop** (`PICKS_PER_PROP`), best chance first:
+  quarterbacks for passing, RBs and QBs for rushing, WR/TE/RB for
+  receiving. Teams not on the slate (byes) are skipped.
+- **Anyone in `players.OUT_FLAGS` is left off** (Doubtful included).
+  Questionable players stay — most of them play — and the Sleeper flag
+  clause beside the row says so.
+- **The prediction ledger records these picks for their week.** Until
+  Sep 22 it re-recorded the Week 1 leans under every later week, grading
+  Aug 14 calls against games they were never about. Those Week 2+ entries
+  are already in the immutable ledger; removing them is the owner's call
+  (docs/GAP_REVIEW.md).
+
+The top-scorer lists (the game stack's `top`, the weekly stars) also
+leave out anyone in `OUT_FLAGS`; the game card's "Out on" line still names
+him and the teammate his work falls to.
 
 ## The community sleeper consensus is chosen numbers all the way down
 

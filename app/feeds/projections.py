@@ -300,9 +300,12 @@ def week_has_full_line(state: dict | None) -> bool:
     return (state or {}).get("v") == WEEK_REDUCE_VERSION
 
 
-def week_stale(state: dict | None, now: datetime) -> bool:
+def week_stale(state: dict | None, now: datetime, week: int | None = None) -> bool:
     """Same daily budget as the season forecast, same reasoning -- and a
-    blob reduced under an older vocabulary is stale whatever its age."""
+    blob reduced under an older vocabulary, or for a different week than
+    the slate now shows, is stale whatever its age."""
+    if week is not None and (state or {}).get("week") != week:
+        return True
     return not week_has_full_line(state) or stale(state, now)
 
 
