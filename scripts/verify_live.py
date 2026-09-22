@@ -1209,6 +1209,25 @@ def main() -> int:
     check("the schedule tab carries the game-stack anchor", "data-fb-gamestack" in served)
     check("position analysis carries the weekly-stars anchor", "data-fb-weeklystars" in served)
     check("FFBets carries the per-game scenarios anchor", "data-fb-gamebets" in served)
+    # The typed "Week 1" (owner, Sep 22: "i still see week 1 no updates").
+    # The Vegas heading now reads the slate's week; past Week 1 the
+    # Predictions rows must be that week's picks, not the Aug 14 leans, and
+    # the game panels must read a forecast for the same week as the slate.
+    heading = re.search(r"Vegas lines \u00b7 Week (\d+)</div>", served)
+    slate_wk = int(heading.group(1)) if heading else None
+    print(f"  INFO  FFBets heading week: {slate_wk}")
+    if slate_wk and slate_wk > 1:
+        check(
+            "past Week 1, Predictions are the week's picks, not the Week 1 leans",
+            f"Week {slate_wk} touchdown picks" in served
+            and "Week 1 touchdown predictions" not in served,
+        )
+        if stack:
+            check(
+                "the game panels read the slate's week of forecast",
+                stack.get("week") == slate_wk,
+                f"forecast Wk {stack.get('week')} vs slate Wk {slate_wk}",
+            )
     # The Predictions clauses (owner, Sep 3). Counted, not asserted: a lean
     # with no wire this week or no line posted legitimately carries none.
     for label, needle in (

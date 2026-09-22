@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1600 tests green — 1584 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1611 tests green — 1595 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -585,6 +585,20 @@ anchor (`page.game_bets_anchor`, above the Predictions view's Vegas
 table) with a chip per matchup; the bands and the Poisson read are in
 docs/ASSUMPTIONS.md, and `verify_live.py` checks the anchor, the
 decorator and that no flagged-out man is offered as a TD bet.
+
+**FFBets follows the live week** (owner, Sep 22: *"i still see week 1 no
+updates"*, *"also is giving me people that are injured"*). The weekly
+forecast was pinned to Week 1, so from Week 2 on every game panel joined
+Week 1 projections onto this week's games — and a man hurt since Week 1
+still carried a healthy line. The sync now fetches the week the slate
+shows (`vegas.slate_week`), `gamestack.build` refuses a forecast for any
+other week, past Week 1 the Predictions rows are that week's forecast
+picks (`gamestack.td_picks`, standard prop line, Poisson chance) instead
+of the Aug 14 leans, `vegas.relabel_week` rewrites the two typed "Week 1"
+headings, the ledger records the picks for their own week, and anyone in
+`players.OUT_FLAGS` is left off the picks, the top scorers and the weekly
+stars. The ledger's Week 2–3 copies of the Week 1 leans are left for the
+owner to decide on (docs/GAP_REVIEW.md).
 
 **Out & returning rows carry Sleeper's current flag** (Aug 29 —
 cut-down weekend made the Aug-14 curated statuses' age visible). The

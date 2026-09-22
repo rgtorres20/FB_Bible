@@ -1057,12 +1057,15 @@ async def sync(
             # forecast is a better column than no column.
             log.warning("projections: fetch returned nothing, keeping previous state")
 
-    # Week 1 forecasts for the TD-prop leans (the FFBets tab's remaining
-    # honest win, docs/STALE_DATA.md #7). Same daily budget and same
+    # The weekly forecast, for the week the Vegas slate shows (Sep 22 --
+    # pinned to Week 1 until then, so from Week 2 on every game panel read
+    # Week 1 numbers beside this week's games). Preseason keeps Week 1, the
+    # week everyone is preparing for. Same daily budget and same
     # keep-on-failure rule as the season forecast above.
     wkproj_state = existing.get("week_projections") or {}
-    if projections.week_stale(wkproj_state, datetime.now(UTC)):
-        raw = await projections.fetch_week()
+    forecast_week = vegas.slate_week(vegas_state) or projections.PRED_WEEK
+    if projections.week_stale(wkproj_state, datetime.now(UTC), forecast_week):
+        raw = await projections.fetch_week(forecast_week)
         if raw:
             wkproj_state = projections.reduce_week(raw)
             log.info(
@@ -1121,16 +1124,24 @@ async def sync(
     if week is not None:
         try:
             ledger = await store.load_scorecard()
+            # Record what the tab actually shows for the week it shows it:
+            # the owner's leans in Week 1, the forecast picks after. Until
+            # Sep 22 the Week 1 leans were recorded again under every later
+            # week, grading Aug 14 calls against games they were never about.
+            if week <= projections.PRED_WEEK:
+                shown, shown_week = (
+                    vegas.adjust_predictions(
+                        vegas.curated_predictions(),
+                        vegas.curated_implied(),
+                        vegas.implied_by_team((vegas_state or {}).get("games") or []),
+                    ),
+                    week,
+                )
+            else:
+                shown = gamestack.td_picks(vegas_state, wkproj_state, await store.load_players())
+                shown_week = vegas.slate_week(vegas_state) or week
             ledger, ledger_recorded = scorecard.record(
-                ledger,
-                vegas.adjust_predictions(
-                    vegas.curated_predictions(),
-                    vegas.curated_implied(),
-                    vegas.implied_by_team((vegas_state or {}).get("games") or []),
-                ),
-                scorecard.SEASON,
-                week,
-                polled["polled_at"],
+                ledger, shown, scorecard.SEASON, shown_week, polled["polled_at"]
             )
             box = await stats.fetch_week(scorecard.SEASON, week)
             if box:

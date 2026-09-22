@@ -499,6 +499,22 @@ one alone would have hidden the others.
   OpenAI-compatible endpoint. Shipped; waiting only on the
   `GEMINI_API_KEY` secret. See STALE_DATA.md.
 
+## Found Sep 22 — FFBets stuck on Week 1
+
+Owner: *"i still see week 1 no updates"* and *"also is giving me people
+that are injured"*. The slate followed the real week; the weekly
+forecast, the Predictions rows and two headings did not, so every game
+panel from Week 2 on read Week 1 projections — including healthy lines
+for men hurt since. Fixed: the forecast is fetched for the slate's week,
+panels refuse a forecast for a different week, the rows become that
+week's forecast picks, the headings read the slate, and flagged-out men
+are left off every list (docs/ASSUMPTIONS.md has the chosen numbers).
+
+**Left for the owner:** the prediction ledger re-recorded the Week 1
+leans under Weeks 2 and 3 before this fix, so `/app/scorecard` may be
+grading Aug 14 calls against later games. The ledger is immutable by
+design, so those entries were not deleted — say the word and they go.
+
 ## Found Sep 6 — fixed, and the watchdog could not have seen it
 
 **Every signed-in reader saw the Aug-14 seeds from Aug 26 to Sep 6.**

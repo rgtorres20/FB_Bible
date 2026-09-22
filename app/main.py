@@ -319,6 +319,12 @@ if _FRONTEND_READY:
                 games = state.get("games") or []
                 if games:
                     html = vegas.refresh_caption(html, state)
+                    # After Week 1 the owner's Aug 14 leans are about games
+                    # already played (owner, Sep 22: "i still see week 1 no
+                    # updates"): the rows become the slate week's forecast
+                    # picks, and the caption says whose number they are.
+                    picks = gamestack.td_picks(state, stored.get("week_projections"), index)
+                    pred_caption = vegas.PRED_LIVE_CAPTION
                     adjusted = vegas.adjust_predictions(
                         vegas.curated_predictions(),
                         vegas.curated_implied(),
@@ -337,6 +343,9 @@ if _FRONTEND_READY:
                             scorecard.name_index(index),
                         ),
                     )
+                    if picks:
+                        adjusted = picks
+                        pred_caption = vegas.picks_caption(vegas.slate_week(state))
                     # The Predictions tab's "more active" half (owner, Sep 3):
                     # the newest wire item tagging the man and Sleeper's
                     # current flag, then the line beside Rotowire's projected
@@ -369,7 +378,8 @@ if _FRONTEND_READY:
                             ),
                         ),
                     )
-                    html = vegas.inject_predictions(html, adjusted)
+                    html = vegas.inject_predictions(html, adjusted, pred_caption)
+                    html = vegas.relabel_week(html, state)
                     html = vegas.inject_schedule(
                         html,
                         vegas.schedule_rows(
