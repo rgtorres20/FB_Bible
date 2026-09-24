@@ -44,6 +44,11 @@ _AUTH_KEY = "fbbible:auth"
 # depend on being remembered there. Losing it would not just drop data
 # -- it would silently reset the accuracy history to "no evidence".
 _SCORECARD_KEY = "fbbible:scorecard"
+# Box-score game logs (app/feeds/gamelogs.py): its own key because it is
+# several hundred KB and grows all season, and because the sync rebuilds
+# the feeds blob wholesale -- a log that rode inside it would be one
+# omitted key away from being wiped (the verdict-wipe class).
+_GAMELOGS_KEY = "fbbible:gamelogs"
 
 
 class StoredDataUnreadable(RuntimeError):
@@ -210,6 +215,10 @@ class FeedStore(Protocol):
 
     async def save_scorecard(self, payload: dict) -> None: ...
 
+    async def load_gamelogs(self) -> dict: ...
+
+    async def save_gamelogs(self, payload: dict) -> None: ...
+
     async def load_user(self, email: str) -> dict: ...
 
     async def save_user(self, email: str, payload: dict) -> None: ...
@@ -288,6 +297,24 @@ class FileFeedStore:
         tmp = self._scorecard_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         tmp.replace(self._scorecard_path)
+
+    @property
+    def _gamelogs_path(self) -> Path:
+        return self._path.with_name("gamelogs.json")
+
+    async def load_gamelogs(self) -> dict:
+        if not self._gamelogs_path.exists():
+            return {}
+        try:
+            return json.loads(self._gamelogs_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    async def save_gamelogs(self, payload: dict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._gamelogs_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(self._gamelogs_path)
 
     async def load_auth(self) -> dict:
         # An OSError still reads as {} -- a file that is not there is a
@@ -402,6 +429,20 @@ class RedisFeedStore:
         # Own key, no TTL. The ledger only grows and is the evidence the
         # accuracy page reads; a TTL would quietly delete the record.
         await self._redis.set(_SCORECARD_KEY, json.dumps(payload))
+
+    async def load_gamelogs(self) -> dict:
+        raw = await self._redis.get(_GAMELOGS_KEY)
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    async def save_gamelogs(self, payload: dict) -> None:
+        # Own key, no TTL: public box scores, not Yahoo data, and a finished
+        # season is re-fetched only if this key is lost.
+        await self._redis.set(_GAMELOGS_KEY, json.dumps(payload))
 
     async def load_user(self, email: str) -> dict:
         raw = await self._redis.get(_USER_KEY_PREFIX + email)

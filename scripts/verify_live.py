@@ -304,6 +304,26 @@ def main() -> int:
             )
         else:
             print("  INFO  over/under spreads not measured yet (built a few weeks per sync)")
+        # Sep 24: the stats behind each pick -- real game logs and what each
+        # defense allowed. Built a few weeks per sync, so absent is honest
+        # for the first hours; present, a log must be a list of real weeks.
+        logged = [
+            p for g in games for p in (g.get("scenarios") or {}).get("props") or [] if p.get("log")
+        ]
+        props_total = sum(len((g.get("scenarios") or {}).get("props") or []) for g in games)
+        print(f"  INFO  prop rows with a game log: {len(logged)} of {props_total}")
+        if logged:
+            check(
+                "game logs are real weeks, not placeholders",
+                all(
+                    1 <= gm.get("w", 0) <= 18
+                    for p in logged
+                    for season in p["log"].values()
+                    for gm in season
+                ),
+            )
+        with_matchup = sum(1 for g in games if (g.get("scenarios") or {}).get("allowed"))
+        print(f"  INFO  games carrying a defense matchup: {with_matchup} of {len(games)}")
         stacks = sum(1 for g in games if (g.get("scenarios") or {}).get("stack"))
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:

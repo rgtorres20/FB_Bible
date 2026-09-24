@@ -514,6 +514,12 @@ are left off every list (docs/ASSUMPTIONS.md has the chosen numbers).
 leans under Weeks 2 and 3 before this fix, so `/app/scorecard` may be
 grading Aug 14 calls against later games. The ledger is immutable by
 design, so those entries were not deleted — say the word and they go.
+**Sep 24: the owner said yes.** Not done yet: the one-time purge (drop
+entries for Week 2+ recorded before 2026-09-22 22:45 UTC, the fix's merge
+plus a deploy margin — before it, nothing else could be recorded for a
+later week) edits the shared production ledger, which the building
+session's permission checks refused. It needs a session with that
+permission granted.
 
 ## Found Sep 6 — fixed, and the watchdog could not have seen it
 
