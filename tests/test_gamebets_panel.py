@@ -303,3 +303,32 @@ def test_no_forecast_says_so_instead_of_an_empty_panel():
     notes = _texts(out["anchor"], "fb-gs-note")
     assert notes and notes[0].startswith("No weekly forecast is stored yet")
     assert _texts(out["anchor"], "fb-gb-card") == []
+
+
+SPREADS = {
+    "season": 2025,
+    "markets": {
+        "rec": {"WR": {"cv": 0.45, "players": 60}},
+        "rush_yd": {"RB": {"cv": 0.5, "players": 40}},
+    },
+}
+
+
+def test_with_measured_spreads_the_line_gets_an_over_under_chance():
+    """Hill: 6.5 projected catches, spread 0.45 x 6.5 = 2.925, line 5.5
+    -> P(over) = 1 - PHI(-1 / 2.925) = 63%. Davis: 40 rushing yards,
+    spread 20, line 45.5 -> P(over) = 1 - PHI(0.275) = 39%, so 61% under."""
+    out = _render({"news": [], "game_stack": {**_stack(), "spreads": SPREADS}}, STEPS)
+    typed = _props(out["steps"][2])
+    assert typed[0] == ("Tyreek Hill", "6.5", "More · +1 vs your 5.5 · ≈63% to go over")
+    rush = _props(out["steps"][4])
+    assert rush[0] == ("Ray Davis", "40", "Less · -5.5 vs your 45.5 · ≈61% to stay under")
+    feet = _texts(out["steps"][4], "fb-gs-foot")
+    assert any("measured from every 2025 regular-season box score" in f for f in feet)
+
+
+def test_a_position_with_no_measured_spread_gets_no_chance(rendered):
+    """Without the table (or for a position it does not cover) the row
+    says which side the projection is on and nothing more."""
+    typed = _props(rendered["steps"][2])
+    assert typed[0][2] == "More · +1 vs your 5.5"

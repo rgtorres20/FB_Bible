@@ -438,9 +438,14 @@ def build(
     leagues: list[leagues_mod.League],
     now: datetime | None = None,
     previews: dict[str, str] | None = None,
+    spreads: dict | None = None,
 ) -> dict | None:
     """The ranked slate, or None when there is nothing honest to rank:
-    no slate, no league, or no weekly forecast in the store."""
+    no slate, no league, or no weekly forecast in the store.
+
+    `spreads` is the measured game-to-game spread table (app/feeds/spreads.py),
+    passed through for the panel's over/under percentages; None until the
+    season it measures is fully folded in, and then the panel prints none."""
     games = (vegas_state or {}).get("games") or []
     if not games or not leagues:
         return None
@@ -546,6 +551,7 @@ def build(
         "default_league": default,
         "games": ranked,
         "uncovered": uncovered,
+        "spreads": spreads,
         "note": (
             "Projected fantasy points are each side's projected QB/RB/WR/TE lines under "
             "the league's own scoring, summed; kickers, team defenses and return yards are "

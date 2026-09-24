@@ -43,6 +43,7 @@ from ..feeds import (
     projections,
     render,
     scorecard,
+    spreads,
     stats,
     teams,
     topscorers,
@@ -138,6 +139,7 @@ async def app_feeds(
             stored.get("items", []),
             visitor_leagues,
             previews=previews.by_matchup(stored.get("vegas"), stored.get("previews")),
+            spreads=spreads.table(stored.get("spreads")),
         ),
         weekly_stars=gamestack.weekly_stars(
             stored.get("week_projections"),
@@ -1110,6 +1112,27 @@ async def sync(
         except Exception as exc:  # noqa: BLE001 - stars must never sink the sync
             log.warning("week stars: skipped this run: %s", exc)
 
+    # Game-to-game spreads for the over/under percentages (Sep 24, owner:
+    # "i want to also know the confidence percent on over under"). A few
+    # of last season's weekly box scores per sync until all eighteen are
+    # in; a finished season never changes, so after that this is a no-op.
+    # A failed week is simply not marked done and is retried next run.
+    spread_state = existing.get("spreads") or {}
+    todo = spreads.pending_weeks(spread_state)
+    if todo:
+        try:
+            spread_index = await store.load_players()
+            for wk in todo:
+                box = await stats.fetch_week(spreads.SEASON, wk)
+                spread_state = spreads.accumulate(spread_state, wk, box, spread_index)
+            log.info(
+                "spreads: '%s weeks folded in: %s",
+                str(spreads.SEASON)[2:],
+                ", ".join(str(w) for w in spread_state.get("weeks_done") or []),
+            )
+        except Exception as exc:  # noqa: BLE001 - a percentage must never sink the sync
+            log.warning("spreads: stopped this run: %s", exc)
+
     # The prediction ledger (app/feeds/scorecard.py). Two separate jobs,
     # deliberately in this order: snapshot what the app is claiming right
     # now, then settle anything the box scores can already decide. The
@@ -1203,6 +1226,7 @@ async def sync(
             "previews": preview_state,
             "scores": scores_state,
             "sleeper_consensus": sleeper_state,
+            "spreads": spread_state,
             # Why the player index is empty, when it is. Carried forward
             # from the previous run so a failure that has stopped
             # recurring still shows until a fetch actually succeeds.

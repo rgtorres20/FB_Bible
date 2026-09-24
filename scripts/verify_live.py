@@ -280,6 +280,30 @@ def main() -> int:
             "every ranked game carries a kickoff the game strip can order by",
             all(g.get("kickoff_iso") for g in games),
         )
+        # Sep 24: the over/under chance reads a spread measured from last
+        # season's box scores, built a few weeks per sync. Absent is honest
+        # for the first few hours; once present, every coefficient must be
+        # a plausible game-to-game swing -- a field-name mismatch would
+        # measure zeros and claim nothing, or measure nonsense.
+        measured = (stack.get("spreads") or {}).get("markets") or {}
+        if measured:
+            cvs = {
+                f"{stat}/{pos}": cell["cv"]
+                for stat, by_pos in measured.items()
+                for pos, cell in by_pos.items()
+            }
+            check(
+                "over/under spreads are plausible game-to-game swings",
+                all(0.1 < cv < 1.5 for cv in cvs.values()),
+                ", ".join(f"{k} {v}" for k, v in sorted(cvs.items())),
+            )
+            check(
+                "over/under spreads cover the markets the panel offers",
+                {"pass_yd", "rush_yd", "rec_yd", "rec"} <= set(measured),
+                ", ".join(sorted(measured)),
+            )
+        else:
+            print("  INFO  over/under spreads not measured yet (built a few weeks per sync)")
         stacks = sum(1 for g in games if (g.get("scenarios") or {}).get("stack"))
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:

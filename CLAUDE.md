@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1613 tests green — 1597 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1620 tests green — 1604 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -592,8 +592,14 @@ the week's games in kickoff order opens on the next one, and inside a
 game the tabs are Game / Touchdowns / Passing yds / Receiving yds /
 Receptions / Rushing yds, each listing that game's players from
 `scenarios.props`. Yardage and receptions show the projection with a
-box for the line the reader's app posts — no chance is printed for them,
-because a mean with no published spread cannot honestly become one.
+box for the line the reader's app posts. **Same day, the over/under
+chance** (*"i want to also know the confidence percent on over under"*):
+a typed line now also reads "≈63% to go over", from a normal curve around
+the projection whose spread is **measured**, not assumed —
+`app/feeds/spreads.py` folds last season's Sleeper box scores in three
+weeks per sync and keeps each position's median game-to-game coefficient
+of variation. Until all 18 weeks are in, no chance is printed; the model
+and its thresholds are in docs/ASSUMPTIONS.md.
 
 **FFBets follows the live week** (owner, Sep 22: *"i still see week 1 no
 updates"*, *"also is giving me people that are injured"*). The weekly

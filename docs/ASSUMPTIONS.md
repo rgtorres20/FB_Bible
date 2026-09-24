@@ -730,13 +730,37 @@ measured:
   1-per-catch, 20-yds/pt leagues value it), bring-back the opponent's
   top pass-catcher. No line posted: the away side leads, and the reason
   says it is just the QB and his top targets.
-- **The market tabs show Rotowire's projection, not a chance**, for
-  yards and receptions (Sep 24). A yardage projection is a mean with no
-  published spread, so turning it into "62% to go over" would need a
-  variance this app would have to invent. The reader types the line
-  their app shows and the row says which side the projection is on, by
-  how much — arithmetic against their own number. Only touchdowns get a
-  percentage, because the Poisson read above needs nothing but the mean.
+- **Yards and receptions get an over/under chance from a measured
+  spread** (Sep 24, owner: *"i want to also know the confidence percent
+  on over under"*). Earlier the same day these tabs printed no chance,
+  because Rotowire publishes a mean and no spread and inventing one
+  would be a false positive. The spread is now measured, not invented
+  (`app/feeds/spreads.py`): every 2025 regular-season box score from
+  Sleeper, per player, per stat, counting only games he played (`gp`).
+  Chosen, and the owner's to overrule:
+  - **The model is a normal curve** centred on Rotowire's projection
+    with standard deviation = projection × the position's coefficient
+    of variation. Yardage is roughly bell-shaped for a player with a
+    role; it is not exact — big-play receivers have a longer right tail,
+    so a line well above their projection reads slightly too unlikely.
+    Receptions are counts, and every posted line is a half, so the
+    continuous curve does not straddle a whole number.
+  - **The spread is the median coefficient of variation at a position**,
+    not each player's own: seventeen games is too few to measure one
+    man's swing reliably, and a ratio travels between a 90-yard and a
+    40-yard projection where a raw spread would not.
+  - **A player counts toward a position's spread with ≥ 8 games and a
+    real role** (`spreads.MARKETS`: QB 150 passing yds a game; RB 30 /
+    QB 20 rushing; WR 30 / TE 25 / RB 15 receiving; WR 2.5 / TE 2 / RB
+    1.5 catches). A position with fewer than 10 such players claims no
+    spread, and its rows show no chance.
+  - **Nothing is printed until all 18 weeks are in.** The sync folds in
+    three weeks per run (18 dumps of 1–2MB would not fit one serverless
+    call); a finished season never changes, so the table is then final.
+  - **Chances are clamped to 1–99%.** The curve's tails are the least
+    trustworthy part of it.
+- **Touchdowns keep the Poisson read above**, which needs nothing but the
+  mean.
 - **The game strip opens on the next game to kick off**, not the
   top-ranked one — the pick'em app the owner uses opens the same way.
 - **Anyone flagged in `players.OUT_FLAGS` is left off every scenario**

@@ -253,7 +253,10 @@ def test_the_sync_fetches_the_slates_week_and_records_its_picks(tmp_path, monkey
         main.app.dependency_overrides.clear()
 
     assert asked == [3]
-    assert asyncio.run(store.load())["week_projections"]["week"] == 3
+    stored = asyncio.run(store.load())
+    assert stored["week_projections"]["week"] == 3
+    # The over/under spreads fold in three of last season's weeks per sync.
+    assert stored["spreads"]["weeks_done"] == [1, 2, 3]
     entries = asyncio.run(store.load_scorecard())["entries"]
     assert entries and {e["week"] for e in entries} == {3}
     names = {e["name"] for e in entries}
