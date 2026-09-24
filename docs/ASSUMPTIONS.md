@@ -735,8 +735,9 @@ measured:
   on over under"*). Earlier the same day these tabs printed no chance,
   because Rotowire publishes a mean and no spread and inventing one
   would be a false positive. The spread is now measured, not invented
-  (`app/feeds/spreads.py`): every 2025 regular-season box score from
-  Sleeper, per player, per stat, counting only games he played (`gp`).
+  (`app/feeds/spreads.py`): every 2025 regular-season game in the game
+  logs (`app/feeds/gamelogs.py`), per player, per stat, counting only
+  games he played (`gp`).
   Chosen, and the owner's to overrule:
   - **The model is a normal curve** centred on Rotowire's projection
     with standard deviation = projection × the position's coefficient
@@ -754,11 +755,30 @@ measured:
     QB 20 rushing; WR 30 / TE 25 / RB 15 receiving; WR 2.5 / TE 2 / RB
     1.5 catches). A position with fewer than 10 such players claims no
     spread, and its rows show no chance.
-  - **Nothing is printed until all 18 weeks are in.** The sync folds in
-    three weeks per run (18 dumps of 1–2MB would not fit one serverless
-    call); a finished season never changes, so the table is then final.
+  - **Nothing is printed until all 18 weeks are final in the logs.**
   - **Chances are clamped to 1–99%.** The curve's tails are the least
     trustworthy part of it.
+- **The stats behind each pick are counts of real games** (Sep 24, owner:
+  "yes" to them; `app/feeds/gamelogs.py`, from Sleeper's per-week stats
+  rows, whose `team`, `opponent`, `date` and `gp` fields were probed live
+  before a line was written). Chosen:
+  - **The log shows this season's last five games and last season's
+    average**; the hit rate against a typed line counts every game of
+    both seasons, each season separately with its game count ("2 of 3
+    ('26) · 11 of 17 ('25)"). A strict "over": a game landing exactly on
+    a whole-number line is not counted over, and posted lines are halves.
+  - **A game counts only if he played it** (`gp`) — a bye or an inactive
+    week is not a zero.
+  - **The defense matchup is this season only**, per game, for the
+    position of the players it faced, ranked among the defenses that have
+    played. Last season's defense is a different roster. Early in the
+    season that is two or three games, and the line says so.
+  - **A week is final two days after its last game**, re-fetched each
+    sync until then, because Sleeper corrects stats after Monday night.
+  - **Three weeks are fetched per sync**, this season's played weeks
+    first: one week for QB/RB/WR/TE is ~700KB, and the whole of last
+    season in one serverless call would not fit. The logs live in their
+    own store key, so no rebuild of the feeds blob can wipe them.
 - **Touchdowns keep the Poisson read above**, which needs nothing but the
   mean.
 - **The game strip opens on the next game to kick off**, not the

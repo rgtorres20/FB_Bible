@@ -486,3 +486,35 @@ def test_every_healthy_player_carries_his_prop_line():
     assert props["Ray Davis"]["rush_yd"] == 40
     assert "James Cook" not in props  # Out: no prop to bet
     assert "rush_att" not in props["Ray Davis"]  # no zero invented for a field not projected
+
+
+def test_props_carry_the_players_real_games_and_the_defense_matchup():
+    """Sep 24: the stats behind each pick ride the same payload."""
+    from app.feeds import gamelogs
+
+    now = datetime(2026, 9, 24, tzinfo=UTC)
+    rows = [
+        {
+            "player_id": "5",
+            "team": "MIA",
+            "opponent": "NE",
+            "date": "2026-09-13",
+            "player": {"position": "WR"},
+            "stats": {"gp": 1, "rec": 6, "rec_yd": 90},
+        },
+        {
+            "player_id": "8",
+            "team": "DAL",
+            "opponent": "BUF",
+            "date": "2026-09-13",
+            "player": {"position": "WR"},
+            "stats": {"gp": 1, "rec": 9, "rec_yd": 120, "rec_td": 1},
+        },
+    ]
+    logs = gamelogs.fold(None, 2026, 1, rows, now)
+    game = next(g for g in _build(logs=logs)["games"] if g["game"] == "MIA @ BUF")
+    hill = next(p for p in game["scenarios"]["props"] if p["name"] == "Tyreek Hill")
+    assert hill["log"] == {"26": [{"w": 1, "o": "NE", "rec": 6, "rec_yd": 90}]}
+    # Hill faces BUF; BUF's defense allowed Lamb 9 catches in its one game.
+    assert game["scenarios"]["allowed"]["BUF"]["WR"]["rec"] == [9.0, 1, 2, 1, 2]  # vs NE 6
+    assert "MIA" not in game["scenarios"]["allowed"]  # MIA has not played defense in the logs

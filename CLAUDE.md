@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1620 tests green — 1604 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1627 tests green — 1611 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -599,7 +599,15 @@ the projection whose spread is **measured**, not assumed —
 `app/feeds/spreads.py` folds last season's Sleeper box scores in three
 weeks per sync and keeps each position's median game-to-game coefficient
 of variation. Until all 18 weeks are in, no chance is printed; the model
-and its thresholds are in docs/ASSUMPTIONS.md.
+and its thresholds are in docs/ASSUMPTIONS.md. **Then the stats behind
+each pick** (owner: "yes"): `app/feeds/gamelogs.py` keeps every skill
+player's real games, this season and last, from Sleeper's per-week stats
+rows (probed live first: each row carries `team`, `opponent`, `date` and
+`gp`), in its own store key (`fbbible:gamelogs`), three weeks per sync.
+Each row on the market tabs shows his game log, how many games he went
+over the typed line in (with the game count), and what this week's
+defense has allowed per game to his position, ranked. The spreads above
+now read the same logs, so last season is fetched once for both.
 
 **FFBets follows the live week** (owner, Sep 22: *"i still see week 1 no
 updates"*, *"also is giving me people that are injured"*). The weekly

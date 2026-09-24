@@ -332,3 +332,50 @@ def test_a_position_with_no_measured_spread_gets_no_chance(rendered):
     says which side the projection is on and nothing more."""
     typed = _props(rendered["steps"][2])
     assert typed[0][2] == "More · +1 vs your 5.5"
+
+
+def _with_evidence():
+    stack = _stack()
+    buf = stack["games"][0]["scenarios"]
+    hill = next(p for p in buf["props"] if p["name"] == "Tyreek Hill")
+    hill["log"] = {
+        "26": [
+            {"w": 1, "o": "NE", "rec": 6, "rec_yd": 90, "td": 1},
+            {"w": 2, "o": "NYJ", "rec": 8, "rec_yd": 110},
+            {"w": 3, "o": "LAC", "rec": 4, "rec_yd": 40},
+        ],
+        "25": [{"w": 1, "rec": 5}, {"w": 2, "rec": 7}, {"w": 3, "rec": 3}, {"w": 4, "rec": 6}],
+    }
+    buf["allowed"] = {
+        "BUF": {"games": 2, "WR": {"rec": [14.2, 4, 27, 1, 30], "td": [1.5, 1, 25, 3, 30]}},
+        "MIA": {"games": 3, "RB": {"rush_yd": [61.0, 27, 4, 1, 30]}},
+    }
+    return stack
+
+
+def _stats(node, name):
+    for n in _flat(node):
+        if n["cls"] == "fb-gb-prop" and any(k["text"] == name for k in _flat(n)):
+            return _texts(n, "fb-gb-stat") + _texts(n, "fb-gb-stat fb-gb-hits")
+    raise AssertionError(f"no row for {name}")
+
+
+def test_each_row_shows_his_real_games_his_hit_rate_and_the_matchup():
+    """Owner, Sep 24: "yes" to the stats behind each pick. Every figure is a
+    count of real games and says how many games it is out of."""
+    out = _render({"news": [], "game_stack": _with_evidence()}, STEPS)
+    td = _stats(out["steps"][0], "Tyreek Hill")
+    assert "TD in 1 of 3 games ('26) · 0 of 4 ('25)" in td
+    assert (
+        "vs BUF defense: allows 1.5 rush + rec TDs/g to WRs — the most (tied with 2) of 30 (2 g)"
+        in td
+    )
+    recs = _stats(out["steps"][1], "Tyreek Hill")
+    assert "'26: 6 · 8 · 4 (avg 6) · '25 avg 5.3 in 4 g" in recs
+    assert "vs BUF defense: allows 14.2 catches/g to WRs — 4th-most of 30 (2 g)" in recs
+    typed = _stats(out["steps"][2], "Tyreek Hill")
+    assert "Over 5.5 in 2 of 3 ('26) · 2 of 4 ('25)" in typed
+    # A defense near the bottom reads as fewest, not "27th-most".
+    rush = _stats(out["steps"][3], "Ray Davis")
+    assert "vs MIA defense: allows 61 rushing yds/g to RBs — 4th-fewest of 30 (3 g)" in rush
+    assert "No games in the box scores yet." in rush

@@ -31,6 +31,7 @@ from ..feeds import (
     build_feed_store,
     capsules,
     cheatsheet,
+    gamelogs,
     gamestack,
     idp,
     idpweek,
@@ -105,6 +106,7 @@ async def app_feeds(
         return bundled
 
     index = await store.load_players()
+    logs = await store.load_gamelogs()
     visitor_leagues = await _leagues_for(request, settings, store)
     ranks = {
         pid: p["rank"]
@@ -139,7 +141,8 @@ async def app_feeds(
             stored.get("items", []),
             visitor_leagues,
             previews=previews.by_matchup(stored.get("vegas"), stored.get("previews")),
-            spreads=spreads.table(stored.get("spreads")),
+            spreads=spreads.table(logs),
+            logs=logs,
         ),
         weekly_stars=gamestack.weekly_stars(
             stored.get("week_projections"),
@@ -1112,26 +1115,26 @@ async def sync(
         except Exception as exc:  # noqa: BLE001 - stars must never sink the sync
             log.warning("week stars: skipped this run: %s", exc)
 
-    # Game-to-game spreads for the over/under percentages (Sep 24, owner:
-    # "i want to also know the confidence percent on over under"). A few
-    # of last season's weekly box scores per sync until all eighteen are
-    # in; a finished season never changes, so after that this is a no-op.
-    # A failed week is simply not marked done and is retried next run.
-    spread_state = existing.get("spreads") or {}
-    todo = spreads.pending_weeks(spread_state)
-    if todo:
-        try:
-            spread_index = await store.load_players()
-            for wk in todo:
-                box = await stats.fetch_week(spreads.SEASON, wk)
-                spread_state = spreads.accumulate(spread_state, wk, box, spread_index)
+    # Game logs (Sep 24, owner: "yes" to the stats behind each pick, and
+    # the over/under percentages read their spread from the same games).
+    # This season's played weeks first, then last season's, a few per
+    # sync; a week is re-fetched until two days after its last game so
+    # Sleeper's stat corrections land. Own store key, saved here and
+    # nowhere else. A failed week is simply retried next run.
+    try:
+        logs = await store.load_gamelogs()
+        todo = gamelogs.pending(logs, vegas.slate_week(vegas_state))
+        for season, wk in todo:
+            rows = await gamelogs.fetch_week(season, wk)
+            logs = gamelogs.fold(logs, season, wk, rows, datetime.now(UTC))
+        if todo:
+            await store.save_gamelogs(logs)
             log.info(
-                "spreads: '%s weeks folded in: %s",
-                str(spreads.SEASON)[2:],
-                ", ".join(str(w) for w in spread_state.get("weeks_done") or []),
+                "game logs: folded %s",
+                ", ".join(f"{s} wk {w}" for s, w in todo),
             )
-        except Exception as exc:  # noqa: BLE001 - a percentage must never sink the sync
-            log.warning("spreads: stopped this run: %s", exc)
+    except Exception as exc:  # noqa: BLE001 - a stat line must never sink the sync
+        log.warning("game logs: stopped this run: %s", exc)
 
     # The prediction ledger (app/feeds/scorecard.py). Two separate jobs,
     # deliberately in this order: snapshot what the app is claiming right
@@ -1226,7 +1229,6 @@ async def sync(
             "previews": preview_state,
             "scores": scores_state,
             "sleeper_consensus": sleeper_state,
-            "spreads": spread_state,
             # Why the player index is empty, when it is. Carried forward
             # from the previous run so a failure that has stopped
             # recurring still shows until a fetch actually succeeds.

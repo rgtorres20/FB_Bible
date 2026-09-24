@@ -40,7 +40,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from .. import leagues as leagues_mod
-from . import depth, projections, vegas
+from . import depth, gamelogs, projections, vegas
 from .clock import format_time
 from .players import OUT_FLAGS
 
@@ -322,8 +322,19 @@ def _catcher_score(line: dict) -> float:
     return line.get("rec", 0) + line.get("rec_yd", 0) / 20 + 6 * line.get("rec_td", 0)
 
 
-def scenarios(codes: tuple[str, str], by_side: dict[str, list[dict]], game: dict) -> dict:
-    """One game's projected lines regrouped by the bet a reader is weighing."""
+def scenarios(
+    codes: tuple[str, str],
+    by_side: dict[str, list[dict]],
+    game: dict,
+    logs: dict | None = None,
+    allowed_by_defense: dict | None = None,
+) -> dict:
+    """One game's projected lines regrouped by the bet a reader is weighing.
+
+    With `logs` (app/feeds/gamelogs.py), each prop row also carries the
+    player's real games this season and last -- what the panel counts his
+    hit rate against a typed line from -- and the game carries what each
+    defense has allowed per game to each position, ranked."""
     # A man flagged out is not a bet; the card's "Out on" line already
     # names him and the teammate his work falls to.
     by_side = {
@@ -417,9 +428,18 @@ def scenarios(codes: tuple[str, str], by_side: dict[str, list[dict]], game: dict
             row["td"] = round(expected, 2)
             row["td_chance"] = td_chance(expected)
         if len(row) > 4:  # carries at least one projected number
+            log = gamelogs.player_log(logs, p["id"]) if logs else {}
+            if log:
+                row["log"] = log
             props.append(row)
+    allowed = {}
+    for code in codes:
+        defense = (allowed_by_defense or {}).get(_index_code(code))
+        if defense:
+            allowed[code] = defense
     return {
         "props": props,
+        "allowed": allowed,
         "script": script_read(game.get("fav") or "", game.get("total") or ""),
         "touchdowns": touchdowns,
         "passing": passing,
@@ -439,6 +459,7 @@ def build(
     now: datetime | None = None,
     previews: dict[str, str] | None = None,
     spreads: dict | None = None,
+    logs: dict | None = None,
 ) -> dict | None:
     """The ranked slate, or None when there is nothing honest to rank:
     no slate, no league, or no weekly forecast in the store.
@@ -461,6 +482,7 @@ def build(
     mentions = depth.latest_mentions(items, ids)
     default = leagues[0].key
     previews = previews or {}
+    allowed_by_defense = gamelogs.allowed(logs) if logs else {}
 
     ranked: list[dict] = []
     uncovered: list[str] = []
@@ -536,7 +558,11 @@ def build(
                 "out": game_out,
                 "preview": previews.get(f"{away_name} @ {home_name}", ""),
                 "scenarios": scenarios(
-                    codes, by_side, {**game, "implied": {c: implied.get(c) for c in codes}}
+                    codes,
+                    by_side,
+                    {**game, "implied": {c: implied.get(c) for c in codes}},
+                    logs,
+                    allowed_by_defense,
                 ),
             }
         )

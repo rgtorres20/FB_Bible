@@ -246,6 +246,13 @@ def test_the_sync_fetches_the_slates_week_and_records_its_picks(tmp_path, monkey
     monkeypatch.setattr(feeds_route.vegas, "fetch", no_vegas)
     monkeypatch.setattr(feeds_route.projections, "fetch_week", fake_fetch_week)
     monkeypatch.setattr(feeds_route.stats, "fetch_week", no_box)
+    logs_asked = []
+
+    async def fake_logs(season, week, client=None):
+        logs_asked.append((season, week))
+        return []
+
+    monkeypatch.setattr(feeds_route.gamelogs, "fetch_week", fake_logs)
     main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
     try:
         TestClient(main.app).post("/internal/sync", headers={"X-Sync-Token": "secret-token"})
@@ -255,8 +262,13 @@ def test_the_sync_fetches_the_slates_week_and_records_its_picks(tmp_path, monkey
     assert asked == [3]
     stored = asyncio.run(store.load())
     assert stored["week_projections"]["week"] == 3
-    # The over/under spreads fold in three of last season's weeks per sync.
-    assert stored["spreads"]["weeks_done"] == [1, 2, 3]
+    # Game logs: this season's played weeks first, then last season's,
+    # three per sync, in their own store key.
+    assert logs_asked == [(2026, 1), (2026, 2), (2025, 1)]
+    weeks = asyncio.run(store.load_gamelogs())["weeks"]
+    # An empty answer is not a final week: it is fetched again next sync.
+    assert weeks == {"2026-1": "partial", "2026-2": "partial", "2025-1": "partial"}
+    assert "spreads" not in stored
     entries = asyncio.run(store.load_scorecard())["entries"]
     assert entries and {e["week"] for e in entries} == {3}
     names = {e["name"] for e in entries}

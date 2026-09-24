@@ -61,7 +61,7 @@ DATA_UNITS: dict[str, frozenset[str]] = {
     # unit: both reduce a Sleeper payload of the SAME stat vocabulary
     # into a line the league scorer reads. The difference between them is
     # the tense, not the shape.
-    "usage": frozenset({"stats", "depth", "projections", "spreads"}),
+    "usage": frozenset({"stats", "depth", "projections", "spreads", "gamelogs"}),
     "odds": frozenset({"vegas"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
     "scoring": frozenset({"scorecard", "replacement"}),

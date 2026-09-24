@@ -662,6 +662,10 @@ aside > div:nth-child(2) {
 }
 .fb-gb-verdict { grid-column: 1 / -1; font-size: 11px; font-weight: 700; color: var(--color-accent-700, inherit); }
 .fb-gb-verdict:empty { display: none; }
+.fb-gb-stats { grid-column: 1 / -1; }
+.fb-gb-stat { font-size: 11px; color: var(--color-neutral-700, inherit); line-height: 1.45; }
+.fb-gb-stat:empty { display: none; }
+.fb-gb-hits { font-weight: 700; color: var(--color-text, inherit); }
 .fb-gs-foot { font-size: 11px; color: var(--color-neutral-600, inherit); margin-top: 8px; max-width: 70ch; line-height: 1.5; }
 @media (max-width: 480px) {
   .fb-gs-row { grid-template-columns: 26px minmax(0, 1fr) 72px; }

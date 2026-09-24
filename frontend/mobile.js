@@ -1149,6 +1149,74 @@
     return (diff > 0 ? 'More · +' : 'Less · ') + diff + ' vs your ' + line + chance;
   }
 
+  // --- the evidence under each row (owner, Sep 24: "yes" to the stats
+  // behind each pick). Real games only, from Sleeper's box scores
+  // (app/feeds/gamelogs.py): his log, how often he cleared the typed line,
+  // and what this week's defense has allowed to his position. Every count
+  // says how many games it is out of.
+  var GB_STAT_WORDS = {
+    pass_yd: 'passing yds', rush_yd: 'rushing yds', rec: 'catches', rec_yd: 'receiving yds',
+    td: 'rush + rec TDs'
+  };
+
+  function gbOrdinal(n) {
+    var s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  function gbValues(p, season, key) {
+    return ((p.log && p.log[season]) || []).map(function (gm) { return gm[key] || 0; });
+  }
+
+  function gbRound(x) { return Math.round(x * 10) / 10; }
+
+  function gbLogLine(p, key) {
+    var now = gbValues(p, '26', key), last = gbValues(p, '25', key);
+    if (!now.length && !last.length) return 'No games in the box scores yet.';
+    var bits = [];
+    if (key === 'td') {
+      if (now.length) bits.push('TD in ' + now.filter(function (v) { return v > 0; }).length + ' of ' + now.length + " games ('26)");
+      if (last.length) bits.push(last.filter(function (v) { return v > 0; }).length + ' of ' + last.length + " ('25)");
+      return bits.join(' · ');
+    }
+    if (now.length) {
+      var avg = now.reduce(function (a, b) { return a + b; }, 0) / now.length;
+      bits.push("'26: " + now.slice(-5).join(' · ') + ' (avg ' + gbRound(avg) + ')');
+    }
+    if (last.length) {
+      var avg25 = last.reduce(function (a, b) { return a + b; }, 0) / last.length;
+      bits.push("'25 avg " + gbRound(avg25) + ' in ' + last.length + ' g');
+    }
+    return bits.join(' · ');
+  }
+
+  function gbHitLine(p, key, raw) {
+    var line = parseFloat(raw);
+    if (raw === undefined || raw === null || String(raw).trim() === '' || isNaN(line)) return '';
+    var parts = [];
+    [['26', "'26"], ['25', "'25"]].forEach(function (s) {
+      var vals = gbValues(p, s[0], key);
+      if (vals.length) parts.push(vals.filter(function (v) { return v > line; }).length + ' of ' + vals.length + ' (' + s[1] + ')');
+    });
+    return parts.length ? 'Over ' + line + ' in ' + parts.join(' · ') : '';
+  }
+
+  function gbMatchupLine(g, p, key) {
+    var sc = g.scenarios || {};
+    var opp = p.team === g.home ? g.away : g.home;
+    var d = (sc.allowed || {})[opp];
+    var cell = d && d[p.position] && d[p.position][key];
+    if (!cell) return '';
+    // [per game, rank from the most, rank from the fewest, how many share it,
+    //  how many defenses have faced the position]
+    var most = cell[1], fewest = cell[2], tied = cell[3] || 1, of = cell[4];
+    var near = most <= fewest ? most : fewest;
+    var end = most <= fewest ? 'most' : 'fewest';
+    var place = (near === 1 ? 'the ' + end : gbOrdinal(near) + '-' + end) + (tied > 1 ? ' (tied with ' + (tied - 1) + ')' : '');
+    return 'vs ' + opp + ' defense: allows ' + cell[0] + ' ' + GB_STAT_WORDS[key] + '/g to ' + p.position +
+      's — ' + place + ' of ' + of + ' (' + d.games + ' g)';
+  }
+
   function gbPropRow(g, market, p) {
     var stat = market.stat;
     var row = gsEl('div', 'fb-gb-prop');
@@ -1161,25 +1229,35 @@
     proj.appendChild(gsEl('b', '', market.id === 'td' ? p.td_chance + '%' : String(p[stat])));
     proj.appendChild(gsEl('span', '', market.id === 'td' ? 'anytime TD (Poisson)' : gbSub(p, market.id)));
     row.appendChild(proj);
+    var key = market.id === 'td' ? 'td' : stat;
+    var evidence = gsEl('div', 'fb-gb-stats');
+    evidence.appendChild(gsEl('div', 'fb-gb-stat', gbLogLine(p, key)));
+    var matchup = gbMatchupLine(g, p, key);
+    if (matchup) evidence.appendChild(gsEl('div', 'fb-gb-stat', matchup));
     if (market.id === 'td') {
       var sub = gsEl('div', 'fb-gb-verdict', gbSub(p, 'td'));
       row.appendChild(sub);
+      row.appendChild(evidence);
       return row;
     }
-    var key = g.game + '|' + market.id + '|' + p.name;
+    var lineKey = g.game + '|' + market.id + '|' + p.name;
     var input = gsEl('input', 'fb-gb-input');
     input.type = 'text';
     input.setAttribute('inputmode', 'decimal');
     input.setAttribute('placeholder', 'Your line');
     input.setAttribute('aria-label', 'Line your app shows for ' + p.name);
-    input.value = betsLines[key] || '';
+    input.value = betsLines[lineKey] || '';
     var verdict = gsEl('div', 'fb-gb-verdict', gbVerdict(p[stat], input.value, stat, p.position));
+    var hits = gsEl('div', 'fb-gb-stat fb-gb-hits', gbHitLine(p, key, input.value));
     input.oninput = function () {
-      betsLines[key] = input.value;
+      betsLines[lineKey] = input.value;
       verdict.textContent = gbVerdict(p[stat], input.value, stat, p.position);
+      hits.textContent = gbHitLine(p, key, input.value);
     };
     row.appendChild(input);
     row.appendChild(verdict);
+    evidence.insertBefore(hits, evidence.children[1] || null);
+    row.appendChild(evidence);
     return row;
   }
 
