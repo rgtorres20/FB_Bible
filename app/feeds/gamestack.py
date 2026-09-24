@@ -256,6 +256,20 @@ LOW_TOTAL = 41.0
 # How many touchdown candidates a game card names.
 TD_CANDIDATES = 4
 
+# The stat lines the per-game prop tabs read, in the scorer's own names.
+_PROP_STATS = (
+    "pass_att",
+    "pass_cmp",
+    "pass_yd",
+    "pass_td",
+    "pass_int",
+    "rush_att",
+    "rush_yd",
+    "rec_tgt",
+    "rec",
+    "rec_yd",
+)
+
 _FAV = re.compile(r"^([A-Z]{2,4})\s+-(\d+(?:\.\d+)?)$")
 
 
@@ -385,7 +399,27 @@ def scenarios(codes: tuple[str, str], by_side: dict[str, list[dict]], game: dict
                 else f"{primary} QB and his top projected targets"
             ),
         }
+    # Every healthy player's projected line for the markets a pick'em app
+    # posts (owner, Sep 24, with a screenshot of one: passing yards, rush +
+    # rec TD, receiving yards, receptions, rushing yards). Rotowire's
+    # numbers only -- no book's line, which no open source carries; the
+    # panel lets the reader type the line his app shows.
+    props = []
+    for p in everyone:
+        ln = p["line"]
+        row = {**named(p), "injury": p["injury"]}
+        for field in _PROP_STATS:
+            value = ln.get(field, 0) or 0
+            if value:
+                row[field] = round(value, 1)
+        expected = (ln.get("rush_td", 0) or 0) + (ln.get("rec_td", 0) or 0)
+        if expected > 0:
+            row["td"] = round(expected, 2)
+            row["td_chance"] = td_chance(expected)
+        if len(row) > 4:  # carries at least one projected number
+            props.append(row)
     return {
+        "props": props,
         "script": script_read(game.get("fav") or "", game.get("total") or ""),
         "touchdowns": touchdowns,
         "passing": passing,
@@ -465,6 +499,7 @@ def build(
                 "away_name": away_name,
                 "home_name": home_name,
                 "kickoff": format_time(game.get("kickoff")),
+                "kickoff_iso": game.get("kickoff") or "",
                 "tv": game.get("tv") or "",
                 "fav": game.get("fav") or "",
                 "total": game.get("total") or "",

@@ -899,16 +899,18 @@ def test_a_moved_slate_heading_reports_the_miss(index_html):
 # --- per-game scenarios on the FFBets tab (owner, Sep 22) -------------------
 
 
-def test_the_ffbets_tab_gets_the_per_game_anchor_above_the_vegas_lines(index_html):
+def test_the_ffbets_tab_opens_on_the_per_game_panel(index_html):
+    """Sep 24: a game is the first thing you pick, above the slate-wide list."""
     served, _ = page.apply(index_html, page.PRE)
     assert served.count("data-fb-gamebets") == 1
     at = served.index("data-fb-gamebets")
-    vegas_heading = served.index("Vegas lines \u00b7 Week 1")
-    assert served.index("Week 1 touchdown predictions") < at < vegas_heading
+    view = served.index('<sc-if value="{{ isPredict }}"')
+    assert view < at < served.index("Week 1 touchdown predictions")
+    assert at - view < 150  # the first thing inside the view
 
 
-def test_a_moved_vegas_heading_reports_the_miss(index_html):
-    broken = index_html.replace("Vegas lines \u00b7 Week 1</div>", "Vegas lines</div>", 1)
+def test_a_moved_predict_view_reports_the_miss(index_html):
+    broken = index_html.replace("{{ isPredict }}", "{{ isPredicting }}", 1)
     assert broken != index_html
     _, misses = page.game_bets_anchor(broken)
     assert misses == ["game bets anchor"]

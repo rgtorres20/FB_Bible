@@ -472,3 +472,17 @@ def test_the_script_read_follows_the_written_bands():
     assert gamestack.script_read("", "40.5")[0].startswith("Low total (40.5)")
     assert gamestack.script_read("", "45") == []
     assert gamestack.script_read("PK", "garbage") == []  # no usable line, no read
+
+
+def test_every_healthy_player_carries_his_prop_line():
+    """Sep 24 (owner, with a pick'em app's game screen): passing yards,
+    receptions, receiving and rushing yards, rush + rec TD, per game."""
+    game = next(g for g in _build()["games"] if g["game"] == "MIA @ BUF")
+    assert game["kickoff_iso"] == "2026-09-13T17:00Z"
+    props = {p["name"]: p for p in game["scenarios"]["props"]}
+    assert props["Josh Allen"]["pass_yd"] == 280 and props["Josh Allen"]["pass_td"] == 2.1
+    assert props["Tyreek Hill"]["rec"] == 6.5 and props["Tyreek Hill"]["rec_yd"] == 90
+    assert props["Tyreek Hill"]["td_chance"] == 45
+    assert props["Ray Davis"]["rush_yd"] == 40
+    assert "James Cook" not in props  # Out: no prop to bet
+    assert "rush_att" not in props["Ray Davis"]  # no zero invented for a field not projected

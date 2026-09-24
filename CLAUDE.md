@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1611 tests green — 1595 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1613 tests green — 1597 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -585,6 +585,15 @@ anchor (`page.game_bets_anchor`, above the Predictions view's Vegas
 table) with a chip per matchup; the bands and the Poisson read are in
 docs/ASSUMPTIONS.md, and `verify_live.py` checks the anchor, the
 decorator and that no flagged-out man is offered as a TD bet.
+**Sep 24, rebuilt game-first** (owner, with a pick'em app's game screen:
+*"still not by games … I want info on tds … I can bet on yards
+receptions"*): the panel now sits at the top of Predictions, a strip of
+the week's games in kickoff order opens on the next one, and inside a
+game the tabs are Game / Touchdowns / Passing yds / Receiving yds /
+Receptions / Rushing yds, each listing that game's players from
+`scenarios.props`. Yardage and receptions show the projection with a
+box for the line the reader's app posts — no chance is printed for them,
+because a mean with no published spread cannot honestly become one.
 
 **FFBets follows the live week** (owner, Sep 22: *"i still see week 1 no
 updates"*, *"also is giving me people that are injured"*). The weekly
