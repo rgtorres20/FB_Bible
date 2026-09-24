@@ -1026,14 +1026,31 @@
 
   /* --- per-game scenarios on the FFBets tab (owner, Sep 22: "give the best
    * scenarios per game each week not just overall bets so we can look at
-   * each game individually").
+   * each game individually"; Sep 24, with a pick'em app's game screen as the
+   * model: "still not by games … I want info on tds … I can bet on yards
+   * receptions").
    *
-   * The server regroups each game's projected lines by the bet a reader is
-   * weighing (app/feeds/gamestack.py `scenarios`, shipped inside
-   * `game_stack`); this draws one card per game, with a chip per matchup so
-   * a single game can be looked at on its own. Two reads are rules and say
-   * so: the script read off the line, and the Poisson TD chance. */
+   * Game first: a strip of the week's games in kickoff order, opening on the
+   * next one to kick off. Inside a game, market tabs like the app's own --
+   * Touchdowns, Passing yds, Receiving yds, Receptions, Rushing yds -- each
+   * listing that game's players with Rotowire's projection (via Sleeper).
+   * No book's line is available from an open source, so each row takes the
+   * line the reader's app shows and says which side the projection is on:
+   * arithmetic against a number they typed, never a chance we cannot back.
+   * The server computes everything (app/feeds/gamestack.py `scenarios`);
+   * this draws it. Typed lines live in memory only. */
   var betsGame = null;
+  var betsMarket = 'game';
+  var betsLines = {};
+
+  var BET_MARKETS = [
+    { id: 'game', label: 'Game' },
+    { id: 'td', label: 'Touchdowns', stat: 'td_chance' },
+    { id: 'pass', label: 'Passing yds', stat: 'pass_yd' },
+    { id: 'rec', label: 'Receiving yds', stat: 'rec_yd' },
+    { id: 'recs', label: 'Receptions', stat: 'rec' },
+    { id: 'rush', label: 'Rushing yds', stat: 'rush_yd' }
+  ];
 
   function gbLine(label, text) {
     var row = gsEl('div', 'fb-gb-line');
@@ -1042,7 +1059,102 @@
     return row;
   }
 
-  function gbCard(g) {
+  function gbShortKick(g) {
+    var bits = String(g.kickoff || '').split(' · ');
+    return bits.length > 1 ? bits[0].split(' ')[0] + ' ' + bits[1] : (g.kickoff || '');
+  }
+
+  function gbSummary(g, box) {
+    var sc = g.scenarios || {};
+    (sc.script || []).forEach(function (t) { box.appendChild(gbLine('Script (rule):', t)); });
+    if (sc.touchdowns && sc.touchdowns.length) {
+      box.appendChild(gbLine('Touchdown scorers:', sc.touchdowns.map(function (p) {
+        return p.name + ' (' + p.position + ' · ' + p.team + ') ' + p.tds + ' proj TDs ≈ ' + p.chance + '%' +
+          (p.injury ? ' [' + p.injury + ']' : '');
+      }).join(' · ')));
+    }
+    if (sc.passing && sc.passing.length) {
+      box.appendChild(gbLine('Passing:', sc.passing.map(function (p) {
+        return p.name + ' (' + p.team + ') ' + p.yd + ' yds · ' + p.td + ' TD' + (p.int ? ' · ' + p.int + ' INT' : '');
+      }).join(' · ')));
+    }
+    var yards = [];
+    if (sc.rushing) yards.push('rush ' + sc.rushing.name + ' (' + sc.rushing.team + ') ' + sc.rushing.yd + ' yds' +
+      (sc.rushing.rush_att ? ' on ' + sc.rushing.rush_att + ' carries' : ''));
+    if (sc.receiving) yards.push('rec ' + sc.receiving.name + ' (' + sc.receiving.team + ') ' + sc.receiving.yd + ' yds' +
+      (sc.receiving.rec ? ' on ' + sc.receiving.rec + ' catches' : ''));
+    if (yards.length) box.appendChild(gbLine('Yardage leaders:', yards.join(' · ')));
+    if (sc.stack) {
+      box.appendChild(gbLine('Stack:', sc.stack.qb + ' + ' + sc.stack.catchers.join(' + ') + ' (' + sc.stack.team + ')' +
+        (sc.stack.bring_back ? ' · bring-back ' + sc.stack.bring_back + ' (' + sc.stack.bring_back_team + ')' : '') +
+        ' — ' + sc.stack.why));
+    }
+    (g.out || []).forEach(function (v) {
+      box.appendChild(gsEl('div', 'fb-gs-out', 'Out on ' + v.team + ': ' + v.starter + ' (' + v.position + ', ' +
+        v.injury + ') → ' + v.next));
+    });
+    if (g.weather && g.weather.read) box.appendChild(gbLine('Weather (rule):', g.weather.summary + ' — ' + g.weather.read));
+    if (g.preview) box.appendChild(gsEl('div', 'fb-gs-ai', 'AI preview: ' + g.preview));
+  }
+
+  function gbSub(p, market) {
+    if (market === 'td') return p.td + ' proj rush + rec TDs';
+    if (market === 'pass') {
+      var bits = [];
+      if (p.pass_td) bits.push(p.pass_td + ' TD');
+      if (p.pass_cmp) bits.push(p.pass_cmp + (p.pass_att ? '/' + p.pass_att : '') + ' cmp');
+      if (p.pass_int) bits.push(p.pass_int + ' INT');
+      return bits.join(' · ');
+    }
+    if (market === 'rec') return (p.rec ? p.rec + ' catches' : '') + (p.rec_tgt ? ' on ' + p.rec_tgt + ' targets' : '');
+    if (market === 'recs') return (p.rec_yd ? p.rec_yd + ' yds' : '') + (p.rec_tgt ? ' on ' + p.rec_tgt + ' targets' : '');
+    if (market === 'rush') return p.rush_att ? 'on ' + p.rush_att + ' carries' : '';
+    return '';
+  }
+
+  function gbVerdict(proj, raw) {
+    var line = parseFloat(raw);
+    if (raw === undefined || raw === null || String(raw).trim() === '' || isNaN(line)) return '';
+    var diff = Math.round((proj - line) * 10) / 10;
+    if (diff === 0) return 'Even with your ' + line;
+    return (diff > 0 ? 'More · +' : 'Less · ') + diff + ' vs your ' + line;
+  }
+
+  function gbPropRow(g, market, p) {
+    var stat = market.stat;
+    var row = gsEl('div', 'fb-gb-prop');
+    var who = gsEl('div', 'fb-gb-who');
+    who.appendChild(gsEl('b', '', p.name));
+    who.appendChild(gsEl('span', 'fb-gs-pos', p.position + ' · ' + p.team));
+    if (p.injury) who.appendChild(gsEl('span', 'fb-gs-flag', p.injury));
+    row.appendChild(who);
+    var proj = gsEl('div', 'fb-gb-proj');
+    proj.appendChild(gsEl('b', '', market.id === 'td' ? p.td_chance + '%' : String(p[stat])));
+    proj.appendChild(gsEl('span', '', market.id === 'td' ? 'anytime TD (Poisson)' : gbSub(p, market.id)));
+    row.appendChild(proj);
+    if (market.id === 'td') {
+      var sub = gsEl('div', 'fb-gb-verdict', gbSub(p, 'td'));
+      row.appendChild(sub);
+      return row;
+    }
+    var key = g.game + '|' + market.id + '|' + p.name;
+    var input = gsEl('input', 'fb-gb-input');
+    input.type = 'text';
+    input.setAttribute('inputmode', 'decimal');
+    input.setAttribute('placeholder', 'Your line');
+    input.setAttribute('aria-label', 'Line your app shows for ' + p.name);
+    input.value = betsLines[key] || '';
+    var verdict = gsEl('div', 'fb-gb-verdict', gbVerdict(p[stat], input.value));
+    input.oninput = function () {
+      betsLines[key] = input.value;
+      verdict.textContent = gbVerdict(p[stat], input.value);
+    };
+    row.appendChild(input);
+    row.appendChild(verdict);
+    return row;
+  }
+
+  function gbCard(g, marketId) {
     var sc = g.scenarios || {};
     var card = gsEl('div', 'fb-gb-card');
     card.appendChild(gsEl('div', 'fb-gs-game', g.away + ' @ ' + g.home));
@@ -1055,35 +1167,36 @@
     if (imp.length) meta.push('implied ' + imp.join(' · '));
     if (g.movement) meta.push(g.movement);
     card.appendChild(gsEl('div', 'fb-gs-meta', meta.join(' · ') || 'No line posted yet'));
-    (sc.script || []).forEach(function (t) { card.appendChild(gbLine('Script (rule):', t)); });
-    if (sc.touchdowns && sc.touchdowns.length) {
-      card.appendChild(gbLine('Touchdown scorers:', sc.touchdowns.map(function (p) {
-        return p.name + ' (' + p.position + ' · ' + p.team + ') ' + p.tds + ' proj TDs ≈ ' + p.chance + '%' +
-          (p.injury ? ' [' + p.injury + ']' : '');
-      }).join(' · ')));
-    }
-    if (sc.passing && sc.passing.length) {
-      card.appendChild(gbLine('Passing:', sc.passing.map(function (p) {
-        return p.name + ' (' + p.team + ') ' + p.yd + ' yds · ' + p.td + ' TD' + (p.int ? ' · ' + p.int + ' INT' : '');
-      }).join(' · ')));
-    }
-    var yards = [];
-    if (sc.rushing) yards.push('rush ' + sc.rushing.name + ' (' + sc.rushing.team + ') ' + sc.rushing.yd + ' yds' +
-      (sc.rushing.rush_att ? ' on ' + sc.rushing.rush_att + ' carries' : ''));
-    if (sc.receiving) yards.push('rec ' + sc.receiving.name + ' (' + sc.receiving.team + ') ' + sc.receiving.yd + ' yds' +
-      (sc.receiving.rec ? ' on ' + sc.receiving.rec + ' catches' : ''));
-    if (yards.length) card.appendChild(gbLine('Yardage leaders:', yards.join(' · ')));
-    if (sc.stack) {
-      card.appendChild(gbLine('Stack:', sc.stack.qb + ' + ' + sc.stack.catchers.join(' + ') + ' (' + sc.stack.team + ')' +
-        (sc.stack.bring_back ? ' · bring-back ' + sc.stack.bring_back + ' (' + sc.stack.bring_back_team + ')' : '') +
-        ' — ' + sc.stack.why));
-    }
-    (g.out || []).forEach(function (v) {
-      card.appendChild(gsEl('div', 'fb-gs-out', 'Out on ' + v.team + ': ' + v.starter + ' (' + v.position + ', ' +
-        v.injury + ') → ' + v.next));
+    var tabs = gsEl('div', 'fb-gs-chips fb-gb-tabs');
+    BET_MARKETS.forEach(function (m) {
+      var t = gsEl('button', 'fb-gs-chip' + (m.id === marketId ? ' on' : ''), m.label);
+      t.type = 'button';
+      t.onclick = function () {
+        betsMarket = m.id;
+        var host = document.querySelector('[data-fb-gamebets]');
+        if (host) host.setAttribute('data-fb-sig', '');
+        showGameBets();
+      };
+      tabs.appendChild(t);
     });
-    if (g.weather && g.weather.read) card.appendChild(gbLine('Weather (rule):', g.weather.summary + ' — ' + g.weather.read));
-    if (g.preview) card.appendChild(gsEl('div', 'fb-gs-ai', 'AI preview: ' + g.preview));
+    card.appendChild(tabs);
+    if (marketId === 'game') {
+      gbSummary(g, card);
+      return card;
+    }
+    var market = BET_MARKETS.filter(function (m) { return m.id === marketId; })[0];
+    var rows = (sc.props || []).filter(function (p) { return p[market.stat] > 0; })
+      .sort(function (a, b) { return b[market.stat] - a[market.stat]; });
+    if (!rows.length) {
+      card.appendChild(gsEl('div', 'fb-gs-note', 'No projected ' + market.label.toLowerCase() + ' in this game.'));
+      return card;
+    }
+    rows.forEach(function (p) { card.appendChild(gbPropRow(g, market, p)); });
+    card.appendChild(gsEl('div', 'fb-gs-foot', market.id === 'td'
+      ? 'Chance of at least one rushing or receiving TD, read from the forecast’s expected TDs (Poisson). ' +
+        'Passing TDs are on the Passing tab. Players flagged out are left off.'
+      : 'Rotowire’s projection via Sleeper. Type the line your app shows to see which side the projection ' +
+        'is on — a projection, not a guarantee. Players flagged out are left off.'));
     return card;
   }
 
@@ -1095,41 +1208,43 @@
       if (host.getAttribute('data-fb-sig') === 'empty') return;
       host.setAttribute('data-fb-sig', 'empty');
       host.textContent = '';
-      host.appendChild(gsEl('div', 'fb-gs-head', 'Game by game · best scenarios'));
+      host.appendChild(gsEl('div', 'fb-gs-head', 'Game by game'));
       host.appendChild(gsEl('div', 'fb-gs-note',
-        data ? 'No weekly forecast is stored yet. Each game’s scenarios appear once the sync has this ' +
+        data ? 'No weekly forecast is stored yet. Each game’s props appear once the sync has this ' +
                'week’s Rotowire lines (via Sleeper) and a posted slate.'
              : 'Waiting for the live feed.'));
       return;
     }
+    var games = stack.games.slice().sort(function (a, b) {
+      return String(a.kickoff_iso || '').localeCompare(String(b.kickoff_iso || ''));
+    });
     var pick = betsGame;
-    if (pick && !stack.games.some(function (g) { return g.game === pick; })) pick = null;
-    var sig = [stack.week, stack.as_of, stack.games.length, pick || 'ALL'].join('|');
+    if (!pick || !games.some(function (g) { return g.game === pick; })) {
+      // Open on the next game to kick off, like the app's own game strip.
+      var now = Date.now();
+      var next = games.filter(function (g) { return Date.parse(g.kickoff_iso || '') > now; })[0];
+      pick = (next || games[0]).game;
+    }
+    var sig = [stack.week, stack.as_of, games.length, pick, betsMarket].join('|');
     if (host.getAttribute('data-fb-sig') === sig) return;
     host.setAttribute('data-fb-sig', sig);
     host.textContent = '';
     host.appendChild(gsEl('div', 'fb-gs-head',
-      'Game by game · Wk ' + stack.week + ' best scenarios · ' + stack.source +
+      'Game by game · Wk ' + stack.week + ' · ' + stack.source +
       (stack.as_of ? ' · revised ' + stack.as_of : '')));
-    host.appendChild(gsEl('div', 'fb-gs-note',
-      'Each game’s projected lines grouped by bet: who scores, who throws, who piles up yards, and which ' +
-      'pair to stack. TD chance is the forecast’s expected TDs read as a Poisson chance of at least one; ' +
-      'script and weather reads are written rules. Players flagged out are left off.'));
-    var chips = gsEl('div', 'fb-gs-chips');
-    [{ game: null, label: 'All games' }].concat(stack.games.map(function (g) {
-      return { game: g.game, label: g.away + ' @ ' + g.home };
-    })).forEach(function (o) {
-      var c = gsEl('button', 'fb-gs-chip' + (o.game === pick ? ' on' : ''), o.label);
+    var chips = gsEl('div', 'fb-gs-chips fb-gb-games');
+    games.forEach(function (g) {
+      var c = gsEl('button', 'fb-gs-chip' + (g.game === pick ? ' on' : ''), g.away + ' @ ' + g.home + ' · ' + gbShortKick(g));
       c.type = 'button';
-      c.onclick = function () { betsGame = o.game; host.setAttribute('data-fb-sig', ''); showGameBets(); };
+      c.onclick = function () { betsGame = g.game; host.setAttribute('data-fb-sig', ''); showGameBets(); };
       chips.appendChild(c);
     });
     host.appendChild(chips);
-    stack.games.filter(function (g) { return !pick || g.game === pick; })
-      .forEach(function (g) { host.appendChild(gbCard(g)); });
+    games.filter(function (g) { return g.game === pick; })
+      .forEach(function (g) { host.appendChild(gbCard(g, betsMarket)); });
     if (stack.uncovered && stack.uncovered.length) {
       host.appendChild(gsEl('div', 'fb-gs-foot',
-        'No projected player on either side yet, so no scenarios: ' + stack.uncovered.join(', ') + '.'));
+        'No projected player on either side yet: ' + stack.uncovered.join(', ') + '.'));
     }
   }
 

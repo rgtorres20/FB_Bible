@@ -730,6 +730,15 @@ measured:
   1-per-catch, 20-yds/pt leagues value it), bring-back the opponent's
   top pass-catcher. No line posted: the away side leads, and the reason
   says it is just the QB and his top targets.
+- **The market tabs show Rotowire's projection, not a chance**, for
+  yards and receptions (Sep 24). A yardage projection is a mean with no
+  published spread, so turning it into "62% to go over" would need a
+  variance this app would have to invent. The reader types the line
+  their app shows and the row says which side the projection is on, by
+  how much — arithmetic against their own number. Only touchdowns get a
+  percentage, because the Poisson read above needs nothing but the mean.
+- **The game strip opens on the next game to kick off**, not the
+  top-ranked one — the pick'em app the owner uses opens the same way.
 - **Anyone flagged in `players.OUT_FLAGS` is left off every scenario**
   (Doubtful included). A projection for a man who will not play is not a
   bet; the card's "Out on" line still names him and the teammate his

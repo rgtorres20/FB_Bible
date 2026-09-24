@@ -1239,26 +1239,25 @@ def game_stack_anchor(html: str) -> tuple[str, list[str]]:
 # --- per-game scenarios on the FFBets tab (owner, Sep 22) -------------------
 #
 # "Give the best scenarios per game each week, not just overall bets, so we
-# can look at each game individually." The Predictions view listed props
-# across the whole slate; this opens a door directly above its Vegas lines
-# table for a game-by-game panel. The scenarios are server arithmetic over
-# the weekly forecast (`gamestack.scenarios`, shipped inside `game_stack`),
-# drawn by mobile.js -- the same door-only contract as the game stack.
-_VEGAS_HEADING = (
-    '<div style="margin-top:var(--space-7); display:flex; align-items:baseline; '
-    'gap:var(--space-4);">\n'
-    '            <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
-    'text-transform:uppercase; color:var(--color-neutral-600);">'
-    "Vegas lines \u00b7 Week 1</div>"
+# can look at each game individually." The scenarios are server arithmetic
+# over the weekly forecast (`gamestack.scenarios`, shipped inside
+# `game_stack`), drawn by mobile.js -- the same door-only contract as the
+# game stack.
+#
+# Sep 24 (owner, "still not by games", with a pick'em app's game screen as
+# the model): the door moved from under the slate-wide pick list to the
+# very top of the Predictions view, so a game is the first thing you pick.
+_PREDICT_VIEW = '<sc-if value="{{ isPredict }}" hint-placeholder-val="{{ false }}">'
+_GAMEBETS_ANCHOR = (
+    '\n          <div data-fb-gamebets style="margin:var(--space-4) 0 var(--space-6);"></div>'
 )
-_GAMEBETS_ANCHOR = '<div data-fb-gamebets style="margin:var(--space-7) 0 0;"></div>\n          '
 
 
 def game_bets_anchor(html: str) -> tuple[str, list[str]]:
-    """Insert the anchor mobile.js builds the per-game scenarios into."""
+    """Insert the anchor mobile.js builds the per-game panel into."""
     return _apply(
         html,
-        (("game bets anchor", _VEGAS_HEADING, _GAMEBETS_ANCHOR + _VEGAS_HEADING, 1),),
+        (("game bets anchor", _PREDICT_VIEW, _PREDICT_VIEW + _GAMEBETS_ANCHOR, 1),),
     )
 
 

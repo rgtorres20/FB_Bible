@@ -269,6 +269,17 @@ def main() -> int:
             if p.get("injury") in out_flags
         ]
         check("no flagged-out player is offered as a TD bet", not offered_out, str(offered_out))
+        # Sep 24: the per-game market tabs read each player's prop line.
+        with_props = sum(1 for g in games if (g.get("scenarios") or {}).get("props"))
+        check(
+            "every ranked game lists its players' prop lines",
+            with_props == len(games),
+            f"{with_props} of {len(games)}",
+        )
+        check(
+            "every ranked game carries a kickoff the game strip can order by",
+            all(g.get("kickoff_iso") for g in games),
+        )
         stacks = sum(1 for g in games if (g.get("scenarios") or {}).get("stack"))
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:
@@ -864,7 +875,16 @@ def main() -> int:
     # that a gone-live surface must not quietly revert: the store keeps
     # the last good forecast on a failed refetch, so absence means the
     # pipeline broke, not that Sleeper had a slow hour.
-    check("TD leans carry the Wk 1 forecast", "Wk 1 forecast:" in served)
+    # Past Week 1 the rows are the week's forecast picks (Sep 22), which
+    # carry the forecast in their own "why" -- so the check follows the
+    # week the tab shows rather than insisting on Week 1's clause.
+    picks_week = re.search(r"Week (\d+) touchdown picks", served)
+    check(
+        "TD rows carry the week's forecast",
+        "Wk 1 forecast:" in served
+        or bool(picks_week and f"in Wk {picks_week.group(1)} " in served),
+        f"picks for Week {picks_week.group(1)}" if picks_week else "Week 1 leans",
+    )
     check(
         "FFBets forecasts marked live in Data health",
         "TD-prop forecasts" in meta.get("FFBets salaries/projections", {}).get("source", ""),
@@ -883,7 +903,13 @@ def main() -> int:
     # curated openers means the odds pipeline is stale -- a true failure.
     check("vegas table rebound to live data", "vegas: (F.vegas || VEGAS)," in served)
     check("Vegas lines are live", "Live via ESPN" in served)
-    check("TD leans track live lines", "confidence adjusted" in served)
+    # Week 1's leans track the line by adjusting their confidence; the
+    # later weeks' picks put the line beside the forecast instead
+    # ("Vegas implies ...", from gamestack.lean_clauses).
+    check(
+        "TD rows track live lines",
+        "confidence adjusted" in served or (picks_week is not None and "Vegas implies" in served),
+    )
     check("Week 1 schedule is live", "live kickoff times" in served)
     # Best-effort like every AI count: zero is a legitimate hour, a count
     # stuck at zero is the signal worth having in the log.
