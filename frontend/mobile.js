@@ -1112,12 +1112,41 @@
     return '';
   }
 
-  function gbVerdict(proj, raw) {
+  // The spread table the server measured from last season's box scores
+  // (app/feeds/spreads.py), set each time the panel draws. Absent until the
+  // whole season is folded in -- and then no percentage is printed.
+  var betsSpreads = null;
+
+  function gbNormalCdf(x) {
+    // Abramowitz & Stegun 7.1.26 -- good to ~1e-7, far finer than a whole percent.
+    var t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
+    var y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t +
+      0.254829592) * t * Math.exp(-x * x / 2);
+    return x >= 0 ? (1 + y) / 2 : (1 - y) / 2;
+  }
+
+  // P(the stat clears the line), from a normal curve centred on the
+  // projection with the measured game-to-game spread for his position.
+  function gbOverChance(stat, position, proj, line) {
+    var m = betsSpreads && betsSpreads.markets && betsSpreads.markets[stat];
+    var cell = m && m[position];
+    if (!cell || !(proj > 0)) return null;
+    var sd = cell.cv * proj;
+    var p = 1 - gbNormalCdf((line - proj) / sd);
+    return Math.max(1, Math.min(99, Math.round(p * 100)));
+  }
+
+  function gbVerdict(proj, raw, stat, position) {
     var line = parseFloat(raw);
     if (raw === undefined || raw === null || String(raw).trim() === '' || isNaN(line)) return '';
     var diff = Math.round((proj - line) * 10) / 10;
-    if (diff === 0) return 'Even with your ' + line;
-    return (diff > 0 ? 'More · +' : 'Less · ') + diff + ' vs your ' + line;
+    var over = gbOverChance(stat, position, proj, line);
+    var chance = '';
+    if (over !== null) {
+      chance = over >= 50 ? ' · ≈' + over + '% to go over' : ' · ≈' + (100 - over) + '% to stay under';
+    }
+    if (diff === 0) return 'Even with your ' + line + chance;
+    return (diff > 0 ? 'More · +' : 'Less · ') + diff + ' vs your ' + line + chance;
   }
 
   function gbPropRow(g, market, p) {
@@ -1144,10 +1173,10 @@
     input.setAttribute('placeholder', 'Your line');
     input.setAttribute('aria-label', 'Line your app shows for ' + p.name);
     input.value = betsLines[key] || '';
-    var verdict = gsEl('div', 'fb-gb-verdict', gbVerdict(p[stat], input.value));
+    var verdict = gsEl('div', 'fb-gb-verdict', gbVerdict(p[stat], input.value, stat, p.position));
     input.oninput = function () {
       betsLines[key] = input.value;
-      verdict.textContent = gbVerdict(p[stat], input.value);
+      verdict.textContent = gbVerdict(p[stat], input.value, stat, p.position);
     };
     row.appendChild(input);
     row.appendChild(verdict);
@@ -1196,7 +1225,11 @@
       ? 'Chance of at least one rushing or receiving TD, read from the forecast’s expected TDs (Poisson). ' +
         'Passing TDs are on the Passing tab. Players flagged out are left off.'
       : 'Rotowire’s projection via Sleeper. Type the line your app shows to see which side the projection ' +
-        'is on — a projection, not a guarantee. Players flagged out are left off.'));
+        'is on' + (betsSpreads
+          ? ', and the chance of each side: a normal curve around the projection with the game-to-game ' +
+            'spread measured from every ' + betsSpreads.season + ' regular-season box score at that position'
+          : ' (the over/under chance appears once last season’s game-to-game spread has been measured)') +
+        '. A model, not a guarantee. Players flagged out are left off.'));
     return card;
   }
 
@@ -1225,7 +1258,8 @@
       var next = games.filter(function (g) { return Date.parse(g.kickoff_iso || '') > now; })[0];
       pick = (next || games[0]).game;
     }
-    var sig = [stack.week, stack.as_of, games.length, pick, betsMarket].join('|');
+    betsSpreads = stack.spreads || null;
+    var sig = [stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads].join('|');
     if (host.getAttribute('data-fb-sig') === sig) return;
     host.setAttribute('data-fb-sig', sig);
     host.textContent = '';
