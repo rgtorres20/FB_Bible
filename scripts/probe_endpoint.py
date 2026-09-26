@@ -97,19 +97,13 @@ def main() -> int:
         import httpx
     except ImportError:
         httpx = None
-    if httpx is not None:
-        try:
-            resp = httpx.get(url, headers=headers, timeout=60, follow_redirects=True)
-        except Exception as exc:  # noqa: BLE001 - the failure IS the finding
-            print(f"::error::{type(exc).__name__}: {exc}")
-            return 1
-        status, resp_headers, raw = resp.status_code, resp.headers, resp.content
-        print("(fetched with httpx, as the app does)")
-    request = urllib.request.Request(url, headers=headers)
     try:
         if httpx is not None:
-            pass
+            resp = httpx.get(url, headers=headers, timeout=60, follow_redirects=True)
+            status, resp_headers, raw = resp.status_code, resp.headers, resp.content
+            print("(fetched with httpx, as the app does)")
         else:
+            request = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(request, timeout=60) as response:
                 status = response.status
                 resp_headers = response.headers

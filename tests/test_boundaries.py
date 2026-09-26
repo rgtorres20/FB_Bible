@@ -62,7 +62,7 @@ DATA_UNITS: dict[str, frozenset[str]] = {
     # into a line the league scorer reads. The difference between them is
     # the tense, not the shape.
     "usage": frozenset({"stats", "depth", "projections", "spreads", "gamelogs"}),
-    "odds": frozenset({"vegas"}),
+    "odds": frozenset({"vegas", "college"}),
     "ai": frozenset({"capsules", "previews", "weekrev"}),
     "scoring": frozenset({"scorecard", "replacement"}),
     # curated is a surface's honesty layer rather than a data unit: it

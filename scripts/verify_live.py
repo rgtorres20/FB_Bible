@@ -328,6 +328,35 @@ def main() -> int:
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:
         print("  INFO  game stack absent (no weekly forecast stored yet, or no slate)")
+    # College FFBets (Sep 26): the top-25 slate the runner pushes, with the
+    # season's box scores behind it. Absent is honest until the first push;
+    # present, every game must involve a ranked team and every player row
+    # must be a season average with the games it rests on.
+    cfb = page_data.get("cfb_stack")
+    if cfb:
+        cfb_games = cfb.get("games") or []
+        check(
+            "college slate is top-25 games only",
+            bool(cfb_games) and all(g.get("ranks") for g in cfb_games),
+            f"{len(cfb_games)} games",
+        )
+        cfb_rows = [p for g in cfb_games for p in (g.get("scenarios") or {}).get("props") or []]
+        check(
+            "college rows rest on real games",
+            all(p.get("log", {}).get("26") for p in cfb_rows),
+            f"{len(cfb_rows)} player rows",
+        )
+        check(
+            "college numbers say they are averages, not projections",
+            "not projections" in (cfb.get("source") or ""),
+        )
+        print(
+            f"  INFO  college: Wk {cfb.get('week')} · {len(cfb_games)} top-25 games · "
+            f"{cfb.get('games_logged')} box scores stored · "
+            f"{len(cfb.get('uncovered') or [])} games with no boxes yet"
+        )
+    else:
+        print("  INFO  college slate absent (no push yet)")
     stars = page_data.get("weekly_stars")
     if stars:
         check(

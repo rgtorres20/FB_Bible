@@ -159,6 +159,8 @@ def _stack():
     }
 
 
+LEAGUES = ("NFL", "College · Top 25")
+
 STEPS = [
     {"click": "Touchdowns"},
     {"click": "Receptions"},
@@ -262,7 +264,11 @@ def test_the_game_tab_is_the_scenario_summary(rendered):
     )
     assert "Weather (rule): Rain · 55°F — wet: lean run" in lines
     assert _texts(anchor, "fb-gs-out") == ["Out on BUF: James Cook (RB, Out) → Ray Davis"]
-    tabs = [n["text"] for n in _flat(anchor) if n["tag"] == "button" and "@" not in n["text"]]
+    tabs = [
+        n["text"]
+        for n in _flat(anchor)
+        if n["tag"] == "button" and "@" not in n["text"] and n["text"] not in LEAGUES
+    ]
     assert tabs == [
         "Game",
         "Touchdowns",
@@ -379,3 +385,77 @@ def test_each_row_shows_his_real_games_his_hit_rate_and_the_matchup():
     rush = _stats(out["steps"][3], "Ray Davis")
     assert "vs MIA defense: allows 61 rushing yds/g to RBs — 4th-fewest of 30 (3 g)" in rush
     assert "No games in the box scores yet." in rush
+
+
+def _college_stack():
+    miss = {
+        "script": [],
+        "touchdowns": [],
+        "passing": [],
+        "rushing": None,
+        "receiving": None,
+        "stack": None,
+        "allowed": {"UGA": {"games": 3, "RB": {"rush_yd": [88.3, 12, 20, 1, 31]}}},
+        "props": [
+            {
+                "name": "Kewan Lacy",
+                "position": "RB",
+                "team": "MISS",
+                "injury": "",
+                "rush_att": 18.0,
+                "rush_yd": 104.5,
+                "log": {"26": [{"w": 20260905, "o": "GT", "rush_yd": 120}]},
+            }
+        ],
+    }
+    return {
+        "league": "college",
+        "week": 5,
+        "source": "ESPN box scores · season averages, not projections",
+        "as_of": "2026-09-26",
+        "leagues": [],
+        "default_league": None,
+        "uncovered": [],
+        "games": [
+            _game(
+                "MISS @ UGA",
+                "MISS",
+                "UGA",
+                "Sat Oct 3 · 2:30 PM",
+                "2099-10-03T19:30Z",
+                miss,
+                ranks={"MISS": 21, "UGA": 5},
+                fav="UGA -7.5",
+                total="55.5",
+                implied={"UGA": 31.5, "MISS": 24.0},
+            )
+        ],
+    }
+
+
+def test_the_college_switch_shows_the_top_25_slate_as_season_averages():
+    """Owner, Sep 26: "another section that looks at college games too just
+    like nfl -- let's keep to top 25 games"."""
+    feeds = {"news": [], "game_stack": _stack(), "cfb_stack": _college_stack()}
+    out = _render(feeds, [{"click": "College · Top 25"}, {"click": "Rushing yds"}])
+    college = out["steps"][0]
+    assert _texts(college, "fb-gs-head") == [
+        "College FFBets · Top 25 · Wk 5 · ESPN box scores · season averages, not projections"
+        " · pulled 2026-09-26"
+    ]
+    strip = [n["text"] for n in _flat(college) if n["tag"] == "button" and "@" in (n["text"] or "")]
+    assert strip == ["#21 MISS @ #5 UGA · Sat 2:30 PM"]
+    rush = out["steps"][1]
+    row = _props(rush)[0]
+    assert row[:2] == ("Kewan Lacy", "104.5")
+    assert "Rusher · MISS" in _texts(rush, "fb-gs-pos")
+    stats = _stats(rush, "Kewan Lacy")
+    assert "vs UGA defense: allows 88.3 rushing yds/g to Rushers — 12th-most of 31 (3 g)" in stats
+    feet = _texts(rush, "fb-gs-foot")
+    assert any("Season average per game from ESPN box scores — not a projection" in f for f in feet)
+
+
+def test_college_with_nothing_stored_says_so():
+    out = _render({"news": [], "game_stack": _stack()}, [{"click": "College · Top 25"}])
+    notes = _texts(out["steps"][0], "fb-gs-note")
+    assert notes and notes[0].startswith("No college slate is stored yet")
