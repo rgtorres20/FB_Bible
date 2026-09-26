@@ -43,6 +43,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # httpx, so the probe fetches the way the app does: ESPN's edge 403s
+      # urllib and passes httpx with the same headers.
+      - name: Install httpx
+        run: python3 -m pip install --quiet httpx
+
       - name: Describe the response
         env:
           PROBE_URL: ${{ inputs.url }}

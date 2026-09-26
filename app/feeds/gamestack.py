@@ -40,7 +40,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from .. import leagues as leagues_mod
-from . import depth, gamelogs, projections, vegas
+from . import college, depth, gamelogs, projections, spreads, vegas
 from .clock import format_time
 from .players import OUT_FLAGS
 
@@ -807,6 +807,125 @@ def td_picks(
                 }
             )
     return rows
+
+
+# --- College FFBets: the week's top-25 games (owner, Sep 26) ------------------
+#
+# "Another section that looks at college games too just like nfl -- let's
+# keep to top 25 games". Same panel, same tabs, same line box, same hit
+# rates and matchups as the NFL games -- composed from college.py's stored
+# season instead of a forecast. The number on each row is the player's
+# **season average** from ESPN's box scores: there is no free college
+# projection, and an average wearing a projection's label is the false
+# positive this app refuses. Every figure says how many games it rests on.
+
+# Volume a player needs to be listed: a passer, or 3+ carries or 1+ catch a
+# game. Fewer is a spot player whose average is noise.
+COLLEGE_MIN_RUSH = 3.0
+COLLEGE_MIN_REC = 1.0
+COLLEGE_PER_TEAM = 10
+# Games a player needs before his swing counts toward the pooled spread.
+# College seasons are short; three is the least that measures a swing.
+COLLEGE_SPREAD_MIN_GAMES = 3
+
+
+def _college_usage(p: dict) -> float:
+    ln = p["line"]
+    return ln.get("pass_att", 0) + ln.get("rush_att", 0) + 2 * ln.get("rec", 0)
+
+
+def college_stack(state: dict | None, now: datetime | None = None) -> dict | None:
+    """The top-25 slate in the game_stack shape the FFBets panel draws, or
+    None when no slate has been pushed."""
+    st = college.current(state)
+    slate_state = st.get("slate") or {}
+    rows = slate_state.get("games") or []
+    if not rows:
+        return None
+    logs = {**college.to_logs(st), "v": gamelogs.VERSION}
+    allowed_by_defense = gamelogs.allowed(logs, season=college.SEASON)
+    implied = vegas.implied_by_team(rows)
+    by_team: dict[str, list[dict]] = {}
+    for pid, p in logs["players"].items():
+        games = list(p["games"].values())
+        n = len(games)
+        line = {stat: sum(g.get(stat, 0) for g in games) / n for stat in college.STATS}
+        if (
+            p["pos"] != "QB"
+            and line["rush_att"] < COLLEGE_MIN_RUSH
+            and line["rec"] < COLLEGE_MIN_REC
+        ):
+            continue
+        by_team.setdefault(p["team"], []).append(
+            {
+                "id": pid,
+                "name": p["name"],
+                "position": p["pos"],
+                "team": p["team"],
+                "injury": "",
+                "line": line,
+            }
+        )
+    out_games, uncovered = [], []
+    for row in rows:
+        codes = vegas.matchup_teams(row.get("game"))
+        if not codes:
+            continue
+        by_side = {
+            c: sorted(by_team.get(c, []), key=lambda p: -_college_usage(p))[:COLLEGE_PER_TEAM]
+            for c in codes
+        }
+        if not any(by_side.values()):
+            uncovered.append(row.get("game") or "")
+        away, home = codes
+        sc = scenarios(
+            codes,
+            by_side,
+            {**row, "implied": {c: implied.get(c) for c in codes}},
+            logs,
+            allowed_by_defense,
+        )
+        out_games.append(
+            {
+                "game": row.get("game"),
+                "away": away,
+                "home": home,
+                "away_name": row.get("away_name") or away,
+                "home_name": row.get("home_name") or home,
+                "ranks": row.get("ranks") or {},
+                "state": row.get("state") or "",
+                "kickoff": format_time(row.get("kickoff")),
+                "kickoff_iso": row.get("kickoff") or "",
+                "tv": row.get("tv") or "",
+                "fav": row.get("fav") if row.get("fav") not in ("", "—") else "",
+                "total": row.get("total") if row.get("total") not in ("", "—") else "",
+                "implied": {c: implied[c] for c in codes if c in implied},
+                "movement": "",
+                "weather": _weather(row),
+                "points": {},
+                "top": [],
+                "out": [],
+                "preview": "",
+                "scenarios": sc,
+            }
+        )
+    out_games.sort(key=lambda g: g["kickoff_iso"])
+    pooled = spreads.pooled(logs, college.SEASON, min_games=COLLEGE_SPREAD_MIN_GAMES)
+    fetched = slate_state.get("fetched_at") or ""
+    return {
+        "league": "college",
+        "week": slate_state.get("week"),
+        "source": "ESPN box scores · season averages, not projections",
+        "as_of": fetched[:10],
+        "leagues": [],
+        "default_league": None,
+        "games": out_games,
+        "uncovered": [u for u in uncovered if u],
+        "games_logged": len(st.get("boxes") or {}),
+        "spreads": {"season": college.SEASON, "college": True, "markets": pooled}
+        if pooled
+        else None,
+    }
 
 
 # --- clauses for the Predictions (FFBets) rows -------------------------------

@@ -1042,6 +1042,22 @@
   var betsGame = null;
   var betsMarket = 'game';
   var betsLines = {};
+  // NFL or College (owner, Sep 26: "another section that looks at college
+  // games too just like nfl -- let's keep to top 25 games"). Same panel,
+  // same tabs; the college stack is composed from ESPN box scores, so its
+  // numbers are season averages and its players' roles are read from what
+  // they did (the box score publishes no position).
+  var betsLeague = 'nfl';
+  var GB_ROLE = { QB: 'Passer', RB: 'Rusher', WR: 'Receiver' };
+
+  function gbCollege() { return betsLeague === 'college'; }
+
+  function gbPos(p) { return gbCollege() ? (GB_ROLE[p.position] || p.position) : p.position; }
+
+  function gbTeam(g, code) {
+    var r = (g.ranks || {})[code];
+    return (r ? '#' + r + ' ' : '') + code;
+  }
 
   var BET_MARKETS = [
     { id: 'game', label: 'Game' },
@@ -1069,7 +1085,7 @@
     (sc.script || []).forEach(function (t) { box.appendChild(gbLine('Script (rule):', t)); });
     if (sc.touchdowns && sc.touchdowns.length) {
       box.appendChild(gbLine('Touchdown scorers:', sc.touchdowns.map(function (p) {
-        return p.name + ' (' + p.position + ' · ' + p.team + ') ' + p.tds + ' proj TDs ≈ ' + p.chance + '%' +
+        return p.name + ' (' + gbPos(p) + ' · ' + p.team + ') ' + p.tds + (gbCollege() ? ' TDs/g' : ' proj TDs') + ' ≈ ' + p.chance + '%' +
           (p.injury ? ' [' + p.injury + ']' : '');
       }).join(' · ')));
     }
@@ -1213,7 +1229,7 @@
     var near = most <= fewest ? most : fewest;
     var end = most <= fewest ? 'most' : 'fewest';
     var place = (near === 1 ? 'the ' + end : gbOrdinal(near) + '-' + end) + (tied > 1 ? ' (tied with ' + (tied - 1) + ')' : '');
-    return 'vs ' + opp + ' defense: allows ' + cell[0] + ' ' + GB_STAT_WORDS[key] + '/g to ' + p.position +
+    return 'vs ' + opp + ' defense: allows ' + cell[0] + ' ' + GB_STAT_WORDS[key] + '/g to ' + gbPos(p) +
       's — ' + place + ' of ' + of + ' (' + d.games + ' g)';
   }
 
@@ -1222,7 +1238,7 @@
     var row = gsEl('div', 'fb-gb-prop');
     var who = gsEl('div', 'fb-gb-who');
     who.appendChild(gsEl('b', '', p.name));
-    who.appendChild(gsEl('span', 'fb-gs-pos', p.position + ' · ' + p.team));
+    who.appendChild(gsEl('span', 'fb-gs-pos', gbPos(p) + ' · ' + p.team));
     if (p.injury) who.appendChild(gsEl('span', 'fb-gs-flag', p.injury));
     row.appendChild(who);
     var proj = gsEl('div', 'fb-gb-proj');
@@ -1264,7 +1280,7 @@
   function gbCard(g, marketId) {
     var sc = g.scenarios || {};
     var card = gsEl('div', 'fb-gb-card');
-    card.appendChild(gsEl('div', 'fb-gs-game', g.away + ' @ ' + g.home));
+    card.appendChild(gsEl('div', 'fb-gs-game', gbTeam(g, g.away) + ' @ ' + gbTeam(g, g.home)));
     var meta = [];
     if (g.kickoff) meta.push(g.kickoff);
     if (g.tv) meta.push(g.tv);
@@ -1299,31 +1315,65 @@
       return card;
     }
     rows.forEach(function (p) { card.appendChild(gbPropRow(g, market, p)); });
+    var college = gbCollege();
+    var source = college
+      ? 'Season average per game from ESPN box scores — not a projection; no free college projection exists'
+      : 'Rotowire’s projection via Sleeper';
+    var spreadNote = !betsSpreads
+      ? (college
+        ? ' (the over/under chance appears once enough players have 3+ games this season)'
+        : ' (the over/under chance appears once last season’s game-to-game spread has been measured)')
+      : betsSpreads.college
+        ? ', and the chance of each side: a normal curve around that average with the game-to-game spread ' +
+          'measured from this season’s college box scores (players with 3+ games)'
+        : ', and the chance of each side: a normal curve around the projection with the game-to-game ' +
+          'spread measured from every ' + betsSpreads.season + ' regular-season box score at that position';
     card.appendChild(gsEl('div', 'fb-gs-foot', market.id === 'td'
-      ? 'Chance of at least one rushing or receiving TD, read from the forecast’s expected TDs (Poisson). ' +
-        'Passing TDs are on the Passing tab. Players flagged out are left off.'
-      : 'Rotowire’s projection via Sleeper. Type the line your app shows to see which side the projection ' +
-        'is on' + (betsSpreads
-          ? ', and the chance of each side: a normal curve around the projection with the game-to-game ' +
-            'spread measured from every ' + betsSpreads.season + ' regular-season box score at that position'
-          : ' (the over/under chance appears once last season’s game-to-game spread has been measured)') +
-        '. A model, not a guarantee. Players flagged out are left off.'));
+      ? 'Chance of at least one rushing or receiving TD, read from ' +
+        (college ? 'his rushing + receiving TDs per game this season' : 'the forecast’s expected TDs') +
+        ' (Poisson). Passing TDs are on the Passing tab.' + (college ? '' : ' Players flagged out are left off.')
+      : source + '. Type the line your app shows to see which side ' +
+        (college ? 'his average' : 'the projection') + ' is on' + spreadNote + '. A model, not a guarantee.' +
+        (college ? ' College box scores carry no injury flag — check your book’s status.'
+          : ' Players flagged out are left off.')));
     return card;
+  }
+
+  function gbLeagueChips(host) {
+    var row = gsEl('div', 'fb-gs-chips fb-gb-league');
+    [['nfl', 'NFL'], ['college', 'College · Top 25']].forEach(function (l) {
+      var c = gsEl('button', 'fb-gs-chip' + (betsLeague === l[0] ? ' on' : ''), l[1]);
+      c.type = 'button';
+      c.onclick = function () {
+        if (betsLeague === l[0]) return;
+        betsLeague = l[0];
+        betsGame = null;
+        host.setAttribute('data-fb-sig', '');
+        showGameBets();
+      };
+      row.appendChild(c);
+    });
+    return row;
   }
 
   function showGameBets() {
     var host = document.querySelector('[data-fb-gamebets]');
     if (!host) return;
-    var stack = data && data.game_stack;
+    var college = gbCollege();
+    var stack = data && (college ? data.cfb_stack : data.game_stack);
     if (!stack || !stack.games || !stack.games.length) {
-      if (host.getAttribute('data-fb-sig') === 'empty') return;
-      host.setAttribute('data-fb-sig', 'empty');
+      var emptySig = 'empty|' + betsLeague + '|' + !!data;
+      if (host.getAttribute('data-fb-sig') === emptySig) return;
+      host.setAttribute('data-fb-sig', emptySig);
       host.textContent = '';
-      host.appendChild(gsEl('div', 'fb-gs-head', 'Game by game'));
+      host.appendChild(gsEl('div', 'fb-gs-head', college ? 'College FFBets · Top 25' : 'Game by game'));
+      host.appendChild(gbLeagueChips(host));
       host.appendChild(gsEl('div', 'fb-gs-note',
-        data ? 'No weekly forecast is stored yet. Each game’s props appear once the sync has this ' +
-               'week’s Rotowire lines (via Sleeper) and a posted slate.'
-             : 'Waiting for the live feed.'));
+        !data ? 'Waiting for the live feed.'
+          : college ? 'No college slate is stored yet. The week’s top-25 games appear once the sync has ' +
+                      'pushed ESPN’s FBS scoreboard and box scores.'
+          : 'No weekly forecast is stored yet. Each game’s props appear once the sync has this ' +
+            'week’s Rotowire lines (via Sleeper) and a posted slate.'));
       return;
     }
     var games = stack.games.slice().sort(function (a, b) {
@@ -1337,16 +1387,18 @@
       pick = (next || games[0]).game;
     }
     betsSpreads = stack.spreads || null;
-    var sig = [stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads].join('|');
+    var sig = [betsLeague, stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads].join('|');
     if (host.getAttribute('data-fb-sig') === sig) return;
     host.setAttribute('data-fb-sig', sig);
     host.textContent = '';
     host.appendChild(gsEl('div', 'fb-gs-head',
-      'Game by game · Wk ' + stack.week + ' · ' + stack.source +
-      (stack.as_of ? ' · revised ' + stack.as_of : '')));
+      (college ? 'College FFBets · Top 25 · Wk ' : 'Game by game · Wk ') + stack.week + ' · ' + stack.source +
+      (stack.as_of ? (college ? ' · pulled ' : ' · revised ') + stack.as_of : '')));
+    host.appendChild(gbLeagueChips(host));
     var chips = gsEl('div', 'fb-gs-chips fb-gb-games');
     games.forEach(function (g) {
-      var c = gsEl('button', 'fb-gs-chip' + (g.game === pick ? ' on' : ''), g.away + ' @ ' + g.home + ' · ' + gbShortKick(g));
+      var c = gsEl('button', 'fb-gs-chip' + (g.game === pick ? ' on' : ''),
+        gbTeam(g, g.away) + ' @ ' + gbTeam(g, g.home) + ' · ' + gbShortKick(g));
       c.type = 'button';
       c.onclick = function () { betsGame = g.game; host.setAttribute('data-fb-sig', ''); showGameBets(); };
       chips.appendChild(c);
@@ -1356,7 +1408,8 @@
       .forEach(function (g) { host.appendChild(gbCard(g, betsMarket)); });
     if (stack.uncovered && stack.uncovered.length) {
       host.appendChild(gsEl('div', 'fb-gs-foot',
-        'No projected player on either side yet: ' + stack.uncovered.join(', ') + '.'));
+        (college ? 'No box scores stored for either side yet: ' : 'No projected player on either side yet: ') +
+        stack.uncovered.join(', ') + '.'));
     }
   }
 

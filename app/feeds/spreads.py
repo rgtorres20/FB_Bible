@@ -42,11 +42,9 @@ MIN_GAMES = 8
 MIN_PLAYERS = 10  # fewer qualifying players than this and no spread is claimed
 
 
-def table(logs: dict | None) -> dict | None:
-    """{"season": 2025, "markets": {stat: {position: {"cv", "players"}}}},
-    or None until the season is final in the logs."""
-    if not gamelogs.season_complete(logs, SEASON):
-        return None
+def pooled(logs: dict | None, season: int, min_games: int = MIN_GAMES) -> dict:
+    """{stat: {role: {"cv", "players"}}} from one season of game logs --
+    the median coefficient of variation among players with a real role."""
     out: dict[str, dict[str, dict]] = {}
     players = (logs or {}).get("players") or {}
     for stat, by_pos in MARKETS.items():
@@ -55,8 +53,8 @@ def table(logs: dict | None) -> dict | None:
             for pid, player in players.items():
                 if player.get("pos") != pos:
                     continue
-                values = [g.get(stat) or 0 for g in gamelogs.season_games(logs, pid, SEASON)]
-                if len(values) < MIN_GAMES:
+                values = [g.get(stat) or 0 for g in gamelogs.season_games(logs, pid, season)]
+                if len(values) < min_games:
                     continue
                 mean = statistics.mean(values)
                 if mean < min_mean:
@@ -67,4 +65,13 @@ def table(logs: dict | None) -> dict | None:
                     "cv": round(statistics.median(cvs), 3),
                     "players": len(cvs),
                 }
+    return out
+
+
+def table(logs: dict | None) -> dict | None:
+    """{"season": 2025, "markets": {stat: {position: {"cv", "players"}}}},
+    or None until the season is final in the logs."""
+    if not gamelogs.season_complete(logs, SEASON):
+        return None
+    out = pooled(logs, SEASON)
     return {"season": SEASON, "markets": out} if out else None

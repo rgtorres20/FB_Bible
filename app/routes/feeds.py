@@ -31,6 +31,7 @@ from ..feeds import (
     build_feed_store,
     capsules,
     cheatsheet,
+    college,
     gamelogs,
     gamestack,
     idp,
@@ -151,6 +152,11 @@ async def app_feeds(
             visitor_leagues,
         ),
     )
+    # College FFBets (owner, Sep 26): the top-25 slate, composed from its
+    # own store key. Absent until the runner has pushed a slate.
+    college_stack = gamestack.college_stack(await store.load_cfb())
+    if college_stack:
+        merged["cfb_stack"] = college_stack
     return render.rename_leagues(merged)
 
 
@@ -568,6 +574,43 @@ async def save_vegas(
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
+class CollegeIn(BaseModel):
+    slate: dict = {}
+    boxes: list = []
+
+
+@router.post("/internal/cfb", summary="Store the college top-25 slate and box scores")
+async def save_cfb(
+    payload: CollegeIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """College FFBets (Sep 26). ESPN 403s Vercel's IPs, so the runner
+    fetches the FBS scoreboard and the box scores this store does not yet
+    hold (scripts/push_cfb.py) and pushes them here. Everything is rebuilt
+    field by field at the door (college.clean_slate / clean_box)."""
+    _require_sync_token(settings, x_sync_token)
+    state = college.merge(await store.load_cfb(), payload.slate, payload.boxes[:200])
+    await store.save_cfb(state)
+    return {
+        "games": len((state.get("slate") or {}).get("games") or []),
+        "boxes": len(state.get("boxes") or {}),
+        "week_label": (state.get("slate") or {}).get("week_label", ""),
+    }
+
+
+@router.get("/internal/cfb/known", summary="Box scores the college store already holds")
+async def cfb_known(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """So the runner fetches each finished game's box score once a season."""
+    _require_sync_token(settings, x_sync_token)
+    return {"events": college.known_events(await store.load_cfb())}
 
 
 # The Week review tab's game rows: four known string columns, same

@@ -787,3 +787,41 @@ measured:
   (Doubtful included). A projection for a man who will not play is not a
   bet; the card's "Out on" line still names him and the teammate his
   work falls to.
+
+## College FFBets is built from box scores, not projections (Sep 26)
+
+Owner: *"another section that looks at college games too just like nfl
+— let's keep to top 25 games"*. The NFL panel reads Rotowire's weekly
+forecast via Sleeper; there is no free college equivalent, so the
+College switch reads what can be measured — ESPN's FBS scoreboard and
+every finished game's box score (`app/feeds/college.py`, probed live
+first, probe runs 41–51). Chosen, and the owner's to overrule:
+
+- **A player's number is his season average per game**, and the panel
+  says so in the heading and under every tab. Averages lag real changes
+  (a new starter, an injury) that a projection would absorb.
+- **Top 25 means either team is ranked** by ESPN's `curatedRank`
+  (the AP-style rank on the scoreboard). An unranked opponent's players
+  are listed too — it is their game as much as the ranked team's.
+- **The slate flips to next week** once every top-25 game on the current
+  scoreboard has kicked off.
+- **Roles are read from volume, not a roster**: a passer averages 10+
+  attempts a game; anyone else is a rusher or a receiver by which he does
+  more of. The box score publishes no position, so the panel says
+  *Passer / Rusher / Receiver*, never QB/RB/WR.
+- **A player is listed with 3+ carries or 1+ catch a game** (or as a
+  passer), at most 10 per team by usage.
+- **The over/under chance pools this season's college swings** — median
+  game-to-game coefficient of variation among players with 3+ games, same
+  role thresholds as the NFL table — and shows nothing until at least ten
+  players qualify for a role.
+- **No injury flags.** College box scores carry none and there is no free
+  college injury feed the app polls; the panel says to check the book's
+  status rather than implying everyone listed is healthy.
+- **Lines are ESPN's, and absent often** — only about a quarter of games
+  carried `odds` in the weeks probed. A game with no line is shown without
+  one; nothing is estimated.
+- **60 box scores per runner push** (`MAX_BOXES_PER_RUN`): one summary is
+  ~500KB, and the first push of a season has every ranked team's played
+  games to catch up on. Each game is fetched once — the deployment tells
+  the runner which it already holds.

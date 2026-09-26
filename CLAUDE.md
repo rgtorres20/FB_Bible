@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1627 tests green — 1611 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1641 tests green — 1625 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -608,6 +608,20 @@ Each row on the market tabs shows his game log, how many games he went
 over the typed line in (with the game count), and what this week's
 defense has allowed per game to his position, ranked. The spreads above
 now read the same logs, so last season is fetched once for both.
+
+**College FFBets** (owner, Sep 26: *"another section that looks at
+college games too just like nfl — let's keep to top 25 games"*). The
+game-by-game panel gained an **NFL / College · Top 25** switch; the college
+side is the same tabs, line box, hit rates and matchups, composed by
+`gamestack.college_stack` from `app/feeds/college.py`'s store key
+(`fbbible:cfb`). There is no free college projection, so every college
+number is the player's **season average from ESPN box scores**, labelled
+so; roles are Passer / Rusher / Receiver, read from volume, because the box
+score publishes no position. ESPN 403s Vercel, so the runner fetches
+(`scripts/push_cfb.py`, a sync-feeds step) and pushes to `/internal/cfb`,
+fetching each finished game's box score once. Every shape was probed live
+first — which needed the probe to fetch with httpx, as the app does,
+because ESPN 403s urllib. Chosen numbers in docs/ASSUMPTIONS.md.
 
 **FFBets follows the live week** (owner, Sep 22: *"i still see week 1 no
 updates"*, *"also is giving me people that are injured"*). The weekly

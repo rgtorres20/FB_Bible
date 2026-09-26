@@ -89,12 +89,25 @@ def main() -> int:
         print("(authorized with the sync token)")
 
     print(f"probing {url}\n")
-    request = urllib.request.Request(url, headers=headers)
+    # ESPN's edge 403s urllib's TLS fingerprint while passing httpx with the
+    # same honest UA (push_vegas.py notes it; probe run 41, Sep 26, measured
+    # it again on the college scoreboard). The app fetches with httpx, so
+    # the probe asks the way the app will when httpx is installed.
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            status = response.status
-            resp_headers = response.headers
-            raw = response.read()
+        import httpx
+    except ImportError:
+        httpx = None
+    try:
+        if httpx is not None:
+            resp = httpx.get(url, headers=headers, timeout=60, follow_redirects=True)
+            status, resp_headers, raw = resp.status_code, resp.headers, resp.content
+            print("(fetched with httpx, as the app does)")
+        else:
+            request = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(request, timeout=60) as response:
+                status = response.status
+                resp_headers = response.headers
+                raw = response.read()
     except urllib.error.HTTPError as exc:
         # An error status is still an answer, and its headers are often the
         # whole finding: a 401's cf-cache-status says whether Cloudflare is

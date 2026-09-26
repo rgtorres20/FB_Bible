@@ -115,3 +115,16 @@ jobs:
           # needs; the sync curl above is independent and kept working.
           python3 -m pip install --quiet httpx pydantic pydantic-settings
           python3 scripts/push_vegas.py
+
+      # College FFBets (Sep 26): the FBS top-25 slate and any finished
+      # games' box scores the deployment does not hold yet. Same reason it
+      # runs here -- ESPN 403s Vercel -- and same always-run rule: it is
+      # independent of the sync call and of the NFL slate push.
+      - name: Push college slate
+        if: ${{ !cancelled() }}
+        env:
+          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          python3 -m pip install --quiet httpx pydantic pydantic-settings
+          python3 scripts/push_cfb.py
