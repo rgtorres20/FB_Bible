@@ -549,7 +549,26 @@ async def save_vegas(
     if not games:
         raise HTTPException(status_code=422, detail="No usable rows in state.games.")
 
+    # The week rollover (Oct 7): the workflow syncs BEFORE it pushes the
+    # slate, so a push that moves the slate to a new week left the stored
+    # forecast a week behind until the next sync -- 3-7h on GitHub's
+    # scheduler -- and td_picks, refusing the mismatch, put the Aug 14
+    # Week 1 leans back on the Predictions tab. Fetch the new week's
+    # forecast here, before the slate lands, so the two always move
+    # together. A failed fetch keeps the old one; the next sync retries.
+    week_label = str(payload.state.get("week_label") or "")[:40]
+    new_week = vegas.slate_week({"week_label": week_label})
+    fresh_forecast = None
+    if new_week is not None:
+        held = (await store.load()).get("week_projections") or {}
+        if held.get("week") != new_week:
+            raw = await projections.fetch_week(new_week)
+            if raw:
+                fresh_forecast = projections.reduce_week(raw)
+
     data = await store.load()
+    if fresh_forecast:
+        data["week_projections"] = fresh_forecast
     now = datetime.now(UTC).isoformat()
     # Line movement (owner, Sep 3: "Vegas lines movements for point
     # totals"): every push appends one snapshot of each game's total and
@@ -568,7 +587,7 @@ async def save_vegas(
     )
     data["vegas"] = {
         "fetched_at": now,
-        "week_label": str(payload.state.get("week_label") or "")[:40],
+        "week_label": week_label,
         "games": games,
         "history": history,
     }

@@ -255,6 +255,89 @@ async def test_vegas_push_rejects_empty_slate(push_client):
     assert response.status_code == 422
 
 
+# --- the week rollover: the forecast moves with the slate (Oct 7) ----------
+
+
+def _slate(label: str) -> dict:
+    return {"state": {"week_label": label, "games": [{"game": "CAR @ BUF"}]}}
+
+
+async def test_a_push_that_rolls_the_week_fetches_that_weeks_forecast(push_client, monkeypatch):
+    """The workflow syncs before it pushes, so without this the stored
+    forecast trailed a rolled slate until the next sync and the
+    Predictions tab fell back to the Week 1 leans (verify-live, Oct 7)."""
+    c, store = push_client
+    await store.save({"week_projections": {"week": 4, "players": {"1": {"rec_td": 0.5}}}})
+    asked = []
+
+    async def fake_fetch_week(week, client=None):
+        asked.append(week)
+        return {
+            "rows": [{"player_id": "9", "stats": {"rec_td": 0.7}, "company": "rotowire"}],
+            "season": 2026,
+            "week": week,
+            "fetched_at": "2026-10-07T08:50:00+00:00",
+        }
+
+    monkeypatch.setattr(_feeds_route.projections, "fetch_week", fake_fetch_week)
+    response = c.post(
+        "/internal/vegas", json=_slate("Week 5"), headers={"X-Sync-Token": "secret-token"}
+    )
+
+    assert response.status_code == 200
+    assert asked == [5]
+    saved = await store.load()
+    assert saved["week_projections"]["week"] == 5
+    assert saved["week_projections"]["players"] == {"9": {"rec_td": 0.7}}
+    assert saved["vegas"]["week_label"] == "Week 5"
+
+
+async def test_a_push_in_the_same_week_does_not_refetch(push_client, monkeypatch):
+    c, store = push_client
+    held = {"week": 5, "players": {"1": {"rec_td": 0.5}}}
+    await store.save({"week_projections": held})
+
+    async def must_not_fetch(*args, **kwargs):
+        raise AssertionError("same week: the sync's daily budget governs refetches")
+
+    monkeypatch.setattr(_feeds_route.projections, "fetch_week", must_not_fetch)
+    c.post("/internal/vegas", json=_slate("Week 5"), headers={"X-Sync-Token": "secret-token"})
+    assert (await store.load())["week_projections"] == held
+
+
+async def test_a_failed_rollover_fetch_keeps_the_held_forecast_and_the_slate(
+    push_client, monkeypatch
+):
+    c, store = push_client
+    held = {"week": 4, "players": {"1": {"rec_td": 0.5}}}
+    await store.save({"week_projections": held})
+
+    async def empty(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(_feeds_route.projections, "fetch_week", empty)
+    response = c.post(
+        "/internal/vegas", json=_slate("Week 5"), headers={"X-Sync-Token": "secret-token"}
+    )
+    assert response.status_code == 200
+    saved = await store.load()
+    assert saved["week_projections"] == held
+    assert saved["vegas"]["week_label"] == "Week 5"
+
+
+async def test_a_preseason_push_never_fetches_a_forecast(push_client, monkeypatch):
+    c, _ = push_client
+
+    async def must_not_fetch(*args, **kwargs):
+        raise AssertionError("preseason has no slate week")
+
+    monkeypatch.setattr(_feeds_route.projections, "fetch_week", must_not_fetch)
+    response = c.post(
+        "/internal/vegas", json=_slate("Preseason Week 2"), headers={"X-Sync-Token": "secret-token"}
+    )
+    assert response.status_code == 200
+
+
 async def test_pushed_slate_survives_a_sync_whose_fetch_fails(push_client, monkeypatch):
     """The whole architecture: GitHub pushes lines, Vercel's own fetch 403s,
     the sync must carry the pushed slate forward instead of blanking it."""
