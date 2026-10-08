@@ -825,3 +825,47 @@ first, probe runs 41–51). Chosen, and the owner's to overrule:
   ~500KB, and the first push of a season has every ranked team's played
   games to catch up on. Each game is fetched once — the deployment tells
   the runner which it already holds.
+
+## FFBets expanded; the draft tools fold away (Oct 8)
+
+Owner: *"expand FFBets and hide drafting items"*, then *"give me more
+details on the team they are facing and if any injuries could impact
+someone's performance"*. Chosen, and the owner's to overrule:
+
+- **Who counts as a starter** for the injury report
+  (`gamestack.STARTERS`): the top 1 QB, 1 RB, 3 WR, 1 TE, 4 DB, 3 LB and
+  4 DL on each team's depth chart (`depth.chart` — Sleeper's published
+  order, then '25 opportunity). A typical base set; a team in a 2-TE
+  look or a 3-4 front has a starter this misses or a backup it lists.
+  Any non-empty Sleeper flag is reported, Questionable included.
+- **Which flags touch whom is a written rule, not a measurement.**
+  `SHARES`: a player hears about his own room and the quarterback (a
+  QB hears about his WRs and TEs). `FACES`: QBs and WRs face the
+  opposing DBs, TEs the LBs and DBs, RBs the DL and LBs. Out flags are
+  listed before Questionable ones, and at most **four** clauses a row
+  (`MAX_IMPACT`). Nothing is redistributed — a clause names the man,
+  his flag and his '25 work, never a projected bump.
+- **Best bets** (`gamestack.best_bets`): the week's top **8** touchdown
+  chances by the forecast's Poisson figure, and the top **8** soft
+  matchups — a player clearing the role thresholds `spreads.MARKETS`
+  already uses, against a defense ranked **top 5** for allowing that
+  stat to his position (`SOFT_RANK`) over at least **3** games
+  (`MIN_DEF_GAMES`). Ordered by that rank, then by projection. No
+  combined "edge" score is invented.
+- **The slip multiplies its legs as if they were independent.** They are
+  not when two legs share a game, and the slip says so whenever they do.
+  A yardage leg can only be added once a typed line has a measured
+  over/under chance behind it; fair odds are the break-even American
+  price for that chance. Memory only — it is gone on reload.
+- **Completions, attempts and interceptions** were not in the game logs
+  before Oct 8. A game folded since carries `k`; only those games count
+  toward a hit rate on those three markets, and `gamelogs.pending`
+  re-fetches the older final weeks a few per sync, after every week
+  never fetched (`KEEP_LATER`, `KEEP_VERSION`).
+- **Which tabs fold.** Only the Draft analyzer, Scout finds and the
+  sidebar's League buttons (they only ever opened the draft board).
+  Sleepers, Backup RBs, Position analysis (it carries the weekly stars)
+  and Team intel stay, moved into the Season group. The open/closed
+  choice is per device (`fb_draft_open`), like the theme. A device whose
+  saved tab is a folded draft screen — or that has no saved tab — opens
+  on FFBets; any other saved tab is still restored (Aug 26).

@@ -1059,14 +1059,28 @@
     return (r ? '#' + r + ' ' : '') + code;
   }
 
+  // Oct 8 (owner: "expand FFBets"): the rest of the markets a pick'em app
+  // posts, every one a field the same weekly forecast already carries, and
+  // a Matchup tab for the defense each side faces and who is hurt.
   var BET_MARKETS = [
     { id: 'game', label: 'Game' },
+    { id: 'matchup', label: 'Matchup' },
     { id: 'td', label: 'Touchdowns', stat: 'td_chance' },
     { id: 'pass', label: 'Passing yds', stat: 'pass_yd' },
+    { id: 'ptd', label: 'Passing TDs', stat: 'pass_td' },
+    { id: 'cmp', label: 'Completions', stat: 'pass_cmp' },
+    { id: 'att', label: 'Pass attempts', stat: 'pass_att' },
+    { id: 'int', label: 'Interceptions', stat: 'pass_int' },
     { id: 'rec', label: 'Receiving yds', stat: 'rec_yd' },
     { id: 'recs', label: 'Receptions', stat: 'rec' },
-    { id: 'rush', label: 'Rushing yds', stat: 'rush_yd' }
+    { id: 'rush', label: 'Rushing yds', stat: 'rush_yd' },
+    { id: 'ratt', label: 'Rush attempts', stat: 'rush_att' },
+    { id: 'rry', label: 'Rush + rec yds', stat: 'rush_rec_yd' }
   ];
+
+  // Logged only for games folded since Oct 8 (gamelogs.KEEP_LATER): a game
+  // without the `k` mark has no record of them, which is not a zero.
+  var GB_SPARSE = { pass_cmp: 1, pass_att: 1, pass_int: 1 };
 
   function gbLine(label, text) {
     var row = gsEl('div', 'fb-gb-line');
@@ -1125,6 +1139,16 @@
     if (market === 'rec') return (p.rec ? p.rec + ' catches' : '') + (p.rec_tgt ? ' on ' + p.rec_tgt + ' targets' : '');
     if (market === 'recs') return (p.rec_yd ? p.rec_yd + ' yds' : '') + (p.rec_tgt ? ' on ' + p.rec_tgt + ' targets' : '');
     if (market === 'rush') return p.rush_att ? 'on ' + p.rush_att + ' carries' : '';
+    if (market === 'ptd' || market === 'cmp' || market === 'att' || market === 'int') {
+      var q = [];
+      if (p.pass_yd) q.push(p.pass_yd + ' yds');
+      if (market !== 'cmp' && p.pass_cmp) q.push(p.pass_cmp + ' cmp');
+      if (market !== 'att' && p.pass_att) q.push(p.pass_att + ' att');
+      return q.join(' · ');
+    }
+    if (market === 'ratt') return p.rush_yd ? p.rush_yd + ' yds' : '';
+    if (market === 'rry') return (p.rush_yd ? p.rush_yd + ' rush' : '') + (p.rush_yd && p.rec_yd ? ' + ' : '') +
+      (p.rec_yd ? p.rec_yd + ' rec' : '');
     return '';
   }
 
@@ -1172,7 +1196,8 @@
   // says how many games it is out of.
   var GB_STAT_WORDS = {
     pass_yd: 'passing yds', rush_yd: 'rushing yds', rec: 'catches', rec_yd: 'receiving yds',
-    td: 'rush + rec TDs'
+    td: 'rush + rec TDs', pass_td: 'passing TDs', pass_cmp: 'completions', pass_att: 'pass attempts',
+    pass_int: 'interceptions', rush_att: 'carries', rush_rec_yd: 'rush + rec yds'
   };
 
   function gbOrdinal(n) {
@@ -1181,7 +1206,9 @@
   }
 
   function gbValues(p, season, key) {
-    return ((p.log && p.log[season]) || []).map(function (gm) { return gm[key] || 0; });
+    return ((p.log && p.log[season]) || [])
+      .filter(function (gm) { return !GB_SPARSE[key] || gm.k; })
+      .map(function (gm) { return gm[key] || 0; });
   }
 
   function gbRound(x) { return Math.round(x * 10) / 10; }
@@ -1223,14 +1250,176 @@
     var d = (sc.allowed || {})[opp];
     var cell = d && d[p.position] && d[p.position][key];
     if (!cell) return '';
-    // [per game, rank from the most, rank from the fewest, how many share it,
-    //  how many defenses have faced the position]
+    return 'vs ' + opp + ' defense: allows ' + cell[0] + ' ' + GB_STAT_WORDS[key] + '/g to ' + gbPos(p) +
+      's — ' + gbPlace(cell) + ' (' + d.games + ' g)';
+  }
+
+  // [per game, rank from the most, rank from the fewest, how many share it,
+  //  how many defenses have faced the position]
+  function gbPlace(cell) {
     var most = cell[1], fewest = cell[2], tied = cell[3] || 1, of = cell[4];
     var near = most <= fewest ? most : fewest;
     var end = most <= fewest ? 'most' : 'fewest';
-    var place = (near === 1 ? 'the ' + end : gbOrdinal(near) + '-' + end) + (tied > 1 ? ' (tied with ' + (tied - 1) + ')' : '');
-    return 'vs ' + opp + ' defense: allows ' + cell[0] + ' ' + GB_STAT_WORDS[key] + '/g to ' + gbPos(p) +
-      's — ' + place + ' of ' + of + ' (' + d.games + ' g)';
+    return (near === 1 ? 'the ' + end : gbOrdinal(near) + '-' + end) +
+      (tied > 1 ? ' (tied with ' + (tied - 1) + ')' : '') + ' of ' + of;
+  }
+
+  // --- the Matchup tab (owner, Oct 8: "more details on the team they are
+  // facing and if any injuries could impact someone's performance"). Each
+  // side's offense against the other's defense: what that defense has
+  // allowed per game to each position, ranked, and every flagged starter on
+  // both units. All of it is real games and Sleeper's live flags.
+  var GB_DEF_VIEW = [
+    ['QB', ['pass_yd']],
+    ['RB', ['rush_yd', 'rec', 'td']],
+    ['WR', ['rec', 'rec_yd', 'td']],
+    ['TE', ['rec', 'rec_yd', 'td']]
+  ];
+
+  function gbInjuryText(r) {
+    return r.name + ' (' + r.position + (r.slot > 1 ? r.slot : '') + ', ' + r.injury + ')' +
+      (r.out && r.vacated ? ' — ' + r.vacated + " '25 " + r.work : '');
+  }
+
+  function gbMatchup(g, box) {
+    var sc = g.scenarios || {};
+    var hurt = sc.injuries || {};
+    [[g.away, g.home], [g.home, g.away]].forEach(function (pair) {
+      var team = pair[0], opp = pair[1];
+      var block = gsEl('div', 'fb-gb-side');
+      var imp = (g.implied || {})[team];
+      block.appendChild(gsEl('div', 'fb-gb-sidehead', gbTeam(g, team) + ' offense vs ' + gbTeam(g, opp) + ' defense' +
+        (imp !== undefined && imp !== null ? ' · implied ' + imp + ' pts' : '')));
+      var d = (sc.allowed || {})[opp];
+      if (d) {
+        GB_DEF_VIEW.forEach(function (spec) {
+          var cells = (d[spec[0]] || {});
+          var bits = spec[1].filter(function (k) { return cells[k]; }).map(function (k) {
+            return cells[k][0] + ' ' + GB_STAT_WORDS[k] + '/g (' + gbPlace(cells[k]) + ')';
+          });
+          if (bits.length) block.appendChild(gbLine(opp + ' allows to ' + gbPos({ position: spec[0] }) + 's:', bits.join(' · ')));
+        });
+        block.appendChild(gsEl('div', 'fb-gs-meta', 'Over ' + d.games + ' game' + (d.games === 1 ? '' : 's') +
+          ' this season, from box scores.'));
+      } else {
+        block.appendChild(gsEl('div', 'fb-gs-note', 'No box scores against ' + opp + ' this season yet.'));
+      }
+      var offHurt = (hurt[team] || []).filter(function (r) { return r.side === 'offense'; });
+      var defHurt = (hurt[opp] || []).filter(function (r) { return r.side === 'defense'; });
+      if (!gbCollege()) {
+        block.appendChild(gbLine(team + ' offense hurt:', offHurt.length ? offHurt.map(gbInjuryText).join(' · ') : 'no flagged starters'));
+        block.appendChild(gbLine(opp + ' defense hurt:', defHurt.length ? defHurt.map(gbInjuryText).join(' · ') : 'no flagged starters'));
+      }
+      box.appendChild(block);
+    });
+    box.appendChild(gsEl('div', 'fb-gs-foot', gbCollege()
+      ? 'Allowed per game from this season’s college box scores. College box scores carry no injury flag.'
+      : 'Allowed per game from this season’s Sleeper box scores, ranked among every defense that has faced the ' +
+        'position. Injuries are Sleeper’s live flags on the starters by depth chart.'));
+  }
+
+  // --- the slip (owner, Oct 8). Picks from any game; the combined chance
+  // is the legs multiplied, which assumes they are independent -- legs in
+  // one game are not (a QB's yards and his receiver's move together), and
+  // the slip says so rather than pretending otherwise. Memory only.
+  var betsSlip = [];
+
+  function gbSlipHas(key) { return betsSlip.some(function (l) { return l.key === key; }); }
+
+  function gbSlipToggle(leg) {
+    if (gbSlipHas(leg.key)) betsSlip = betsSlip.filter(function (l) { return l.key !== leg.key; });
+    else betsSlip.push(leg);
+    var host = document.querySelector('[data-fb-gamebets]');
+    if (host) host.setAttribute('data-fb-sig', '');
+    showGameBets();
+  }
+
+  function gbSlipButton(leg) {
+    var b = gsEl('button', 'fb-gs-chip fb-gb-add' + (gbSlipHas(leg.key) ? ' on' : ''), gbSlipHas(leg.key) ? '✓ On slip' : '+ Slip');
+    b.type = 'button';
+    b.onclick = function () { gbSlipToggle(leg); };
+    return b;
+  }
+
+  function gbFairOdds(p) {
+    if (p <= 0 || p >= 1) return '';
+    var o = p >= 0.5 ? -Math.round(100 * p / (1 - p)) : Math.round(100 * (1 - p) / p);
+    return (o > 0 ? '+' : '') + o;
+  }
+
+  function gbSlip(host) {
+    if (!betsSlip.length) return;
+    var box = gsEl('div', 'fb-gb-slip');
+    box.appendChild(gsEl('div', 'fb-gb-sidehead', 'Your slip · ' + betsSlip.length + ' leg' + (betsSlip.length === 1 ? '' : 's')));
+    var p = 1, games = {};
+    betsSlip.forEach(function (l) {
+      p *= l.chance / 100;
+      games[l.game] = (games[l.game] || 0) + 1;
+      var row = gsEl('div', 'fb-gb-leg');
+      row.appendChild(gsEl('span', '', l.label + ' · ≈' + l.chance + '%'));
+      var x = gsEl('button', 'fb-gs-chip', '× ' + l.name);
+      x.type = 'button';
+      x.onclick = function () { gbSlipToggle(l); };
+      row.appendChild(x);
+      box.appendChild(row);
+    });
+    var pct = Math.round(p * 1000) / 10;
+    box.appendChild(gbLine('All legs hit:', '≈' + pct + '% · fair odds ' + gbFairOdds(p) +
+      ' — take the bet only if your app pays more than that'));
+    var shared = Object.keys(games).filter(function (k) { return games[k] > 1; });
+    box.appendChild(gsEl('div', 'fb-gs-foot', 'Multiplied as if every leg were independent.' +
+      (shared.length ? ' Legs in the same game (' + shared.join(', ') + ') move together, so the real chance of that ' +
+        'combination differs from this product — read it as rough.' : '')));
+    var clear = gsEl('button', 'fb-gs-chip', 'Clear slip');
+    clear.type = 'button';
+    clear.onclick = function () { betsSlip = []; host.setAttribute('data-fb-sig', ''); showGameBets(); };
+    box.appendChild(clear);
+    host.appendChild(box);
+  }
+
+  // --- best bets across the week (owner, Oct 8). The server picks both
+  // lists (gamestack.best_bets): the likeliest touchdown scorers by the
+  // forecast's Poisson chance, and real roles against the defenses that
+  // have allowed the most of that stat to that position. Tapping one opens
+  // its game on the matching tab.
+  var GB_STAT_MARKET = { pass_yd: 'pass', rush_yd: 'rush', rec_yd: 'rec', rec: 'recs' };
+
+  function gbBest(host, stack) {
+    var best = stack.best || {};
+    if (!(best.td && best.td.length) && !(best.matchups && best.matchups.length)) return;
+    var box = gsEl('div', 'fb-gb-best');
+    box.appendChild(gsEl('div', 'fb-gb-sidehead', 'Best bets this week · every game'));
+    function open(r, market) {
+      return function () {
+        betsGame = r.game;
+        betsMarket = market;
+        host.setAttribute('data-fb-sig', '');
+        showGameBets();
+      };
+    }
+    if (best.td && best.td.length) {
+      box.appendChild(gsEl('div', 'fb-gs-meta', gbCollege() ? 'Likeliest TD scorers (from TDs per game, Poisson)'
+        : 'Likeliest TD scorers (forecast, Poisson)'));
+      best.td.forEach(function (r) {
+        var b = gsEl('button', 'fb-gb-bestrow', r.chance + '% · ' + r.name + ' (' + gbPos(r) + ' · ' + r.team + ')' +
+          (r.injury ? ' [' + r.injury + ']' : '') + ' · ' + r.game.replace(' @ ', ' at '));
+        b.type = 'button';
+        b.onclick = open(r, 'td');
+        box.appendChild(b);
+      });
+    }
+    if (best.matchups && best.matchups.length) {
+      box.appendChild(gsEl('div', 'fb-gs-meta', 'Soft matchups (defense in the top 5 for allowing it)'));
+      best.matchups.forEach(function (r) {
+        var b = gsEl('button', 'fb-gb-bestrow', r.name + ' (' + gbPos(r) + ' · ' + r.team + ') ' + r.proj + ' ' +
+          GB_STAT_WORDS[r.stat] + ' vs ' + r.opp + ', which allows ' + r.allowed + '/g — ' + gbOrdinal(r.rank) +
+          '-most of ' + r.of + (r.injury ? ' [' + r.injury + ']' : ''));
+        b.type = 'button';
+        b.onclick = open(r, GB_STAT_MARKET[r.stat] || 'game');
+        box.appendChild(b);
+      });
+    }
+    host.appendChild(box);
   }
 
   function gbPropRow(g, market, p) {
@@ -1250,9 +1439,17 @@
     evidence.appendChild(gsEl('div', 'fb-gb-stat', gbLogLine(p, key)));
     var matchup = gbMatchupLine(g, p, key);
     if (matchup) evidence.appendChild(gsEl('div', 'fb-gb-stat', matchup));
+    // The flags that touch him this week (gamestack.impact: a written rule
+    // for which flags matter to whom; the men and flags are Sleeper's).
+    (p.impact || []).forEach(function (t) { evidence.appendChild(gsEl('div', 'fb-gb-impact', 'Injury watch: ' + t)); });
     if (market.id === 'td') {
-      var sub = gsEl('div', 'fb-gb-verdict', gbSub(p, 'td'));
-      row.appendChild(sub);
+      if (p.td_chance) {
+        row.appendChild(gbSlipButton({
+          key: g.game + '|td|' + p.name, game: g.game, name: p.name,
+          label: p.name + ' anytime TD', chance: p.td_chance
+        }));
+      }
+      row.appendChild(gsEl('div', 'fb-gb-verdict', gbSub(p, 'td')));
       row.appendChild(evidence);
       return row;
     }
@@ -1265,13 +1462,38 @@
     input.value = betsLines[lineKey] || '';
     var verdict = gsEl('div', 'fb-gb-verdict', gbVerdict(p[stat], input.value, stat, p.position));
     var hits = gsEl('div', 'fb-gb-stat fb-gb-hits', gbHitLine(p, key, input.value));
+    // A leg needs a chance, so the slip button appears only once a typed
+    // line has a measured over/under percentage behind it.
+    var slot = gsEl('div', 'fb-gb-addslot');
+    function legFor() {
+      var line = parseFloat(input.value);
+      if (isNaN(line)) return null;
+      var over = gbOverChance(stat, p.position, p[stat], line);
+      if (over === null) return null;
+      var side = over >= 50 ? 'over' : 'under';
+      return {
+        key: g.game + '|' + market.id + '|' + p.name, game: g.game, name: p.name,
+        label: p.name + ' ' + side + ' ' + line + ' ' + market.label.toLowerCase(),
+        chance: side === 'over' ? over : 100 - over
+      };
+    }
+    function fillSlot() {
+      slot.textContent = '';
+      var leg = legFor();
+      if (leg || gbSlipHas(g.game + '|' + market.id + '|' + p.name)) {
+        slot.appendChild(gbSlipButton(leg || { key: g.game + '|' + market.id + '|' + p.name }));
+      }
+    }
+    fillSlot();
     input.oninput = function () {
       betsLines[lineKey] = input.value;
       verdict.textContent = gbVerdict(p[stat], input.value, stat, p.position);
       hits.textContent = gbHitLine(p, key, input.value);
+      fillSlot();
     };
     row.appendChild(input);
     row.appendChild(verdict);
+    row.appendChild(slot);
     evidence.insertBefore(hits, evidence.children[1] || null);
     row.appendChild(evidence);
     return row;
@@ -1305,6 +1527,10 @@
     card.appendChild(tabs);
     if (marketId === 'game') {
       gbSummary(g, card);
+      return card;
+    }
+    if (marketId === 'matchup') {
+      gbMatchup(g, card);
       return card;
     }
     var market = BET_MARKETS.filter(function (m) { return m.id === marketId; })[0];
@@ -1387,7 +1613,8 @@
       pick = (next || games[0]).game;
     }
     betsSpreads = stack.spreads || null;
-    var sig = [betsLeague, stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads].join('|');
+    var sig = [betsLeague, stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads,
+      betsSlip.map(function (l) { return l.key; }).join(',')].join('|');
     if (host.getAttribute('data-fb-sig') === sig) return;
     host.setAttribute('data-fb-sig', sig);
     host.textContent = '';
@@ -1395,6 +1622,8 @@
       (college ? 'College FFBets · Top 25 · Wk ' : 'Game by game · Wk ') + stack.week + ' · ' + stack.source +
       (stack.as_of ? (college ? ' · pulled ' : ' · revised ') + stack.as_of : '')));
     host.appendChild(gbLeagueChips(host));
+    gbBest(host, stack);
+    gbSlip(host);
     var chips = gsEl('div', 'fb-gs-chips fb-gb-games');
     games.forEach(function (g) {
       var c = gsEl('button', 'fb-gs-chip' + (g.game === pick ? ' on' : ''),

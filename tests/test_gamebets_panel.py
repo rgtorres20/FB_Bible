@@ -271,11 +271,18 @@ def test_the_game_tab_is_the_scenario_summary(rendered):
     ]
     assert tabs == [
         "Game",
+        "Matchup",
         "Touchdowns",
         "Passing yds",
+        "Passing TDs",
+        "Completions",
+        "Pass attempts",
+        "Interceptions",
         "Receiving yds",
         "Receptions",
         "Rushing yds",
+        "Rush attempts",
+        "Rush + rec yds",
     ]
 
 
@@ -459,3 +466,151 @@ def test_college_with_nothing_stored_says_so():
     out = _render({"news": [], "game_stack": _stack()}, [{"click": "College · Top 25"}])
     notes = _texts(out["steps"][0], "fb-gs-note")
     assert notes and notes[0].startswith("No college slate is stored yet")
+
+
+# --- Oct 8: "expand FFBets" -- the defense each side faces, the injuries
+# that touch a player, the week's best bets, and a slip -----------------------
+
+
+def _expanded():
+    stack = _with_evidence()
+    buf = stack["games"][0]["scenarios"]
+    buf["injuries"] = {
+        "BUF": [
+            {
+                "name": "James Cook",
+                "position": "RB",
+                "slot": 1,
+                "injury": "Out",
+                "side": "offense",
+                "out": True,
+                "vacated": 240,
+                "work": "carries + targets",
+            },
+            {
+                "name": "Taron Johnson",
+                "position": "DB",
+                "slot": 2,
+                "injury": "Questionable",
+                "side": "defense",
+                "out": False,
+                "vacated": 60,
+                "work": "tackles",
+            },
+        ],
+        "MIA": [],
+    }
+    davis = next(p for p in buf["props"] if p["name"] == "Ray Davis")
+    davis["impact"] = [
+        "Steps in: James Cook (RB, Out) is out — 240 '25 carries + targets to absorb"
+    ]
+    allen = next(p for p in buf["props"] if p["name"] == "Josh Allen")
+    allen["log"] = {
+        "26": [
+            {"w": 1, "pass_cmp": 25, "k": 1},
+            {"w": 2, "pass_cmp": 20, "k": 1},
+            {"w": 3, "pass_yd": 250},
+        ]
+    }
+    stack["best"] = {
+        "td": [
+            {
+                "game": "MIA @ BUF",
+                "name": "Tyreek Hill",
+                "position": "WR",
+                "team": "MIA",
+                "injury": "Questionable",
+                "chance": 45,
+                "td": 0.6,
+            }
+        ],
+        "matchups": [
+            {
+                "game": "MIA @ BUF",
+                "name": "Tyreek Hill",
+                "position": "WR",
+                "team": "MIA",
+                "injury": "",
+                "opp": "BUF",
+                "stat": "rec",
+                "proj": 6.5,
+                "allowed": 14.2,
+                "rank": 4,
+                "of": 30,
+            }
+        ],
+    }
+    return stack
+
+
+def test_the_matchup_tab_shows_the_defense_each_side_faces_and_who_is_hurt():
+    out = _render({"news": [], "game_stack": _expanded()}, [{"click": "Matchup"}])
+    tab = out["steps"][0]
+    assert _texts(tab, "fb-gb-sidehead")[1:] == [
+        "MIA offense vs BUF defense · implied 22.5 pts",
+        "BUF offense vs MIA defense · implied 26 pts",
+    ]
+    lines = _lines(tab)
+    assert (
+        "BUF allows to WRs: 14.2 catches/g (4th-most of 30) · 1.5 rush + rec TDs/g "
+        "(the most (tied with 2) of 30)" in lines
+    )
+    assert "BUF defense hurt: Taron Johnson (DB2, Questionable)" in lines
+    assert "BUF offense hurt: James Cook (RB, Out) — 240 '25 carries + targets" in lines
+    assert "MIA offense hurt: no flagged starters" in lines
+
+
+def test_a_player_the_injuries_touch_says_so_on_every_market():
+    out = _render({"news": [], "game_stack": _expanded()}, [{"click": "Rushing yds"}])
+    davis = [n for n in _flat(out["steps"][0]) if n["cls"] == "fb-gb-impact"]
+    assert [n["text"] for n in davis] == [
+        "Injury watch: Steps in: James Cook (RB, Out) is out — 240 '25 carries + targets to absorb"
+    ]
+
+
+def test_completions_count_only_the_games_that_recorded_them():
+    out = _render(
+        {"news": [], "game_stack": _expanded()},
+        [{"click": "Completions"}, {"type": {"nth": 0, "value": "22.5"}}],
+    )
+    assert _props(out["steps"][0])[0][:2] == ("Josh Allen", "24")
+    stats = _stats(out["steps"][1], "Josh Allen")
+    # Week 3 predates the field: two games counted, not three.
+    assert "'26: 25 · 20 (avg 22.5)" in stats
+    assert "Over 22.5 in 1 of 2 ('26)" in stats
+
+
+def test_best_bets_lead_the_panel_and_open_their_game():
+    out = _render(
+        {"news": [], "game_stack": _expanded()},
+        [
+            {"click": "Rushing yds"},
+            {
+                "click": "Tyreek Hill (WR · MIA) 6.5 catches vs BUF, which allows 14.2/g — "
+                "4th-most of 30"
+            },
+        ],
+    )
+    rows = [n["text"] for n in _flat(out["anchor"]) if n["cls"] == "fb-gb-bestrow"]
+    assert rows[0] == "45% · Tyreek Hill (WR · MIA) [Questionable] · MIA at BUF"
+    assert _props(out["steps"][1])[0][:2] == ("Tyreek Hill", "6.5")  # opened on Receptions
+
+
+def test_the_slip_multiplies_its_legs_and_says_what_that_assumes():
+    out = _render(
+        {"news": [], "game_stack": {**_expanded(), "spreads": SPREADS}},
+        [
+            {"click": "Touchdowns"},
+            {"click": "+ Slip"},
+            {"click": "Receptions"},
+            {"type": {"nth": 0, "value": "5.5"}},
+            {"click": "+ Slip"},
+        ],
+    )
+    slip = out["steps"][4]
+    legs = [n["kids"][0]["text"] for n in _flat(slip) if n["cls"] == "fb-gb-leg"]
+    assert legs == ["Tyreek Hill anytime TD · ≈45%", "Tyreek Hill over 5.5 receptions · ≈63%"]
+    # 0.45 x 0.63 = 0.2835
+    assert any(line.startswith("All legs hit: ≈28.4% · fair odds +253") for line in _lines(slip))
+    feet = _texts(slip, "fb-gs-foot")
+    assert any("Legs in the same game (MIA @ BUF) move together" in f for f in feet)
