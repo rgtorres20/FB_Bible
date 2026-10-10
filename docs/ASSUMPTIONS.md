@@ -869,3 +869,37 @@ someone's performance"*. Chosen, and the owner's to overrule:
   choice is per device (`fb_draft_open`), like the theme. A device whose
   saved tab is a folded draft screen — or that has no saved tab — opens
   on FFBets; any other saved tab is still restored (Aug 26).
+
+## Travel and rest are measured; the edge is a written rule (Oct 10)
+
+Owner: *"if we look at travel of team it becomes a factor in play the next
+game — this week the Cowboys had traveled [a lot] in 3 games when the
+opponent had 3 home games and no travel"*. Measured: the schedule (ESPN,
+a week at a time, `app/feeds/travel.py`), kickoff times, and great-circle
+miles between stadiums. Chosen, and the owner's to overrule:
+
+- **Stadium coordinates** (`STADIUMS`) are fixed facts keyed by ESPN's
+  codes; SoFi and MetLife are each shared. A team playing a "home" game
+  somewhere other than its stadium, without ESPN marking it neutral,
+  would be measured from its usual stadium.
+- **A game is away from both homes** when ESPN marks it `neutralSite` or
+  its venue is outside the USA. Its location is the city's centre from
+  `NEUTRAL_CITIES`; a city not in that table reads "distance not mapped"
+  and the three-game total is withheld rather than undercounted.
+- **A road game is a round trip** (out and back); this week's game counts
+  the outbound leg only. Teams that stay on the road between two away
+  games are over-counted by this model.
+- **The window is three games**: this one and the two before it.
+- **Rest** is calendar days between kickoffs in Central time; **13+
+  days is a bye**.
+- **Time zones** are the venue's UTC offset minus the home stadium's at
+  kickoff, so Arizona's missing daylight saving shows up as it should.
+- **The edge rules** (any one clears): rest wider by **3+ days**; the
+  opponent on its **3rd+ straight road game** while this team is home;
+  **2,500+ more miles** over the window; the opponent **2+ zones east**
+  kicking off before **2 PM local** (its "body clock" time is printed).
+  When the rules favour both sides the line says so instead of picking
+  one. No edge moves a projection or a chance anywhere in the app.
+- **Fetching**: the runner refreshes the slate's week and the next on
+  every run (kickoffs flex) and backfills up to **6** never-fetched
+  weeks per run. An empty week is ignored, never stored over a good one.

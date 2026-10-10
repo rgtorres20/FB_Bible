@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1657 tests green — 1641 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1674 tests green — 1658 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -632,6 +632,24 @@ attempts and INTs entered the game logs the same day; older weeks
 re-fetch a few per sync and only games that recorded them count toward
 a hit rate. `verify_live.py` checks the best bets, the injury reports
 and the folded sidebar.
+
+**Travel and rest, measured** (owner, Oct 10: *"this week the Cowboys
+had traveled … in 3 games when the opponent had 3 home games and no
+travel … how can we look at that in another column for team intel or best
+props for games"*). `app/feeds/travel.py` reads the season's schedule from
+ESPN (probed first: `neutralSite`, `venue.address`, both `homeAway`
+sides), which the runner fetches a week at a time
+(`scripts/push_vegas.py` → `/internal/schedule`, stored in the main blob
+as `schedule`) because ESPN 403s Vercel. From fixed stadium coordinates it
+measures each team's next game: road or home streak, miles this trip and
+over the last three games, games-in-days, days of rest or a bye, time
+zones crossed and the "body clock" at an early eastern kickoff. Which gap
+counts as an **edge** is a written rule (docs/ASSUMPTIONS.md) and is
+labelled so; nothing moves a projection. It shows as a **Travel & rest**
+block on every Team intel row (`page.intel_travel`), two lines on the
+FFBets Game and Matchup tabs, and a "Travel & rest edges" list in Best
+bets. `verify_live.py` checks coverage and that every mapped trip is a
+plausible distance.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

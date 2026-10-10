@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.feeds import vegas, weekrev  # noqa: E402
+from app.feeds import travel, vegas, weekrev  # noqa: E402
 
 BASE = os.environ.get("FBBIBLE_BASE", "https://fb-bible-torro2.vercel.app")
 
@@ -58,6 +58,8 @@ def main() -> int:
     with urllib.request.urlopen(request, timeout=60) as response:
         print(f"posted: {json.loads(response.read())}")
 
+    push_schedule(sync_token, state)
+
     # The Week review tab's scores ride the same trip: the CURRENT week's
     # scoreboard (no week pin), for /internal/scores. Its own try -- a bad
     # scores fetch must not read as a failed slate push.
@@ -75,6 +77,43 @@ def main() -> int:
     with urllib.request.urlopen(request, timeout=60) as response:
         print(f"scores posted: {json.loads(response.read())}")
     return 0
+
+
+def _sync_request(path: str, sync_token: str, body: dict | None = None) -> dict:
+    request = urllib.request.Request(
+        f"{BASE}{path}",
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={"Content-Type": "application/json", "X-Sync-Token": sync_token},
+        method="POST" if body is not None else "GET",
+    )
+    with urllib.request.urlopen(request, timeout=60) as response:
+        return json.loads(response.read())
+
+
+def push_schedule(sync_token: str, slate: dict) -> None:
+    """Travel and rest (Oct 10): the season's schedule, a week at a time.
+    Each week is fetched once; the slate's week and the next are fetched
+    every run so a flexed kickoff lands. Its own try -- a schedule miss must
+    never read as a failed slate push."""
+    try:
+        known = _sync_request("/internal/schedule/known", sync_token)
+        todo = travel.to_fetch({"fetched": known.get("fetched") or {}}, vegas.slate_week(slate))
+        weeks = {}
+        for week in todo:
+            rows = asyncio.run(travel.fetch_week(week))
+            neutral = [
+                r["away"] + " @ " + r["home"] + " in " + r["city"] for r in rows if r["neutral"]
+            ]
+            print(
+                f"schedule wk {week}: {len(rows)} games"
+                + (f"; neutral: {neutral}" if neutral else "")
+            )
+            weeks[str(week)] = rows
+        if weeks:
+            stored = _sync_request("/internal/schedule", sync_token, {"weeks": weeks})
+            print(f"schedule posted: {stored}")
+    except Exception as exc:  # noqa: BLE001 - the stored weeks stand
+        print(f"schedule push failed, skipping this run: {type(exc).__name__}: {exc}")
 
 
 if __name__ == "__main__":

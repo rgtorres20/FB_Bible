@@ -1214,6 +1214,64 @@ def season_first(html: str) -> tuple[str, list[str]]:
     return html, []
 
 
+# --- Team intel gets a travel column (owner, Oct 10) -----------------------
+#
+# "If we look at travel of team it becomes a factor in play the next game
+# ... how can we look at that in another column for team intel." Each team
+# row gains a Travel & rest block -- its next game, the road streak, the
+# miles over its last three games, days of rest, time zones -- and the
+# written-rule edge for that game when one clears. The numbers come from
+# `travel.reads` via the feeds overlay (`F.travel`), keyed by ESPN's team
+# code, which is the spelling INTEL already uses (WSH, not WAS), so there
+# is nothing to re-key. No schedule pushed yet, no block.
+
+_INTEL_VALS = '            watchColor: "var(--color-accent-700)"\n          };'
+_INTEL_VALS_REPLACEMENT = (
+    '            watchColor: "var(--color-accent-700)",\n'
+    "            ...(() => { const tr = (F.travel && F.travel.teams && "
+    "F.travel.teams[tm.code]) || null; "
+    "const ed = tr && F.travel.games ? (F.travel.games[tr.game] || []) : []; "
+    'return { hasTravel: !!tr, travel: tr ? tr.line : "", '
+    'travelEdge: ed.join(" "), travelStamp: tr ? "ESPN schedule · pulled " + '
+    'F.travel.as_of : "" }; })()\n'
+    "          };"
+)
+
+_INTEL_COLUMN = (
+    '<div style="font-size:9px; font-weight:700; letter-spacing:0.12em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">Draft note</div>'
+)
+_INTEL_COLUMN_REPLACEMENT = (
+    '<sc-if value="{{ tm.hasTravel }}" hint-placeholder-val="{{ false }}">'
+    '<div data-fb-travel style="margin-bottom:10px;">'
+    '<div style="font-size:9px; font-weight:700; letter-spacing:0.12em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">Travel &amp; rest</div>'
+    '<div style="font-size:12px; margin-top:4px; font-weight:600; '
+    'color:var(--color-neutral-800); text-wrap:pretty;">{{ tm.travel }}</div>'
+    '<div style="font-size:11px; margin-top:3px; font-weight:700; '
+    'color:var(--color-accent-700); text-wrap:pretty;">{{ tm.travelEdge }}</div>'
+    '<div style="font-size:10px; margin-top:3px; color:var(--color-neutral-600);">'
+    "{{ tm.travelStamp }}</div>"
+    "</div></sc-if>" + _INTEL_COLUMN
+)
+
+_INTEL_EDITS = (
+    ("intel travel vals", _INTEL_VALS, _INTEL_VALS_REPLACEMENT),
+    ("intel travel column", _INTEL_COLUMN, _INTEL_COLUMN_REPLACEMENT),
+)
+
+
+def intel_travel(html: str) -> tuple[str, list[str]]:
+    """Team intel's Travel & rest block. Both edits or neither: a template
+    block reading values nobody computes would render empty braces."""
+    missing = [label for label, old, _ in _INTEL_EDITS if old not in html]
+    if missing:
+        return html, missing
+    for _, old, new in _INTEL_EDITS:
+        html = html.replace(old, new, 1)
+    return html, []
+
+
 # --- kickers stop typing dates they cannot keep -----------------------------------
 #
 # Owner, Aug 26: "Week review didnt update stayed on week 1 even though
@@ -1484,6 +1542,7 @@ PRE = (
     alerts_is_the_wire,
     back_where_you_were,
     season_first,
+    intel_travel,
     feeds_follow_the_wake,
     dated_kickers_read_the_data,
     game_stack_anchor,

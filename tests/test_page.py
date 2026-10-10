@@ -998,3 +998,45 @@ def test_the_season_edits_are_all_or_none(index_html):
         broken = served.replace(gone, "/* moved */", 1)
         out, misses = page.season_first(broken)
         assert misses and out == broken, gone
+
+
+# --- Team intel gets a travel column (Oct 10) --------------------------------
+
+
+def test_team_intel_reads_the_travel_block_off_the_overlay(index_html):
+    """Runs the served snippet itself: a team with a read gets its line and
+    its game's edge; a team without one gets no block."""
+    import json as _json
+    import subprocess
+
+    served, misses = page.apply(index_html, page.PRE)
+    assert not misses and "data-fb-travel" in served
+    expr = page._INTEL_VALS_REPLACEMENT.split("            ...", 1)[1].rsplit("\n", 1)[0]
+    feeds = {
+        "travel": {
+            "as_of": "2026-10-10",
+            "teams": {"DAL": {"game": "DAL @ NYG", "line": "Wk 5 at NYG · 3rd straight road game"}},
+            "games": {"DAL @ NYG": ["Travel edge (rule): NYG — DAL on its 3rd straight road game"]},
+        }
+    }
+    code = (
+        f"const F = {_json.dumps(feeds)};"
+        "const out = ['DAL', 'NYG'].map(c => { const tm = { code: c }; return " + expr + "; });"
+        "console.log(JSON.stringify(out));"
+    )
+    proc = subprocess.run(["node", "-e", code], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, proc.stderr
+    dal, nyg = _json.loads(proc.stdout)
+    assert dal == {
+        "hasTravel": True,
+        "travel": "Wk 5 at NYG · 3rd straight road game",
+        "travelEdge": "Travel edge (rule): NYG — DAL on its 3rd straight road game",
+        "travelStamp": "ESPN schedule · pulled 2026-10-10",
+    }
+    assert nyg["hasTravel"] is False and nyg["travel"] == ""
+
+
+def test_the_intel_travel_edits_are_both_or_neither(index_html):
+    broken = index_html.replace(page._INTEL_COLUMN, "/* moved */", 1)
+    out, misses = page.intel_travel(broken)
+    assert misses and out == broken

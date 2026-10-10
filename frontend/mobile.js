@@ -1094,6 +1094,23 @@
     return bits.length > 1 ? bits[0].split(' ')[0] + ' ' + bits[1] : (g.kickoff || '');
   }
 
+  // Travel and rest (owner, Oct 10: the Cowboys' three road games against
+  // a side that had three at home). Measured from ESPN's schedule on the
+  // server (app/feeds/travel.py); the edge is a written rule, labelled.
+  function gbTravel() { return (!gbCollege() && data && data.travel) || null; }
+
+  function gbTravelLines(g, box) {
+    var t = gbTravel();
+    if (!t) return;
+    [g.away, g.home].forEach(function (code) {
+      var r = (t.teams || {})[code];
+      if (r && r.game === g.game) box.appendChild(gbLine(code + ' travel & rest:', r.line));
+    });
+    ((t.games || {})[g.game] || []).forEach(function (e) {
+      box.appendChild(gsEl('div', 'fb-gb-impact', e));
+    });
+  }
+
   function gbSummary(g, box) {
     var sc = g.scenarios || {};
     (sc.script || []).forEach(function (t) { box.appendChild(gbLine('Script (rule):', t)); });
@@ -1124,6 +1141,7 @@
         v.injury + ') → ' + v.next));
     });
     if (g.weather && g.weather.read) box.appendChild(gbLine('Weather (rule):', g.weather.summary + ' — ' + g.weather.read));
+    gbTravelLines(g, box);
     if (g.preview) box.appendChild(gsEl('div', 'fb-gs-ai', 'AI preview: ' + g.preview));
   }
 
@@ -1306,6 +1324,8 @@
       }
       var offHurt = (hurt[team] || []).filter(function (r) { return r.side === 'offense'; });
       var defHurt = (hurt[opp] || []).filter(function (r) { return r.side === 'defense'; });
+      var tr = gbTravel() && (gbTravel().teams || {})[team];
+      if (tr && tr.game === g.game) block.appendChild(gbLine(team + ' travel & rest:', tr.line));
       if (!gbCollege()) {
         block.appendChild(gbLine(team + ' offense hurt:', offHurt.length ? offHurt.map(gbInjuryText).join(' · ') : 'no flagged starters'));
         block.appendChild(gbLine(opp + ' defense hurt:', defHurt.length ? defHurt.map(gbInjuryText).join(' · ') : 'no flagged starters'));
@@ -1315,7 +1335,11 @@
     box.appendChild(gsEl('div', 'fb-gs-foot', gbCollege()
       ? 'Allowed per game from this season’s college box scores. College box scores carry no injury flag.'
       : 'Allowed per game from this season’s Sleeper box scores, ranked among every defense that has faced the ' +
-        'position. Injuries are Sleeper’s live flags on the starters by depth chart.'));
+        'position. Injuries are Sleeper’s live flags on the starters by depth chart.' +
+        (gbTravel() ? ' Travel: miles between stadiums from ESPN’s schedule (pulled ' + gbTravel().as_of +
+          '); a road game counts as a round trip, this week’s as the trip out.' : '')));
+    var edges = (gbTravel() && (gbTravel().games || {})[g.game]) || [];
+    edges.forEach(function (e) { box.insertBefore(gsEl('div', 'fb-gb-impact', e), box.lastChild); });
   }
 
   // --- the slip (owner, Oct 8). Picks from any game; the combined chance
@@ -1384,9 +1408,11 @@
   // its game on the matching tab.
   var GB_STAT_MARKET = { pass_yd: 'pass', rush_yd: 'rush', rec_yd: 'rec', rec: 'recs' };
 
-  function gbBest(host, stack) {
+  function gbBest(host, stack, games) {
     var best = stack.best || {};
-    if (!(best.td && best.td.length) && !(best.matchups && best.matchups.length)) return;
+    var t0 = gbTravel();
+    var anyEdge = t0 && games.some(function (g) { return ((t0.games || {})[g.game] || []).length; });
+    if (!(best.td && best.td.length) && !(best.matchups && best.matchups.length) && !anyEdge) return;
     var box = gsEl('div', 'fb-gb-best');
     box.appendChild(gsEl('div', 'fb-gb-sidehead', 'Best bets this week · every game'));
     function open(r, market) {
@@ -1416,6 +1442,17 @@
           '-most of ' + r.of + (r.injury ? ' [' + r.injury + ']' : ''));
         b.type = 'button';
         b.onclick = open(r, GB_STAT_MARKET[r.stat] || 'game');
+        box.appendChild(b);
+      });
+    }
+    var t = gbTravel();
+    var edged = t ? games.filter(function (g) { return ((t.games || {})[g.game] || []).length; }) : [];
+    if (edged.length) {
+      box.appendChild(gsEl('div', 'fb-gs-meta', 'Travel & rest edges (rule)'));
+      edged.forEach(function (g) {
+        var b = gsEl('button', 'fb-gb-bestrow', t.games[g.game].join(' ') + ' · ' + g.game.replace(' @ ', ' at '));
+        b.type = 'button';
+        b.onclick = open({ game: g.game }, 'matchup');
         box.appendChild(b);
       });
     }
@@ -1614,6 +1651,7 @@
     }
     betsSpreads = stack.spreads || null;
     var sig = [betsLeague, stack.week, stack.as_of, games.length, pick, betsMarket, !!betsSpreads,
+      (data.travel && data.travel.as_of) || '',
       betsSlip.map(function (l) { return l.key; }).join(',')].join('|');
     if (host.getAttribute('data-fb-sig') === sig) return;
     host.setAttribute('data-fb-sig', sig);
@@ -1622,7 +1660,7 @@
       (college ? 'College FFBets · Top 25 · Wk ' : 'Game by game · Wk ') + stack.week + ' · ' + stack.source +
       (stack.as_of ? (college ? ' · pulled ' : ' · revised ') + stack.as_of : '')));
     host.appendChild(gbLeagueChips(host));
-    gbBest(host, stack);
+    gbBest(host, stack, games);
     gbSlip(host);
     var chips = gsEl('div', 'fb-gs-chips fb-gb-games');
     games.forEach(function (g) {

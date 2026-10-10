@@ -614,3 +614,47 @@ def test_the_slip_multiplies_its_legs_and_says_what_that_assumes():
     assert any(line.startswith("All legs hit: ≈28.4% · fair odds +253") for line in _lines(slip))
     feet = _texts(slip, "fb-gs-foot")
     assert any("Legs in the same game (MIA @ BUF) move together" in f for f in feet)
+
+
+# --- Oct 10: travel and rest ("the Cowboys had traveled ... in 3 games when
+# the opponent had 3 home games and no travel") --------------------------------
+
+TRAVEL = {
+    "source": "ESPN schedule",
+    "as_of": "2026-10-10",
+    "teams": {
+        "MIA": {
+            "game": "MIA @ BUF",
+            "line": "Wk 3 at BUF · 3rd straight road game · ~1,190 mi this trip",
+        },
+        "BUF": {"game": "MIA @ BUF", "line": "Wk 3 vs MIA · 3rd straight home game · 7 days rest"},
+        "DAL": {"game": "DAL @ PHI", "line": "a different game"},
+    },
+    "games": {"MIA @ BUF": ["Travel edge (rule): BUF — MIA on its 3rd straight road game"]},
+}
+
+
+def test_travel_and_rest_ride_the_game_tab_the_matchup_and_the_best_bets():
+    out = _render(
+        {"news": [], "game_stack": _expanded(), "travel": TRAVEL},
+        [{"click": "MIA @ BUF · Sun 12:00 PM"}, {"click": "Matchup"}],
+    )
+    game = out["steps"][0]
+    lines = _lines(game)
+    assert "MIA travel & rest: Wk 3 at BUF · 3rd straight road game · ~1,190 mi this trip" in lines
+    assert "BUF travel & rest: Wk 3 vs MIA · 3rd straight home game · 7 days rest" in lines
+    edges = [n["text"] for n in _flat(game) if n["cls"] == "fb-gb-impact"]
+    assert "Travel edge (rule): BUF — MIA on its 3rd straight road game" in edges
+    best = [n["text"] for n in _flat(game) if n["cls"] == "fb-gb-bestrow"]
+    assert "Travel edge (rule): BUF — MIA on its 3rd straight road game · MIA at BUF" in best
+    matchup = out["steps"][1]
+    assert (
+        "MIA travel & rest: Wk 3 at BUF · 3rd straight road game · ~1,190 mi this trip"
+        in _lines(matchup)
+    )
+    feet = _texts(matchup, "fb-gs-foot")
+    assert any("miles between stadiums from ESPN’s schedule (pulled 2026-10-10)" in f for f in feet)
+
+
+def test_no_schedule_pushed_means_no_travel_lines(rendered):
+    assert not [ln for ln in _lines(rendered["anchor"]) if "travel & rest" in ln]

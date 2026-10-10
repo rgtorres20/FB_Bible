@@ -357,6 +357,30 @@ def main() -> int:
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:
         print("  INFO  game stack absent (no weekly forecast stored yet, or no slate)")
+    # Travel and rest (Oct 10): the schedule the runner pushes a week at a
+    # time. Absent is honest until the first push; present, every read must
+    # point at a real opponent, and a mapped trip must be a plausible
+    # distance -- a coordinate typo reads as a 9,000-mile trip to Detroit.
+    trips = page_data.get("travel")
+    if trips:
+        teams_read = trips.get("teams") or {}
+        check(
+            "travel reads cover the league",
+            len(teams_read) >= 28,
+            f"{len(teams_read)} teams with a game ahead",
+        )
+        miles = [r["trip_miles"] for r in teams_read.values() if r.get("trip_miles") is not None]
+        check(
+            "every mapped trip is a plausible distance",
+            all(0 <= m <= 10000 for m in miles),
+            f"max {max(miles) if miles else 0}",
+        )
+        edges = sum(1 for e in (trips.get("games") or {}).values() if e)
+        print(
+            f"  INFO  travel: {len(trips.get('games') or {})} games read, {edges} with a rule edge"
+        )
+    else:
+        print("  INFO  travel absent (no schedule pushed yet)")
     # College FFBets (Sep 26): the top-25 slate the runner pushes, with the
     # season's box scores behind it. Absent is honest until the first push;
     # present, every game must involve a ranked team and every player row
@@ -1337,6 +1361,7 @@ def main() -> int:
     check("the schedule tab carries the game-stack anchor", "data-fb-gamestack" in served)
     check("position analysis carries the weekly-stars anchor", "data-fb-weeklystars" in served)
     check("FFBets carries the per-game scenarios anchor", "data-fb-gamebets" in served)
+    check("Team intel carries the travel column", "data-fb-travel" in served)
     # Oct 8: FFBets leads and the draft tools fold behind one row.
     check(
         "the app opens on FFBets with the draft tools folded",
