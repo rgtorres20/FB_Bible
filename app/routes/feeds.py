@@ -49,6 +49,7 @@ from ..feeds import (
     stats,
     teams,
     topscorers,
+    travel,
     vegas,
     watchlist,
     weekrev,
@@ -157,6 +158,12 @@ async def app_feeds(
     college_stack = gamestack.college_stack(await store.load_cfb())
     if college_stack:
         merged["cfb_stack"] = college_stack
+    # Travel and rest (owner, Oct 10): every team's next game with the miles,
+    # road streak and rest behind it, and each game's written-rule edge.
+    # Read by FFBets and Team intel. Absent until the runner pushes a schedule.
+    trips = travel.reads(stored.get("schedule"))
+    if trips:
+        merged["travel"] = trips
     return render.rename_leagues(merged)
 
 
@@ -574,6 +581,40 @@ async def save_vegas(
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
+class ScheduleIn(BaseModel):
+    weeks: dict = {}
+
+
+@router.post("/internal/schedule", summary="Store schedule weeks for the travel reads")
+async def save_schedule(
+    payload: ScheduleIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """Travel and rest (Oct 10). ESPN 403s Vercel, so the runner fetches the
+    scoreboard a week at a time (scripts/push_vegas.py) and pushes it here.
+    Rows are rebuilt field by field at the door (travel.clean_row), and an
+    empty week is ignored rather than stored -- a failed fetch must not
+    erase a week already held."""
+    _require_sync_token(settings, x_sync_token)
+    data = await store.load()
+    data["schedule"] = travel.merge(data.get("schedule"), payload.weeks, datetime.now(UTC))
+    await store.save(data)
+    return {"weeks": sorted(int(w) for w in data["schedule"]["weeks"])}
+
+
+@router.get("/internal/schedule/known", summary="Schedule weeks the store already holds")
+async def schedule_known(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """So the runner fetches each week once, plus the live and next week."""
+    _require_sync_token(settings, x_sync_token)
+    return {"fetched": travel.known((await store.load()).get("schedule"))}
 
 
 class CollegeIn(BaseModel):

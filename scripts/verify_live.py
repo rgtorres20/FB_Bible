@@ -322,12 +322,65 @@ def main() -> int:
                     for gm in season
                 ),
             )
+        # Oct 8 ("expand FFBets"): the week's best bets and each game's
+        # injury report. Both are read off the same payload, so both must
+        # be present whenever the stack is -- and the best bets, like the
+        # TD list, may never offer a man flagged out.
+        best = stack.get("best")
+        check("FFBets carries the week's best bets", isinstance(best, dict))
+        best_out = [
+            r["name"]
+            for r in (best or {}).get("td", []) + (best or {}).get("matchups", [])
+            if r.get("injury") in out_flags
+        ]
+        check("no flagged-out player is offered as a best bet", not best_out, str(best_out))
+        check(
+            "every ranked game carries its injury report",
+            all(isinstance((g.get("scenarios") or {}).get("injuries"), dict) for g in games),
+        )
+        hurt = sum(
+            len(v) for g in games for v in (g.get("scenarios") or {}).get("injuries", {}).values()
+        )
+        touched = sum(
+            1
+            for g in games
+            for p in (g.get("scenarios") or {}).get("props") or []
+            if p.get("impact")
+        )
+        print(
+            f"  INFO  flagged starters across the slate: {hurt}; "
+            f"prop rows with an injury note: {touched}"
+        )
         with_matchup = sum(1 for g in games if (g.get("scenarios") or {}).get("allowed"))
         print(f"  INFO  games carrying a defense matchup: {with_matchup} of {len(games)}")
         stacks = sum(1 for g in games if (g.get("scenarios") or {}).get("stack"))
         print(f"  INFO  FFBets scenarios: {stacks} of {len(games)} games carry a stack")
     else:
         print("  INFO  game stack absent (no weekly forecast stored yet, or no slate)")
+    # Travel and rest (Oct 10): the schedule the runner pushes a week at a
+    # time. Absent is honest until the first push; present, every read must
+    # point at a real opponent, and a mapped trip must be a plausible
+    # distance -- a coordinate typo reads as a 9,000-mile trip to Detroit.
+    trips = page_data.get("travel")
+    if trips:
+        teams_read = trips.get("teams") or {}
+        check(
+            "travel reads cover the league",
+            len(teams_read) >= 28,
+            f"{len(teams_read)} teams with a game ahead",
+        )
+        miles = [r["trip_miles"] for r in teams_read.values() if r.get("trip_miles") is not None]
+        check(
+            "every mapped trip is a plausible distance",
+            all(0 <= m <= 10000 for m in miles),
+            f"max {max(miles) if miles else 0}",
+        )
+        edges = sum(1 for e in (trips.get("games") or {}).values() if e)
+        print(
+            f"  INFO  travel: {len(trips.get('games') or {})} games read, {edges} with a rule edge"
+        )
+    else:
+        print("  INFO  travel absent (no schedule pushed yet)")
     # College FFBets (Sep 26): the top-25 slate the runner pushes, with the
     # season's box scores behind it. Absent is honest until the first push;
     # present, every game must involve a ranked team and every player row
@@ -1308,6 +1361,12 @@ def main() -> int:
     check("the schedule tab carries the game-stack anchor", "data-fb-gamestack" in served)
     check("position analysis carries the weekly-stars anchor", "data-fb-weeklystars" in served)
     check("FFBets carries the per-game scenarios anchor", "data-fb-gamebets" in served)
+    check("Team intel carries the travel column", "data-fb-travel" in served)
+    # Oct 8: FFBets leads and the draft tools fold behind one row.
+    check(
+        "the app opens on FFBets with the draft tools folded",
+        'screen: "gameday"' in served and 'id: "__draft"' in served,
+    )
     # The typed "Week 1" (owner, Sep 22: "i still see week 1 no updates").
     # The Vegas heading now reads the slate's week; past Week 1 the
     # Predictions rows must be that week's picks, not the Aug 14 leans, and

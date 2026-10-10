@@ -77,12 +77,21 @@ def test_the_player_log_carries_each_game_and_its_touchdowns():
     log = gamelogs.player_log(_logs(), "hill")
     assert log == {
         "26": [
-            {"w": 1, "o": "BUF", "rec": 6, "rec_yd": 90, "td": 1},
-            {"w": 2, "o": "NE", "rec": 8, "rec_yd": 110},
+            {"w": 1, "o": "BUF", "rec": 6, "rec_yd": 90, "td": 1, "rush_rec_yd": 90, "k": 1},
+            {"w": 2, "o": "NE", "rec": 8, "rec_yd": 110, "rush_rec_yd": 110, "k": 1},
         ]
     }
     allen = gamelogs.player_log(_logs(), "allen")["26"][0]
-    assert allen == {"w": 1, "o": "MIA", "pass_yd": 280, "rush_yd": 30, "td": 1}
+    assert allen == {
+        "w": 1,
+        "o": "MIA",
+        "pass_yd": 280,
+        "pass_td": 2,
+        "rush_yd": 30,
+        "td": 1,
+        "rush_rec_yd": 30,
+        "k": 1,
+    }
 
 
 def test_what_a_defense_allowed_is_per_game_and_ranked():
@@ -108,3 +117,21 @@ def test_a_tie_is_reported_as_a_tie_not_an_order():
     assert table["D1"]["WR"]["rec"] == [5.0, 1, 2, 2, 3]
     assert table["D2"]["WR"]["rec"] == [5.0, 1, 2, 2, 3]
     assert table["D3"]["WR"]["rec"] == [2.0, 3, 1, 1, 3]
+
+
+def test_completions_attempts_and_picks_are_known_only_for_games_folded_with_them():
+    """Oct 8: three new markets. A game folded before them lacks the fields,
+    which is unknown, not zero -- the log marks the games that carry them
+    (`k`), and the older final weeks queue for a re-fetch after every
+    unfetched one."""
+    rows = [row("allen", "QB", "BUF", "MIA", gp=1, pass_yd=280, pass_att=36, pass_cmp=24)]
+    logs = gamelogs.fold(None, 2026, 1, rows, NOW)
+    game = gamelogs.player_log(logs, "allen")["26"][0]
+    assert game["pass_cmp"] == 24 and game["pass_att"] == 36 and "pass_int" not in game
+    assert game["k"] == 1
+    old = {**logs, "kept": {}}
+    old["players"]["allen"]["games"]["2026-1"].pop("k")
+    assert "k" not in gamelogs.player_log(old, "allen")["26"][0]
+    todo = gamelogs.pending(old, slate_week=2, limit=40)
+    assert todo[-1] == (2026, 1) and (2025, 1) in todo[:-1]
+    assert (2026, 1) not in gamelogs.pending(logs, slate_week=2, limit=40)

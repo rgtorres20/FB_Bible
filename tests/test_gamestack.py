@@ -514,7 +514,130 @@ def test_props_carry_the_players_real_games_and_the_defense_matchup():
     logs = gamelogs.fold(None, 2026, 1, rows, now)
     game = next(g for g in _build(logs=logs)["games"] if g["game"] == "MIA @ BUF")
     hill = next(p for p in game["scenarios"]["props"] if p["name"] == "Tyreek Hill")
-    assert hill["log"] == {"26": [{"w": 1, "o": "NE", "rec": 6, "rec_yd": 90}]}
+    assert hill["log"] == {
+        "26": [{"w": 1, "o": "NE", "rec": 6, "rec_yd": 90, "rush_rec_yd": 90, "k": 1}]
+    }
     # Hill faces BUF; BUF's defense allowed Lamb 9 catches in its one game.
     assert game["scenarios"]["allowed"]["BUF"]["WR"]["rec"] == [9.0, 1, 2, 1, 2]  # vs NE 6
     assert "MIA" not in game["scenarios"]["allowed"]  # MIA has not played defense in the logs
+
+
+# --- who is hurt, and whom it touches (owner, Oct 8) -------------------------
+
+
+def _hurt_index():
+    index = _index()
+    players = dict(index["players"])
+    players["9"] = {**_player("9", "Taron Johnson", "CB", "BUF", injury="Out"), "idp": "DB"}
+    players["10"] = {**_player("10", "Bench Corner", "CB", "BUF", rank=400), "idp": "DB"}
+    return {**index, "players": players}
+
+
+def _hurt(game="MIA @ BUF"):
+    stack = _build(index=_hurt_index())
+    return next(g for g in stack["games"] if g["game"] == game)["scenarios"]
+
+
+def test_the_injury_report_names_every_flagged_starter_on_both_sides():
+    report = gamestack.injury_report(_hurt_index(), _stats())
+    assert [(r["name"], r["position"], r["injury"], r["side"]) for r in report["BUF"]] == [
+        ("James Cook", "RB", "Out", "offense"),
+        ("Taron Johnson", "DB", "Out", "defense"),
+    ]
+    assert report["BUF"][0]["vacated"] == 240 and report["BUF"][0]["work"] == "carries + targets"
+    assert [(r["name"], r["out"]) for r in report["MIA"]] == [("Tyreek Hill", False)]
+    assert _hurt()["injuries"]["BUF"] == report["BUF"]
+
+
+def test_the_next_man_reads_steps_in_once_not_also_teammate_out():
+    davis = next(p for p in _hurt()["props"] if p["name"] == "Ray Davis")
+    assert davis["impact"] == [
+        "Steps in: James Cook (RB, Out) is out — 240 '25 carries + targets to absorb"
+    ]
+
+
+def test_a_receiver_hears_about_the_secondary_he_faces_and_a_passer_his_targets():
+    props = {p["name"]: p for p in _hurt()["props"]}
+    assert props["Tyreek Hill"]["impact"] == ["BUF defense without Taron Johnson (DB, Out)"]
+    assert props["Tua Tagovailoa"]["impact"] == [
+        "Teammate flagged: Tyreek Hill (WR, Questionable) — his status moves this share",
+        "BUF defense without Taron Johnson (DB, Out)",
+    ]
+    # Nothing touching Allen: no clause is invented to fill the row.
+    assert "impact" not in props["Josh Allen"]
+
+
+def test_rush_plus_receiving_yards_is_offered_to_everyone_but_passers():
+    props = {p["name"]: p for p in _scen("MIA @ BUF")["props"]}
+    assert props["Ray Davis"]["rush_rec_yd"] == 48.0
+    assert "rush_rec_yd" not in props["Josh Allen"]
+
+
+def _bet_game(game, away, home, props, allowed):
+    return {
+        "game": game,
+        "away": away,
+        "home": home,
+        "scenarios": {"props": props, "allowed": allowed},
+    }
+
+
+def test_best_bets_rank_the_weeks_touchdowns_and_soft_matchups_across_games():
+    soft = {"games": 4, "WR": {"rec_yd": [180.0, 2, 30, 1, 32], "rec": [14.0, 9, 20, 1, 32]}}
+    thin = {"games": 2, "RB": {"rush_yd": [160.0, 1, 32, 1, 32]}}
+    games = [
+        _bet_game(
+            "MIA @ BUF",
+            "MIA",
+            "BUF",
+            [
+                {
+                    "name": "Tyreek Hill",
+                    "position": "WR",
+                    "team": "MIA",
+                    "rec_yd": 90.0,
+                    "rec": 6.5,
+                    "td_chance": 45,
+                    "td": 0.6,
+                },
+                {
+                    "name": "Ray Davis",
+                    "position": "RB",
+                    "team": "BUF",
+                    "rush_yd": 40.0,
+                    "td_chance": 18,
+                    "td": 0.2,
+                },
+            ],
+            {"BUF": soft, "MIA": thin},
+        ),
+        _bet_game(
+            "DAL @ WSH",
+            "DAL",
+            "WSH",
+            [
+                {
+                    "name": "CeeDee Lamb",
+                    "position": "WR",
+                    "team": "DAL",
+                    "rec_yd": 20.0,
+                    "td_chance": 50,
+                    "td": 0.7,
+                }
+            ],
+            {"WSH": soft},
+        ),
+    ]
+    best = gamestack.best_bets(games)
+    assert [(r["name"], r["chance"]) for r in best["td"]] == [
+        ("CeeDee Lamb", 50),
+        ("Tyreek Hill", 45),
+        ("Ray Davis", 18),
+    ]
+    # Hill: a real receiving role against the 2nd-most generous defense.
+    # Not his catches (9th is outside the band); not Lamb (20 yards is no
+    # role); not Davis (that defense has two games, too few to call).
+    assert [(r["name"], r["stat"], r["rank"], r["opp"]) for r in best["matchups"]] == [
+        ("Tyreek Hill", "rec_yd", 2, "BUF")
+    ]
+    assert _build()["best"]["td"][0]["game"]

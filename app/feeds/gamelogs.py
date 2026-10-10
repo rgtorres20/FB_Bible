@@ -41,6 +41,13 @@ KEEP = (
     "rec_yd",
     "rec_td",
 )
+# Added Oct 8 for the completions, attempts and interceptions tabs. A game
+# folded before then simply lacks them, which is not the same as zero --
+# so a game folded with these carries `k: KEEP_VERSION`, only those games
+# count toward a hit rate on these markets, and `pending` re-fetches the
+# older weeks a few per sync until every one carries them.
+KEEP_LATER = ("pass_att", "pass_cmp", "pass_int")
+KEEP_VERSION = 2
 CURRENT = 2026
 LAST = 2025
 LAST_WEEKS = tuple(range(1, 19))
@@ -66,14 +73,18 @@ def _week_key(season: int, week: int) -> str:
 def pending(state: dict | None, slate_week: int | None, limit: int = WEEKS_PER_SYNC) -> list:
     """(season, week) pairs still to fetch, this season's played weeks first
     -- they are the ones a pick this week leans on -- then last season's."""
-    weeks = _current(state).get("weeks") or {}
-    todo = []
-    for week in range(1, (slate_week or 1)):
-        if weeks.get(_week_key(CURRENT, week)) != "final":
-            todo.append((CURRENT, week))
-    for week in LAST_WEEKS:
-        if weeks.get(_week_key(LAST, week)) != "final":
-            todo.append((LAST, week))
+    state = _current(state)
+    weeks = state.get("weeks") or {}
+    kept = state.get("kept") or {}
+    played = [(CURRENT, w) for w in range(1, (slate_week or 1))] + [(LAST, w) for w in LAST_WEEKS]
+    todo = [sw for sw in played if weeks.get(_week_key(*sw)) != "final"]
+    # Final weeks folded before KEEP_LATER existed come after every
+    # unfetched week, so the backfill never delays a missing one.
+    todo += [
+        sw
+        for sw in played
+        if weeks.get(_week_key(*sw)) == "final" and kept.get(_week_key(*sw)) != KEEP_VERSION
+    ]
     return todo[:limit]
 
 
@@ -124,10 +135,11 @@ def fold(state: dict | None, season: int, week: int, rows: list, now: datetime) 
         if not pid or position not in POSITIONS or not stats.get("gp"):
             continue
         game = {"t": row.get("team") or "", "o": row.get("opponent") or ""}
-        for field in KEEP:
+        for field in KEEP + KEEP_LATER:
             value = stats.get(field)
             if isinstance(value, int | float) and value:
                 game[field] = value
+        game["k"] = KEEP_VERSION
         player = players.setdefault(pid, {"pos": position, "games": {}})
         player["pos"] = position
         player["games"][key] = game
@@ -136,6 +148,7 @@ def fold(state: dict | None, season: int, week: int, rows: list, now: datetime) 
     # An empty answer is an unplayed week, not a final one: fetch it again.
     weeks[key] = "final" if final else "partial"
     state["weeks"] = weeks
+    state["kept"] = {**(state.get("kept") or {}), key: KEEP_VERSION}
     state["players"] = {pid: p for pid, p in players.items() if p["games"]}
     return state
 
@@ -151,6 +164,11 @@ def season_games(state: dict | None, pid: str, season: int) -> list[dict]:
     return sorted(out, key=lambda g: g["w"])
 
 
+# What a log row carries: every market tab's stat. Fields absent from a
+# row are zeros, except KEEP_LATER on a game folded before it existed.
+LOG_FIELDS = ("pass_yd", "pass_td", "rush_att", "rush_yd", "rec", "rec_yd")
+
+
 def player_log(state: dict | None, pid: str) -> dict:
     """What the panel needs for one player: both seasons' games, the
     market stats only, with a rush + rec TD total per game."""
@@ -159,12 +177,22 @@ def player_log(state: dict | None, pid: str) -> dict:
         games = []
         for g in season_games(state, pid, season):
             row = {"w": g["w"], "o": g.get("o", "")}
-            for field in ("pass_yd", "rush_yd", "rec", "rec_yd"):
+            for field in LOG_FIELDS:
                 if g.get(field):
                     row[field] = g[field]
             td = (g.get("rush_td") or 0) + (g.get("rec_td") or 0)
             if td:
                 row["td"] = td
+            both = (g.get("rush_yd") or 0) + (g.get("rec_yd") or 0)
+            if both:
+                row["rush_rec_yd"] = both
+            if g.get("k") == KEEP_VERSION:
+                # KEEP_LATER was recorded for this game, so a field absent
+                # here really is a zero; without `k` it is unknown.
+                row["k"] = 1
+                for field in KEEP_LATER:
+                    if g.get(field):
+                        row[field] = g[field]
             games.append(row)
         if games:
             out[str(season)[2:]] = games
