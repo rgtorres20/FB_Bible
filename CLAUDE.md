@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1677 tests green — 1661 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1678 tests green — 1662 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -668,7 +668,15 @@ midweek, so FFBets opened on last Thursday's game with no line — and
 live lines"). `vegas.fetch` now takes week + 1 once every game on the board
 is final (docs/ASSUMPTIONS.md). `tests/test_travel.py` also went red on
 main the same day — a fixture ending Oct 11 read on the real clock — and
-now pins its clock.
+now pins its clock. **And the sync stopped deleting what the runner
+pushes** (same day): `/internal/sync` saved an enumerated list of keys *as*
+the blob, so the travel `schedule` pushed since Oct 10 was wiped by every
+sync — travel vanished from Team intel and FFBets, the runner re-fetched
+every week each run, and the watchdog printed it as INFO. That is the class
+that wiped the sleeper consensus on Aug 29; the save now starts from the
+fresh blob and overwrites only the keys the sync owns, so the next pushed
+key cannot repeat it. Sync-feeds also pushes the slate *before* the sync,
+so a new week's forecast is fetched the same run the slate rolls.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

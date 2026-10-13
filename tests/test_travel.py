@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app import main
@@ -235,3 +236,41 @@ def test_the_runner_script_fetches_what_the_store_lacks(monkeypatch):
     posted = calls[-1]
     assert posted[0] == "/internal/schedule"
     assert sorted(posted[1]["weeks"], key=int) == ["5", "6", "7", "8", "9", "10"]
+
+
+def test_the_schedule_survives_a_sync(tmp_path, monkeypatch):
+    """Oct 13, caught live: /internal/sync rebuilt the stored blob from its
+    own list of keys, 'schedule' was not on it, and every sync deleted the
+    weeks the runner had just pushed -- travel vanished from Team intel and
+    FFBets, and the runner re-fetched every week on every run. The same
+    class wiped the sleeper consensus on Aug 29."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+
+    async def offline(*args, **kwargs):
+        raise httpx.ConnectError("offline")
+
+    for unit in ("adp", "vegas", "stats"):
+        monkeypatch.setattr(getattr(feeds_route, unit), "fetch", offline)
+
+    async def fake_poll(*args, **kwargs):
+        return {"items": [], "sources": {}, "polled_at": "2026-10-13T21:00:00+00:00"}
+
+    monkeypatch.setattr(feeds_route.poller, "poll", fake_poll)
+    store = FileFeedStore(str(tmp_path / "feeds.json"))
+    main.app.dependency_overrides[feeds_route.get_feed_store] = lambda: store
+    main.app.dependency_overrides[feeds_route.get_optional_feed_store] = lambda: store
+    headers = {"X-Sync-Token": "secret-token"}
+    try:
+        c = TestClient(main.app)
+        c.post("/internal/schedule", json={"weeks": _cowboys()["weeks"]}, headers=headers)
+        # A key no code knows yet stands in for the next endpoint someone adds.
+        blob = asyncio.run(store.load())
+        asyncio.run(store.save({**blob, "next_pushed_key": {"x": 1}}))
+        assert c.post("/internal/sync", headers=headers).status_code == 200
+        known = c.get("/internal/schedule/known", headers=headers).json()["fetched"]
+    finally:
+        main.app.dependency_overrides.clear()
+    assert sorted(known) == ["2", "3", "4", "5"]
+    assert asyncio.run(store.load()).get("next_pushed_key") == {"x": 1}
