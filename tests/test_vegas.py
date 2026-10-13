@@ -178,6 +178,57 @@ async def test_the_playoffs_are_followed_too():
         assert (await vegas.fetch(client))["week_label"] == "Week 2"
 
 
+def _final(board: dict) -> dict:
+    for e in board["events"]:
+        e["status"] = {"type": {"state": "post"}}
+    return board
+
+
+async def test_a_finished_week_rolls_to_the_next_one():
+    """Oct 13: ESPN's unpinned board still showed Week 5 on the Tuesday
+    after it, every game final -- no lines, and FFBets opened on last
+    Thursday's game. Once all of a week is over, next week is the slate."""
+    calls = []
+
+    def record(req):
+        calls.append(dict(req.url.params))
+        if req.url.params.get("week") == "6":
+            return httpx.Response(200, json=_board(2, 6))
+        return httpx.Response(200, json=_final(_board(2, 5)))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        state = await vegas.fetch(client)
+    assert state["week_label"] == "Week 6"
+    assert calls[1] == {"seasontype": "2", "week": "6", "dates": str(vegas.YEAR)}
+
+
+async def test_a_week_still_being_played_is_not_skipped():
+    """Monday night: Sunday is final, the late game is not. Stay."""
+    calls = []
+
+    def record(req):
+        calls.append(req)
+        board = _board(2, 5)
+        board["events"].append(_event("NYJ", "MIA", "MIA -2", 44.5))
+        board["events"][0]["status"] = {"type": {"state": "post"}}
+        board["events"][1]["status"] = {"type": {"state": "in"}}
+        return httpx.Response(200, json=board)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        assert (await vegas.fetch(client))["week_label"] == "Week 5"
+    assert len(calls) == 1
+
+
+async def test_past_the_last_week_the_finished_board_stands():
+    def record(req):
+        if req.url.params.get("week") == "19":
+            return httpx.Response(200, json={"events": []})
+        return httpx.Response(200, json=_final(_board(2, 18)))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(record)) as client:
+        assert (await vegas.fetch(client))["week_label"] == "Week 18"
+
+
 # --- /internal/vegas push endpoint -----------------------------------------
 
 

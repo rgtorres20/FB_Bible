@@ -57,7 +57,8 @@ _SPREAD = re.compile(r"^([A-Z]{2,4})\s+(-?\d+(?:\.\d+)?)$")
 
 
 async def fetch(client: httpx.AsyncClient | None = None) -> dict:
-    """The Week 1 scoreboard with odds, reduced to the page's table shape."""
+    """The current week's scoreboard with odds, reduced to the page's table
+    shape -- Week 1 in preseason, next week once this one is all final."""
     own_client = client is None
     if own_client:
         # Plain honest UA, verified working from residential and GitHub
@@ -85,6 +86,21 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
             )
         response.raise_for_status()
         payload = response.json()
+        # ESPN's unpinned board keeps the finished week until it rolls over
+        # midweek, so from Monday night to about Wednesday it was a slate
+        # of final games: no lines, kickoffs in the past, and FFBets
+        # opening on last Thursday's game (owner, Oct 13: "Broken"). Once
+        # every game on it is final, the reader is looking ahead -- show
+        # next week if ESPN has it; past the last week it has none, and
+        # the finished board stands.
+        week = (payload.get("week") or {}).get("number")
+        season_type = (payload.get("season") or {}).get("type")
+        if week and season_type and season_type != 1 and all_final(payload):
+            ahead = await client.get(
+                URL, params={"seasontype": season_type, "week": week + 1, "dates": YEAR}
+            )
+            if ahead.status_code == 200 and build_rows(ahead.json()):
+                payload = ahead.json()
     finally:
         if own_client:
             await client.aclose()
@@ -101,6 +117,18 @@ async def fetch(client: httpx.AsyncClient | None = None) -> dict:
         "week_label": label,
         "games": games,
     }
+
+
+def all_final(payload: dict) -> bool:
+    """True when the board has games and every one of them is over."""
+
+    def state(event: dict) -> str:
+        competition = (event.get("competitions") or [{}])[0]
+        status = competition.get("status") or event.get("status") or {}
+        return str((status.get("type") or {}).get("state") or "")
+
+    events = payload.get("events") or []
+    return bool(events) and all(state(e) == "post" for e in events)
 
 
 def implied(details: str, total: float | None, away: str = "", home: str = "") -> tuple[str, str]:

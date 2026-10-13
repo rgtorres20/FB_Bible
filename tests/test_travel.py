@@ -181,6 +181,15 @@ def test_the_runner_pushes_and_the_overlay_serves_travel(tmp_path, monkeypatch):
     from app.config import get_settings
 
     monkeypatch.setattr(get_settings(), "sync_token", "secret-token", raising=False)
+    # The overlay reads on the real clock; the fixture's last game is Oct 11,
+    # so from Oct 12 nothing was ahead of anyone and this went red on main.
+    # Pin "now" inside the fixture's season instead of racing the calendar.
+    real_reads = travel.reads
+    monkeypatch.setattr(
+        travel,
+        "reads",
+        lambda state, now=None: real_reads(state, datetime(2026, 9, 15, tzinfo=UTC)),
+    )
     store = FileFeedStore(str(tmp_path / "feeds.json"))
     asyncio.run(
         store.save(

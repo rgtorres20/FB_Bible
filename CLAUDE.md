@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1674 tests green — 1658 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1677 tests green — 1661 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -650,6 +650,25 @@ block on every Team intel row (`page.intel_travel`), two lines on the
 FFBets Game and Matchup tabs, and a "Travel & rest edges" list in Best
 bets. `verify_live.py` checks coverage and that every mapped trip is a
 plausible distance.
+
+**"Broken" — two faults on one FFBets screen** (owner, Oct 13, with a
+phone screenshot). The Best bets rows were invisible: club themes are
+*generated* (`teams.palette`) and defined neutral-200…800 but not 100, 500
+or 900, so inside a club theme `--color-neutral-100` fell through to the
+light theme's near-white — the box `mobile.css` paints behind those rows —
+under the club's light ink. Measured in Chromium before and after:
+`rgb(238,239,241)` text on `rgb(248,244,244)`, now on `rgb(35,49,74)`. The
+palette test compared the palette with itself, so it could never notice; it
+now scans `index.html`, `mobile.css` and `mobile.js` for every
+`var(--color-…)` the page reads and fails on any a club does not define,
+and holds the panel tokens to a contrast floor. Second, the slate was a
+finished week: ESPN's unpinned board keeps Week 5 until it rolls over
+midweek, so FFBets opened on last Thursday's game with no line — and
+`verify-live.yml` had failed since Oct 12 on exactly that ("TD rows track
+live lines"). `vegas.fetch` now takes week + 1 once every game on the board
+is final (docs/ASSUMPTIONS.md). `tests/test_travel.py` also went red on
+main the same day — a fixture ending Oct 11 read on the real clock — and
+now pins its clock.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

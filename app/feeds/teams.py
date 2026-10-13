@@ -175,17 +175,24 @@ def palette(dark: str, bright: str) -> dict[str, str]:
     return {
         "--color-bg": ground,
         "--color-text": ink,
+        # Every neutral step the page reads, 100 through 900. A step left
+        # out does not fail: it inherits the light theme's value, and the
+        # Oct 8 best-bets box painted that near-white behind this ink.
+        "--color-neutral-100": _toward_white(ground, 0.04),
         "--color-neutral-200": _toward_white(ground, 0.07),
         "--color-neutral-300": _toward_white(ground, 0.15),
         "--color-neutral-400": _toward_white(ground, 0.33),
         "--color-neutral-600": _toward_white(ground, 0.58),
+        "--color-neutral-500": _toward_white(ground, 0.46),
         "--color-neutral-700": _toward_white(ground, 0.70),
         "--color-neutral-800": _toward_white(ground, 0.84),
+        "--color-neutral-900": _toward_white(ground, 0.92),
         "--color-accent": accent,
         "--color-on-accent": on_accent,
         "--color-accent-100": _toward_black(accent, 0.72),
         "--color-accent-200": _toward_black(accent, 0.58),
         "--color-accent-400": _toward_black(accent, 0.22),
+        "--color-accent-600": _toward_white(accent, 0.10),
         "--color-accent-700": _toward_white(accent, 0.22),
         "--color-accent-800": _toward_white(accent, 0.46),
     }

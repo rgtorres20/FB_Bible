@@ -903,3 +903,24 @@ miles between stadiums. Chosen, and the owner's to overrule:
 - **Fetching**: the runner refreshes the slate's week and the next on
   every run (kickoffs flex) and backfills up to **6** never-fetched
   weeks per run. An empty week is ignored, never stored over a good one.
+
+## The NFL slate rolls forward when its week is all final (Oct 13)
+
+ESPN's unpinned scoreboard keeps a finished week until it rolls over
+midweek. On Tuesday Oct 13 it still served Week 5, every game final, so
+FFBets opened on the previous Thursday's game with no line and the
+watchdog's "TD rows track live lines" check failed from Oct 12 on.
+`vegas.fetch` now asks for week + 1 once **every** game on the board is
+`post`, and uses it only if ESPN returns games for it.
+
+- **The trigger is "all final", not a day of the week.** Monday night with
+  the late game still on keeps the week; the moment it ends, the slate is
+  next week. A weekday rule would be wrong in any week with a Tuesday or
+  Wednesday game, and ESPN's own rollover day is not published.
+- **Past the last regular-season week ESPN has no week + 1**, so the
+  finished board stands rather than a blank one. Same rule as
+  `college.needs_next_week`, which uses "every game started" because a
+  college slate is read for its upcoming Saturday.
+- If this is wrong, the visible symptom is the strip opening on next
+  week's Thursday game while this week's Monday game is still being played
+  — which "all final" rules out by construction.
