@@ -2,8 +2,9 @@
 
 ESPN 403s Vercel's IP range, so the deployment cannot fetch its own lines
 (verified live 2026-08-15; browser headers do not help). The GitHub Actions
-runner can -- so this runs after the sync trigger in sync-feeds.yml and
-POSTs the slate to /internal/vegas, which sanitizes and stores it.
+runner can -- so this runs in sync-feeds.yml, before the sync trigger (the
+sync reads the stored slate's week to pick its forecast), and POSTs the
+slate to /internal/vegas, which sanitizes and stores it.
 
 Needs httpx (installed by the workflow step) because it reuses
 app.feeds.vegas for fetching and row-shaping -- one implementation of the

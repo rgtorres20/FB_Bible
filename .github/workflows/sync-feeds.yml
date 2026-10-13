@@ -56,7 +56,38 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      # ESPN 403s Vercel's IP range, so the Vegas slate is fetched from this
+      # runner and pushed to the deployment -- same division of labour as the
+      # sync trigger itself. A failed fetch skips quietly; the stored slate
+      # persists and Data health keeps its honest stamp. The push and the
+      # sync are independent, so either failing must not block the other
+      # -- hence the always-run condition on every step.
+      - uses: actions/checkout@v4
+        if: ${{ !cancelled() }}
+
+      - name: Push Vegas slate
+        if: ${{ !cancelled() }}
+        env:
+          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          # push_vegas imports app.feeds.vegas, and vegas reads
+          # config.SEASON_YEAR (Aug 21) -- which pulls pydantic. The
+          # runner installed only httpx, so this step died on import
+          # every 15 minutes from Aug 21 22:27 to Aug 22 18:00 while the
+          # stored slate kept serving under a request-time stamp that
+          # made it look fresh. Install what the import chain actually
+          # needs; the sync curl is independent and kept working.
+          python3 -m pip install --quiet httpx pydantic pydantic-settings
+          python3 scripts/push_vegas.py
+
+      # After the slate push, not before (Oct 13): the sync fetches the
+      # weekly forecast for the week the STORED slate shows, so running it
+      # first meant the run that rolled the slate to a new week still
+      # fetched last week's forecast -- and the game panels, which refuse a
+      # forecast for another week, sat empty until the next run.
       - name: Trigger sync
+        if: ${{ !cancelled() }}
         env:
           BASE_URL: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -90,31 +121,6 @@ jobs:
           else
             echo "::warning::One or more sources failed — see sources_failed above"
           fi
-
-      # ESPN 403s Vercel's IP range, so the Vegas slate is fetched from this
-      # runner and pushed to the deployment -- same division of labour as the
-      # sync trigger itself. A failed fetch skips quietly; the stored slate
-      # persists and Data health keeps its honest stamp. The push is
-      # independent of the sync call, so a transient sync failure must not
-      # block it -- hence the always-run condition on both steps.
-      - uses: actions/checkout@v4
-        if: ${{ !cancelled() }}
-
-      - name: Push Vegas slate
-        if: ${{ !cancelled() }}
-        env:
-          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: |
-          # push_vegas imports app.feeds.vegas, and vegas reads
-          # config.SEASON_YEAR (Aug 21) -- which pulls pydantic. The
-          # runner installed only httpx, so this step died on import
-          # every 15 minutes from Aug 21 22:27 to Aug 22 18:00 while the
-          # stored slate kept serving under a request-time stamp that
-          # made it look fresh. Install what the import chain actually
-          # needs; the sync curl above is independent and kept working.
-          python3 -m pip install --quiet httpx pydantic pydantic-settings
-          python3 scripts/push_vegas.py
 
       # College FFBets (Sep 26): the FBS top-25 slate and any finished
       # games' box scores the deployment does not hold yet. Same reason it
