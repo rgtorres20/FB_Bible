@@ -1293,6 +1293,14 @@ async def sync(
 
     await store.save(
         {
+            # Start from the fresh blob, then write the keys this sync owns.
+            # The list below used to BE the blob, so any key pushed through
+            # its own endpoint and not added here was wiped by every sync:
+            # the sleeper consensus on Aug 29, then the travel schedule from
+            # Oct 10 to Oct 13 (Team intel and FFBets lost travel, and the
+            # runner re-fetched every week on every run). Carrying the rest
+            # forward ends the class instead of patching one key at a time.
+            **fresh,
             "items": merged["items"],
             # The trimmed items' arrival stamps -- what stops a story that
             # fell off the 400-item cap from wearing a NEW badge forever

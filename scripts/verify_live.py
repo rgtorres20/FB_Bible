@@ -380,7 +380,10 @@ def main() -> int:
             f"  INFO  travel: {len(trips.get('games') or {})} games read, {edges} with a rule edge"
         )
     else:
-        print("  INFO  travel absent (no schedule pushed yet)")
+        # Not INFO any more (Oct 13): the runner pushes a schedule on every
+        # sync, so an absent block means something deleted it. It read as
+        # INFO for three days while every sync wiped the pushed weeks.
+        check("travel is served (the runner pushes a schedule every sync)", False, "absent")
     # College FFBets (Sep 26): the top-25 slate the runner pushes, with the
     # season's box scores behind it. Absent is honest until the first push;
     # present, every game must involve a ranked team and every player row
