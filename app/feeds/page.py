@@ -1072,6 +1072,206 @@ def back_where_you_were(html: str) -> tuple[str, list[str]]:
     return html, []
 
 
+# --- the season comes first; the draft tools fold away (owner, Oct 8) -----
+#
+# "Expand FFBets and hide drafting items." It is October: the drafts are
+# done, and the sidebar still opened on camp alerts with the Draft
+# analyzer, Scout finds and a League block of draft-board buttons above
+# the week's games. Three things change, none of them deletions:
+#
+# - the Season group leads, FFBets first, and a new device opens on it;
+# - the tabs that still earn their place in-season -- Sleepers (pickups),
+#   Backup RBs, Position analysis (it carries the weekly stars) and Team
+#   intel -- move into Season;
+# - what is left of Draft prep (the analyzer, Scout finds, and the
+#   sidebar's League buttons, which only ever opened the draft board)
+#   collapses behind one "Draft tools" row. Tapping it opens them again;
+#   the choice is per device (`fb_draft_open`), like the theme.
+#
+# A saved tab is still restored (Aug 26, "back goes where you came from"),
+# unless it is one of the folded draft screens -- then the app opens on
+# FFBets instead of a tab the sidebar no longer shows.
+
+_SEASON_GROUPS = (
+    '      draft: "Draft prep", waivers: "Draft prep", scout: "Draft prep", '
+    'cuffs: "Draft prep", roster: "Draft prep", intel: "Draft prep",'
+)
+_SEASON_GROUPS_REPLACEMENT = (
+    '      draft: "Draft prep", scout: "Draft prep", waivers: "Season", '
+    'cuffs: "Season", roster: "Season", intel: "Season",'
+)
+
+_SEASON_ORDER = (
+    "    const navOrdered = groupOrder.reduce((acc, g) => "
+    "acc.concat(navDefs.filter(n => navGroups[n.id] === g)), []);"
+)
+_SEASON_ORDER_REPLACEMENT = (
+    "    const __fbSeasonOrder = "
+    '["gameday", "schedule", "weekrev", "roster", "waivers", "cuffs", "queue", "intel"];\n'
+    '    navDefs.unshift({ id: "__draft", label: __fbDraftOpen ? "Hide draft tools" : '
+    '"Draft tools · off-season ▸", badge: "", toggle: true });\n'
+    '    navGroups.__draft = "Draft prep";\n'
+    "    const navOrdered = groupOrder.reduce((acc, g) => acc.concat(navDefs"
+    '.filter(n => navGroups[n.id] === g && (g !== "Draft prep" || n.toggle || '
+    "__fbDraftOpen || s.screen === n.id))"
+    '.sort((a, b) => g === "Season" ? '
+    "__fbSeasonOrder.indexOf(a.id) - __fbSeasonOrder.indexOf(b.id) : 0)), []);"
+)
+
+# Read where the League block needs it, near the top of renderVals.
+_SEASON_LEAGUES = "    const leagueDefs = ["
+_SEASON_LEAGUES_REPLACEMENT = (
+    "    const __fbDraftOpen = s.draftOpen !== undefined ? s.draftOpen : "
+    '(() => { try { return localStorage.getItem("fb_draft_open") === "1"; } '
+    "catch (e) { return false; } })();\n" + _SEASON_LEAGUES
+)
+
+# Season to the front, whatever `alerts_is_the_wire` named the first group.
+_SEASON_GROUP_ORDER = "const groupOrder = ["
+_SEASON_GROUP_ORDER_REPLACEMENT = 'const groupOrder = ["Season", '
+_SEASON_GROUP_TAIL = '"Draft prep", "Season", "System"];'
+_SEASON_GROUP_TAIL_REPLACEMENT = '"Draft prep", "System"];'
+
+# The toggle row's click, set on the built items rather than inside the
+# map, so this does not anchor on the click `back_where_you_were` rewrites.
+_SEASON_TOGGLE = "    const titles = {"
+_SEASON_TOGGLE_REPLACEMENT = (
+    "    navItems.forEach((it, i) => { if (navOrdered[i].toggle) it.onClick = () => { "
+    'try { localStorage.setItem("fb_draft_open", __fbDraftOpen ? "0" : "1"); } '
+    "catch (e) {} this.setState({ draftOpen: !__fbDraftOpen }); }; });\n" + _SEASON_TOGGLE
+)
+
+# Open on FFBets: a new device, or a saved tab that is now folded away.
+# Set at boot, beside the restore `back_where_you_were` adds -- the line it
+# anchors on survives that transform, so this works with or without it.
+_SEASON_BOOT = '      const sd = localStorage.getItem("ww_scout_dismissed");'
+_SEASON_BOOT_REPLACEMENT = (
+    '      { const __sc = localStorage.getItem("ww_screen"); '
+    'if (!__sc || ((__sc === "draft" || __sc === "scout") && '
+    'localStorage.getItem("fb_draft_open") !== "1")) '
+    'this.setState({ screen: "gameday", lastNav: "gameday" }); }\n' + _SEASON_BOOT
+)
+
+_SEASON_KICKER = (
+    '      gameday: ["Highest projected offensive lineup under a $50K salary cap", "FFBets"],'
+)
+_SEASON_KICKER_REPLACEMENT = (
+    '      gameday: ["Every game this week · props, touchdowns, the defense each side '
+    'faces, and who is hurt", "FFBets"],'
+)
+
+_SEASON_RETURN = "      leagues, navItems, posFilters,"
+_SEASON_RETURN_REPLACEMENT = (
+    '      leagues, leagueBlockDisplay: __fbDraftOpen ? "block" : "none", '
+    'seasonTag: __fbDraftOpen ? "Draft prep" : "In season", navItems, posFilters,'
+)
+
+_SEASON_LEAGUE_BLOCK = (
+    '    <div style="padding:var(--space-4) var(--space-6); border-bottom:1px solid '
+    'var(--color-neutral-300);">\n'
+    '      <div style="font-size:10px; font-weight:700; letter-spacing:0.14em; '
+    'text-transform:uppercase; color:var(--color-neutral-600); margin-bottom:10px;">League</div>'
+)
+_SEASON_LEAGUE_BLOCK_REPLACEMENT = _SEASON_LEAGUE_BLOCK.replace(
+    'var(--color-neutral-300);">',
+    'var(--color-neutral-300); display:{{ leagueBlockDisplay }};">',
+    1,
+)
+
+_SEASON_TAG = ">NFL 2026 · Draft prep</div>"
+_SEASON_TAG_REPLACEMENT = ">NFL 2026 · {{ seasonTag }}</div>"
+
+_SEASON_EDITS = (
+    ("season nav groups", _SEASON_GROUPS, _SEASON_GROUPS_REPLACEMENT),
+    ("season group order", _SEASON_GROUP_ORDER, _SEASON_GROUP_ORDER_REPLACEMENT),
+    ("season group tail", _SEASON_GROUP_TAIL, _SEASON_GROUP_TAIL_REPLACEMENT),
+    ("season draft-open read", _SEASON_LEAGUES, _SEASON_LEAGUES_REPLACEMENT),
+    ("season nav order + draft toggle", _SEASON_ORDER, _SEASON_ORDER_REPLACEMENT),
+    ("season toggle click", _SEASON_TOGGLE, _SEASON_TOGGLE_REPLACEMENT),
+    ("season boot restore", _SEASON_BOOT, _SEASON_BOOT_REPLACEMENT),
+    ("season FFBets kicker", _SEASON_KICKER, _SEASON_KICKER_REPLACEMENT),
+    ("season vals", _SEASON_RETURN, _SEASON_RETURN_REPLACEMENT),
+    ("season league block", _SEASON_LEAGUE_BLOCK, _SEASON_LEAGUE_BLOCK_REPLACEMENT),
+    ("season sidebar tag", _SEASON_TAG, _SEASON_TAG_REPLACEMENT),
+)
+
+
+def season_first(html: str) -> tuple[str, list[str]]:
+    """FFBets leads, the app opens on it, and the draft tools fold away.
+
+    All or none, like `back_where_you_were`: the toggle row reads a value
+    another edit defines, and the vals the template reads come from a
+    third -- a half-applied set would throw on render, which is the
+    boot-time failure Sep 6 bought. Every anchor exists both in the
+    committed page and after `alerts_is_the_wire` / `back_where_you_were`,
+    so the order between them does not matter.
+    """
+    missing = [label for label, old, _ in _SEASON_EDITS if old not in html]
+    if missing:
+        return html, missing
+    for _, old, new in _SEASON_EDITS:
+        html = html.replace(old, new, 1)
+    return html, []
+
+
+# --- Team intel gets a travel column (owner, Oct 10) -----------------------
+#
+# "If we look at travel of team it becomes a factor in play the next game
+# ... how can we look at that in another column for team intel." Each team
+# row gains a Travel & rest block -- its next game, the road streak, the
+# miles over its last three games, days of rest, time zones -- and the
+# written-rule edge for that game when one clears. The numbers come from
+# `travel.reads` via the feeds overlay (`F.travel`), keyed by ESPN's team
+# code, which is the spelling INTEL already uses (WSH, not WAS), so there
+# is nothing to re-key. No schedule pushed yet, no block.
+
+_INTEL_VALS = '            watchColor: "var(--color-accent-700)"\n          };'
+_INTEL_VALS_REPLACEMENT = (
+    '            watchColor: "var(--color-accent-700)",\n'
+    "            ...(() => { const tr = (F.travel && F.travel.teams && "
+    "F.travel.teams[tm.code]) || null; "
+    "const ed = tr && F.travel.games ? (F.travel.games[tr.game] || []) : []; "
+    'return { hasTravel: !!tr, travel: tr ? tr.line : "", '
+    'travelEdge: ed.join(" "), travelStamp: tr ? "ESPN schedule · pulled " + '
+    'F.travel.as_of : "" }; })()\n'
+    "          };"
+)
+
+_INTEL_COLUMN = (
+    '<div style="font-size:9px; font-weight:700; letter-spacing:0.12em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">Draft note</div>'
+)
+_INTEL_COLUMN_REPLACEMENT = (
+    '<sc-if value="{{ tm.hasTravel }}" hint-placeholder-val="{{ false }}">'
+    '<div data-fb-travel style="margin-bottom:10px;">'
+    '<div style="font-size:9px; font-weight:700; letter-spacing:0.12em; '
+    'text-transform:uppercase; color:var(--color-neutral-600);">Travel &amp; rest</div>'
+    '<div style="font-size:12px; margin-top:4px; font-weight:600; '
+    'color:var(--color-neutral-800); text-wrap:pretty;">{{ tm.travel }}</div>'
+    '<div style="font-size:11px; margin-top:3px; font-weight:700; '
+    'color:var(--color-accent-700); text-wrap:pretty;">{{ tm.travelEdge }}</div>'
+    '<div style="font-size:10px; margin-top:3px; color:var(--color-neutral-600);">'
+    "{{ tm.travelStamp }}</div>"
+    "</div></sc-if>" + _INTEL_COLUMN
+)
+
+_INTEL_EDITS = (
+    ("intel travel vals", _INTEL_VALS, _INTEL_VALS_REPLACEMENT),
+    ("intel travel column", _INTEL_COLUMN, _INTEL_COLUMN_REPLACEMENT),
+)
+
+
+def intel_travel(html: str) -> tuple[str, list[str]]:
+    """Team intel's Travel & rest block. Both edits or neither: a template
+    block reading values nobody computes would render empty braces."""
+    missing = [label for label, old, _ in _INTEL_EDITS if old not in html]
+    if missing:
+        return html, missing
+    for _, old, new in _INTEL_EDITS:
+        html = html.replace(old, new, 1)
+    return html, []
+
+
 # --- kickers stop typing dates they cannot keep -----------------------------------
 #
 # Owner, Aug 26: "Week review didnt update stayed on week 1 even though
@@ -1341,6 +1541,8 @@ PRE = (
     sleepers_watchlist,
     alerts_is_the_wire,
     back_where_you_were,
+    season_first,
+    intel_travel,
     feeds_follow_the_wake,
     dated_kickers_read_the_data,
     game_stack_anchor,

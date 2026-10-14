@@ -825,3 +825,102 @@ first, probe runs 41–51). Chosen, and the owner's to overrule:
   ~500KB, and the first push of a season has every ranked team's played
   games to catch up on. Each game is fetched once — the deployment tells
   the runner which it already holds.
+
+## FFBets expanded; the draft tools fold away (Oct 8)
+
+Owner: *"expand FFBets and hide drafting items"*, then *"give me more
+details on the team they are facing and if any injuries could impact
+someone's performance"*. Chosen, and the owner's to overrule:
+
+- **Who counts as a starter** for the injury report
+  (`gamestack.STARTERS`): the top 1 QB, 1 RB, 3 WR, 1 TE, 4 DB, 3 LB and
+  4 DL on each team's depth chart (`depth.chart` — Sleeper's published
+  order, then '25 opportunity). A typical base set; a team in a 2-TE
+  look or a 3-4 front has a starter this misses or a backup it lists.
+  Any non-empty Sleeper flag is reported, Questionable included.
+- **Which flags touch whom is a written rule, not a measurement.**
+  `SHARES`: a player hears about his own room and the quarterback (a
+  QB hears about his WRs and TEs). `FACES`: QBs and WRs face the
+  opposing DBs, TEs the LBs and DBs, RBs the DL and LBs. Out flags are
+  listed before Questionable ones, and at most **four** clauses a row
+  (`MAX_IMPACT`). Nothing is redistributed — a clause names the man,
+  his flag and his '25 work, never a projected bump.
+- **Best bets** (`gamestack.best_bets`): the week's top **8** touchdown
+  chances by the forecast's Poisson figure, and the top **8** soft
+  matchups — a player clearing the role thresholds `spreads.MARKETS`
+  already uses, against a defense ranked **top 5** for allowing that
+  stat to his position (`SOFT_RANK`) over at least **3** games
+  (`MIN_DEF_GAMES`). Ordered by that rank, then by projection. No
+  combined "edge" score is invented.
+- **The slip multiplies its legs as if they were independent.** They are
+  not when two legs share a game, and the slip says so whenever they do.
+  A yardage leg can only be added once a typed line has a measured
+  over/under chance behind it; fair odds are the break-even American
+  price for that chance. Memory only — it is gone on reload.
+- **Completions, attempts and interceptions** were not in the game logs
+  before Oct 8. A game folded since carries `k`; only those games count
+  toward a hit rate on those three markets, and `gamelogs.pending`
+  re-fetches the older final weeks a few per sync, after every week
+  never fetched (`KEEP_LATER`, `KEEP_VERSION`).
+- **Which tabs fold.** Only the Draft analyzer, Scout finds and the
+  sidebar's League buttons (they only ever opened the draft board).
+  Sleepers, Backup RBs, Position analysis (it carries the weekly stars)
+  and Team intel stay, moved into the Season group. The open/closed
+  choice is per device (`fb_draft_open`), like the theme. A device whose
+  saved tab is a folded draft screen — or that has no saved tab — opens
+  on FFBets; any other saved tab is still restored (Aug 26).
+
+## Travel and rest are measured; the edge is a written rule (Oct 10)
+
+Owner: *"if we look at travel of team it becomes a factor in play the next
+game — this week the Cowboys had traveled [a lot] in 3 games when the
+opponent had 3 home games and no travel"*. Measured: the schedule (ESPN,
+a week at a time, `app/feeds/travel.py`), kickoff times, and great-circle
+miles between stadiums. Chosen, and the owner's to overrule:
+
+- **Stadium coordinates** (`STADIUMS`) are fixed facts keyed by ESPN's
+  codes; SoFi and MetLife are each shared. A team playing a "home" game
+  somewhere other than its stadium, without ESPN marking it neutral,
+  would be measured from its usual stadium.
+- **A game is away from both homes** when ESPN marks it `neutralSite` or
+  its venue is outside the USA. Its location is the city's centre from
+  `NEUTRAL_CITIES`; a city not in that table reads "distance not mapped"
+  and the three-game total is withheld rather than undercounted.
+- **A road game is a round trip** (out and back); this week's game counts
+  the outbound leg only. Teams that stay on the road between two away
+  games are over-counted by this model.
+- **The window is three games**: this one and the two before it.
+- **Rest** is calendar days between kickoffs in Central time; **13+
+  days is a bye**.
+- **Time zones** are the venue's UTC offset minus the home stadium's at
+  kickoff, so Arizona's missing daylight saving shows up as it should.
+- **The edge rules** (any one clears): rest wider by **3+ days**; the
+  opponent on its **3rd+ straight road game** while this team is home;
+  **2,500+ more miles** over the window; the opponent **2+ zones east**
+  kicking off before **2 PM local** (its "body clock" time is printed).
+  When the rules favour both sides the line says so instead of picking
+  one. No edge moves a projection or a chance anywhere in the app.
+- **Fetching**: the runner refreshes the slate's week and the next on
+  every run (kickoffs flex) and backfills up to **6** never-fetched
+  weeks per run. An empty week is ignored, never stored over a good one.
+
+## The NFL slate rolls forward when its week is all final (Oct 13)
+
+ESPN's unpinned scoreboard keeps a finished week until it rolls over
+midweek. On Tuesday Oct 13 it still served Week 5, every game final, so
+FFBets opened on the previous Thursday's game with no line and the
+watchdog's "TD rows track live lines" check failed from Oct 12 on.
+`vegas.fetch` now asks for week + 1 once **every** game on the board is
+`post`, and uses it only if ESPN returns games for it.
+
+- **The trigger is "all final", not a day of the week.** Monday night with
+  the late game still on keeps the week; the moment it ends, the slate is
+  next week. A weekday rule would be wrong in any week with a Tuesday or
+  Wednesday game, and ESPN's own rollover day is not published.
+- **Past the last regular-season week ESPN has no week + 1**, so the
+  finished board stands rather than a blank one. Same rule as
+  `college.needs_next_week`, which uses "every game started" because a
+  college slate is read for its upcoming Saturday.
+- If this is wrong, the visible symptom is the strip opening on next
+  week's Thursday game while this week's Monday game is still being played
+  — which "all final" rules out by construction.

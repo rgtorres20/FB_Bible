@@ -236,6 +236,119 @@ def vacancies(
     return out
 
 
+# --- who is hurt, and whom it touches (owner, Oct 8) ------------------------
+#
+# "Give me more details on the team they are facing and if any injuries
+# could impact someone's performance." Every flag here is Sleeper's live
+# injury status on a man the depth chart (`depth.chart`: Sleeper's own
+# order, then '25 opportunity) has in a starting slot. What a flag
+# *touches* is a written rule, not a measurement -- which flags matter to
+# which player -- and it says so where it renders (docs/ASSUMPTIONS.md).
+# No number is redistributed: the clause names the man, his flag and the
+# '25 work he leaves, and the reader weighs it.
+
+# How deep into each room a team's starters go -- a typical base lineup:
+# three receivers, a nickel secondary of four, three linebackers, four
+# down linemen (docs/ASSUMPTIONS.md).
+STARTERS = {"QB": 1, "RB": 1, "WR": 3, "TE": 1, "DB": 4, "LB": 3, "DL": 4}
+
+# What a '25 opportunity count is made of, per room, for the clause text.
+_WORK = {
+    "QB": "pass attempts",
+    "RB": "carries + targets",
+    "WR": "targets",
+    "TE": "targets",
+    "DB": "tackles",
+    "LB": "tackles",
+    "DL": "tackles",
+}
+
+# Which opposing defenders a skill player is up against: the secondary
+# covers the passing game, the front seven meets the run, and a tight
+# end draws linebackers and safeties both.
+FACES = {"QB": ("DB",), "WR": ("DB",), "TE": ("LB", "DB"), "RB": ("DL", "LB")}
+
+# Which teammates' flags move a player's share: his own room always, and
+# the quarterback for everyone who catches a pass.
+SHARES = {
+    "QB": ("WR", "TE"),
+    "RB": ("RB", "QB"),
+    "WR": ("WR", "TE", "QB"),
+    "TE": ("TE", "WR", "QB"),
+}
+
+# The most impact clauses one row names: the first few say what matters,
+# a list of twelve says nothing on a phone.
+MAX_IMPACT = 4
+
+
+def injury_report(index: dict | None, stats_state: dict | None) -> dict[str, list[dict]]:
+    """{index team code: [every flagged starter, offense then defense]}."""
+    out: dict[str, list[dict]] = {}
+    for (team, position), players in depth.chart(index, stats_state).items():
+        for slot, p in enumerate(players[: STARTERS.get(position, 0)], 1):
+            if not p["injury"]:
+                continue
+            out.setdefault(team, []).append(
+                {
+                    "name": p["name"],
+                    "position": position,
+                    "slot": slot,
+                    "injury": p["injury"],
+                    "side": "offense" if position in SKILL_POSITIONS else "defense",
+                    "out": p["injury"] in OUT_FLAGS,
+                    "vacated": round(p["opportunity"]),
+                    "work": _WORK[position],
+                }
+            )
+    order = {pos: n for n, pos in enumerate((*SKILL_POSITIONS, *depth.IDP_GROUPS))}
+    for rows in out.values():
+        rows.sort(key=lambda r: (order[r["position"]], r["slot"]))
+    return out
+
+
+def _label(r: dict) -> str:
+    return f"{r['name']} ({r['position']}{r['slot'] if r['slot'] > 1 else ''}, {r['injury']})"
+
+
+def impact(
+    player: dict,
+    opp: str,
+    report: dict[str, list[dict]],
+    outs: dict[str, list[dict]],
+) -> list[str]:
+    """The flags that touch one player this week, most direct first."""
+    name, pos, team = player["name"], player["position"], player["team"]
+    clauses: list[str] = []
+    for v in outs.get(team, []):
+        if v["next"] == name:
+            clauses.append(
+                f"Steps in: {v['starter']} ({v['position']}, {v['injury']}) is out — "
+                f"{v['vacated']} '25 {_WORK[v['position']]} to absorb"
+            )
+    mates = [
+        r
+        for r in report.get(team, [])
+        if r["side"] == "offense" and r["name"] != name and r["position"] in SHARES.get(pos, ())
+    ]
+    for r in sorted(mates, key=lambda r: not r["out"]):
+        if r["out"]:
+            if any(c.startswith("Steps in: " + r["name"]) for c in clauses):
+                continue
+            clauses.append(f"Teammate out: {_label(r)} — {r['vacated']} '25 {r['work']} come loose")
+        else:
+            clauses.append(f"Teammate flagged: {_label(r)} — his status moves this share")
+    faces = [
+        r
+        for r in report.get(opp, [])
+        if r["side"] == "defense" and r["position"] in FACES.get(pos, ())
+    ]
+    for r in sorted(faces, key=lambda r: not r["out"]):
+        verb = "without" if r["out"] else "with a flagged"
+        clauses.append(f"{opp} defense {verb} {_label(r)}")
+    return clauses[:MAX_IMPACT]
+
+
 # --- per-game scenarios for the FFBets tab (owner, Sep 22) -------------------
 #
 # "Give the best scenarios per game each week, not just overall bets, so we
@@ -328,8 +441,14 @@ def scenarios(
     game: dict,
     logs: dict | None = None,
     allowed_by_defense: dict | None = None,
+    report: dict[str, list[dict]] | None = None,
+    outs: dict[str, list[dict]] | None = None,
 ) -> dict:
     """One game's projected lines regrouped by the bet a reader is weighing.
+
+    `report` and `outs` are keyed by this game's own codes: every flagged
+    starter on each side (`injury_report`) and each out starter's next man
+    (`vacancies`). With them, each prop row names the flags that touch it.
 
     With `logs` (app/feeds/gamelogs.py), each prop row also carries the
     player's real games this season and last -- what the panel counts his
@@ -427,10 +546,17 @@ def scenarios(
         if expected > 0:
             row["td"] = round(expected, 2)
             row["td_chance"] = td_chance(expected)
+        both = (ln.get("rush_yd", 0) or 0) + (ln.get("rec_yd", 0) or 0)
+        if p["position"] != "QB" and both > 0:
+            row["rush_rec_yd"] = round(both, 1)
         if len(row) > 4:  # carries at least one projected number
             log = gamelogs.player_log(logs, p["id"]) if logs else {}
             if log:
                 row["log"] = log
+            opp = codes[1] if p["team"] == codes[0] else codes[0]
+            touches = impact(p, opp, report or {}, outs or {})
+            if touches:
+                row["impact"] = touches
             props.append(row)
     allowed = {}
     for code in codes:
@@ -440,6 +566,7 @@ def scenarios(
     return {
         "props": props,
         "allowed": allowed,
+        "injuries": {code: (report or {}).get(code, []) for code in codes},
         "script": script_read(game.get("fav") or "", game.get("total") or ""),
         "touchdowns": touchdowns,
         "passing": passing,
@@ -478,6 +605,7 @@ def build(
     now = now or datetime.now(UTC)
     implied = vegas.implied_by_team(games)
     outs = vacancies(index, stats_state, week_proj_state, leagues)
+    report = injury_report(index, stats_state)
     ids = {r["id"] for rows in by_team.values() for r in rows}
     mentions = depth.latest_mentions(items, ids)
     default = leagues[0].key
@@ -563,6 +691,8 @@ def build(
                     {**game, "implied": {c: implied.get(c) for c in codes}},
                     logs,
                     allowed_by_defense,
+                    {c: report.get(_index_code(c), []) for c in codes},
+                    {c: [{**v, "team": c} for v in outs.get(_index_code(c), [])] for c in codes},
                 ),
             }
         )
@@ -576,6 +706,7 @@ def build(
         "leagues": [{"key": lg.key, "name": lg.name} for lg in leagues],
         "default_league": default,
         "games": ranked,
+        "best": best_bets(ranked),
         "uncovered": uncovered,
         "spreads": spreads,
         "note": (
@@ -584,6 +715,65 @@ def build(
             "not in the forecast. The Vegas line is context, not an input to the ranking."
         ),
     }
+
+
+# --- the week's best bets, across every game (owner, Oct 8) -----------------
+#
+# Two lists, both read off numbers the game cards already carry -- nothing
+# is scored by a formula of this app's own:
+#
+# - the week's likeliest touchdown scorers, by the forecast's Poisson
+#   chance (the same figure the Touchdowns tab shows);
+# - the softest matchups: a player with a real role in a market (the role
+#   thresholds `spreads.MARKETS` already measures by) facing a defense in
+#   the top SOFT_RANK for allowing that stat to his position, over at
+#   least MIN_DEF_GAMES games -- one blowout is not a trend.
+
+BEST_N = 8
+SOFT_RANK = 5
+MIN_DEF_GAMES = 3
+
+
+def best_bets(games: list[dict]) -> dict:
+    """{"td": [...], "matchups": [...]} across the week's games."""
+    tds, soft = [], []
+    for g in games:
+        sc = g.get("scenarios") or {}
+        allowed = sc.get("allowed") or {}
+        for p in sc.get("props") or []:
+            base = {
+                "game": g.get("game"),
+                "name": p["name"],
+                "position": p["position"],
+                "team": p["team"],
+                "injury": p.get("injury", ""),
+            }
+            if p.get("td_chance"):
+                tds.append({**base, "chance": p["td_chance"], "td": p.get("td")})
+            opp = g.get("away") if p["team"] == g.get("home") else g.get("home")
+            defense = allowed.get(opp) or {}
+            if (defense.get("games") or 0) < MIN_DEF_GAMES:
+                continue
+            for stat, roles in spreads.MARKETS.items():
+                floor = roles.get(p["position"])
+                cell = (defense.get(p["position"]) or {}).get(stat)
+                if floor is None or not cell or (p.get(stat) or 0) < floor:
+                    continue
+                if cell[1] <= SOFT_RANK:
+                    soft.append(
+                        {
+                            **base,
+                            "opp": opp,
+                            "stat": stat,
+                            "proj": p[stat],
+                            "allowed": cell[0],
+                            "rank": cell[1],
+                            "of": cell[4],
+                        }
+                    )
+    tds.sort(key=lambda r: -r["chance"])
+    soft.sort(key=lambda r: (r["rank"], -r["proj"]))
+    return {"td": tds[:BEST_N], "matchups": soft[:BEST_N]}
 
 
 def projected_top_by_team(
@@ -920,6 +1110,7 @@ def college_stack(state: dict | None, now: datetime | None = None) -> dict | Non
         "leagues": [],
         "default_league": None,
         "games": out_games,
+        "best": best_bets(out_games),
         "uncovered": [u for u in uncovered if u],
         "games_logged": len(st.get("boxes") or {}),
         "spreads": {"season": college.SEASON, "college": True, "markets": pooled}

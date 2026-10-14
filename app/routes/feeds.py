@@ -49,6 +49,7 @@ from ..feeds import (
     stats,
     teams,
     topscorers,
+    travel,
     vegas,
     watchlist,
     weekrev,
@@ -157,6 +158,12 @@ async def app_feeds(
     college_stack = gamestack.college_stack(await store.load_cfb())
     if college_stack:
         merged["cfb_stack"] = college_stack
+    # Travel and rest (owner, Oct 10): every team's next game with the miles,
+    # road streak and rest behind it, and each game's written-rule edge.
+    # Read by FFBets and Team intel. Absent until the runner pushes a schedule.
+    trips = travel.reads(stored.get("schedule"))
+    if trips:
+        merged["travel"] = trips
     return render.rename_leagues(merged)
 
 
@@ -549,26 +556,7 @@ async def save_vegas(
     if not games:
         raise HTTPException(status_code=422, detail="No usable rows in state.games.")
 
-    # The week rollover (Oct 7): the workflow syncs BEFORE it pushes the
-    # slate, so a push that moves the slate to a new week left the stored
-    # forecast a week behind until the next sync -- 3-7h on GitHub's
-    # scheduler -- and td_picks, refusing the mismatch, put the Aug 14
-    # Week 1 leans back on the Predictions tab. Fetch the new week's
-    # forecast here, before the slate lands, so the two always move
-    # together. A failed fetch keeps the old one; the next sync retries.
-    week_label = str(payload.state.get("week_label") or "")[:40]
-    new_week = vegas.slate_week({"week_label": week_label})
-    fresh_forecast = None
-    if new_week is not None:
-        held = (await store.load()).get("week_projections") or {}
-        if held.get("week") != new_week:
-            raw = await projections.fetch_week(new_week)
-            if raw:
-                fresh_forecast = projections.reduce_week(raw)
-
     data = await store.load()
-    if fresh_forecast:
-        data["week_projections"] = fresh_forecast
     now = datetime.now(UTC).isoformat()
     # Line movement (owner, Sep 3: "Vegas lines movements for point
     # totals"): every push appends one snapshot of each game's total and
@@ -587,12 +575,46 @@ async def save_vegas(
     )
     data["vegas"] = {
         "fetched_at": now,
-        "week_label": week_label,
+        "week_label": str(payload.state.get("week_label") or "")[:40],
         "games": games,
         "history": history,
     }
     await store.save(data)
     return {"stored": len(games), "week_label": data["vegas"]["week_label"]}
+
+
+class ScheduleIn(BaseModel):
+    weeks: dict = {}
+
+
+@router.post("/internal/schedule", summary="Store schedule weeks for the travel reads")
+async def save_schedule(
+    payload: ScheduleIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """Travel and rest (Oct 10). ESPN 403s Vercel, so the runner fetches the
+    scoreboard a week at a time (scripts/push_vegas.py) and pushes it here.
+    Rows are rebuilt field by field at the door (travel.clean_row), and an
+    empty week is ignored rather than stored -- a failed fetch must not
+    erase a week already held."""
+    _require_sync_token(settings, x_sync_token)
+    data = await store.load()
+    data["schedule"] = travel.merge(data.get("schedule"), payload.weeks, datetime.now(UTC))
+    await store.save(data)
+    return {"weeks": sorted(int(w) for w in data["schedule"]["weeks"])}
+
+
+@router.get("/internal/schedule/known", summary="Schedule weeks the store already holds")
+async def schedule_known(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """So the runner fetches each week once, plus the live and next week."""
+    _require_sync_token(settings, x_sync_token)
+    return {"fetched": travel.known((await store.load()).get("schedule"))}
 
 
 class CollegeIn(BaseModel):
@@ -1271,6 +1293,14 @@ async def sync(
 
     await store.save(
         {
+            # Start from the fresh blob, then write the keys this sync owns.
+            # The list below used to BE the blob, so any key pushed through
+            # its own endpoint and not added here was wiped by every sync:
+            # the sleeper consensus on Aug 29, then the travel schedule from
+            # Oct 10 to Oct 13 (Team intel and FFBets lost travel, and the
+            # runner re-fetched every week on every run). Carrying the rest
+            # forward ends the class instead of patching one key at a time.
+            **fresh,
             "items": merged["items"],
             # The trimmed items' arrival stamps -- what stops a story that
             # fell off the 400-item cap from wearing a NEW badge forever

@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1645 tests green — 1629 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1678 tests green — 1662 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -608,6 +608,75 @@ Each row on the market tabs shows his game log, how many games he went
 over the typed line in (with the game count), and what this week's
 defense has allowed per game to his position, ranked. The spreads above
 now read the same logs, so last season is fetched once for both.
+
+**FFBets leads, and the draft tools fold away** (owner, Oct 8: *"expand
+FFBets and hide drafting items"*, then *"more details on the team they
+are facing and if any injuries could impact someone's performance"*).
+`page.season_first` puts a Season group first with FFBets at its head,
+opens a new device on it, moves the tabs still useful in-season
+(Sleepers, Backup RBs, Position analysis, Team intel) into Season, and
+folds the Draft analyzer, Scout finds and the sidebar's League buttons
+behind one per-device "Draft tools" row — nothing deleted. Inside each
+game, FFBets gained Passing TDs, Completions, Pass attempts,
+Interceptions, Rush attempts and Rush + rec yds tabs (all fields the same
+weekly forecast carries), a **Matchup** tab (what the other defense allows
+per game to each position, ranked, and every flagged starter on both
+units, `gamestack.injury_report`), an **Injury watch** note on each
+player (`gamestack.impact` — teammate out and whose work he absorbs,
+flagged targets, the opposing defenders he faces; which flags touch whom
+is a written rule in docs/ASSUMPTIONS.md, nothing redistributed), a
+cross-game **Best bets** list (`gamestack.best_bets`: top TD chances, and
+real roles against top-5 defenses for that stat), and a **slip** whose
+combined chance is labelled as assuming independent legs. Completions,
+attempts and INTs entered the game logs the same day; older weeks
+re-fetch a few per sync and only games that recorded them count toward
+a hit rate. `verify_live.py` checks the best bets, the injury reports
+and the folded sidebar.
+
+**Travel and rest, measured** (owner, Oct 10: *"this week the Cowboys
+had traveled … in 3 games when the opponent had 3 home games and no
+travel … how can we look at that in another column for team intel or best
+props for games"*). `app/feeds/travel.py` reads the season's schedule from
+ESPN (probed first: `neutralSite`, `venue.address`, both `homeAway`
+sides), which the runner fetches a week at a time
+(`scripts/push_vegas.py` → `/internal/schedule`, stored in the main blob
+as `schedule`) because ESPN 403s Vercel. From fixed stadium coordinates it
+measures each team's next game: road or home streak, miles this trip and
+over the last three games, games-in-days, days of rest or a bye, time
+zones crossed and the "body clock" at an early eastern kickoff. Which gap
+counts as an **edge** is a written rule (docs/ASSUMPTIONS.md) and is
+labelled so; nothing moves a projection. It shows as a **Travel & rest**
+block on every Team intel row (`page.intel_travel`), two lines on the
+FFBets Game and Matchup tabs, and a "Travel & rest edges" list in Best
+bets. `verify_live.py` checks coverage and that every mapped trip is a
+plausible distance.
+
+**"Broken" — two faults on one FFBets screen** (owner, Oct 13, with a
+phone screenshot). The Best bets rows were invisible: club themes are
+*generated* (`teams.palette`) and defined neutral-200…800 but not 100, 500
+or 900, so inside a club theme `--color-neutral-100` fell through to the
+light theme's near-white — the box `mobile.css` paints behind those rows —
+under the club's light ink. Measured in Chromium before and after:
+`rgb(238,239,241)` text on `rgb(248,244,244)`, now on `rgb(35,49,74)`. The
+palette test compared the palette with itself, so it could never notice; it
+now scans `index.html`, `mobile.css` and `mobile.js` for every
+`var(--color-…)` the page reads and fails on any a club does not define,
+and holds the panel tokens to a contrast floor. Second, the slate was a
+finished week: ESPN's unpinned board keeps Week 5 until it rolls over
+midweek, so FFBets opened on last Thursday's game with no line — and
+`verify-live.yml` had failed since Oct 12 on exactly that ("TD rows track
+live lines"). `vegas.fetch` now takes week + 1 once every game on the board
+is final (docs/ASSUMPTIONS.md). `tests/test_travel.py` also went red on
+main the same day — a fixture ending Oct 11 read on the real clock — and
+now pins its clock. **And the sync stopped deleting what the runner
+pushes** (same day): `/internal/sync` saved an enumerated list of keys *as*
+the blob, so the travel `schedule` pushed since Oct 10 was wiped by every
+sync — travel vanished from Team intel and FFBets, the runner re-fetched
+every week each run, and the watchdog printed it as INFO. That is the class
+that wiped the sleeper consensus on Aug 29; the save now starts from the
+fresh blob and overwrites only the keys the sync owns, so the next pushed
+key cannot repeat it. Sync-feeds also pushes the slate *before* the sync,
+so a new week's forecast is fetched the same run the slate rolls.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

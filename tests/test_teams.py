@@ -13,6 +13,9 @@ eyeballed.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from app.feeds import teams
 
 
@@ -34,6 +37,11 @@ def test_every_palette_is_legible():
         assert teams.contrast(bg, tokens["--color-text"]) >= 7.0, code
         assert teams.contrast(bg, tokens["--color-accent"]) >= teams.MIN_ACCENT_CONTRAST, code
         assert teams.contrast(tokens["--color-accent"], tokens["--color-on-accent"]) >= 4.5, code
+        # Panels paint neutral-100/200 behind body text (FFBets' best bets).
+        # neutral-100 sits a step off the ground, so it holds the ground's
+        # AAA bar; neutral-200 holds AA (LAR's measures 6.95).
+        assert teams.contrast(tokens["--color-neutral-100"], tokens["--color-text"]) >= 7.0, code
+        assert teams.contrast(tokens["--color-neutral-200"], tokens["--color-text"]) >= 4.5, code
 
 
 def test_every_palette_is_a_dark_theme():
@@ -49,6 +57,16 @@ def test_a_palette_carries_every_token_the_app_uses():
     light theme's value into a dark one."""
     reference = set(teams.palette(*teams.colours(teams.HOUSE)))
     assert "--color-bg" in reference and "--color-accent" in reference
+    # Read what the page and its decorators actually ask for, rather than
+    # comparing the palette with itself: that is how neutral-100 went
+    # missing while this test passed, and FFBets' best-bets rows rendered
+    # light ink on the light theme's near-white box.
+    root = Path(__file__).resolve().parent.parent / "frontend"
+    used = set()
+    for path in (root / "index.html", root / "mobile.css", root / "mobile.js"):
+        used |= set(re.findall(r"var\((--color-[a-z0-9-]+)", path.read_text()))
+    assert used, "no colour tokens found -- the scan is reading the wrong files"
+    assert used <= reference, sorted(used - reference)
     for code in teams.all_codes():
         assert set(teams.palette(*teams.colours(code))) == reference, code
 

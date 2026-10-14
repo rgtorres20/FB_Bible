@@ -930,3 +930,113 @@ def test_a_boot_time_throw_is_named_not_swallowed():
     assert 'console.error("boot: "' in html
     assert "__fb_boot_warn" in html
     assert "the live feed was not loaded" in html
+
+
+# --- the season comes first; the draft tools fold away (Oct 8) -------------
+
+_NAV_HARNESS = r"""
+const store = {}; let state = JSON.parse(process.argv[1]);
+const localStorage = {
+  getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
+const ALERTS = [], NEWS = [], OUTLIST = [], RETURNING = [], CUFFS = [], TARGETS = [], BOARD = [],
+  ROTOWIRE = [], SCOUT = [], DATA_META = [], WEEKREV = { stars: [] };
+const A = "a", N2 = "n2", N3 = "n3", T = "t";
+const self = { setState(p) { state = Object.assign({}, state, p); } };
+function nav() { const s = state; %s
+  return navItems; }
+const items = nav.call(self);
+const out = { before: items.map(n => (n.head ? "[" + n.head + "] " : "") + n.label) };
+items.find(n => n.label.indexOf("Draft tools") === 0).onClick();
+out.after = nav.call(self).map(n => n.label);
+out.stored = store.fb_draft_open;
+console.log(JSON.stringify(out));
+"""
+
+
+def _nav_run(served: str, state: dict) -> dict:
+    import json as _json
+    import subprocess
+
+    read = served[
+        served.index("    const __fbDraftOpen") : served.index("    const leagueDefs = [")
+    ]
+    block = served[served.index("    const navDefs = [") : served.index("    const titles = {")]
+    code = _NAV_HARNESS % (read + block)
+    proc = subprocess.run(
+        ["node", "-e", code, _json.dumps(state)], capture_output=True, text=True, check=False
+    )
+    assert proc.returncode == 0, proc.stderr
+    return _json.loads(proc.stdout)
+
+
+def test_ffbets_leads_and_the_draft_tools_fold_behind_one_row(index_html):
+    """Owner, Oct 8: "expand FFBets and hide drafting items". Runs the
+    served sidebar code itself, not the text of it."""
+    served, misses = page.apply(index_html, page.PRE)
+    assert not misses
+    out = _nav_run(served, {"screen": "gameday", "queue": {}})
+    assert out["before"][:2] == ["[Season] FFBets", "Schedule"]
+    assert "Draft analyzer" not in out["before"] and "Scout finds" not in out["before"]
+    # The in-season tabs stayed, in the Season group.
+    for kept in ("Sleepers", "Backup RBs", "Position analysis", "Team intel"):
+        assert kept in " ".join(out["before"])
+    assert "[Draft prep] Draft tools · off-season ▸" in out["before"]
+    # One tap opens them, and the choice is remembered on this device.
+    assert "Draft analyzer" in out["after"] and "Hide draft tools" in out["after"]
+    assert out["stored"] == "1"
+
+
+def test_a_folded_draft_screen_still_shows_while_you_are_on_it(index_html):
+    served, _ = page.apply(index_html, page.PRE)
+    out = _nav_run(served, {"screen": "draft", "queue": {}})
+    assert "Draft analyzer" in out["before"] and "Scout finds" not in out["before"]
+
+
+def test_the_season_edits_are_all_or_none(index_html):
+    served, _ = page.apply(index_html, page.PRE[: page.PRE.index(page.season_first)])
+    for gone in (page._SEASON_GROUPS, page._SEASON_RETURN, page._SEASON_LEAGUE_BLOCK):
+        broken = served.replace(gone, "/* moved */", 1)
+        out, misses = page.season_first(broken)
+        assert misses and out == broken, gone
+
+
+# --- Team intel gets a travel column (Oct 10) --------------------------------
+
+
+def test_team_intel_reads_the_travel_block_off_the_overlay(index_html):
+    """Runs the served snippet itself: a team with a read gets its line and
+    its game's edge; a team without one gets no block."""
+    import json as _json
+    import subprocess
+
+    served, misses = page.apply(index_html, page.PRE)
+    assert not misses and "data-fb-travel" in served
+    expr = page._INTEL_VALS_REPLACEMENT.split("            ...", 1)[1].rsplit("\n", 1)[0]
+    feeds = {
+        "travel": {
+            "as_of": "2026-10-10",
+            "teams": {"DAL": {"game": "DAL @ NYG", "line": "Wk 5 at NYG · 3rd straight road game"}},
+            "games": {"DAL @ NYG": ["Travel edge (rule): NYG — DAL on its 3rd straight road game"]},
+        }
+    }
+    code = (
+        f"const F = {_json.dumps(feeds)};"
+        "const out = ['DAL', 'NYG'].map(c => { const tm = { code: c }; return " + expr + "; });"
+        "console.log(JSON.stringify(out));"
+    )
+    proc = subprocess.run(["node", "-e", code], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, proc.stderr
+    dal, nyg = _json.loads(proc.stdout)
+    assert dal == {
+        "hasTravel": True,
+        "travel": "Wk 5 at NYG · 3rd straight road game",
+        "travelEdge": "Travel edge (rule): NYG — DAL on its 3rd straight road game",
+        "travelStamp": "ESPN schedule · pulled 2026-10-10",
+    }
+    assert nyg["hasTravel"] is False and nyg["travel"] == ""
+
+
+def test_the_intel_travel_edits_are_both_or_neither(index_html):
+    broken = index_html.replace(page._INTEL_COLUMN, "/* moved */", 1)
+    out, misses = page.intel_travel(broken)
+    assert misses and out == broken
