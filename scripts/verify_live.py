@@ -1035,9 +1035,21 @@ def main() -> int:
     # Week 1's leans track the line by adjusting their confidence; the
     # later weeks' picks put the line beside the forecast instead
     # ("Vegas implies ...", from gamestack.lean_clauses).
+    #
+    # Oct 6-7: failed twice right after Monday night, when the slate had
+    # rolled to a week ESPN had posted no odds for yet. The clause said
+    # "no line posted", which is the truth -- so it passes only when the
+    # stored slate really carries no implied total, never as a blanket
+    # alternative to the line.
+    lines_posted = any((g.get("implied") or {}) for g in (stack or {}).get("games") or [])
     check(
         "TD rows track live lines",
-        "confidence adjusted" in served or (picks_week is not None and "Vegas implies" in served),
+        "confidence adjusted" in served
+        or (
+            picks_week is not None
+            and ("Vegas implies" in served or (not lines_posted and "no line posted" in served))
+        ),
+        "slate has lines" if lines_posted else "no lines posted on the slate yet",
     )
     check("Week 1 schedule is live", "live kickoff times" in served)
     # Best-effort like every AI count: zero is a legitimate hour, a count
