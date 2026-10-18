@@ -5,5 +5,8 @@
   "description": "Browser client for the FB Bible server. No dependencies, no build step -- this file exists only so node --test treats fbApi.js as ESM.",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@vercel/speed-insights": "^2.0.0"
   }
 }
