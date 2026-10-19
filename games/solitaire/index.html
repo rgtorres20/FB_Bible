@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Solitaire" />
+    <link rel="apple-touch-icon" href="./icon-180.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#06202a" />
+    <title>Solitaire</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>" />
+    <script type="module" crossorigin src="./assets/index-B4ugP3dq.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DUa3cgR1.css">
+  </head>
+  <body class="bg-aurora deck-classic back-ruby">
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">♠ <span>Solitaire</span></div>
+        <nav class="actions">
+          <button id="btn-new" title="New deal (N)">🂠 <span>New</span></button>
+          <button id="btn-restart" title="Restart this deal">↺ <span>Restart</span></button>
+          <button id="btn-undo" title="Undo (Ctrl+Z)">↶ <span>Undo</span></button>
+          <button id="btn-hint" title="Hint (H)">💡 <span>Hint</span></button>
+          <button id="btn-auto" class="accent" title="Finish automatically" hidden>⚡ <span>Finish</span></button>
+          <button id="btn-bots" title="Race or watch a bot">🤖 <span>Bots</span></button>
+          <button id="btn-style" title="Backgrounds, cards and rules">🎨 <span>Style</span></button>
+          <button id="btn-stats" title="Statistics">📊 <span>Stats</span></button>
+        </nav>
+        <div class="hud">
+          <div><small id="hud-mode">Regular · Draw 1</small><b id="hud-score">0</b></div>
+          <div><small>Time</small><b id="hud-time">0:00</b></div>
+          <div><small>Moves</small><b id="hud-moves">0</b></div>
+          <div id="hud-bank-wrap" hidden><small>Bank</small><b id="hud-bank">$0</b></div>
+        </div>
+      </header>
+
+      <main class="table-area">
+        <div id="board"></div>
+        <aside id="bot-panel" hidden>
+          <div class="bot-head">
+            <span class="bot-avatar" id="bot-avatar">🦊</span>
+            <div>
+              <b id="bot-name">Steady Sam</b>
+              <small id="bot-status">Thinking…</small>
+            </div>
+            <button id="btn-bot-stop" class="ghost" title="Stop">✕</button>
+          </div>
+          <div class="bot-meter"><div id="bot-meter-fill"></div></div>
+          <div class="bot-stats"><span id="bot-cards">0 / 52 cards up</span><span id="bot-score">0</span></div>
+          <div id="mini-board"></div>
+          <div class="speed" id="speed-row">
+            <span>Speed</span>
+            <button data-speed="0.5">½×</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button>
+          </div>
+        </aside>
+      </main>
+      <div id="banner" hidden></div>
+    </div>
+
+    <dialog id="dlg-style">
+      <form method="dialog">
+        <h2>Style &amp; rules</h2>
+        <h3>Background</h3>
+        <div class="choices" id="choose-bg"></div>
+        <h3>Card faces</h3>
+        <div class="choices" id="choose-deck"></div>
+        <h3>Card backs</h3>
+        <div class="choices" id="choose-back"></div>
+        <h3>Game</h3>
+        <div class="rules">
+          <label>Draw <select id="opt-draw"><option value="1">Draw 1</option><option value="3">Draw 3</option></select></label>
+          <label>Scoring <select id="opt-scoring"><option value="regular">Regular</option><option value="vegas">Vegas</option></select></label>
+          <label><input type="checkbox" id="opt-timed" /> Timed scoring (Regular)</label>
+          <label><input type="checkbox" id="opt-winnable" /> Only deal winnable games</label>
+          <button type="button" id="btn-reset-bank" class="ghost">Reset Vegas bank</button>
+        </div>
+        <p class="note" id="rules-note"></p>
+        <div class="dlg-actions"><button value="close" class="accent">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-bots">
+      <form method="dialog">
+        <h2>Bots</h2>
+        <p class="note">Race a bot on the same deal, or sit back and watch one play.</p>
+        <div id="bot-list"></div>
+        <div class="dlg-actions"><button value="close">Close</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-stats">
+      <form method="dialog">
+        <h2>Statistics</h2>
+        <div id="stats-body"></div>
+        <div class="dlg-actions"><button type="button" id="btn-reset-stats" class="ghost">Reset</button><button value="close" class="accent">Close</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="dlg-win">
+      <form method="dialog">
+        <h2 id="win-title">You won!</h2>
+        <p id="win-body"></p>
+        <div class="dlg-actions"><button value="close">Admire</button><button value="new" class="accent">Deal again</button></div>
+      </form>
+    </dialog>
+
+    <canvas id="celebrate" hidden></canvas>
+  </body>
+</html>
