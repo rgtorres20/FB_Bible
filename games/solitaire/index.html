@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -12,10 +12,10 @@
     <meta name="theme-color" content="#06202a" />
     <title>Solitaire</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>" />
-    <script type="module" crossorigin src="./assets/index-B4ugP3dq.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DUa3cgR1.css">
+    <script type="module" crossorigin src="./assets/index-Cw8peEub.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BaaUXWxT.css">
   </head>
-  <body class="bg-aurora deck-classic back-ruby">
+  <body class="bg-northern deck-classic back-ruby">
     <div id="app">
       <header class="topbar">
         <div class="brand">♠ <span>Solitaire</span></div>
@@ -75,6 +75,7 @@
           <label>Scoring <select id="opt-scoring"><option value="regular">Regular</option><option value="vegas">Vegas</option></select></label>
           <label><input type="checkbox" id="opt-timed" /> Timed scoring (Regular)</label>
           <label><input type="checkbox" id="opt-winnable" /> Only deal winnable games</label>
+          <label><input type="checkbox" id="opt-left" /> Deck on the left</label>
           <button type="button" id="btn-reset-bank" class="ghost">Reset Vegas bank</button>
         </div>
         <p class="note" id="rules-note"></p>
