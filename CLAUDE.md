@@ -898,6 +898,12 @@ verification required, public keys only, and the allowlist still governs
 unless `PASSKEY_RP_ID` pins the registrable domain, which makes a later
 apex-to-subdomain move free instead of a re-registration for everybody. All of it in docs/ACCESS.md.
 
+**`/solitaire/` serves a solitaire game** (owner, Oct 19). A static
+build in `games/solitaire/`, mounted outside `/app` so it is public, off
+the gate and out of the app's service-worker scope; it touches no league
+data. Its source is a separate project, so rebuild there and copy `dist/`
+over rather than editing the built files.
+
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.
 

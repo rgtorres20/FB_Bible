@@ -563,3 +563,19 @@ if _FRONTEND_READY:
         app.get(_page + "/", include_in_schema=False)(_slash_redirect)
 
     app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
+
+
+# The solitaire game (owner ask, Oct 19): a self-contained static build,
+# public and outside /app on purpose -- it reads no league data, so the
+# login gate and the no-store rule have nothing to protect, and keeping it
+# out of /app keeps it out of the app's own service-worker scope. The
+# source lives in its own project; games/solitaire/ is its `npm run build`.
+_SOLITAIRE_DIR = Path(__file__).resolve().parent.parent / "games" / "solitaire"
+if (_SOLITAIRE_DIR / "index.html").exists():
+
+    @app.get("/solitaire", include_in_schema=False)
+    async def solitaire_slash() -> RedirectResponse:
+        # The build's asset paths are relative, so the page needs the slash.
+        return RedirectResponse("/solitaire/", status_code=307)
+
+    app.mount("/solitaire", StaticFiles(directory=_SOLITAIRE_DIR, html=True), name="solitaire")
