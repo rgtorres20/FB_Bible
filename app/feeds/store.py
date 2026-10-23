@@ -52,6 +52,7 @@ _GAMELOGS_KEY = "fbbible:gamelogs"
 # College FFBets (app/feeds/college.py): the top-25 slate plus every box
 # score the runner has pushed this season. Own key for the same reasons.
 _CFB_KEY = "fbbible:cfb"
+_NBA_KEY = "fbbible:nba"
 
 
 class StoredDataUnreadable(RuntimeError):
@@ -226,6 +227,10 @@ class FeedStore(Protocol):
 
     async def save_cfb(self, payload: dict) -> None: ...
 
+    async def load_nba(self) -> dict: ...
+
+    async def save_nba(self, payload: dict) -> None: ...
+
     async def load_user(self, email: str) -> dict: ...
 
     async def save_user(self, email: str, payload: dict) -> None: ...
@@ -340,6 +345,24 @@ class FileFeedStore:
         tmp = self._cfb_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(payload), encoding="utf-8")
         tmp.replace(self._cfb_path)
+
+    @property
+    def _nba_path(self) -> Path:
+        return self._path.with_name("nba.json")
+
+    async def load_nba(self) -> dict:
+        if not self._nba_path.exists():
+            return {}
+        try:
+            return json.loads(self._nba_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    async def save_nba(self, payload: dict) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._nba_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(self._nba_path)
 
     async def load_auth(self) -> dict:
         # An OSError still reads as {} -- a file that is not there is a
@@ -481,6 +504,19 @@ class RedisFeedStore:
     async def save_cfb(self, payload: dict) -> None:
         # Own key, no TTL: public box scores and lines, not Yahoo data.
         await self._redis.set(_CFB_KEY, json.dumps(payload))
+
+    async def load_nba(self) -> dict:
+        raw = await self._redis.get(_NBA_KEY)
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+
+    async def save_nba(self, payload: dict) -> None:
+        # Own key, no TTL: public box scores, lines and injury reports.
+        await self._redis.set(_NBA_KEY, json.dumps(payload))
 
     async def load_user(self, email: str) -> dict:
         raw = await self._redis.get(_USER_KEY_PREFIX + email)

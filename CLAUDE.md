@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1678 tests green — 1662 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1697 tests green — 1681 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -677,6 +677,26 @@ that wiped the sleeper consensus on Aug 29; the save now starts from the
 fresh blob and overwrites only the keys the sync owns, so the next pushed
 key cannot repeat it. Sync-feeds also pushes the slate *before* the sync,
 so a new week's forecast is fetched the same run the slate rolls.
+
+**NBA FFBets** (owner, Oct 23: *"add a nba section focus on points
+assist and rebounds"*). The game-by-game panel's switch reads **NFL /
+College · Top 25 / NBA**; the NBA side has its own tabs — Game, Points,
+Rebounds, Assists, Pts + Reb + Ast — drawn by `mobile.js showNbaBets` from
+`nba_stack`, composed in `app/feeds/nba.py` from its own store key
+(`fbbible:nba`). No free NBA projection exists, so every number is a **real
+game**: this season's from ESPN box scores (each fetched once), last
+season's from each slate rotation player's ESPN game log (regular season
+only, fetched once — it is final). The two averages sit side by side,
+labelled by season, and a typed line is answered with a **count** of real
+games over it per season, never a modelled chance. Players ESPN lists Out
+leave the markets but stay on the game's injury report (matched by team
+name, so a player out all season with no box score still appears). The
+slate rolls to the next game day once today is all final. ESPN 403s Vercel,
+so the runner fetches (`scripts/push_nba.py`, a sync-feeds step) and pushes
+to `/internal/nba`; every shape was probed from the runner first, and the
+chosen numbers are in docs/ASSUMPTIONS.md. `verify_live.py` fails when the
+slate is absent or stale, when a row rests on no games, or when an Out
+player is offered.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

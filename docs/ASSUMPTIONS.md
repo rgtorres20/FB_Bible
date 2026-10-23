@@ -924,3 +924,43 @@ watchdog's "TD rows track live lines" check failed from Oct 12 on.
 - If this is wrong, the visible symptom is the strip opening on next
   week's Thursday game while this week's Monday game is still being played
   — which "all final" rules out by construction.
+
+## NBA FFBets is real games, not projections (Oct 23)
+
+Owner: *"add a nba section focus on points assist and rebounds"*. There is
+no free NBA projection, so `app/feeds/nba.py` shows two **measured**
+averages side by side — this season's from ESPN box scores, last season's
+from each player's ESPN game log (regular season only; ESPN lists the
+postseason first and it is skipped) — and a typed line is answered with a
+**count of real games** over it per season, never a modelled chance. Every
+shape was probed from the Actions runner on Oct 23 (ESPN 403s the sandbox
+and Vercel). The numbers chosen:
+
+| Constant | Value | What changes if it is wrong |
+|---|---|---|
+| `MIN_MINUTES` | 15 min/game this season | Lower lets bench players with noisy lines onto the markets; higher hides real sixth men. |
+| `PER_TEAM` | 8 players | The 9th man on a deep team is not shown. |
+| `RECENT` | 5 games | Only the "last N" line; counts use every game. |
+| `LOOKBACK_DAYS` | 14 | First run only: how far back to look for finished games. The season opened Oct 20, inside it. |
+| `LOOKAHEAD_DAYS` | 7 | Once today is all final, how far ahead to find the next game day (All-Star break, off nights). |
+| `MAX_DAYS/BOXES/LOGS_PER_RUN` | 10 / 60 / 60 | A backlog spreads over a few runs instead of one long step. |
+| `OUT` | ESPN status "Out" | Off every market but on the game's injury report; "Day-To-Day" stays on, flagged, with ESPN's note. |
+
+- **A player who has not played this season is not on a market.** The
+  rotation is read from this season's box scores, so a star back from a
+  long injury appears after his first game. He still shows on the game's
+  injury report while listed.
+- **Hit rates count a game exactly on the line as neither**, and the
+  count says how many games it is out of — early in a season "2 of 2" is
+  two games, and the panel prints that number rather than a percentage.
+- **What a defense allows** is team totals given up per game this season,
+  ranked among teams that have played (competition ranking), with the game
+  count beside it — no position split, because the box score's position
+  ("G", "F", "C") is too coarse to rank against.
+- The runner marks a day scanned only once every game on it is final and
+  stored, so a late game or a capped run is picked up next time.
+- **Preseason games never count.** ESPN stamps each day's board with
+  `season.type` (1 = preseason); those days are marked scanned and nothing
+  is stored — exhibition minutes are not the sample a line is set against.
+  Found on review: the first run's 14-day lookback from Oct 23 reaches the
+  preseason, which ended Oct 17.

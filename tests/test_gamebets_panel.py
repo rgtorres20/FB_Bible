@@ -159,7 +159,7 @@ def _stack():
     }
 
 
-LEAGUES = ("NFL", "College · Top 25")
+LEAGUES = ("NFL", "College · Top 25", "NBA")
 
 STEPS = [
     {"click": "Touchdowns"},
