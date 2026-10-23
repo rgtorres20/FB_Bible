@@ -38,6 +38,7 @@ from ..feeds import (
     idpweek,
     injury,
     mock,
+    nba,
     nextup,
     players,
     poller,
@@ -158,6 +159,11 @@ async def app_feeds(
     college_stack = gamestack.college_stack(await store.load_cfb())
     if college_stack:
         merged["cfb_stack"] = college_stack
+    # NBA FFBets (owner, Oct 23): points, rebounds and assists per game,
+    # from the store the runner fills (scripts/push_nba.py).
+    nba_stack = nba.stack(await store.load_nba())
+    if nba_stack:
+        merged["nba_stack"] = nba_stack
     # Travel and rest (owner, Oct 10): every team's next game with the miles,
     # road streak and rest behind it, and each game's written-rule edge.
     # Read by FFBets and Team intel. Absent until the runner pushes a schedule.
@@ -652,6 +658,59 @@ async def cfb_known(
     """So the runner fetches each finished game's box score once a season."""
     _require_sync_token(settings, x_sync_token)
     return {"events": college.known_events(await store.load_cfb())}
+
+
+class NbaIn(BaseModel):
+    slate: dict = {}
+    boxes: list = []
+    last: dict = {}
+    # None means the runner's injury fetch failed: keep the stored report.
+    injuries: dict | None = None
+    through: str = ""
+
+
+@router.post("/internal/nba", summary="Store the NBA slate, box scores, game logs and injuries")
+async def save_nba(
+    payload: NbaIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """NBA FFBets (Oct 23). ESPN 403s Vercel's IPs, so the runner fetches
+    the day's board, the box scores this store lacks, last season's game
+    log for each slate rotation player, and the injury report
+    (scripts/push_nba.py) and pushes them here. Everything is rebuilt
+    field by field at the door (nba.clean_*)."""
+    _require_sync_token(settings, x_sync_token)
+    last = dict(list(payload.last.items())[: nba.MAX_LOGS_PER_RUN * 2])
+    state = nba.merge(
+        await store.load_nba(),
+        payload.slate,
+        payload.boxes[: nba.MAX_BOXES_PER_RUN * 2],
+        last,
+        payload.injuries,
+        payload.through,
+    )
+    await store.save_nba(state)
+    return {
+        "games": len((state.get("slate") or {}).get("games") or []),
+        "day": (state.get("slate") or {}).get("day", ""),
+        "boxes": len(state.get("boxes") or {}),
+        "logs": len(state.get("last") or {}),
+        "injuries": len((state.get("injuries") or {}).get("players") or {}),
+        "through": state.get("through") or "",
+    }
+
+
+@router.get("/internal/nba/known", summary="What the NBA store already holds")
+async def nba_known(
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """So the runner fetches each box score and each game log once."""
+    _require_sync_token(settings, x_sync_token)
+    return nba.known(await store.load_nba())
 
 
 # The Week review tab's game rows: four known string columns, same

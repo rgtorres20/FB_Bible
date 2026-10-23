@@ -413,6 +413,56 @@ def main() -> int:
         )
     else:
         print("  INFO  college slate absent (no push yet)")
+    # NBA FFBets (Oct 23): points, rebounds and assists from real games.
+    # The runner pushes every sync, so absent is a failure, not INFO -- the
+    # travel schedule read as INFO for three days while a sync wiped it.
+    nba_stack = page_data.get("nba_stack")
+    if nba_stack:
+        nba_games = nba_stack.get("games") or []
+        nba_rows = [
+            p for g in nba_games for side in (g.get("players") or {}).values() for p in side
+        ]
+        today = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+        # A finished slate is honest when nothing is scheduled ahead (the
+        # All-Star break, the offseason) -- so long as the runner is alive.
+        try:
+            nba_age = datetime.now(UTC) - datetime.fromisoformat(nba_stack.get("fetched_at") or "")
+        except ValueError:
+            nba_age = timedelta(days=99)
+        nothing_ahead = all(g.get("state") == "post" for g in nba_games) and nba_age < timedelta(
+            hours=6
+        )
+        check(
+            "the NBA slate is today's or ahead, not a stale day",
+            bool(nba_games) and ((nba_stack.get("day") or "") >= today or nothing_ahead),
+            f"{nba_stack.get('day')} · {len(nba_games)} games · fetched {nba_age} ago",
+        )
+        check(
+            "every NBA row rests on real games",
+            all(
+                (p.get("this") or p.get("last"))
+                and len((p.get("g") or {}).get("this") or [])
+                == ((p.get("this") or {}).get("n") or 0)
+                for p in nba_rows
+            ),
+            f"{len(nba_rows)} player rows",
+        )
+        check(
+            "no player ESPN lists Out is offered on an NBA market",
+            not [p["name"] for p in nba_rows if p.get("status") == "Out"],
+        )
+        check(
+            "NBA numbers say they are averages, not projections",
+            "not projections" in (nba_stack.get("source") or ""),
+        )
+        with_last = sum(1 for p in nba_rows if p.get("last"))
+        print(
+            f"  INFO  nba: {nba_stack.get('day')} · {len(nba_games)} games · "
+            f"{nba_stack.get('boxes')} box scores stored · {with_last} of {len(nba_rows)} rows "
+            f"carry last season's log · injuries {nba_stack.get('injuries_as_of') or 'none'}"
+        )
+    else:
+        check("the NBA slate is served (the runner pushes one every sync)", False, "absent")
     stars = page_data.get("weekly_stars")
     if stars:
         check(

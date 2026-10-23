@@ -1602,9 +1602,230 @@
     return card;
   }
 
+  /* --- NBA (owner, Oct 23: "add a nba section focus on points assist and
+   * rebounds"). Same panel, its own markets. Every number is a real game:
+   * this season's ESPN box scores and last season's ESPN game log, side by
+   * side -- there is no free NBA projection, so none is shown or blended.
+   * The server composes it (app/feeds/nba.py `stack`); this draws it. */
+  var NBA_MARKETS = [
+    { id: 'game', label: 'Game' },
+    { id: 'pts', label: 'Points', idx: [0] },
+    { id: 'reb', label: 'Rebounds', idx: [1] },
+    { id: 'ast', label: 'Assists', idx: [2] },
+    { id: 'pra', label: 'Pts + Reb + Ast', idx: [0, 1, 2] }
+  ];
+  var nbaMarket = 'pts';
+
+  function nbaValue(gameRow, idx) {
+    return idx.reduce(function (sum, i) { return sum + (gameRow[i] || 0); }, 0);
+  }
+
+  function nbaCount(rows, idx, line) {
+    var over = 0, under = 0;
+    rows.forEach(function (r) {
+      var v = nbaValue(r, idx);
+      if (v > line) over++;
+      else if (v < line) under++;
+    });
+    return { over: over, under: under, n: rows.length };
+  }
+
+  function nbaHitText(p, market, text, stack) {
+    var line = parseFloat(text);
+    if (isNaN(line)) return '';
+    var parts = [];
+    [['this', stack.this_label], ['last', stack.last_label]].forEach(function (s) {
+      var rows = (p.g || {})[s[0]] || [];
+      if (!rows.length) return;
+      var c = nbaCount(rows, market.idx, line);
+      parts.push(s[1] + ': over in ' + c.over + ' of ' + c.n + (c.n - c.over - c.under ? ' (' +
+        (c.n - c.over - c.under) + ' on the line)' : ''));
+    });
+    return parts.length ? 'Went over ' + line + ' — ' + parts.join(' · ') : 'No games stored for him yet.';
+  }
+
+  function nbaAvg(avg, market) {
+    if (!avg) return null;
+    return market.id === 'pra' ? avg.pra : avg[market.id];
+  }
+
+  function nbaDefenseLine(g, p, market) {
+    if (market.id === 'pra') return '';
+    var opp = p.team === g.away ? g.home : g.away;
+    var a = (g.allowed || {})[opp];
+    if (!a || !a[market.id]) return '';
+    var cell = a[market.id];
+    return opp + ' allows ' + cell[0] + ' ' + market.label.toLowerCase() + ' a game — ' + gbOrdinal(cell[1]) +
+      '-most of ' + cell[2] + ' (' + a.n + ' game' + (a.n === 1 ? '' : 's') + ' this season)';
+  }
+
+  function nbaRecent(p, market) {
+    if (!p.recent || !p.recent.length) return '';
+    return 'Last ' + p.recent.length + ' (' + p.recent_season + '): ' + p.recent.map(function (r) {
+      var v = market.id === 'pra' ? r[2] + r[3] + r[4] : r[{ pts: 2, reb: 3, ast: 4 }[market.id]];
+      return r[0] + ' vs ' + r[1] + ' ' + (v % 1 === 0 ? String(v) : v.toFixed(1));
+    }).join(' · ');
+  }
+
+  function nbaRow(g, market, p, stack) {
+    var row = gsEl('div', 'fb-gb-prop');
+    var who = gsEl('div', 'fb-gb-who');
+    who.appendChild(gsEl('b', '', p.name));
+    who.appendChild(gsEl('span', 'fb-gs-pos', (p.pos ? p.pos + ' · ' : '') + p.team));
+    if (p.status) who.appendChild(gsEl('span', 'fb-gs-flag', p.status));
+    row.appendChild(who);
+    var now = nbaAvg(p.this, market), before = nbaAvg(p.last, market);
+    var proj = gsEl('div', 'fb-gb-proj');
+    proj.appendChild(gsEl('b', '', now !== null ? gsPoints(now) : (before !== null ? gsPoints(before) : '—')));
+    proj.appendChild(gsEl('span', '', now !== null
+      ? 'avg · ' + stack.this_label + ' · ' + p.this.n + ' g'
+      : before !== null ? 'avg · ' + stack.last_label + ' · ' + p.last.n + ' g' : 'no games'));
+    row.appendChild(proj);
+    var lineKey = 'nba|' + g.game + '|' + market.id + '|' + p.id;
+    var input = gsEl('input', 'fb-gb-input');
+    input.type = 'text';
+    input.setAttribute('inputmode', 'decimal');
+    input.setAttribute('placeholder', 'Your line');
+    input.setAttribute('aria-label', 'Line your app shows for ' + p.name);
+    input.value = betsLines[lineKey] || '';
+    var hits = gsEl('div', 'fb-gb-verdict', nbaHitText(p, market, input.value, stack));
+    input.oninput = function () {
+      betsLines[lineKey] = input.value;
+      hits.textContent = nbaHitText(p, market, input.value, stack);
+    };
+    row.appendChild(input);
+    row.appendChild(hits);
+    var evidence = gsEl('div', 'fb-gb-stats');
+    if (now !== null && before !== null) {
+      evidence.appendChild(gsEl('div', 'fb-gb-stat', stack.last_label + ' average: ' + gsPoints(before) +
+        ' over ' + p.last.n + ' games'));
+    }
+    var recent = nbaRecent(p, market);
+    if (recent) evidence.appendChild(gsEl('div', 'fb-gb-stat', recent));
+    var d = nbaDefenseLine(g, p, market);
+    if (d) evidence.appendChild(gsEl('div', 'fb-gb-stat', d));
+    if (p.status && p.note) evidence.appendChild(gsEl('div', 'fb-gb-impact', 'Injury report: ' + p.note));
+    row.appendChild(evidence);
+    return row;
+  }
+
+  function nbaSummary(g, card, stack) {
+    [g.away, g.home].forEach(function (team) {
+      var a = (g.allowed || {})[team];
+      if (a) {
+        card.appendChild(gbLine(team + ' defense allows:', ['pts', 'reb', 'ast'].map(function (k) {
+          return a[k][0] + ' ' + { pts: 'pts', reb: 'reb', ast: 'ast' }[k] + ' (' + gbOrdinal(a[k][1]) + '-most)';
+        }).join(' · ') + ' a game, ' + a.n + ' game' + (a.n === 1 ? '' : 's') + ' this season'));
+      }
+      var lead = ((g.players || {})[team] || []).filter(function (p) { return p.this; }).slice(0, 4);
+      if (lead.length) {
+        card.appendChild(gbLine(team + ' rotation (' + stack.this_label + '):', lead.map(function (p) {
+          return p.name + ' ' + p.this.pts + '/' + p.this.reb + '/' + p.this.ast + ' in ' + p.this.min + ' min';
+        }).join(' · ')));
+      }
+    });
+    var hurt = g.injuries || [];
+    card.appendChild(gbLine('Injury report:', hurt.length ? hurt.map(function (r) {
+      return r.name + ' (' + r.team + ') ' + r.status + (r.note ? ' — ' + r.note : '');
+    }).join(' · ') : 'nobody listed on either side'));
+  }
+
+  function nbaCard(g, stack) {
+    var card = gsEl('div', 'fb-gb-card');
+    card.appendChild(gsEl('div', 'fb-gs-game', g.away + ' @ ' + g.home));
+    var meta = [];
+    if (g.tip) meta.push(g.tip);
+    if (g.tv) meta.push(g.tv);
+    if (g.fav) meta.push(g.fav);
+    if (g.total) meta.push('O/U ' + g.total);
+    card.appendChild(gsEl('div', 'fb-gs-meta', meta.join(' · ') || 'No line posted yet'));
+    var tabs = gsEl('div', 'fb-gs-chips fb-gb-tabs');
+    NBA_MARKETS.forEach(function (m) {
+      var t = gsEl('button', 'fb-gs-chip' + (m.id === nbaMarket ? ' on' : ''), m.label);
+      t.type = 'button';
+      t.onclick = function () {
+        nbaMarket = m.id;
+        var host = document.querySelector('[data-fb-gamebets]');
+        if (host) host.setAttribute('data-fb-sig', '');
+        showGameBets();
+      };
+      tabs.appendChild(t);
+    });
+    card.appendChild(tabs);
+    if (nbaMarket === 'game') {
+      nbaSummary(g, card, stack);
+      return card;
+    }
+    var market = NBA_MARKETS.filter(function (m) { return m.id === nbaMarket; })[0];
+    var rows = [g.away, g.home].reduce(function (all, t) { return all.concat((g.players || {})[t] || []); }, [])
+      .filter(function (p) { return nbaAvg(p.this, market) !== null || nbaAvg(p.last, market) !== null; })
+      .sort(function (a, b) {
+        var av = nbaAvg(a.this, market), bv = nbaAvg(b.this, market);
+        return (bv === null ? nbaAvg(b.last, market) : bv) - (av === null ? nbaAvg(a.last, market) : av);
+      });
+    if (!rows.length) {
+      card.appendChild(gsEl('div', 'fb-gs-note', 'No box scores stored for either side yet.'));
+      return card;
+    }
+    rows.forEach(function (p) { card.appendChild(nbaRow(g, market, p, stack)); });
+    card.appendChild(gsEl('div', 'fb-gs-foot', 'Real averages, not a projection — no free NBA projection ' +
+      'exists. ' + stack.this_label + ' from ESPN box scores, ' + stack.last_label + ' from each player’s ESPN ' +
+      'game log (regular season). Type the line your app shows to count the real games that went over it; ' +
+      'a game exactly on the line counts as neither. Rotation players only (15+ minutes a game). Players ESPN ' +
+      'lists Out are left off' + (stack.injuries_as_of ? ' (injury report ' + stack.injuries_as_of + ')' : '') + '.'));
+    return card;
+  }
+
+  function showNbaBets(host) {
+    var stack = data && data.nba_stack;
+    if (!stack || !stack.games || !stack.games.length) {
+      var emptySig = 'empty|nba|' + !!data;
+      if (host.getAttribute('data-fb-sig') === emptySig) return;
+      host.setAttribute('data-fb-sig', emptySig);
+      host.textContent = '';
+      host.appendChild(gsEl('div', 'fb-gs-head', 'NBA FFBets'));
+      host.appendChild(gbLeagueChips(host));
+      host.appendChild(gsEl('div', 'fb-gs-note', !data ? 'Waiting for the live feed.'
+        : 'No NBA slate is stored yet. The day’s games appear once the sync has pushed ESPN’s NBA ' +
+          'scoreboard and box scores.'));
+      return;
+    }
+    var games = stack.games.slice().sort(function (a, b) {
+      return String(a.tip_iso || '').localeCompare(String(b.tip_iso || ''));
+    });
+    var pick = betsGame;
+    if (!pick || !games.some(function (g) { return g.game === pick; })) {
+      var now = Date.now();
+      var next = games.filter(function (g) { return Date.parse(g.tip_iso || '') > now; })[0];
+      pick = (next || games[0]).game;
+    }
+    var sig = ['nba', stack.day, stack.as_of, stack.injuries_as_of, games.length, pick, nbaMarket].join('|');
+    if (host.getAttribute('data-fb-sig') === sig) return;
+    host.setAttribute('data-fb-sig', sig);
+    host.textContent = '';
+    host.appendChild(gsEl('div', 'fb-gs-head', 'NBA FFBets · ' + (stack.day_label || stack.day) + ' · ' + stack.source +
+      (stack.as_of ? ' · pulled ' + stack.as_of : '')));
+    host.appendChild(gbLeagueChips(host));
+    var chips = gsEl('div', 'fb-gs-chips fb-gb-games');
+    games.forEach(function (g) {
+      var c = gsEl('button', 'fb-gs-chip' + (g.game === pick ? ' on' : ''),
+        g.away + ' @ ' + g.home + ' · ' + String(g.tip || '').replace(/^\w+ /, '').replace(' CT', ''));
+      c.type = 'button';
+      c.onclick = function () { betsGame = g.game; host.setAttribute('data-fb-sig', ''); showGameBets(); };
+      chips.appendChild(c);
+    });
+    host.appendChild(chips);
+    games.filter(function (g) { return g.game === pick; })
+      .forEach(function (g) { host.appendChild(nbaCard(g, stack)); });
+    if (stack.uncovered && stack.uncovered.length) {
+      host.appendChild(gsEl('div', 'fb-gs-foot', 'No box scores stored for either side yet: ' +
+        stack.uncovered.join(', ') + '.'));
+    }
+  }
+
   function gbLeagueChips(host) {
     var row = gsEl('div', 'fb-gs-chips fb-gb-league');
-    [['nfl', 'NFL'], ['college', 'College · Top 25']].forEach(function (l) {
+    [['nfl', 'NFL'], ['college', 'College · Top 25'], ['nba', 'NBA']].forEach(function (l) {
       var c = gsEl('button', 'fb-gs-chip' + (betsLeague === l[0] ? ' on' : ''), l[1]);
       c.type = 'button';
       c.onclick = function () {
@@ -1622,6 +1843,10 @@
   function showGameBets() {
     var host = document.querySelector('[data-fb-gamebets]');
     if (!host) return;
+    if (betsLeague === 'nba') {
+      showNbaBets(host);
+      return;
+    }
     var college = gbCollege();
     var stack = data && (college ? data.cfb_stack : data.game_stack);
     if (!stack || !stack.games || !stack.games.length) {

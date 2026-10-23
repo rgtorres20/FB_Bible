@@ -134,3 +134,15 @@ jobs:
         run: |
           python3 -m pip install --quiet httpx pydantic pydantic-settings
           python3 scripts/push_cfb.py
+
+      # NBA FFBets (Oct 23): the day's board, the box scores and game logs
+      # the deployment does not hold yet, and the injury report. Same
+      # reason it runs here -- ESPN 403s Vercel -- and same always-run rule.
+      - name: Push NBA slate
+        if: ${{ !cancelled() }}
+        env:
+          FBBIBLE_BASE: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          python3 -m pip install --quiet httpx pydantic pydantic-settings
+          python3 scripts/push_nba.py
