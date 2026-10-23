@@ -1,0 +1,56 @@
+name: Restore store
+
+# The other half of backup-store.yml (Oct 23): the Upstash database locked
+# at its plan cap, and the owner chose a new free database over paying.
+# This pulls the newest successful nightly backup (or the run named) and
+# POSTs it to /internal/restore, which opens it with the deployment's own
+# key and folds it in UNDER whatever the new store already holds -- safe
+# to run twice, safe after a sync. Feeds and the scorecard ledger only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Backup run id to restore (blank = newest successful)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list -R "$GITHUB_REPOSITORY" --workflow backup-store.yml \
+              --status success -L 1 --json databaseId -q '.[0].databaseId')
+          fi
+          echo "restoring backup run $RUN_ID"
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -D dump
+          ls -l dump/*/store-backup.json
+
+      - name: Push it to the deployment
+        env:
+          BASE_URL: ${{ vars.DEPLOY_URL || 'https://fb-bible-torro2.vercel.app' }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, urllib.request
+          dump = json.load(open(glob.glob("dump/*/store-backup.json")[0]))
+          print(f"backup taken {dump.get('taken_at')}")
+          req = urllib.request.Request(
+              f"{os.environ['BASE_URL']}/internal/restore",
+              data=json.dumps({"sealed": dump["sealed"]}).encode(),
+              headers={"Content-Type": "application/json", "X-Sync-Token": os.environ["SYNC_TOKEN"]},
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=120) as r:
+              print(r.read().decode())
+          PY

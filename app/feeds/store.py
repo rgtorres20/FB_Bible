@@ -204,6 +204,48 @@ def open_export(sealed: str, encryption_key: str) -> dict:
     return _Vault(encryption_key).read(sealed, BackupUnreadable)
 
 
+def restore_merge(current: dict, backup: dict) -> tuple[dict, dict]:
+    """Fold an opened backup into what the store holds now.
+
+    Built for moving to a new database (Oct 23, the old one locked at its
+    plan cap): by the time the restore runs, a sync may already have
+    written a fresh blob there. So the backup fills in under it rather
+    than replacing it -- what the store holds now wins key by key, wire
+    items are unioned by id keeping the earlier first_seen, and the
+    scorecard's entries are unioned by key, because that ledger is
+    immutable evidence and a restore must never drop or rewrite a row.
+    Returns (feeds, scorecard).
+    """
+    now_feeds = current.get("feeds") or {}
+    old_feeds = backup.get("feeds") or {}
+    feeds = {**old_feeds, **now_feeds}
+    if old_feeds.get("items") or now_feeds.get("items"):
+        by_id = {i["id"]: i for i in old_feeds.get("items") or [] if i.get("id")}
+        for item in now_feeds.get("items") or []:
+            prior = by_id.get(item.get("id"))
+            item = dict(item)
+            if (
+                prior
+                and prior.get("first_seen")
+                and (not item.get("first_seen") or prior["first_seen"] < item["first_seen"])
+            ):
+                item["first_seen"] = prior["first_seen"]
+            by_id[item.get("id")] = item
+        feeds["items"] = sorted(
+            by_id.values(), key=lambda i: i.get("published") or "", reverse=True
+        )
+
+    now_card = current.get("scorecard") or {}
+    old_card = backup.get("scorecard") or {}
+    scorecard = {**old_card, **now_card}
+    if old_card.get("entries") or now_card.get("entries"):
+        seen = {e.get("key") for e in now_card.get("entries") or []}
+        scorecard["entries"] = list(now_card.get("entries") or []) + [
+            e for e in old_card.get("entries") or [] if e.get("key") not in seen
+        ]
+    return feeds, scorecard
+
+
 class FeedStore(Protocol):
     async def load(self) -> dict: ...
 

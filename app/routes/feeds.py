@@ -55,7 +55,13 @@ from ..feeds import (
     watchlist,
     weekrev,
 )
-from ..feeds.store import BackupUnreadable, FeedStore, sealed_export
+from ..feeds.store import (
+    BackupUnreadable,
+    FeedStore,
+    open_export,
+    restore_merge,
+    sealed_export,
+)
 
 log = logging.getLogger(__name__)
 
@@ -1066,6 +1072,39 @@ async def backup_store(
     except BackupUnreadable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"taken_at": taken_at, "encrypted": True, "sealed": sealed}
+
+
+class RestoreIn(BaseModel):
+    sealed: str
+
+
+@router.post("/internal/restore", summary="Fold a sealed nightly backup back into the store")
+async def restore_store(
+    body: RestoreIn,
+    x_sync_token: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+    store: FeedStore = Depends(get_feed_store),
+) -> dict:
+    """The other half of /internal/backup (Oct 23): moving to a new free
+    database when the old one locked at its plan cap. Opens the dump with
+    the deployment's own key and folds it in UNDER what the store holds
+    now (`store.restore_merge`), so running it twice, or after a sync, is
+    safe. Feeds and the scorecard only -- the backup never carried the
+    access list or user blobs."""
+    _require_sync_token(settings, x_sync_token)
+    try:
+        backup = open_export(body.sealed, settings.token_encryption_key)
+    except BackupUnreadable as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    current = {"feeds": await store.load(), "scorecard": await store.load_scorecard()}
+    feeds, ledger = restore_merge(current, backup)
+    await store.save(feeds)
+    await store.save_scorecard(ledger)
+    return {
+        "taken_at": backup.get("taken_at"),
+        "items": len(feeds.get("items") or []),
+        "ledger_entries": len(ledger.get("entries") or []),
+    }
 
 
 @router.post("/internal/sync", summary="Poll every source and merge new items")
