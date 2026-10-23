@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1701 tests green — 1685 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1703 tests green — 1687 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -709,6 +709,13 @@ logs, college, NBA), so the six plain-JSON keys are now stored
 repo's news sample, more on the numeric blobs. Plain JSON written before
 still reads and is rewritten compressed by its own next save — no
 migration. The two vault keys keep their format.
+The owner chose a **new free database** over a paid tier, so the nightly
+backup gained its restore half: `restore-store.yml` downloads the newest
+backup artifact and POSTs it to `/internal/restore`, which folds it in
+*under* what the new store holds (`store.restore_merge` — wire items
+unioned keeping the earlier `first_seen`, ledger rows never dropped or
+rewritten), so it is safe after a sync and safe twice. The access list,
+passkeys and user blobs were never in the backup and start empty.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The

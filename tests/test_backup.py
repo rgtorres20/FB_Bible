@@ -86,3 +86,60 @@ def test_the_wrong_key_reads_as_unreadable_not_empty():
 def test_export_refuses_to_seal_with_no_key():
     with pytest.raises(store_mod.BackupUnreadable):
         store_mod.sealed_export({"feeds": {}}, "")
+
+
+async def test_restore_folds_the_backup_under_what_the_store_holds(client):
+    """Moving to a new database (Oct 23): a sync may already have written
+    there, so the backup fills in beneath it -- the 21-day archive comes
+    back, the newer item wins, the earlier first_seen survives, and no
+    ledger row is dropped or rewritten."""
+    c, store = client
+    await store.save(
+        {
+            "items": [
+                {"id": "old", "title": "archived", "published": "2026-10-20"},
+                {"id": "both", "title": "before edit", "first_seen": "2026-10-21"},
+            ],
+            "adp": {"a": 1},
+        }
+    )
+    await store.save_scorecard({"v": 1, "entries": [{"key": "k1", "result": "hit"}]})
+    sealed = c.get("/internal/backup", headers={"X-Sync-Token": "secret-token"}).json()["sealed"]
+
+    # The new, empty database, after one sync has run on it.
+    await store.save(
+        {
+            "items": [
+                {"id": "both", "title": "after edit", "first_seen": "2026-10-23"},
+                {"id": "new", "title": "fresh", "published": "2026-10-23"},
+            ],
+            "polled_at": "now",
+        }
+    )
+    await store.save_scorecard({"v": 1, "entries": [{"key": "k2"}, {"key": "k1"}]})
+
+    for _ in range(2):  # running it twice changes nothing
+        r = c.post(
+            "/internal/restore", json={"sealed": sealed}, headers={"X-Sync-Token": "secret-token"}
+        )
+        assert r.status_code == 200, r.text
+
+    feeds = await store.load()
+    items = {i["id"]: i for i in feeds["items"]}
+    assert set(items) == {"old", "both", "new"}
+    assert items["both"]["title"] == "after edit"
+    assert items["both"]["first_seen"] == "2026-10-21"
+    assert feeds["adp"] == {"a": 1} and feeds["polled_at"] == "now"
+    entries = (await store.load_scorecard())["entries"]
+    assert [e["key"] for e in entries] == ["k2", "k1"]
+    assert "result" not in entries[1], "the store's own row wins; nothing rewritten"
+
+
+async def test_restore_refuses_a_dump_it_cannot_open(client):
+    c, store = client
+    assert c.post("/internal/restore", json={"sealed": "x"}).status_code == 401
+    r = c.post(
+        "/internal/restore", json={"sealed": "garbage"}, headers={"X-Sync-Token": "secret-token"}
+    )
+    assert r.status_code == 422
+    assert await store.load() == {}
