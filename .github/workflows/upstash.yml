@@ -1,0 +1,37 @@
+name: Upstash admin
+
+# Oct 23: the database's plan limit took production down. This reads the
+# plan and usage through Upstash's official Developer API, and -- only when
+# asked -- turns on Auto Upgrade. Manual only. Needs two repo secrets the
+# owner creates: UPSTASH_EMAIL (the Upstash account email) and
+# UPSTASH_API_KEY (Upstash console -> Account -> Management API). The
+# script never prints either, nor any connection URL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "status (read only) or autoupgrade (can raise the bill)"
+        required: true
+        default: status
+        type: choice
+        options: [status, autoupgrade]
+      database:
+        description: "Database name (only needed if the account has several)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  upstash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet httpx
+      - env:
+          UPSTASH_EMAIL: ${{ secrets.UPSTASH_EMAIL }}
+          UPSTASH_API_KEY: ${{ secrets.UPSTASH_API_KEY }}
+          UPSTASH_DB: ${{ inputs.database }}
+        run: python3 scripts/upstash_admin.py "${{ inputs.action }}"
