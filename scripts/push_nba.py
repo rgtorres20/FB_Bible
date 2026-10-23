@@ -82,12 +82,9 @@ async def gather(known: dict) -> dict:
         advancing = True
         for day in days:
             payload = await nba.fetch_scoreboard(http, day)
-            if nba.preseason(payload):
-                # Not this season's sample: scanned, nothing stored.
-                if advancing:
-                    through = day
-                continue
-            events = payload.get("events") or []
+            # Preseason games are not counted, so a day of nothing else is
+            # complete with nothing stored.
+            events = nba.counted(payload)
             todo = [e for e in nba.finals(payload) if e not in stored]
             day_complete = len(nba.finals(payload)) == len(events)
             for event_id in todo:

@@ -49,7 +49,9 @@ GAMELOG = (
 )
 
 CENTRAL = ZoneInfo("America/Chicago")
-VERSION = 1
+# 2 (Oct 23): v1 stored 50 preseason box scores on its first live run;
+# bumping discards them and the runner rebuilds the season cleanly.
+VERSION = 2
 STATS = ("min", "pts", "reb", "ast")
 _BOX_LABELS = {"MIN": "min", "PTS": "pts", "REB": "reb", "AST": "ast"}
 
@@ -117,11 +119,18 @@ def season_year(payload: dict) -> int | None:
     return year if isinstance(year, int) else None
 
 
-def preseason(payload: dict) -> bool:
-    """ESPN stamps every board with season.type: 1 is the preseason, whose
-    exhibition minutes are not a sample a regular-season line is set
-    against."""
-    return (payload.get("season") or {}).get("type") == 1
+def _season_type(event: dict) -> int | None:
+    kind = (event.get("season") or {}).get("type")
+    return kind if isinstance(kind, int) else None
+
+
+def counted(payload: dict) -> list[dict]:
+    """The events that are this season's sample: everything but the
+    preseason. ESPN marks the season on each EVENT (`season.type`, 1 =
+    preseason) -- a board fetched for a date carries no top-level season
+    at all, which is how the first live run stored 50 exhibition games
+    (Oct 23, probed after)."""
+    return [e for e in payload.get("events") or [] if _season_type(e) != 1]
 
 
 def all_final(payload: dict) -> bool:
@@ -159,7 +168,8 @@ def slate(payload: dict, now: datetime | None = None) -> dict:
 
 
 def finals(payload: dict) -> list[str]:
-    return [str(e.get("id")) for e in payload.get("events") or [] if _state(e) == "post"]
+    """Finished games that count -- the preseason never does."""
+    return [str(e.get("id")) for e in counted(payload) if _state(e) == "post"]
 
 
 # --- box scores ---------------------------------------------------------------

@@ -959,8 +959,11 @@ and Vercel). The numbers chosen:
   ("G", "F", "C") is too coarse to rank against.
 - The runner marks a day scanned only once every game on it is final and
   stored, so a late game or a capped run is picked up next time.
-- **Preseason games never count.** ESPN stamps each day's board with
-  `season.type` (1 = preseason); those days are marked scanned and nothing
-  is stored — exhibition minutes are not the sample a line is set against.
-  Found on review: the first run's 14-day lookback from Oct 23 reaches the
-  preseason, which ended Oct 17.
+- **Preseason games never count.** ESPN marks the season on each
+  **event** (`season.type`, 1 = preseason) — a board fetched for a date
+  carries no top-level season at all (probed Oct 23). Preseason games are
+  skipped, and a day of nothing else is marked scanned with nothing stored:
+  exhibition minutes are not the sample a line is set against. The first
+  version checked the board instead, found nothing, and its first live run
+  stored 50 preseason box scores (Oct 9–17); the store's `VERSION` was
+  bumped to discard them and the runner rebuilt the season.
