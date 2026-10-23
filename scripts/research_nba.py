@@ -590,7 +590,128 @@ async def study2():
                               f"{st.mean(r['actual'] - r['avg'] for r in b):+.2f}")
 
 
+# --- round 3: a minutes forecast from pregame-knowable signals ---------------
+
+
+async def study3():
+    async with httpx.AsyncClient(follow_redirects=True) as http:
+        teams = (await http.get(f"{SITE}/teams", headers=UA)).json()
+        rosters = []
+        for t in teams["sports"][0]["leagues"][0]["teams"]:
+            rosters.append((await http.get(f"{SITE}/teams/{t['team']['id']}/roster", headers=UA)).json())
+        pos = positions(rosters)
+        sem = asyncio.Semaphore(12)
+        logs = await asyncio.gather(*(gamelog(http, sem, a) for a in pos))
+    games = {}
+    for aid, payload in logs:
+        if payload:
+            rows = rows_of(aid, payload, set())
+            if len(rows) >= 20:
+                games[aid] = rows
+    played = defaultdict(set)  # (team, day) -> aids who played
+    team_days = defaultdict(set)
+    for aid, gs in games.items():
+        for g in gs:
+            played[(g["team"], g["day"])].add(aid)
+            team_days[g["team"]].add(g["day"])
+    allowed = defaultdict(lambda: defaultdict(float))
+    for aid, gs in games.items():
+        for g in gs:
+            for k in ("pts", "reb", "ast", "min"):
+                allowed[(g["opp"], g["day"], pos.get(aid, ""))][k] += g[k]
+    cache = {}
+
+    def fpos(opp, day, group, stat):
+        key = (opp, day[:8] + str(int(day[8:10]) // 7), group, stat)
+        if key not in cache:
+            mine = [v[stat] / max(v["min"], 1) for (o, d, p), v in allowed.items()
+                    if o == opp and p == group and d < day]
+            league = [v[stat] / max(v["min"], 1) for (o, d, p), v in allowed.items() if p == group and d < day]
+            cache[key] = st.mean(mine) / st.mean(league) if len(mine) >= 8 else 1.0
+        return cache[key]
+
+    # Running minutes norms per player, for "who is a 30+ mpg regular before today".
+    def regulars(team, day):
+        out = []
+        for aid, gs in games.items():
+            past = [g for g in gs if g["day"] < day and g["team"] == team]
+            if len(past) >= 10 and st.mean(g["min"] for g in past[-15:]) >= 30:
+                out.append(aid)
+        return out
+
+    reg_cache = {}
+    # Fit the minutes adjustments on the first half, test everything on the second.
+    rows = []
+    for aid, gs in games.items():
+        for i, g in enumerate(gs):
+            past = gs[:i]
+            if len(past) < 10:
+                continue
+            mpg = st.mean(p["min"] for p in past)
+            if mpg < 15:
+                continue
+            key = (g["team"], g["day"][:8] + str(int(g["day"][8:10]) // 7))
+            if key not in reg_cache:
+                reg_cache[key] = regulars(g["team"], g["day"])
+            regs = [a for a in reg_cache[key] if a != aid]
+            out_regs = [a for a in regs if a not in played[(g["team"], g["day"])]]
+            prev = sorted(d for d in team_days[g["team"]] if d < g["day"])
+            returning = bool(prev) and prev[-1] not in {p["day"] for p in past[-3:]}
+            rows.append({
+                "day": g["day"], "g": g, "past": past, "mpg": mpg,
+                "min5": st.mean(p["min"] for p in past[-5:]),
+                "out": len(out_regs), "returning": returning, "pos": pos.get(aid, ""),
+            })
+    rows.sort(key=lambda r: r["day"])
+    half = rows[len(rows) // 2]["day"]
+    train = [r for r in rows if r["day"] < half]
+    test = [r for r in rows if r["day"] >= half]
+
+    def base_min(r):
+        return 0.5 * r["mpg"] + 0.5 * r["min5"]
+
+    adj = {}
+    for name, pick in (("out1", lambda r: r["out"] == 1), ("out2", lambda r: r["out"] >= 2),
+                       ("returning", lambda r: r["returning"])):
+        b = [r for r in train if pick(r)]
+        adj[name] = st.mean(r["g"]["min"] - base_min(r) for r in b) if b else 0.0
+    print(f"minutes adjustments fitted on games before {half}: "
+          + ", ".join(f"{k} {v:+.2f}" for k, v in adj.items()))
+
+    def pred_min(r):
+        m = base_min(r)
+        if r["out"] == 1:
+            m += adj["out1"]
+        elif r["out"] >= 2:
+            m += adj["out2"]
+        if r["returning"]:
+            m += adj["returning"]
+        return m
+
+    pm = [(pred_min(r), r["g"]["min"]) for r in test]
+    pm0 = [(r["mpg"], r["g"]["min"]) for r in test]
+    print(f"minutes forecast error on {len(test):,} later games: {mae(pm):.2f} vs his average minutes {mae(pm0):.2f}")
+    for stat in ("pts", "reb", "ast"):
+        preds = []
+        for r in test:
+            past = r["past"]
+            per_min = sum(p[stat] for p in past) / sum(p["min"] for p in past)
+            avg = st.mean(p[stat] for p in past)
+            model = per_min * pred_min(r) * fpos(r["g"]["opp"], r["day"], r["pos"], stat)
+            preds.append((model, avg, r["g"][stat]))
+        print(f"\n{stat.upper()}: model error {mae([(m, a) for m, _, a in preds]):.2f} "
+              f"vs season average {mae([(v, a) for _, v, a in preds]):.2f}")
+        # Edge buckets: model minus his average -> how often he beats the average
+        for lo, hi in ((-99, -3), (-3, -1.5), (-1.5, -0.5), (-0.5, 0.5), (0.5, 1.5), (1.5, 3), (3, 99)):
+            scale = 1 if stat == "pts" else 0.35
+            b = [(m, v, a) for m, v, a in preds if lo * scale <= m - v < hi * scale]
+            if b:
+                beat = sum(1 for m, v, a in b if a > v) / len(b)
+                print(f"  model {lo * scale:+.1f}..{hi * scale:+.1f} vs his avg: {len(b):5d} g · "
+                      f"beat his average {pct(beat)} · actual vs avg {st.mean(a - v for m, v, a in b):+.2f}")
+
+
 if __name__ == "__main__":
     part = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("PROBE_URL", "study")
-    parts = {"sources": sources, "study": study, "sources2": sources2, "study2": study2}
+    parts = {"sources": sources, "study": study, "sources2": sources2, "study2": study2, "study3": study3}
     asyncio.run(parts.get(part, study)())
