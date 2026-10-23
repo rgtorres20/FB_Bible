@@ -59,4 +59,9 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
-        run: python3 scripts/probe_endpoint.py
+        run: |
+          if [ "$PROBE_MODE" = "research" ]; then
+            python3 scripts/research_nba.py "$PROBE_URL"
+          else
+            python3 scripts/probe_endpoint.py
+          fi

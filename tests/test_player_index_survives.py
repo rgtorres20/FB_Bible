@@ -238,7 +238,28 @@ async def test_health_survives_an_unreadable_store(client, monkeypatch, anyio_ba
     monkeypatch.setattr(client._store, "load_players", boom)
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["players"] == {"count": None, "age_hours": None}
+    assert resp.json()["players"] == {
+        "count": None,
+        "age_hours": None,
+        "store_error": "RuntimeError: redis is gone",
+    }
+
+
+@pytest.mark.anyio
+async def test_health_names_a_store_error_without_its_secrets(client, monkeypatch, anyio_backend):
+    """Oct 23: every store read failed for hours while /health said ok, and
+    the reason lived only in Vercel's logs. It is named now -- with the
+    Redis URL (which carries the password) and host names removed."""
+
+    async def refused(*a, **k):
+        raise ConnectionError(
+            "Error connecting to rediss://default:hunter2@usw1-x.upstash.io:6379."
+        )
+
+    monkeypatch.setattr(client._store, "load_players", refused)
+    error = client.get("/health").json()["players"]["store_error"]
+    assert error == "ConnectionError: Error connecting to <redacted>"
+    assert "hunter2" not in error and "upstash" not in error
 
 
 # --- and the next failure explains itself --------------------------------
