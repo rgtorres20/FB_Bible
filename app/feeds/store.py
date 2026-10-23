@@ -13,8 +13,10 @@ same `TokenCipher` the Yahoo tokens use. See `_Vault`.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import zlib
 from pathlib import Path
 from typing import Protocol
 
@@ -416,6 +418,39 @@ class FileFeedStore:
         self._user_path(email).unlink(missing_ok=True)
 
 
+# --- compressed values (Oct 23) ----------------------------------------------
+#
+# Upstash's plan caps monthly BANDWIDTH -- every byte read or written -- and
+# the cap was hit on Oct 23: from ~11:29 UTC the database refused every
+# request and the whole app answered 500. Every sync, runner push and app
+# open re-reads these blobs whole, and they had grown (game logs, college,
+# NBA). So the plain-JSON keys are stored zlib-compressed: same data, a
+# fraction of the bytes on every read and write. The prefix marks the format,
+# and a value without it is the plain JSON written before Oct 23, which still
+# reads -- each key is rewritten compressed by its own next save, so there is
+# no migration step. The two vault keys (access list, personal layer) are
+# encrypted and small, and keep their own format.
+_PACKED = "z1:"
+
+
+def _pack(obj) -> str:
+    raw = json.dumps(obj, separators=(",", ":")).encode()
+    return _PACKED + base64.b64encode(zlib.compress(raw, 9)).decode("ascii")
+
+
+def _unpack(raw: str | None):
+    """The stored object, or None when the value is missing or unreadable --
+    each caller keeps its own default for that, exactly as before."""
+    if not raw:
+        return None
+    try:
+        if raw.startswith(_PACKED):
+            return json.loads(zlib.decompress(base64.b64decode(raw[len(_PACKED) :])))
+        return json.loads(raw)
+    except (ValueError, zlib.error):
+        return None
+
+
 class RedisFeedStore:
     def __init__(self, url: str, encryption_key: str = "") -> None:
         import redis.asyncio as redis
@@ -424,26 +459,14 @@ class RedisFeedStore:
         self._vault = _Vault(encryption_key)
 
     async def load(self) -> dict:
-        raw = await self._redis.get(_KEY)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return _unpack(await self._redis.get(_KEY)) or {}
 
     async def save(self, payload: dict) -> None:
-        await self._redis.set(_KEY, json.dumps(payload))
+        await self._redis.set(_KEY, _pack(payload))
 
     async def load_players(self) -> dict | None:
-        raw = await self._redis.get(_PLAYER_KEY)
-        if not raw:
-            return None
-        try:
-            index = json.loads(raw)
-        except json.JSONDecodeError:
-            return None
-        return index if _current_version(index) else None
+        index = _unpack(await self._redis.get(_PLAYER_KEY))
+        return index if index and _current_version(index) else None
 
     async def save_players(self, index: dict) -> None:
         # Retention, not expiry. The TTL used to be the freshness rule,
@@ -453,7 +476,7 @@ class RedisFeedStore:
         # copy. It is now a long backstop against an abandoned deployment;
         # `players.needs_refresh` decides when to fetch, and a failed
         # fetch keeps what is already here.
-        await self._redis.set(_PLAYER_KEY, json.dumps(index), ex=PLAYER_RETENTION_SECONDS)
+        await self._redis.set(_PLAYER_KEY, _pack(index), ex=PLAYER_RETENTION_SECONDS)
 
     async def load_auth(self) -> dict:
         return self._vault.read(await self._redis.get(_AUTH_KEY))
@@ -465,58 +488,34 @@ class RedisFeedStore:
         await self._redis.set(_AUTH_KEY, self._vault.write(payload))
 
     async def load_scorecard(self) -> dict:
-        raw = await self._redis.get(_SCORECARD_KEY)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return _unpack(await self._redis.get(_SCORECARD_KEY)) or {}
 
     async def save_scorecard(self, payload: dict) -> None:
         # Own key, no TTL. The ledger only grows and is the evidence the
         # accuracy page reads; a TTL would quietly delete the record.
-        await self._redis.set(_SCORECARD_KEY, json.dumps(payload))
+        await self._redis.set(_SCORECARD_KEY, _pack(payload))
 
     async def load_gamelogs(self) -> dict:
-        raw = await self._redis.get(_GAMELOGS_KEY)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return _unpack(await self._redis.get(_GAMELOGS_KEY)) or {}
 
     async def save_gamelogs(self, payload: dict) -> None:
         # Own key, no TTL: public box scores, not Yahoo data, and a finished
         # season is re-fetched only if this key is lost.
-        await self._redis.set(_GAMELOGS_KEY, json.dumps(payload))
+        await self._redis.set(_GAMELOGS_KEY, _pack(payload))
 
     async def load_cfb(self) -> dict:
-        raw = await self._redis.get(_CFB_KEY)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return _unpack(await self._redis.get(_CFB_KEY)) or {}
 
     async def save_cfb(self, payload: dict) -> None:
         # Own key, no TTL: public box scores and lines, not Yahoo data.
-        await self._redis.set(_CFB_KEY, json.dumps(payload))
+        await self._redis.set(_CFB_KEY, _pack(payload))
 
     async def load_nba(self) -> dict:
-        raw = await self._redis.get(_NBA_KEY)
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return {}
+        return _unpack(await self._redis.get(_NBA_KEY)) or {}
 
     async def save_nba(self, payload: dict) -> None:
         # Own key, no TTL: public box scores, lines and injury reports.
-        await self._redis.set(_NBA_KEY, json.dumps(payload))
+        await self._redis.set(_NBA_KEY, _pack(payload))
 
     async def load_user(self, email: str) -> dict:
         raw = await self._redis.get(_USER_KEY_PREFIX + email)

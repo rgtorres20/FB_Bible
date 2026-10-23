@@ -9,6 +9,8 @@ data fallbacks -- without a server or a new dependency.
 
 from __future__ import annotations
 
+import json
+
 from cryptography.fernet import Fernet
 
 from app.feeds import store as feed_store_mod
@@ -157,4 +159,68 @@ async def test_player_index_missing_or_corrupt_is_none():
     store, fake = _feed_store()
     assert await store.load_players() is None
     fake.data[feed_store_mod._PLAYER_KEY] = "]["
+    assert await store.load_players() is None
+
+
+# --- compressed values (Oct 23: the plan's bandwidth cap was hit) ------------
+
+
+def _feed_store() -> tuple[RedisFeedStore, FakeRedis]:
+    store = RedisFeedStore.__new__(RedisFeedStore)
+    fake = FakeRedis()
+    store._redis = fake
+    store._vault = feed_store_mod._Vault("")
+    return store, fake
+
+
+def _realistic_blob() -> dict:
+    """News-like rows: the repetitive keys and phrasing the real blob has."""
+    return {
+        "items": [
+            {
+                "id": f"n{i}",
+                "title": f"Player {i % 40} questionable for Sunday with an ankle injury",
+                "summary": "Coach said he was limited in practice Wednesday and Thursday.",
+                "source": "rotowire",
+                "published": f"2026-10-{1 + i % 28:02d}T12:00:00+00:00",
+                "players": [f"p{i % 40}"],
+            }
+            for i in range(400)
+        ]
+    }
+
+
+async def test_every_plain_key_is_stored_compressed_and_reads_back():
+    store, fake = _feed_store()
+    blob = _realistic_blob()
+    await store.save(blob)
+    await store.save_scorecard({"entries": [1, 2]})
+    await store.save_gamelogs({"v": 1, "players": {"1": {"games": {}}}})
+    await store.save_cfb({"v": 1})
+    await store.save_nba({"v": 2})
+    for key, value in fake.data.items():
+        assert value.startswith("z1:"), key
+    assert await store.load() == blob
+    assert await store.load_scorecard() == {"entries": [1, 2]}
+    assert (await store.load_nba()) == {"v": 2}
+    plain = len(json.dumps(blob))
+    stored = len(fake.data["fbbible:feeds"])
+    assert stored * 4 < plain, f"{stored} bytes stored for {plain} of JSON"
+
+
+async def test_values_written_before_compression_still_read():
+    """No migration step: the old plain JSON reads, and the next save of
+    that key rewrites it compressed."""
+    store, fake = _feed_store()
+    fake.data["fbbible:feeds"] = json.dumps({"items": [{"id": "old"}]})
+    assert await store.load() == {"items": [{"id": "old"}]}
+    await store.save(await store.load())
+    assert fake.data["fbbible:feeds"].startswith("z1:")
+
+
+async def test_a_corrupt_compressed_value_reads_like_a_corrupt_json_one():
+    store, fake = _feed_store()
+    fake.data["fbbible:feeds"] = "z1:not-base64-zlib!!"
+    assert await store.load() == {}
+    fake.data["fbbible:players"] = "z1:AAAA"
     assert await store.load_players() is None

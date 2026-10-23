@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1698 tests green — 1682 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1701 tests green — 1685 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -697,6 +697,18 @@ to `/internal/nba`; every shape was probed from the runner first, and the
 chosen numbers are in docs/ASSUMPTIONS.md. `verify_live.py` fails when the
 slate is absent or stale, when a row rests on no games, or when an Out
 player is offered.
+
+**The store's bandwidth cap took production down** (Oct 23, owner:
+*"bandwith limit hit"*). From ~11:29 UTC every Upstash request was refused
+("reached current Fixed plan limits"), so every endpoint answered 500 while
+`/health` still said ok — it swallowed the store error, and now reports it
+as `players.store_error`, URLs and hosts redacted. Every sync, runner push
+and app open re-reads the store's blobs whole, and they had grown (game
+logs, college, NBA), so the six plain-JSON keys are now stored
+**zlib-compressed** (`store._pack` / `_unpack`, prefix `z1:`): 2.4x on the
+repo's news sample, more on the numeric blobs. Plain JSON written before
+still reads and is rewritten compressed by its own next save — no
+migration. The two vault keys keep their format.
 
 **College FFBets** (owner, Sep 26: *"another section that looks at
 college games too just like nfl — let's keep to top 25 games"*). The
