@@ -96,7 +96,9 @@ def _summary(when, away, home, away_rows, home_rows):
     }
 
 
-def _event(eid, away, home, when, state, details="", ou=None, away_name="", home_name=""):
+def _event(
+    eid, away, home, when, state, details="", ou=None, away_name="", home_name="", season_type=2
+):
     comp = {
         "competitors": [
             {"homeAway": "home", "team": {"abbreviation": home, "displayName": home_name or home}},
@@ -107,7 +109,14 @@ def _event(eid, away, home, when, state, details="", ou=None, away_name="", home
     }
     if details:
         comp["odds"] = [{"details": details, "overUnder": ou}]
-    return {"id": eid, "date": when, "competitions": [comp]}
+    # ESPN marks the season on each event (probed Oct 23): a board fetched
+    # for a date carries no top-level season at all.
+    return {
+        "id": eid,
+        "date": when,
+        "season": {"year": 2027, "type": season_type},
+        "competitions": [comp],
+    }
 
 
 def _board(day, events, year=2027):
@@ -514,8 +523,12 @@ def test_the_runner_rolls_forward_and_marks_only_finished_days(monkeypatch):
                 )
             if day == "20261021":
                 # The preseason: scanned, never stored.
-                pre = _board("2026-10-21", [_event("9", "X", "Y", "2026-10-21T23:00Z", "post")])
-                pre["season"]["type"] = 1
+                # As live: no board-level season, the event marked preseason.
+                pre = _board(
+                    "2026-10-21",
+                    [_event("9", "X", "Y", "2026-10-21T23:00Z", "post", season_type=1)],
+                )
+                del pre["season"]
                 return httpx.Response(200, json=pre)
             if day == "20261022":
                 return httpx.Response(
