@@ -8,6 +8,7 @@ Runs two ways from the same module, deliberately:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -182,6 +183,14 @@ async def root() -> RedirectResponse:
     return RedirectResponse("/app/" if _FRONTEND_READY else "/docs")
 
 
+_SECRETISH = re.compile(r"\S+://\S+|\b[\w-]+(\.[\w-]+)+(:\d+)?\b")
+
+
+def _redact(text: str) -> str:
+    """Error text safe to return: URLs and host names replaced."""
+    return _SECRETISH.sub("<redacted>", text)
+
+
 @app.get("/health", tags=["meta"], summary="Liveness plus configuration state")
 async def health(
     store: FeedStore | None = Depends(feeds.get_optional_feed_store),
@@ -218,6 +227,11 @@ async def health(
             }
         except Exception as exc:  # noqa: BLE001 - report the gap, never raise
             logging.getLogger(__name__).warning("health: player index unreadable: %s", exc)
+            # Oct 23: every store read failed for hours and /health still
+            # said ok -- the reason was only in Vercel's logs. Name it here,
+            # with anything URL- or host-shaped removed (a connection error
+            # can quote the Redis URL, which carries the password).
+            index_state["store_error"] = _redact(f"{type(exc).__name__}: {exc}")[:240]
     return {
         "status": "ok",
         "stage": settings.stage,
