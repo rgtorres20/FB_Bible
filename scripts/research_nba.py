@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- research output formatting, not app code
 """NBA research (owner, Oct 23: "what is out there to measure ... matchups,
 strong players vs weak ... minutes will matter, more minutes more points").
 
@@ -117,7 +118,7 @@ async def sources():
             player = p.get("player") or {}
             print(f"  {player.get('fullName')}: {len(player.get('stats') or [])} stat blocks")
             for s in player.get("stats") or []:
-                keys = list((s.get("stats") or {}))[:8]
+                keys = list(s.get("stats") or {})[:8]
                 print(
                     f"   source {s.get('statSourceId')} split {s.get('statSplitTypeId')} "
                     f"period {s.get('scoringPeriodId')} id {s.get('id')} keys {keys}"
@@ -253,7 +254,6 @@ def study_on(games_by_player):
     stats = ("pts", "reb", "ast")
     # Opponent allowed, accumulated chronologically: per (opp, day) totals of
     # what our logged players scored against that opponent.
-    by_day = sorted({g["day"] for gs in games_by_player.values() for g in gs})
     opp_game = defaultdict(lambda: defaultdict(float))  # (opp, day) -> stat totals
     for gs in games_by_player.values():
         for g in gs:
@@ -412,7 +412,7 @@ def teammates_out(games_by_player):
         for a in players:
             team_of.setdefault(a, defaultdict(int))[team] += 1
     deltas = defaultdict(list)
-    for (team, day), present in by_team_day.items():
+    for (team, _day), present in by_team_day.items():
         regulars = [
             a for a, t in team_of.items() if max(t, key=t.get) == team and mpg.get(a, 0) >= 30
         ]
