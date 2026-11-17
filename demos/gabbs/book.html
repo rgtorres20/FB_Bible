@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Book · Gabbs Glamour</title>
+  <meta name="description" content="Book a lash appointment with Gabby in Tomball, TX. Demo mockup.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pinyon+Script&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    .book-hero { position: relative; overflow: hidden; padding: 28px 0 8px; text-align: center; }
+    .book-hero .script { margin: 0; line-height: 1.1; }
+    .book-hero p.lede { margin: 6px auto 0; max-width: 520px; }
+    .petal { width: 12px; height: 16px; border-radius: 70% 0 70% 0; background: linear-gradient(135deg, var(--pink-soft), var(--pink)); opacity: 0.6; }
+
+    .book-main { max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; }
+
+    /* Stepper */
+    .stepper { list-style: none; display: flex; gap: 6px; padding: 0; margin: 18px 0 22px; counter-reset: st; }
+    .stepper li { flex: 1 1 0; min-width: 0; text-align: center; font-size: 12px; color: var(--ink-mute); }
+    .stepper .bar { display: block; height: 4px; border-radius: 4px; background: var(--line); margin-bottom: 6px; }
+    .stepper li.done .bar { background: var(--rose); }
+    .stepper li.current .bar { background: var(--pink); }
+    .stepper li.current { color: var(--pink); font-weight: 600; }
+    .stepper li.done { color: var(--ink-soft); }
+    .stepper li.skipped .bar { background: repeating-linear-gradient(90deg, var(--rose) 0 6px, transparent 6px 10px); }
+    .stepper .lbl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 480px) { .stepper .lbl { display: none; } .stepper li.current .lbl { display: block; overflow: visible; } }
+
+    .step-title { font-size: 26px; margin: 0 0 4px; }
+    .step-sub { margin: 0 0 18px; }
+    .step:focus { outline: none; }
+    .group-h { font-family: var(--serif); font-size: 18px; color: var(--ink-soft); margin: 20px 0 10px; }
+
+    /* Selectable option rows (services, payment methods) */
+    .opt { display: flex; width: 100%; text-align: left; gap: 12px; align-items: flex-start; justify-content: space-between; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; font: inherit; cursor: pointer; }
+    .opt:hover { border-color: var(--pink); }
+    .opt:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+    .opt[aria-pressed="true"], .opt[aria-checked="true"] { border-color: var(--pink); background: #2a1a23; box-shadow: inset 0 0 0 1px var(--pink); }
+    .opt .name { font-weight: 600; display: block; }
+    .opt .note { font-size: 14px; color: var(--ink-mute); display: block; margin-top: 2px; }
+    .opt .meta { text-align: right; flex: none; }
+    .opt .price { font-family: var(--serif); font-size: 18px; color: var(--pink); display: block; white-space: nowrap; }
+    .opt .price.small { font-family: var(--sans); font-size: 13px; }
+    .opt .dur { font-size: 13px; color: var(--ink-mute); white-space: nowrap; }
+
+    /* Days and slots */
+    .days { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+    .day { flex: none; width: 66px; scroll-snap-align: start; background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 14px; padding: 8px 4px; font: inherit; cursor: pointer; text-align: center; }
+    .day .dow { display: block; font-size: 12px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+    .day .dnum { display: block; font-family: var(--serif); font-size: 22px; line-height: 1.2; }
+    .day .mon { display: block; font-size: 12px; color: var(--ink-soft); }
+    .day .closed { display: block; font-size: 11px; color: var(--ink-mute); }
+    .day[disabled] { opacity: 0.4; cursor: not-allowed; }
+    .day[aria-pressed="true"] { border-color: var(--pink); background: #2a1a23; box-shadow: inset 0 0 0 1px var(--pink); }
+    .day:focus-visible, .slot:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+    .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 8px; }
+    .slot { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 12px; padding: 10px 6px; font: 600 15px var(--sans); cursor: pointer; min-height: 44px; }
+    .slot .fee { display: block; font-size: 11px; font-weight: 500; color: var(--warn); }
+    .slot[aria-pressed="true"] { border-color: var(--pink); background: var(--pink); color: var(--bg); }
+    .slot[aria-pressed="true"] .fee { color: var(--deep); }
+    .empty { padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 14px; color: var(--ink-mute); }
+
+    /* Forms */
+    .field { margin-bottom: 14px; }
+    .field .hint { font-size: 13px; color: var(--ink-mute); margin-top: 4px; }
+    fieldset { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 6px; margin: 0 0 16px; }
+    legend { padding: 0 6px; font-family: var(--serif); font-size: 17px; color: var(--ink); }
+    .yn { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 8px 0; border-bottom: 1px solid #2c2228; }
+    .yn:last-child { border-bottom: 0; }
+    .yn .q { flex: 1 1 220px; font-size: 15px; color: var(--ink-soft); }
+    .yn .choices { display: flex; gap: 14px; }
+    .yn label, .check label { margin: 0; color: var(--ink); font-size: 15px; }
+    .yn input[type=radio], .check input[type=checkbox] { width: 20px; height: 20px; min-height: 0; accent-color: var(--pink); margin: 0 6px 0 0; vertical-align: middle; }
+    .yn .choices label { display: inline-flex; align-items: center; cursor: pointer; }
+    .check { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+    .check input { flex: none; margin-top: 3px !important; }
+    .check label { cursor: pointer; }
+    input[type=radio]:focus-visible, input[type=checkbox]:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+    .consent-text { font-size: 14px; color: var(--ink-soft); max-height: 220px; overflow: auto; padding: 12px 14px; background: var(--panel-2); border-radius: 12px; margin-bottom: 16px; }
+    .consent-text p { margin: 0 0 10px; }
+    .sigpad-wrap { position: relative; }
+    .sigpad { display: block; width: 100%; height: 160px; background: var(--ivory); border-radius: 12px; touch-action: none; cursor: crosshair; }
+    .sigpad:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+    .sigpad-line { position: absolute; left: 18px; right: 18px; bottom: 34px; border-bottom: 1px solid #c9b6bf; pointer-events: none; }
+    .sigpad-x { position: absolute; left: 14px; bottom: 36px; color: #a58c98; font-size: 18px; pointer-events: none; }
+    .sig-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; }
+
+    /* Summary and totals */
+    .sum { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .sum th { text-align: left; font-weight: 400; color: var(--ink-soft); padding: 7px 0; }
+    .sum td { text-align: right; padding: 7px 0; }
+    .sum tr.total th, .sum tr.total td { border-top: 1px solid var(--line); font-weight: 600; color: var(--ink); padding-top: 10px; }
+    .sum tr.due th, .sum tr.due td { color: var(--pink); font-weight: 600; }
+    .coupon-row { display: flex; gap: 8px; }
+    .coupon-row input { flex: 1; text-transform: uppercase; }
+    .msg { font-size: 14px; margin-top: 6px; min-height: 1.2em; }
+    .msg.ok { color: var(--ok); }
+    .msg.bad { color: var(--warn); }
+
+    .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .pay { min-height: 64px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font: 600 16px var(--sans); cursor: pointer; text-align: left; }
+    .pay small { font-weight: 400; font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+    .pay:hover { border-color: var(--pink); }
+    .pay:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+    .pay[aria-checked="true"] { border-color: var(--pink); background: #2a1a23; box-shadow: inset 0 0 0 1px var(--pink); }
+    .pay.wide { grid-column: 1 / -1; }
+    .pay-note { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); font-size: 14px; color: var(--ink-soft); }
+    .pay-note strong { color: var(--ink); overflow-wrap: anywhere; }
+    .policy-list { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-soft); }
+    .policy-list li { margin-bottom: 6px; }
+
+    .actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; flex-wrap: wrap-reverse; }
+    .actions .btn { flex: 1 1 140px; }
+    .actions .spacer { flex: 1 1 140px; }
+    .err { color: var(--warn); font-size: 14px; margin-top: 10px; min-height: 1.2em; }
+    .stack > * + * { margin-top: 16px; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
+    /* Confirmation */
+    .done-head { text-align: center; }
+    .phone-mock { max-width: 340px; margin: 0 auto; background: #0b0809; border: 1px solid var(--line); border-radius: 26px; padding: 18px 14px 22px; }
+    .phone-mock .from { text-align: center; font-size: 12px; color: var(--ink-mute); margin-bottom: 10px; }
+    .bubble { background: #2c2a2e; color: #f2eef0; border-radius: 18px 18px 18px 4px; padding: 10px 14px; font-size: 15px; line-height: 1.4; max-width: 92%; }
+    .bubble + .bubble { margin-top: 8px; }
+    .stop-card { text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="demo-ribbon">Demo mockup · nothing is booked or charged</div>
+  <header class="site-head"><nav><a class="brand" href="./">Gabbs Glamour</a><div class="nav-links"><a href="./#services">Services</a><a href="./#work">Her work</a><a href="./#policies">Policies</a><a class="btn small" href="./book.html">Book now</a></div></nav></header>
+
+  <section class="book-hero" aria-labelledby="book-h">
+    <div class="petals" aria-hidden="true" id="petals"></div>
+    <h1 id="book-h" class="script" style="font-size:44px">book your set</h1>
+    <p class="lede soft">Gabby · lash artist in Tomball, TX</p>
+  </section>
+
+  <main class="book-main">
+    <ol class="stepper" id="stepper" aria-label="Booking progress"></ol>
+    <div id="live" class="visually-hidden" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap"></div>
+    <div id="screen"></div>
+  </main>
+
+  <footer class="site-foot">
+    <p class="script" style="font-size:30px;margin:0 0 6px">Gabbs Glamour</p>
+    <p style="margin:0">Lash extensions by Gabby · Tomball, TX</p>
+    <p style="margin:6px 0 0">This booking page is a demo mockup. Nothing is booked, sent, or charged.</p>
+  </footer>
+
+  <script src="./data.js"></script>
+  <script src="./book.js"></script>
+</body>
+</html>

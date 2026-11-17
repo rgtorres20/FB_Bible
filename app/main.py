@@ -593,3 +593,19 @@ if (_SOLITAIRE_DIR / "index.html").exists():
         return RedirectResponse("/solitaire/", status_code=307)
 
     app.mount("/solitaire", StaticFiles(directory=_SOLITAIRE_DIR, html=True), name="solitaire")
+
+
+# The Gabbs Glamour website demo (owner ask, Nov 16): a static mockup of a
+# lash artist's site -- home page, booking flow, admin page -- shown to her
+# from here. Public and outside /app for the same reasons as solitaire: it
+# reads no league data and keeps its demo state in the visitor's own
+# browser. Nothing in it touches the app, the store or the gate.
+_GABBS_DIR = Path(__file__).resolve().parent.parent / "demos" / "gabbs"
+if (_GABBS_DIR / "index.html").exists():
+
+    @app.get("/gabbs", include_in_schema=False)
+    async def gabbs_slash() -> RedirectResponse:
+        # The pages link each other relatively, so they need the slash.
+        return RedirectResponse("/gabbs/", status_code=307)
+
+    app.mount("/gabbs", StaticFiles(directory=_GABBS_DIR, html=True), name="gabbs")
