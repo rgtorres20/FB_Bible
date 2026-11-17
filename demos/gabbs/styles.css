@@ -1,0 +1,84 @@
+/* Gabbs Glamour demo: shared look for every page. */
+:root {
+  --ink: #fbf6f3;
+  --ink-soft: #d9ccd3;
+  --ink-mute: #b9a8b1;
+  --bg: #120d10;
+  --panel: #1a1317;
+  --panel-2: #2a1f25;
+  --line: #3a2d34;
+  --pink: #f4a6c8;
+  --pink-soft: #ffd1e4;
+  --ivory: #fbf6f3;
+  --deep: #1d1418;
+  --rose: #b02a68;
+  --ok: #8fd6a8;
+  --warn: #ffb37a;
+  --radius: 18px;
+  --serif: "Playfair Display", Georgia, serif;
+  --script: "Pinyon Script", cursive;
+  --sans: Inter, system-ui, -apple-system, sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+a { color: var(--pink); }
+a:hover { color: var(--pink-soft); }
+img { max-width: 100%; display: block; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+.script { font-family: var(--script); color: var(--pink); font-weight: 400; }
+.serif { font-family: var(--serif); font-weight: 500; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 500; margin: 0; }
+.muted { color: var(--ink-mute); }
+.soft { color: var(--ink-soft); }
+
+/* Header */
+.site-head { position: sticky; top: 0; z-index: 20; background: rgba(18, 13, 16, 0.93); border-bottom: 1px solid #2c2228; backdrop-filter: blur(6px); }
+.site-head nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; max-width: 1180px; margin: 0 auto; }
+.brand { font-family: var(--script); font-size: 32px; color: var(--pink); text-decoration: none; }
+.nav-links { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-size: 15px; }
+.nav-links a { color: var(--ink); text-decoration: none; }
+.nav-links a:hover { color: var(--pink); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 12px 24px; border-radius: 999px; border: 1px solid var(--pink); background: var(--pink); color: var(--bg); font: 600 16px var(--sans); text-decoration: none; cursor: pointer; }
+.btn:hover { background: var(--pink-soft); color: var(--bg); }
+.btn.ghost { background: transparent; color: var(--pink); }
+.btn.ghost:hover { background: rgba(244, 166, 200, 0.12); color: var(--pink-soft); }
+.btn.dark { background: var(--bg); border-color: var(--bg); color: var(--ink); }
+.btn.small { min-height: 36px; padding: 6px 14px; font-size: 14px; }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+/* Cards and forms */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
+input, select, textarea { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); font: 16px var(--sans); }
+input:focus, select:focus, textarea:focus, .btn:focus-visible, a:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+.chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--line); color: var(--ink-soft); }
+.chip.pink { border-color: var(--pink); color: var(--pink); }
+.chip.ok { border-color: var(--ok); color: var(--ok); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+
+/* Demo ribbon: says plainly this is a mockup. */
+.demo-ribbon { background: var(--pink); color: var(--bg); text-align: center; font-size: 13px; font-weight: 600; padding: 6px 12px; }
+.demo-ribbon a { color: var(--bg); }
+
+/* Falling petals */
+.petals { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.petal { position: absolute; top: -40px; animation: petal-fall linear infinite; }
+@keyframes petal-fall {
+  0% { transform: translate3d(0, -60px, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  50% { transform: translate3d(40px, 45vh, 0) rotate(180deg); }
+  100% { transform: translate3d(-30px, 105vh, 0) rotate(360deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .petal { animation: none; opacity: 0.4; } }
+
+.site-foot { border-top: 1px solid #2c2228; padding: 40px 20px; text-align: center; color: var(--ink-mute); font-size: 14px; }
+
+/* Phones: keep the header to one line; the page sections are a scroll away. */
+@media (max-width: 560px) {
+  .site-head .nav-links a:not(.btn) { display: none; }
+  .brand { font-size: 28px; }
+}
