@@ -238,7 +238,7 @@ encrypted swappable token store, and read endpoints for leagues, teams,
 rosters, draft results, scoreboard and transactions. Plus the browser client
 in `frontend/lib/` and CI in `.github/workflows/ci.yml`.
 
-1703 tests green — 1687 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
+1706 tests green — 1690 Python (`pytest`) and 16 JS (`cd frontend/lib && node --test`) —
 lint and format clean. CI runs all of it plus a secret guard on every push
 to main and beta.
 Hosting decision and its Phase 3 cost: [docs/HOSTING.md](docs/HOSTING.md).
@@ -942,6 +942,11 @@ build in `games/solitaire/`, mounted outside `/app` so it is public, off
 the gate and out of the app's service-worker scope; it touches no league
 data. Its source is a separate project, so rebuild there and copy `dist/`
 over rather than editing the built files.
+
+**`/gabbs/` serves the Gabbs Glamour website demo** (owner, Nov 16): a
+static mockup of a lash artist's site (home, booking flow, admin page) in
+`demos/gabbs/`, mounted like solitaire: public, off the gate, no league
+data. Its demo state lives in the visitor's own `localStorage`.
 
 Not yet done: verified against a live Yahoo account — blocked on Yahoo's
 fantasy-access approval (see docs/RESUME.md), not on code.
